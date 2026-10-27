@@ -181,6 +181,10 @@ type mResult struct {
 	Vol  endpoint.Volume   // CreateVolume: ID Kind CapacityBytes SourceType SourceID
 	Snap endpoint.Snapshot // CreateSnapshot: ID SourceVolumeID SizeBytes ReadyToUse
 	Acts []string          // Reconcile: sorted "target|reason"
+	// Reconcile: every skip target the dry run and the run reported.
+	// Not compared with the model (its reasons are the endpoint's
+	// diagnostics); checkSkips holds them to what the endpoint owns.
+	Skips []string
 }
 
 func (m *Model) volView(id string) endpoint.Volume {

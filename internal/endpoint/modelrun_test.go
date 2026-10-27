@@ -738,8 +738,14 @@ func (g *rig) rpc(ctx context.Context, st Step) mResult {
 		req := endpoint.ReconcileRequest{DesiredVolumeIDs: st.Desired, MinAge: time.Hour, DryRun: true}
 		var p endpoint.ReconcilePlan
 		if p, err = g.ep.Reconcile(ctx, req); err == nil {
+			for _, s := range p.Skipped {
+				res.Skips = append(res.Skips, s.Target)
+			}
 			req.DryRun, req.PlanDigest = false, p.Digest
 			p, err = g.ep.Reconcile(ctx, req)
+		}
+		for _, s := range p.Skipped {
+			res.Skips = append(res.Skips, s.Target)
 		}
 		for _, a := range p.Actions {
 			res.Acts = append(res.Acts, a.Target+"|"+a.Reason)
@@ -751,6 +757,26 @@ func (g *rig) rpc(ctx context.Context, st Step) mResult {
 		res.Vol, res.Snap, res.Acts = endpoint.Volume{}, endpoint.Snapshot{}, nil
 	}
 	return res
+}
+
+// checkSkips: Reconcile reports only on what it was asked about or owns.
+// A dataset that is not an owned volume (an administrator's, a received
+// copy, a renamed one still carrying another volume's markers) is no
+// candidate for collection, so it never shows up as one held back (OWN-02).
+// Snapshot targets (clone-source reports) and the "(N more)" tail of the
+// missing-desired report are left to the result comparison.
+func checkSkips(pm *Model, st Step, got mResult) string {
+	if st.Op != "Reconcile" {
+		return ""
+	}
+	for _, t := range got.Skips {
+		if strings.Contains(t, "@") || strings.HasPrefix(t, "(") ||
+			slices.Contains(st.Desired, t) || pm.ownedVol(t) {
+			continue
+		}
+		return fmt.Sprintf("skip names %s, which is not an owned volume (skips %v)", t, got.Skips)
+	}
+	return ""
 }
 
 func sameResult(a, b mResult) bool {
@@ -993,6 +1019,9 @@ func (r *runner) step(ctx context.Context, i int, st Step) *failure {
 		f.step = i
 		return f
 	}
+	if bad := checkSkips(pm, st, got); bad != "" {
+		return fail("reconcile-foreign-skip", "%s", bad)
+	}
 
 	// candidates for what should have happened
 	type cand struct {
@@ -1055,6 +1084,9 @@ func (r *runner) step(ctx context.Context, i int, st Step) *failure {
 		retried = true
 		got = g.rpc(ctx, st)
 		runStats.add("retry")
+		if bad := checkSkips(pm, st, got); bad != "" {
+			return fail("reconcile-foreign-skip", "retry: %s", bad)
+		}
 		if world, err = g.read(ctx); err != nil {
 			return fail("read", "%v", err)
 		}
