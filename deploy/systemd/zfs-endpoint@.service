@@ -59,9 +59,10 @@ Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
 # NFS mode (ADR 0004, ADR 0009): -nfs-server words, split by systemd at
 # whitespace (unbraced $VAR above) and dropped when empty, as here. Set it
 # in a drop-in rather than restating ExecStart: copy
-# zfs-endpoint@.service.d/nfs.conf.example to nfs.conf and edit it.
-# Without it the endpoint is not in NFS mode, and zfs-csi provisions no
-# filesystem volume unless started with -enable-local-filesystem.
+# zfs-endpoint@.service.d/zfs-endpoint-nfs.conf.example to
+# zfs-endpoint-nfs.conf and edit it (README, "Install"). Without it the
+# endpoint is not in NFS mode, and zfs-csi provisions no filesystem
+# volume unless started with -enable-local-filesystem.
 Environment=ZFS_ENDPOINT_NFS=
 
 # /run/zfs-endpoint, 0700, shared by all instances: it holds the

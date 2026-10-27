@@ -26,7 +26,7 @@ import (
 )
 
 // nfsController is zfs-csi over an endpoint in NFS mode (one -nfs-server)
-// on the simulator: what the shipped unit runs with the nfs.conf drop-in.
+// on the simulator: what the shipped unit runs with the NFS drop-in.
 func nfsController(t *testing.T) *zcsi.Controller {
 	t.Helper()
 	ctx := context.Background()
@@ -55,12 +55,18 @@ func nfsController(t *testing.T) *zcsi.Controller {
 	return &zcsi.Controller{EP: pb.NewEndpointServiceClient(conn)}
 }
 
-// The shipped StorageClass is for NFS mode (ADR 0009) and its nfs.clients
-// is a placeholder the controller refuses, naming the value: a PVC fails
-// fast with ProvisioningFailed until the operator writes the node network.
-// A plausible CIDR would parse and export to nobody (the pod hangs at
-// mount). With a real network in its place the same class provisions.
-func TestStorageClassClientsPlaceholder(t *testing.T) {
+// The shipped StorageClass is for NFS mode (ADR 0009), and every value an
+// operator must choose is a placeholder the controller refuses, naming
+// it: a PVC fails fast with ProvisioningFailed until each is written.
+//   - nfs.clients: a plausible CIDR would parse and export to nobody (the
+//     pod hangs at mount).
+//   - nfs.uid, nfs.gid, nfs.mode: left out, the volume root is root:root
+//     0755, and under root_squash with fsGroupPolicy None no pod, root
+//     included, can write it (the pod starts, every write is EACCES).
+//
+// Each placeholder alone is refused for its value, and with all four
+// replaced the same class provisions.
+func TestStorageClassPlaceholders(t *testing.T) {
 	t.Parallel()
 	sc := object(t, k8sObjects(t), "StorageClass", className)
 	params := map[string]string{}
@@ -71,16 +77,29 @@ func TestStorageClassClientsPlaceholder(t *testing.T) {
 		}
 		params[k] = s
 	}
-	placeholder, ok := params[zcsi.ParamNFSClients]
-	if !ok || !strings.Contains(placeholder, "<") {
-		t.Fatalf("StorageClass %s=%q: want a <placeholder>", zcsi.ParamNFSClients, placeholder)
-	}
 	b, err := os.ReadFile(filepath.Join("k8s", "classes.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "replace "+placeholder) {
-		t.Errorf("classes.yaml does not tell the operator to replace %s", placeholder)
+	header, _, _ := strings.Cut(string(b), "\napiVersion:")
+	// a value each parses to, as an operator would write it
+	values := map[string]string{
+		zcsi.ParamNFSClients: "10.20.0.0/24",
+		zcsi.ParamNFSUID:     "1000",
+		zcsi.ParamNFSGID:     "2000",
+		zcsi.ParamNFSMode:    "2775",
+	}
+	for k := range values {
+		placeholder, ok := params[k]
+		if !ok || !strings.HasPrefix(placeholder, "<") {
+			t.Fatalf("StorageClass %s=%q: want a <placeholder>", k, placeholder)
+		}
+		if !strings.Contains(header, placeholder) {
+			t.Errorf("classes.yaml's comments do not tell the operator to replace %s", placeholder)
+		}
+	}
+	if !strings.Contains(header, "replace "+params[zcsi.ParamNFSClients]) {
+		t.Errorf("classes.yaml does not tell the operator to replace %s", params[zcsi.ParamNFSClients])
 	}
 
 	ctl := nfsController(t)
@@ -94,14 +113,22 @@ func TestStorageClassClientsPlaceholder(t *testing.T) {
 		})
 		return err
 	}
-	err = create("pvc-shipped", params)
-	if status.Code(err) != codes.InvalidArgument || !strings.Contains(status.Convert(err).Message(), placeholder) {
-		t.Errorf("the shipped class: %v, want InvalidArgument naming %q", err, placeholder)
+	if err := create("pvc-shipped", params); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("the shipped class: %v, want InvalidArgument", err)
+	}
+	for k := range values {
+		p := maps.Clone(params)
+		maps.Copy(p, values)
+		p[k] = params[k]
+		err := create("pvc-"+strings.ReplaceAll(k, ".", "-"), p)
+		if status.Code(err) != codes.InvalidArgument || !strings.Contains(status.Convert(err).Message(), params[k]) {
+			t.Errorf("the class with only %s left as shipped: %v, want InvalidArgument naming %q", k, err, params[k])
+		}
 	}
 	set := maps.Clone(params)
-	set[zcsi.ParamNFSClients] = "10.20.0.0/24"
+	maps.Copy(set, values)
 	if err := create("pvc-set", set); err != nil {
-		t.Errorf("the class with nfs.clients set: %v", err)
+		t.Errorf("the class with every placeholder replaced: %v", err)
 	}
 }
 

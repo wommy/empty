@@ -124,7 +124,7 @@ func TestUnitNFSDropIn(t *testing.T) {
 		t.Errorf("unit Environment=%q: want %s= (empty: not NFS mode)", unit["Environment"], env)
 	}
 
-	example := filepath.Join("systemd", "zfs-endpoint@.service.d", "nfs.conf.example")
+	example := filepath.Join("systemd", "zfs-endpoint@.service.d", "zfs-endpoint-nfs.conf.example")
 	b, err := os.ReadFile(example)
 	if err != nil {
 		t.Fatal(err)
@@ -166,38 +166,88 @@ func TestUnitNFSDropIn(t *testing.T) {
 // k8sObjects decodes every document in deploy/k8s.
 func k8sObjects(t *testing.T) []map[string]any {
 	t.Helper()
+	var out []map[string]any
+	for _, f := range k8sFiles(t) {
+		out = append(out, k8sFile(t, f)...)
+	}
+	return out
+}
+
+// k8sFiles lists deploy/k8s's manifests in the order `kubectl apply -f
+// deploy/k8s/` applies them: by file name.
+func k8sFiles(t *testing.T) []string {
+	t.Helper()
 	files, err := filepath.Glob(filepath.Join("k8s", "*.yaml"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no manifests: %v", err)
 	}
+	slices.Sort(files)
+	return files
+}
+
+// k8sFile decodes the documents of one manifest.
+func k8sFile(t *testing.T, f string) []map[string]any {
+	t.Helper()
+	b, err := os.ReadFile(f)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var out []map[string]any
-	for _, f := range files {
-		b, err := os.ReadFile(f)
+	dec := yaml.NewDecoder(bytes.NewReader(b))
+	for {
+		var obj map[string]any
+		err := dec.Decode(&obj)
+		if errors.Is(err, io.EOF) {
+			break
+		}
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", f, err)
 		}
-		dec := yaml.NewDecoder(bytes.NewReader(b))
-		for {
-			var obj map[string]any
-			err := dec.Decode(&obj)
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				t.Fatalf("%s: %v", f, err)
-			}
-			if obj == nil {
-				continue
-			}
-			for _, k := range []string{"apiVersion", "kind", "metadata"} {
-				if obj[k] == nil {
-					t.Errorf("%s: a document has no %s", f, k)
-				}
-			}
-			out = append(out, obj)
+		if obj == nil {
+			continue
 		}
+		for _, k := range []string{"apiVersion", "kind", "metadata"} {
+			if obj[k] == nil {
+				t.Errorf("%s: a document has no %s", f, k)
+			}
+		}
+		out = append(out, obj)
 	}
 	return out
+}
+
+// `kubectl apply -f deploy/k8s/` works the first time: it applies files in
+// name order and refuses an object whose namespace does not exist yet, so
+// the first file is the Namespace, alone, and every namespaced object is
+// in it. (classes.yaml's VolumeSnapshotClass still needs the snapshot CRDs
+// installed beforehand; README "Install" says so.)
+func TestNamespaceAppliesFirst(t *testing.T) {
+	t.Parallel()
+	files := k8sFiles(t)
+	first := k8sFile(t, files[0])
+	if len(first) != 1 || first[0]["kind"] != "Namespace" || get(first[0], "metadata", "name") != namespace {
+		t.Fatalf("%s, the first file applied, holds %d objects: want only the Namespace %s", files[0], len(first), namespace)
+	}
+	clusterScoped := map[string]bool{
+		"Namespace": true, "ClusterRole": true, "ClusterRoleBinding": true,
+		"CSIDriver": true, "StorageClass": true, "VolumeSnapshotClass": true,
+	}
+	for _, f := range files[1:] {
+		for _, o := range k8sFile(t, f) {
+			kind, _ := o["kind"].(string)
+			name, ns := get(o, "metadata", "name"), get(o, "metadata", "namespace")
+			switch {
+			case kind == "Namespace":
+				t.Errorf("%s: Namespace %v outside %s", f, name, files[0])
+			case clusterScoped[kind]:
+				if ns != nil {
+					t.Errorf("%s: cluster-scoped %s %v sets a namespace", f, kind, name)
+				}
+			case ns != namespace:
+				t.Errorf("%s: %s %v in namespace %v, want %s", f, kind, name, ns, namespace)
+			}
+		}
+	}
 }
 
 // Object names in deploy/k8s, by kind: each test selects the object it

@@ -273,3 +273,42 @@ jobs:
             echo; echo '```'; grep -E '^(--- FAIL|FAIL|panic)' -A5 "$RUNNER_TEMP/explore.log" | awk 'NR <= 80'; echo '```'
           } > "$RUNNER_TEMP/issue.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly explorer failure" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
+
+  # The zfs-csi image (Dockerfile): built, never pushed, and its -version
+  # checked, so a base digest gone from its registry, a break only the
+  # static CGO_ENABLED=0 build hits, or a stale -X path shows here. Not in
+  # ci.yml: pulling the golang base and a cold module download alone exceed
+  # ADR 0005's one-minute PR budget. deploy/image_test.go pins the
+  # Dockerfile statically on every PR (digests, -X path, uid 0).
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: build
+        id: build
+        run: docker build --build-arg "VERSION=nightly-$GITHUB_SHA" -t zfs-csi:nightly . 2>&1 | tee "$RUNNER_TEMP/image.log"
+      - name: version stamped
+        id: version
+        run: |
+          got=$(docker run --rm zfs-csi:nightly -version)
+          if [ "$got" != "nightly-$GITHUB_SHA" ]; then
+            echo "::error::zfs-csi -version printed '$got', want nightly-$GITHUB_SHA" | tee -a "$RUNNER_TEMP/image.log"
+            exit 1
+          fi
+      - name: file issue
+        if: failure() && (steps.build.conclusion == 'failure' || steps.version.conclusion == 'failure')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Nightly zfs-csi image build failed: $RUN_URL"
+            echo; echo '```'; tail -n 40 "$RUNNER_TEMP/image.log"; echo '```'
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly image build failure" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage

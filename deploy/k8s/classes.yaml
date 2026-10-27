@@ -1,5 +1,6 @@
 # Example classes, for NFS mode (ADR 0009): zfs-endpoint run with
-# -nfs-server (deploy/systemd/zfs-endpoint@.service.d/nfs.conf.example)
+# -nfs-server (the drop-in
+# deploy/systemd/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf.example)
 # and the node plugin (node.yaml). StorageClass parameters are immutable:
 # fix one by deleting and recreating the class.
 #
@@ -25,7 +26,12 @@
 #     volume root's owner and mode, set before export (root_squash keeps
 #     anyone from changing them later). A pod's fsGroup has no effect
 #     (csidriver.yaml, fsGroupPolicy None): a non-root pod needs nfs.gid
-#     set to one of its groups and a setgid nfs.mode such as 2775;
+#     set to one of its groups (runAsGroup or supplementalGroups) and a
+#     setgid nfs.mode such as 2775. Shipped as placeholders that do not
+#     parse, like nfs.clients: replace <owner-uid>, <pod-gid> and
+#     <octal-mode> (e.g. 1000, 2000, 2775). Do not delete them: unset, the
+#     root stays root:root 0755, and under root_squash (root is mapped to
+#     nobody) no pod, root included, can write the volume it mounts;
 #   - reserve (filesystems: refreservation = capacity);
 #   - sparse (zvols, only with -enable-block; never in NFS mode).
 #
@@ -44,6 +50,9 @@ metadata:
 provisioner: zfs-endpoint.wommy.github.io
 parameters:
   nfs.clients: "<node-subnet>/24"
+  nfs.uid: "<owner-uid>"
+  nfs.gid: "<pod-gid>"
+  nfs.mode: "<octal-mode>"
   reserve: "false"
 mountOptions:
   - nfsvers=4.2
