@@ -185,3 +185,4 @@
 {"ts": "2026-10-27T12:13:26Z", "id": "a19aec7306147c3be", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T12:13:26Z", "id": "a19aec7306147c3be", "from": "triaged", "to": "merged", "note": ""}
 {"ts": "2026-10-27T12:13:57Z", "id": "a4f7b5771b25be940", "from": "queued", "to": "running", "note": "b-core0"}
+{"ts": "2026-10-27T12:14:06Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
