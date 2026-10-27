@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -268,18 +269,20 @@ func TestPlanPublishExport(t *testing.T) {
 		c    NFSClient
 		want Plan
 		code Code
+		// beyond: refused as ErrServedBeyond
+		beyond bool
 	}{
 		{name: "first client", row: fsv("a", nil), c: c1,
 			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
 		{name: "repeat is empty", row: exported("a", "rw=10.0.0.1/32"), live: live1, c: c1},
 		{name: "repeat, not served: reshare", row: exported("a", "rw=10.0.0.1/32"), c: c1,
 			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served in the other mode: reshare", row: exported("a", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32(ro)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served with no mode: reshare", row: exported("a", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32()\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served only under a name: reshare", row: exported("a", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\tnode-a.example(rw)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "served in the other mode: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(ro)\n"), c: c1, code: FailedPrecondition, beyond: true},
+		{name: "served with no mode: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32()\n"), c: c1, code: FailedPrecondition, beyond: true},
+		{name: "served only under a name: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\tnode-a.example(rw)\n"), c: c1, code: FailedPrecondition, beyond: true},
 		{name: "second client", row: exported("a", "rw=10.0.0.1/32"), live: live1,
 			c:    NFSClient{Host: "10.9.0.0/16", ReadOnly: true},
 			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32,ro=10.9.0.0/16"})},
@@ -306,12 +309,13 @@ func TestPlanPublishExport(t *testing.T) {
 		{name: "ancestor without crossmnt", row: fsv("a", nil), c: c1,
 			live: etab("/tank/v\t*(rw,nocrossmnt)\n/tank/v/ab\t*(rw,crossmnt)\n/tank/v/a/b\t*(rw,crossmnt)\n"),
 			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		// D2: served, but beyond the request: re-share once (the caller
-		// reports what a re-share cannot fix)
-		{name: "served with no_root_squash: reshare", row: exported("a", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32(rw,no_root_squash)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served to more clients: reshare", row: exported("a", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t*(ro)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		// D2: served, but beyond the request: refused before anything
+		// changes (ErrServedBeyond; the endpoint re-shares the unchanged
+		// value once and plans again, so a stale table still converges)
+		{name: "served with no_root_squash: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(rw,no_root_squash)\n"), c: c1, code: FailedPrecondition, beyond: true},
+		{name: "served to more clients: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t*(ro)\n"), c: c1, code: FailedPrecondition, beyond: true},
 		// wave12 S7: a later version keeps export state in sharenfs alone
 		// (ADR 0004). After a rollback its volumes have a canonical local
 		// sharenfs and no stored list, and are still the endpoint's
@@ -362,6 +366,9 @@ func TestPlanPublishExport(t *testing.T) {
 			plan, row, err := pl.PlanPublishExport(NewTable([]Row{tc.row}), tc.live, "a", tc.c)
 			if CodeOf(err) != tc.code {
 				t.Fatalf("err %v, want code %d", err, tc.code)
+			}
+			if errors.Is(err, ErrServedBeyond) != tc.beyond {
+				t.Fatalf("err %v: served beyond = %v, want %v", err, !tc.beyond, tc.beyond)
 			}
 			if !reflect.DeepEqual(plan, tc.want) {
 				t.Fatalf("plan %+v\nwant %+v", plan, tc.want)

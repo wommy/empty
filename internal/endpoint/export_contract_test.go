@@ -599,10 +599,12 @@ func (e extraEtab) ReadEtab(ctx context.Context) ([]byte, error) {
 	return append(b, e.extra()...), err
 }
 
-// D1 (wave9 nfs-diff): Publish re-checks the table after applying. A line
-// of another exports file for the volume's path serves it beyond the
-// request whatever sharenfs says, so Publish fails instead of reporting
-// success.
+// D1 (wave9 nfs-diff): a line of another exports file for the volume's
+// path serves it beyond the request whatever sharenfs says, so Publish
+// fails instead of reporting success. A refused Publish changes nothing
+// (wave13 verifier): the requested client is not left in sharenfs, nor
+// served, whether the refusal comes before the change (a local value) or
+// after it (an inherited one, put back).
 func TestFileExportServedBeyondRequest(t *testing.T) {
 	ctx := context.Background()
 	_, h := setup(t)
@@ -625,16 +627,38 @@ func TestFileExportServedBeyondRequest(t *testing.T) {
 	if r, err := filepath.EvalSymlinks(mp); err == nil {
 		mp = r
 	}
-	foreignLine = mp + "\t*(rw,sync,no_root_squash,sec=sys,rw)\n"
-	_, err = ep.PublishFileExport(ctx, "pvc-d1", "10.0.0.1", false)
-	wantCode(t, err, endpoint.FailedPrecondition)
-	if !strings.Contains(err.Error(), "beyond its client list") {
-		t.Fatalf("unclear error: %v", err)
+	refused := func(host, sharenfs, source string) {
+		t.Helper()
+		foreignLine = mp + "\t*(rw,sync,no_root_squash,sec=sys,rw)\n"
+		_, err := ep.PublishFileExport(ctx, "pvc-d1", host, false)
+		wantCode(t, err, endpoint.FailedPrecondition)
+		if !strings.Contains(err.Error(), "beyond its client list") {
+			t.Fatalf("unclear error: %v", err)
+		}
+		if val, src := h.propSource(t, v.Dataset, "sharenfs"); val != sharenfs || src != source {
+			t.Fatalf("refused publish of %s left sharenfs %q (%s), was %q (%s)", host, val, src, sharenfs, source)
+		}
+		if _, ok := h.served(t, v.Mountpoint, host); ok {
+			t.Fatalf("refused publish of %s left it served", host)
+		}
+		foreignLine = ""
 	}
-	foreignLine = ""
+	refused("10.0.0.1", "off", "local")
 	if _, err := ep.PublishFileExport(ctx, "pvc-d1", "10.0.0.1", false); err != nil {
 		t.Fatalf("publish once the foreign line is gone: %v", err)
 	}
+	refused("10.0.0.2", "rw=10.0.0.1/32", "local")
+	// inherited (the parent is off): the planner cannot tell the parent's
+	// lines from someone else's, so the check after the change refuses,
+	// and inheritance is put back
+	if err := h.Z.Inherit(ctx, v.Dataset, "sharenfs"); err != nil {
+		t.Fatal(err)
+	}
+	val, src := h.propSource(t, v.Dataset, "sharenfs")
+	if src == "local" {
+		t.Fatalf("sharenfs still local after zfs inherit: %q", val)
+	}
+	refused("10.0.0.3", val, src)
 }
 
 // ADR 0004: export state lives in sharenfs alone. A leftover

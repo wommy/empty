@@ -772,18 +772,36 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
 	} else {
 		want = sortClients(append(slices.Clone(cs), c))
 	}
+	// served beyond want before anything changes: refused, and nothing is
+	// planned, so a refused Publish never leaves the requested line
+	// applied. Only on a local value (ours): its own lines are want's, so
+	// a line beyond them is a stale etab (a failed exportfs, which a
+	// re-share of the unchanged value clears; the caller tries that once,
+	// ErrServedBeyond) or someone else's (another exports file). An
+	// inherited value's lines go when ours is pinned; the caller's check
+	// after the change covers the rest.
+	if x := live.exposure(row.Mount, want); len(x) > 0 && row.ShareNFSLocal {
+		return nil, row, &Error{Code: FailedPrecondition, Err: ErrServedBeyond, Msg: fmt.Sprintf(
+			"volume %s is served beyond its client list by the NFS export table: %s; remove these exports (an ancestor dataset's sharenfs with crossmnt, e.g. \"on\", or /etc/exports) first",
+			row.ID, strings.Join(x, "; "))}
+	}
 	plan, err := p.exportOps(row, want)
 	if err != nil {
 		return nil, Row{}, err
 	}
-	// unchanged but not served, or served beyond want (a stale etab after
-	// a failed exportfs): re-share once; what a re-share cannot fix
-	// (another exports file, an ancestor's crossmnt) the caller reports
-	if len(plan) == 0 && (!live.serves(row.Mount, c) || len(live.exposure(row.Mount, want)) > 0) {
+	// unchanged but not served (a failed exportfs): re-share once
+	if len(plan) == 0 && !live.serves(row.Mount, c) {
 		plan = reshare(row, want)
 	}
 	return plan, row, nil
 }
+
+// ErrServedBeyond marks a PlanPublishExport refusal (FailedPrecondition)
+// for a volume the export table serves beyond its client list before any
+// change. The returned row's own value may clear it with a re-share
+// (reshare of clientsOf(row): no property changes) when the extra lines
+// are a stale table.
+var ErrServedBeyond = errors.New("served beyond the client list")
 
 // publishWant is the client list a successful PlanPublishExport of c on
 // row leads to.
