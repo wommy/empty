@@ -673,6 +673,22 @@ func (e *Endpoint) readEtab(ctx context.Context) (Etab, error) {
 	return ParseEtab(b), nil
 }
 
+// exportTable reads the export table with volume volID's entries keyed by
+// its mountpoint property. exportfs stores every export under its real
+// path (nfs-utils nfsd_realpath), so a mountpoint that crosses a symlink
+// would otherwise never match: Publish Unavailable forever, and Unpublish
+// blind to an export that is still served.
+func (e *Endpoint) exportTable(ctx context.Context, t Table, volID string) (Etab, error) {
+	live, err := e.readEtab(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if row, ok := t.Get(volID); ok && row.Mount != "" {
+		live = live.at(row.Mount, realPath(row.Mount))
+	}
+	return live, nil
+}
+
 // PublishFileExport exports a filesystem volume over NFS to one client
 // (hostname, IPv4 address or IPv4 CIDR), read-write or read-only, and
 // returns the export path on the storage host. Repeating it is a no-op; the
@@ -703,7 +719,7 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 	if err != nil {
 		return "", err
 	}
-	live, err := e.readEtab(ctx)
+	live, err := e.exportTable(ctx, t, volID)
 	if err != nil {
 		return "", err
 	}
@@ -715,7 +731,7 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 		if err := e.apply(ctx, plan); err != nil {
 			return "", err
 		}
-		if live, err = e.readEtab(ctx); err != nil {
+		if live, err = e.exportTable(ctx, t, volID); err != nil {
 			return "", err
 		}
 		if !live.serves(row.Mount, c) {
@@ -767,7 +783,7 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	if err != nil {
 		return err
 	}
-	live, err := e.readEtab(ctx)
+	live, err := e.exportTable(ctx, t, volID)
 	if err != nil {
 		return err
 	}
@@ -778,7 +794,7 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	if err := e.apply(ctx, plan); err != nil {
 		return err
 	}
-	if live, err = e.readEtab(ctx); err != nil {
+	if live, err = e.exportTable(ctx, t, volID); err != nil {
 		return err
 	}
 	if _, ok := live.Lookup(row.Mount, h); ok {

@@ -3,6 +3,7 @@ package endpoint_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -38,6 +39,10 @@ func (h *harness) served(t *testing.T, path, host string) (endpoint.NFSClient, b
 	b, err := h.etab().ReadEtab(context.Background())
 	if err != nil {
 		t.Fatal(err)
+	}
+	// exportfs stores the real path
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
 	}
 	return endpoint.ParseEtab(b).Lookup(path, host)
 }
@@ -304,6 +309,43 @@ func TestFileExportDroppedHost(t *testing.T) {
 	}
 	if val := h.Prop(v.Dataset, "sharenfs"); val != "rw=10.0.0.1/32" {
 		t.Fatalf("sharenfs %q", val)
+	}
+}
+
+// exportfs stores an export under its real path (nfsd_realpath); the
+// mountpoint property may cross a symlink (adv4 F6).
+func TestFileExportResolvesSymlinks(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.Sim(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "real", "pvc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "real"), filepath.Join(dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mp := filepath.Join(dir, "link", "pvc")
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{"mountpoint": mp}); err != nil {
+		t.Fatal(err)
+	}
+	path, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)
+	if err != nil || path != mp {
+		t.Fatalf("publish: %q %v", path, err)
+	}
+	b, _ := h.etab().ReadEtab(ctx)
+	if strings.Contains(string(b), mp) {
+		t.Fatalf("test setup: etab names the symlink path:\n%s", b)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"); err != nil {
+		t.Fatalf("unpublish: %v", err)
+	}
+	if b, _ = h.etab().ReadEtab(ctx); len(b) != 0 {
+		t.Fatalf("still served:\n%s", b)
 	}
 }
 
