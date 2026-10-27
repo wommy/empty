@@ -13,7 +13,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 | ZFS property passthrough (`internal/endpoint/props.go`) | done: default-deny per-kind allowlist with value checks; requested properties must be set locally for a retry to be compatible (`docs/research/gaps/adv-csi-frontend.md` B3) |
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
 | File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; hostname, IPv4 or IPv4 CIDR, rw/ro), desired clients in a local `<prefix>:nfs_clients` property with `sharenfs` computed from it, each change verified against `/var/lib/nfs/etab`; root only (`docs/research/gaps/file-export.md` and its two reviews). SMB not started |
-| Block export (iSCSI/NVMe-oF) | not started; the design calls for LIO/nvmet configfs (`docs/research/edges/block-export.md`) |
+| Block export (iSCSI/NVMe-oF) | design v2 done, not implemented: sole configfs owner, minted `block_id` identity, fail-closed build order (`docs/research/gaps/block-export-v2.md`) |
 | CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS. Node side not started |
 | Transport auth | not started; the socket is mode 0600 until then (`docs/research/edges2/transport-auth.md`) |
 
