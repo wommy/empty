@@ -2,8 +2,12 @@
 # sidecars, on the ZFS host itself (hyperconverged, ADR 0006).
 #
 # Before applying:
-#   - label the ZFS host:
-#       kubectl label node <host> zfs-endpoint.wommy.github.io/host=true
+#   - label the ZFS host, and exactly one node: the controller follows the
+#     label, and a second labelled node would silently become its backend:
+#       kubectl label node <host> node-restriction.kubernetes.io/zfs-endpoint-host=true
+#     The node-restriction.kubernetes.io/ prefix is one a kubelet cannot set
+#     on its own Node (NodeRestriction admission), so a compromised node
+#     cannot attract the controller and its token (ADR 0008).
 #   - run the endpoint there for the parent dataset:
 #       systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
 #   - set -parent below to that dataset: zfs-csi dials
@@ -28,6 +32,11 @@
 #     for the file modes. Mount only that directory, never
 #     /run/zfs-endpoint: that one holds every endpoint's lock file and
 #     socket directory (ADR 0001 v2, F1).
+#   - The endpoint directory is mounted read-only: zfs-csi only connect()s,
+#     which needs write permission on the socket inode, not a writable
+#     mount (ADR 0008).
+#   - The service account token reaches the three sidecars only, through a
+#     projected volume; zfs-csi calls no Kubernetes API.
 #   - No ControllerPublish, so no attacher sidecar (CSIDriver
 #     attachRequired: false).
 apiVersion: apps/v1
@@ -50,9 +59,14 @@ spec:
         app: zfs-csi-controller
     spec:
       serviceAccountName: zfs-csi-controller
+      # the sidecars mount kube-api-access themselves; zfs-csi does not
+      automountServiceAccountToken: false
+      # above zfs-csi's -drain (30s) so a draining call is not cut off by
+      # SIGKILL; the endpoint may hold a call for -lock-wait (30s) too
+      terminationGracePeriodSeconds: 45
       priorityClassName: system-cluster-critical
       nodeSelector:
-        zfs-endpoint.wommy.github.io/host: "true"
+        node-restriction.kubernetes.io/zfs-endpoint-host: "true"
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -74,11 +88,15 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 20Mi}
+            limits: {memory: 128Mi}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
             - name: endpoint-dir
               mountPath: /run/zfs-endpoint/sock/tank-k8s-vols
+              readOnly: true
         - name: csi-provisioner
           # Sidecars are pinned by tag and digest (the image index digest).
           # The digests are the ones kubernetes/k8s.io promotes for these tags
@@ -97,22 +115,39 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 50Mi}
+            limits: {memory: 256Mi}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+            - name: kube-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
         - name: csi-resizer
           image: registry.k8s.io/sig-storage/csi-resizer:v1.13.1@sha256:2a0b297cc7c4cd376ac7413df339ff2fdaa1ec9d099aed92b5ea1f031ef7f639
           args:
             - --csi-address=/csi/csi.sock
             - --timeout=60s
+            # on by default, it lists every pod in the cluster to retry
+            # expansions a node refused while the volume was in use. This
+            # driver expands ONLINE in the controller alone, so it never
+            # sees that error; off, the resizer needs no pods RBAC (rbac.yaml)
+            - --handle-volume-inuse-error=false
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 50Mi}
+            limits: {memory: 256Mi}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+            - name: kube-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
         - name: csi-snapshotter
           image: registry.k8s.io/sig-storage/csi-snapshotter:v8.2.0@sha256:dd788d79cf4c1b8edee6d9b80b8a1ebfc51a38a365c5be656986b129be9ac784
           args:
@@ -123,9 +158,15 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 50Mi}
+            limits: {memory: 256Mi}
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+            - name: kube-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
       volumes:
         - name: socket-dir
           emptyDir: {}
@@ -135,3 +176,22 @@ spec:
             # creates: start it first
             path: /run/zfs-endpoint/sock/tank-k8s-vols
             type: Directory
+        # what automountServiceAccountToken would mount, for the sidecars
+        # only: a bound one-hour token kubelet rotates and client-go
+        # re-reads, the cluster CA, the namespace
+        - name: kube-api-access
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        fieldPath: metadata.namespace
