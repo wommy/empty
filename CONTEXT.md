@@ -19,7 +19,7 @@ A direct child of the parent, a filesystem or a zvol (`VolumeKind`), named by it
 _Avoid_: dataset (for an owned one), PV
 
 **Snapshot**:
-A CSI snapshot, `<volume id>@<name>`, which the endpoint lists and deletes (`Row.OwnedSnapshot`, `internal/endpoint/table.go`). Other snapshots of a volume are foreign snapshots.
+A CSI snapshot, `<volume id>@<component>`, where the component is the CSI name, or `csi-` and a hash of it when the name is not a valid zfs component or too long (`snapComponent`), which the endpoint lists and deletes (`Row.OwnedSnapshot`, `internal/endpoint/table.go`). Other snapshots of a volume are foreign snapshots.
 _Avoid_: backup
 
 **Clone source**:

@@ -28,7 +28,7 @@ When a behavior question comes up, **OpenZFS decides**: its CLI and libzfs seman
 ## Consequences
 
 - Earlier decisions justified only by "baseline parity" are reopened, each as its own change:
-  - the default `-property-prefix`, today `democratic-csi`;
+  - the default `-property-prefix`, then `democratic-csi`;
   - DeleteVolume's `destroy -r` over foreign snapshots;
   - received-property ownership. `zfs.Prop.Local()` counts `received` as local.
 

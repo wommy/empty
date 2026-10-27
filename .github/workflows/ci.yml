@@ -25,7 +25,7 @@ defaults:
 
 jobs:
   # ADR 0005: a PR is green or red within 60s. Two jobs run in parallel next
-  # to the real-ZFS VM jobs (one per suite), each sized to a ~45s critical
+  # to the real-ZFS VM jobs (one per part of a suite), each sized to a ~45s critical
   # path:
   #   static  gofmt, tidy, vet, buf lint, gen drift, fuzz seed corpus, the
   #           real-ZFS suites cover every real-pool package once
