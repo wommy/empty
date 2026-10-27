@@ -87,6 +87,15 @@ func run(ctx context.Context, args []string, d deps) error {
 	allowNonRoot := fs.Bool("allow-non-root", false, "run without root (delegated zfs allow); filesystem volumes cannot be mounted and NFS export is off")
 	nfsMinPrefix := fs.Int("nfs-min-prefix", endpoint.DefaultNFSMinPrefix, "broadest IPv4 client network PublishFileExport accepts (prefix length, 1-32; 0, every IPv4 client, is refused)")
 	destroyForeign := fs.Bool("destroy-foreign-snapshots", false, "let DeleteVolume destroy snapshots the endpoint did not make along with their volume")
+	var nfsServers []string
+	fs.Func("nfs-server", "an NFS server address (IPv4 or DNS name) clients mount volumes from; repeat for more, the first is the default. "+
+		"Advertise stable names (a VIP or DNS name): a volume keeps the address it was created with for its life. Needs root", func(s string) error {
+		if err := endpoint.ValidNFSServer(s); err != nil {
+			return err
+		}
+		nfsServers = append(nfsServers, s)
+		return nil
+	})
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -145,6 +154,9 @@ func run(ctx context.Context, args []string, d deps) error {
 	if !root && !*allowNonRoot {
 		return configErr("must run as root (euid is %d); pass -allow-non-root to run with delegated zfs permissions, NFS export off", d.euid)
 	}
+	if !root && len(nfsServers) > 0 {
+		return configErr("-nfs-server needs root: NFS export is off without it")
+	}
 
 	// one endpoint per parent subtree on this host, whatever socket it
 	// listens on: two would each hold their own resource locks. Across
@@ -178,7 +190,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err := checkExposure(ctx, z, *parent, etab); err != nil {
 		return startupErr(ctx, err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle, Etab: etab})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, NFSServers: nfsServers, Settle: d.settle, Etab: etab})
 	if err != nil {
 		return configErr("%v", err)
 	}

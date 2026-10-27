@@ -48,7 +48,7 @@ func (g *gen) client(floor int) NFSClient {
 	return NFSClient{Host: netip.PrefixFrom(a, bits).Masked().String(), ReadOnly: g.intn(2) == 1}
 }
 
-// clients is a list decodeClients accepts: canonical, no overlaps.
+// clients is a canonical client list: masked CIDRs, no overlaps.
 func (g *gen) clients() []NFSClient {
 	var cs []NFSClient
 	for range g.intn(5) {
@@ -212,11 +212,12 @@ func FuzzNFSRoundTrip(f *testing.F) {
 		other := g.clients()
 		otherFirst := g.intn(2) == 1
 
-		enc := encodeClients(cs)
-		if back, err := decodeClients(enc); err != nil || !slices.Equal(back, cs) {
-			t.Fatalf("stored list %q decodes to %v, %v", enc, back, err)
-		}
 		share := ShareNFS(cs)
+		// every client list is in sharenfs, losslessly: the canonical
+		// grammar reads it back (ADR 0004: no stored form)
+		if back, ok := ParseShareNFS(share); !ok || !slices.Equal(back, cs) {
+			t.Fatalf("sharenfs %q of %v reads back as %v, canonical=%v", share, cs, back, ok)
+		}
 		if err := nfsref.ValidateSharenfs(share); err != nil {
 			t.Fatalf("zfs refuses our sharenfs %q: %v", share, err)
 		}
@@ -357,10 +358,12 @@ func FuzzNFSClassifier(f *testing.F) {
 		case 2: // received
 			row.ShareNFS, row.ShareNFSRecv = raw, true
 		}
-		var stored []NFSClient
-		if g.intn(2) == 1 {
-			stored = g.clients()
-			row.NFSClients, row.NFSClientsSet = encodeClients(stored), true
+		// a leftover stored list (ADR 0004) never changes a decision
+		row.NFSClientsSet = g.intn(2) == 1
+		stored := clientsOf(row)
+		// the planner's grammar is the design's, the floor aside
+		if ours, ok := ParseShareNFS(raw); ok != func() bool { _, ok := canonicalShareNFS(raw, 1); return ok }() {
+			t.Fatalf("ParseShareNFS(%q) = %v, %v; the design's grammar disagrees", raw, ours, ok)
 		}
 		parentV := ""
 		if !row.ShareNFSLocal && !row.ShareNFSRecv {
@@ -395,8 +398,8 @@ func FuzzNFSClassifier(f *testing.F) {
 			e := ParseEtab([]byte(ref.etab))
 			if e.serves(diffPath, c) && len(e.exposure(diffPath, want)) == 0 {
 				if why := failOpen(ref.mountd, diffPath, want); why != "" {
-					t.Fatalf("publish %s %s on sharenfs %q (local %v, recv %v, stored %q): plan %v leaves %q: %s, and the verifier passes",
-						c.Host, c.mode(), raw, row.ShareNFSLocal, row.ShareNFSRecv, row.NFSClients, plan, v, why)
+					t.Fatalf("publish %s %s on sharenfs %q (local %v, recv %v): plan %v leaves %q: %s, and the verifier passes",
+						c.Host, c.mode(), raw, row.ShareNFSLocal, row.ShareNFSRecv, plan, v, why)
 				}
 			}
 		}
@@ -410,8 +413,8 @@ func FuzzNFSClassifier(f *testing.F) {
 			hp, _ := h.prefix()
 			for _, a := range before.mountd.SampleAddrs(hp) {
 				if got := before.mountd.Access(diffPath, a, nfsref.Env{}); got.Mode != nfsref.None && got.Mode != wantMode(rest, a) {
-					t.Fatalf("unpublish %s on sharenfs %q (local %v, stored %q) is a no-op, but %s still gets %v",
-						h.Host, raw, row.ShareNFSLocal, row.NFSClients, a, got.Mode)
+					t.Fatalf("unpublish %s on sharenfs %q (local %v) is a no-op, but %s still gets %v",
+						h.Host, raw, row.ShareNFSLocal, a, got.Mode)
 				}
 			}
 		}

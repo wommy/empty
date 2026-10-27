@@ -42,8 +42,16 @@ type Row struct {
 	ShareNFS      string // sharenfs value, local or inherited
 	ShareNFSLocal bool   // sharenfs is set on the dataset itself
 	Mounted       bool
-	NFSClients    string // locally set desired client list (export.go)
+	// NFSClientsSet: a leftover <prefix>:nfs_clients is set locally. Export
+	// state is sharenfs alone (ADR 0004); nothing decides on it, Reconcile
+	// reports it.
 	NFSClientsSet bool
+
+	// NFSServer is the NFS server address recorded at create (local
+	// <prefix>:nfs_server); NFSServerElsewhere: one is set, but inherited
+	// or received, so not this volume's (Reconcile reports it).
+	NFSServer          string
+	NFSServerElsewhere bool
 
 	ShareNFSRecv bool   // sharenfs came from `zfs recv` (source "received")
 	CanMount     string // on, off, noauto; "-" for zvols and snapshots
@@ -241,7 +249,7 @@ func (n props) columns() []string {
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
 		"defer_destroy", "userrefs", "mountpoint", "sharenfs", "mounted", "canmount",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(), n.nfsServer(),
 	}, propNames[:]...)
 }
 
@@ -262,7 +270,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 		cLocal[k] = j(name)
 	}
 	cShare, cMounted, cCanMount, cClients := j("sharenfs"), j("mounted"), j("canmount"), j(n.nfsClients())
-	cCloneFor, cCommittedAt := j(n.cloneSourceFor()), j(n.committedAt())
+	cCloneFor, cCommittedAt, cNFSServer := j(n.cloneSourceFor()), j(n.committedAt()), j(n.nfsServer())
 
 	rows := make([]Row, 0, len(c.Names))
 	var bad error
@@ -306,11 +314,12 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 			ShareNFS:       userValue(cell(cShare)),
 			ShareNFSLocal:  cell(cShare).Local(),
 			Mounted:        cell(cMounted).Value == "yes",
-			NFSClients:     own(cClients),
 			NFSClientsSet:  cell(cClients).Local(),
 			ShareNFSRecv:   cell(cShare).Source == "received",
 			CanMount:       cell(cCanMount).Value,
 		}
+		r.NFSServer = own(cNFSServer)
+		r.NFSServerElsewhere = !cell(cNFSServer).Local() && userValue(cell(cNFSServer)) != ""
 		for k, col := range cLocal {
 			// only local values: an inherited compression is the parent's
 			// choice, not this volume's, and must not satisfy a request

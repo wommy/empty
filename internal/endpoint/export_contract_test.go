@@ -459,7 +459,10 @@ func TestFileExportReceivedShareNFS(t *testing.T) {
 		t.Fatalf("received sharenfs overridden: %q (%s)", val, src)
 	}
 	wantCode(t, ep.UnpublishFileExport(ctx, "pvc", "10.0.0.0/8"), endpoint.FailedPrecondition)
-	if err := ep.UnpublishFileExport(ctx, "pvc", "10.9.0.0/16"); err != nil {
+	// a network inside the received one is still served through it: never
+	// reported gone (ADR 0004: a foreign value is not rewritten either)
+	wantCode(t, ep.UnpublishFileExport(ctx, "pvc", "10.9.0.0/16"), endpoint.FailedPrecondition)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "192.168.9.0/24"); err != nil {
 		t.Fatalf("unpublish of a client nothing serves: %v", err)
 	}
 
@@ -596,10 +599,12 @@ func (e extraEtab) ReadEtab(ctx context.Context) ([]byte, error) {
 	return append(b, e.extra()...), err
 }
 
-// D1 (wave9 nfs-diff): Publish re-checks the table after applying. A line
-// of another exports file for the volume's path serves it beyond the
-// request whatever sharenfs says, so Publish fails instead of reporting
-// success.
+// D1 (wave9 nfs-diff): a line of another exports file for the volume's
+// path serves it beyond the request whatever sharenfs says, so Publish
+// fails instead of reporting success. A refused Publish changes nothing
+// (wave13 verifier): the requested client is not left in sharenfs, nor
+// served, whether the refusal comes before the change (a local value) or
+// after it (an inherited one, put back).
 func TestFileExportServedBeyondRequest(t *testing.T) {
 	ctx := context.Background()
 	_, h := setup(t)
@@ -622,14 +627,117 @@ func TestFileExportServedBeyondRequest(t *testing.T) {
 	if r, err := filepath.EvalSymlinks(mp); err == nil {
 		mp = r
 	}
-	foreignLine = mp + "\t*(rw,sync,no_root_squash,sec=sys,rw)\n"
-	_, err = ep.PublishFileExport(ctx, "pvc-d1", "10.0.0.1", false)
-	wantCode(t, err, endpoint.FailedPrecondition)
-	if !strings.Contains(err.Error(), "beyond its client list") {
-		t.Fatalf("unclear error: %v", err)
+	refused := func(host, sharenfs, source string) {
+		t.Helper()
+		foreignLine = mp + "\t*(rw,sync,no_root_squash,sec=sys,rw)\n"
+		_, err := ep.PublishFileExport(ctx, "pvc-d1", host, false)
+		wantCode(t, err, endpoint.FailedPrecondition)
+		if !strings.Contains(err.Error(), "beyond its client list") {
+			t.Fatalf("unclear error: %v", err)
+		}
+		if val, src := h.propSource(t, v.Dataset, "sharenfs"); val != sharenfs || src != source {
+			t.Fatalf("refused publish of %s left sharenfs %q (%s), was %q (%s)", host, val, src, sharenfs, source)
+		}
+		if _, ok := h.served(t, v.Mountpoint, host); ok {
+			t.Fatalf("refused publish of %s left it served", host)
+		}
+		foreignLine = ""
 	}
-	foreignLine = ""
+	refused("10.0.0.1", "off", "local")
 	if _, err := ep.PublishFileExport(ctx, "pvc-d1", "10.0.0.1", false); err != nil {
 		t.Fatalf("publish once the foreign line is gone: %v", err)
+	}
+	refused("10.0.0.2", "rw=10.0.0.1/32", "local")
+	// inherited (the parent is off): the planner cannot tell the parent's
+	// lines from someone else's, so the check after the change refuses,
+	// and inheritance is put back
+	if err := h.Z.Inherit(ctx, v.Dataset, "sharenfs"); err != nil {
+		t.Fatal(err)
+	}
+	val, src := h.propSource(t, v.Dataset, "sharenfs")
+	if src == "local" {
+		t.Fatalf("sharenfs still local after zfs inherit: %q", val)
+	}
+	refused("10.0.0.3", val, src)
+}
+
+// ADR 0004: export state lives in sharenfs alone. A leftover
+// <prefix>:nfs_clients (the client list earlier versions computed sharenfs
+// from), stale here, is neither read nor written by Publish or Unpublish,
+// and Reconcile reports it. Serial like the other export tests: on the
+// real host exportfs -ra rewrites one global table.
+func TestFileExportLeftoverClientList(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.NFS(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc-left", CapacityBytes: 1 << 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.PublishFileExport(ctx, "pvc-left", "10.0.0.1", false); err != nil {
+		t.Fatal(err)
+	}
+	stored := endpoint.DefaultPropertyPrefix + ":nfs_clients"
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{stored: "10.0.0.9/32=rw"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.PublishFileExport(ctx, "pvc-left", "10.0.0.2", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.Prop(v.Dataset, "sharenfs"); got != "rw=10.0.0.1/32:10.0.0.2/32" {
+		t.Fatalf("sharenfs %q: computed from the leftover list, not from sharenfs", got)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc-left", "10.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.Prop(v.Dataset, "sharenfs"); got != "rw=10.0.0.2/32" {
+		t.Fatalf("sharenfs %q after unpublish", got)
+	}
+	if got := h.Prop(v.Dataset, stored); got != "10.0.0.9/32=rw" {
+		t.Fatalf("%s rewritten to %q: export state is sharenfs alone", stored, got)
+	}
+	plan, err := ep.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"pvc-left"}, DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(plan.Skipped, endpoint.ReconcileSkip{Target: "pvc-left", Reason: endpoint.SkipLegacyNFSClients}) {
+		t.Fatalf("reconcile does not report the leftover list: %+v", plan.Skipped)
+	}
+}
+
+// ADR 0004 (and the wave13 verifier's tension): an admin's "rw=*" over a
+// volume the endpoint exports is someone else's value. It is served
+// untouched and never rewritten; Publish and Unpublish refuse while it
+// stands.
+func TestFileExportAdminWorldEditIsForeign(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.NFS(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc-star", CapacityBytes: 1 << 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.PublishFileExport(ctx, "pvc-star", "10.0.0.2", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{"sharenfs": "rw=*"}); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, ep.UnpublishFileExport(ctx, "pvc-star", "10.0.0.1"), endpoint.FailedPrecondition)
+	wantCode(t, ep.UnpublishFileExport(ctx, "pvc-star", "10.0.0.2"), endpoint.FailedPrecondition)
+	_, err = ep.PublishFileExport(ctx, "pvc-star", "10.0.0.3", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if got := h.Prop(v.Dataset, "sharenfs"); got != "rw=*" {
+		t.Fatalf("an admin's sharenfs was rewritten to %q", got)
+	}
+	// back inside the grammar, it is the endpoint's again, as typed
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{"sharenfs": "ro=10.0.0.2/32"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc-star", "10.0.0.2"); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.Prop(v.Dataset, "sharenfs"); got != "off" {
+		t.Fatalf("sharenfs %q after the last unpublish", got)
 	}
 }

@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -12,8 +13,6 @@ import (
 
 // Export planner tests are pure like plan_test.go: rows and an export table
 // in, a plan or error out.
-
-const clientsProp = "democratic-csi:nfs_clients"
 
 // fsv is a managed, mounted filesystem volume with sharenfs=off set locally
 // at creation, as PlanCreateVolume makes it.
@@ -27,12 +26,17 @@ func fsv(id string, mut func(*Row)) Row {
 	})
 }
 
-// exported is a volume the endpoint already exports with clients enc.
-func exported(id, enc, share string) Row {
-	return fsv(id, func(r *Row) {
-		r.NFSClients, r.NFSClientsSet = enc, true
-		r.ShareNFS = share
-	})
+// exported is a volume the endpoint already exports: share is its local
+// sharenfs.
+func exported(id, share string) Row {
+	return fsv(id, func(r *Row) { r.ShareNFS = share })
+}
+
+// leftover marks r with a locally set <prefix>:nfs_clients, the client
+// list earlier versions stored (ADR 0004: ignored, reported by Reconcile).
+func leftover(r Row) Row {
+	r.NFSClientsSet = true
+	return r
 }
 
 func etab(lines string) Etab { return ParseEtab([]byte(lines)) }
@@ -84,7 +88,7 @@ func TestCheckFloor(t *testing.T) {
 	}
 }
 
-func TestShareNFSAndClientEncoding(t *testing.T) {
+func TestShareNFS(t *testing.T) {
 	cs := []NFSClient{{Host: "10.10.0.0/16"}, {Host: "10.0.0.0/16", ReadOnly: true}, {Host: "10.9.0.5/32"}}
 	// by address, not by spelling: 10.9 sorts before 10.10
 	if got := ShareNFS(cs); got != "rw=10.9.0.5/32:10.10.0.0/16,ro=10.0.0.0/16" {
@@ -96,26 +100,40 @@ func TestShareNFSAndClientEncoding(t *testing.T) {
 	if got := ShareNFS(cs[1:2]); got != "ro=10.0.0.0/16" {
 		t.Fatalf("ro only = %q", got)
 	}
-	enc := encodeClients(cs)
-	if enc != "10.0.0.0/16=ro,10.9.0.5/32=rw,10.10.0.0/16=rw" {
-		t.Fatalf("encode = %q", enc)
+}
+
+// ADR 0004, csi-nfs-design §2: the canonical grammar. Exactly the values
+// ShareNFS writes parse; anything else (options, names, "*", empty hosts,
+// overlaps, another order) is someone else's.
+func TestParseShareNFS(t *testing.T) {
+	t.Parallel()
+	ok := map[string][]NFSClient{
+		"off":                           nil,
+		"rw=10.0.0.1/32":                {{Host: "10.0.0.1/32"}},
+		"ro=10.0.0.0/16":                {{Host: "10.0.0.0/16", ReadOnly: true}},
+		"rw=10.9.0.5/32:10.10.0.0/16":   {{Host: "10.9.0.5/32"}, {Host: "10.10.0.0/16"}},
+		"rw=10.0.0.1/32,ro=10.1.0.0/16": {{Host: "10.0.0.1/32"}, {Host: "10.1.0.0/16", ReadOnly: true}},
+		"rw=10.0.0.0/8":                 {{Host: "10.0.0.0/8"}}, // below the default floor: still ours
 	}
-	back, err := decodeClients(enc)
-	if err != nil || !reflect.DeepEqual(back, sortClients(cs)) {
-		t.Fatalf("decode = %v %v", back, err)
-	}
-	if back, err := decodeClients("none"); err != nil || back != nil {
-		t.Fatalf("none = %v %v", back, err)
+	for s, want := range ok {
+		got, canonical := ParseShareNFS(s)
+		if !canonical || !reflect.DeepEqual(got, want) {
+			t.Errorf("ParseShareNFS(%q) = %v, %v; want %v", s, got, canonical, want)
+		}
+		if ShareNFS(got) != s {
+			t.Errorf("ShareNFS(ParseShareNFS(%q)) = %q", s, ShareNFS(got))
+		}
 	}
 	for _, s := range []string{
-		"", "a", "a=rw", "10.0.0.1/32=rx", "10.0.0.2/32=rw,10.0.0.1/32=rw", "*=rw", "10.0.0.1/32=rw,,10.0.0.2/32=rw",
-		"10.0.0.1=rw", // legacy bare address: not canonical
-		// F14: duplicates, in either mode, and overlapping networks
-		"10.0.0.1/32=rw,10.0.0.1/32=rw", "10.0.0.1/32=ro,10.0.0.1/32=rw", "10.0.0.1/32=rw,10.0.0.1/32=ro",
-		"10.0.0.0/24=rw,10.0.0.5/32=ro",
+		"", "on", "rw", "ro", "rw=", "rw=*", "rw=10.0.0.0/24:", "rw=:10.0.0.0/24", "rw=10.0.0.0/24::10.1.0.0/24",
+		"rw=10.0.0.1", "rw=node-a", "rw=@10.0.0.0/8", "rw=10.0.0.1/24", "rw=0.0.0.0/0", "rw=010.0.0.0/8",
+		"rw=10.0.0.1/32,no_root_squash", "sec=sys,rw=10.0.0.1/32", "rw=10.0.0.1/32,sec=krb5,ro=10.1.0.0/16",
+		"ro=10.1.0.0/16,rw=10.0.0.1/32", "rw=10.0.0.1/32,rw=10.0.0.2/32", "rw=10.10.0.0/16:10.9.0.5/32",
+		"rw=10.0.0.0/24,ro=10.0.0.5/32", "rw=10.0.0.1/32:10.0.0.1/32", "RW=10.0.0.1/32", "rw=10.0.0.1/32 ",
+		"rw=fd00::/64", "Off",
 	} {
-		if _, err := decodeClients(s); err == nil {
-			t.Errorf("decodeClients(%q) accepted", s)
+		if cs, canonical := ParseShareNFS(s); canonical {
+			t.Errorf("ParseShareNFS(%q) accepted as %v", s, cs)
 		}
 	}
 }
@@ -236,8 +254,13 @@ func TestPlanPublishExport(t *testing.T) {
 		return Plan{{Kind: OpSet, Target: "tank/v/a", Props: props}}
 	}
 	var many []NFSClient
-	for i := range 500 {
-		many = append(many, NFSClient{Host: fmt.Sprintf("10.%d.%d.1/32", i/250, i%250)})
+	// as many clients as sharenfs holds: one more does not fit
+	for i := 0; ; i++ {
+		c := NFSClient{Host: fmt.Sprintf("10.%d.%d.1/32", i/250, i%250)}
+		if len(ShareNFS(append(many, c))) > maxPropLen {
+			break
+		}
+		many = append(many, c)
 	}
 	cases := []struct {
 		name string
@@ -246,33 +269,36 @@ func TestPlanPublishExport(t *testing.T) {
 		c    NFSClient
 		want Plan
 		code Code
+		// beyond: refused as ErrServedBeyond
+		beyond bool
 	}{
 		{name: "first client", row: fsv("a", nil), c: c1,
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
-		{name: "repeat is empty", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live1, c: c1},
-		{name: "repeat, not served: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), c: c1,
 			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served in the other mode: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32(ro)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served with no mode: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32()\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served only under a name: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\tnode-a.example(rw)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "second client", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live1,
+		{name: "repeat is empty", row: exported("a", "rw=10.0.0.1/32"), live: live1, c: c1},
+		{name: "repeat, not served: reshare", row: exported("a", "rw=10.0.0.1/32"), c: c1,
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "served in the other mode: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(ro)\n"), c: c1, code: FailedPrecondition, beyond: true},
+		{name: "served with no mode: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32()\n"), c: c1, code: FailedPrecondition, beyond: true},
+		{name: "served only under a name: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\tnode-a.example(rw)\n"), c: c1, code: FailedPrecondition, beyond: true},
+		{name: "second client", row: exported("a", "rw=10.0.0.1/32"), live: live1,
 			c:    NFSClient{Host: "10.9.0.0/16", ReadOnly: true},
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw,10.9.0.0/16=ro", "sharenfs": "rw=10.0.0.1/32,ro=10.9.0.0/16"})},
-		{name: "other mode", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live1,
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32,ro=10.9.0.0/16"})},
+		{name: "other mode", row: exported("a", "rw=10.0.0.1/32"), live: live1,
 			c: NFSClient{Host: "10.0.0.1/32", ReadOnly: true}, code: AlreadyExists},
 		// nfs-utils applies the first matching line: both modes cannot hold
-		{name: "inside an exported network", row: exported("a", "10.0.0.0/24=rw", "rw=10.0.0.0/24"),
+		{name: "inside an exported network", row: exported("a", "rw=10.0.0.0/24"),
 			c: NFSClient{Host: "10.0.0.5/32", ReadOnly: true}, code: FailedPrecondition},
-		{name: "around an exported host", row: exported("a", "10.0.0.5/32=ro", "ro=10.0.0.5/32"),
+		{name: "around an exported host", row: exported("a", "ro=10.0.0.5/32"),
 			c: NFSClient{Host: "10.0.0.0/24"}, code: FailedPrecondition},
-		{name: "drifted sharenfs is rewritten", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32:10.6.6.6/32"), live: live1, c: c1,
-			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		// an edit inside the grammar is accepted as truth (ADR 0004):
+		// sharenfs is not rewritten
+		{name: "in-grammar edit is accepted", row: exported("a", "rw=10.0.0.1/32:10.6.6.6/32"), live: live1, c: c1},
 		{name: "inherited sharenfs is pinned", c: c1, live: etab("/tank/v/a\t*(rw)\n"),
 			row:  fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal = "on", false }),
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
 		// D1 (wave9 nfs-diff): an ancestor exported with crossmnt (an
 		// inherited sharenfs=on is "rw,crossmnt") serves this mount to its
 		// own clients, whatever the volume's sharenfs says
@@ -282,13 +308,23 @@ func TestPlanPublishExport(t *testing.T) {
 			live: etab("/\t10.0.0.0/8(ro,crossmnt)\n")},
 		{name: "ancestor without crossmnt", row: fsv("a", nil), c: c1,
 			live: etab("/tank/v\t*(rw,nocrossmnt)\n/tank/v/ab\t*(rw,crossmnt)\n/tank/v/a/b\t*(rw,crossmnt)\n"),
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
-		// D2: served, but beyond the request: re-share once (the caller
-		// reports what a re-share cannot fix)
-		{name: "served with no_root_squash: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32(rw,no_root_squash)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
-		{name: "served to more clients: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
-			live: etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t*(ro)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		// D2: served, but beyond the request: refused before anything
+		// changes (ErrServedBeyond; the endpoint re-shares the unchanged
+		// value once and plans again, so a stale table still converges)
+		{name: "served with no_root_squash: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(rw,no_root_squash)\n"), c: c1, code: FailedPrecondition, beyond: true},
+		{name: "served to more clients: refused before any change", row: exported("a", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t*(ro)\n"), c: c1, code: FailedPrecondition, beyond: true},
+		// wave12 S7: a later version keeps export state in sharenfs alone
+		// (ADR 0004). After a rollback its volumes have a canonical local
+		// sharenfs and no stored list, and are still the endpoint's
+		{name: "canonical sharenfs without a stored list is ours", c: NFSClient{Host: "10.0.0.2/32"}, live: live1,
+			row:  fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32" }),
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32:10.0.0.2/32"})},
+		// a leftover stored list is never read, and never written
+		{name: "leftover stored list is ignored", c: c1, live: etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t10.0.0.2/32(rw)\n"),
+			row: leftover(exported("a", "rw=10.0.0.1/32:10.0.0.2/32"))},
 		{name: "foreign local sharenfs", c: c1, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=@10.0.0.0/8,no_root_squash" })},
 		// a received value is the sending side's export: never shadowed
@@ -297,25 +333,30 @@ func TestPlanPublishExport(t *testing.T) {
 		// `zfs inherit -S sharenfs` reverted to the received value
 		{name: "received sharenfs over our list", c: c1, code: FailedPrecondition, live: live1,
 			row: func() Row {
-				r := exported("a", "10.0.0.1/32=rw", "on")
+				r := exported("a", "on")
 				r.ShareNFSLocal, r.ShareNFSRecv = false, true
 				return r
 			}()},
 		{name: "received off is pinned", c: c1,
 			row:  fsv("a", func(r *Row) { r.ShareNFSLocal, r.ShareNFSRecv = false, true }),
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
-		{name: "corrupt client list", c: c1, code: FailedPrecondition, row: exported("a", "x=yes", "off")},
-		{name: "duplicate client list", c: c1, code: FailedPrecondition, row: exported("a", "10.0.0.1/32=rw,10.0.0.1/32=rw", "rw=10.0.0.1/32")},
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "leftover stored list, inherited sharenfs: pinned", c: c1,
+			row:  leftover(fsv("a", func(r *Row) { r.ShareNFSLocal = false })),
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		// ADR 0004: an admin's "*" over the endpoint's value is someone
+		// else's, never rewritten, leftover stored list or not
+		{name: "admin's * over our list is foreign", c: c1, code: FailedPrecondition, live: etab("/tank/v/a\t*(rw)\n"),
+			row: leftover(exported("a", "rw=*"))},
 		{name: "zvol", c: c1, code: FailedPrecondition,
 			row: vol("a", func(r *Row) { r.Type, r.Volsize, r.ShareNFS = zfs.TypeVolume, 1<<30, "-" })},
 		// canmount=on: setting sharenfs mounts and serves it
 		{name: "unmounted, canmount=on", c: c1, row: fsv("a", func(r *Row) { r.Mounted = false }),
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
 		{name: "unmounted, canmount=noauto", c: c1, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.Mounted, r.CanMount = false, "noauto" })},
 		{name: "mountpoint none", c: c1, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.Mounted, r.Mount = false, "none" })},
-		{name: "too many clients", row: exported("a", encodeClients(many), ShareNFS(many)),
+		{name: "too many clients", row: exported("a", ShareNFS(many)),
 			c: NFSClient{Host: "10.200.0.1/32"}, code: ResourceExhausted},
 		{name: "unmanaged", c: c1, code: NotFound, row: fsv("a", func(r *Row) { r.Managed = false })},
 		{name: "missing", c: c1, code: NotFound, row: fsv("b", nil)},
@@ -325,6 +366,9 @@ func TestPlanPublishExport(t *testing.T) {
 			plan, row, err := pl.PlanPublishExport(NewTable([]Row{tc.row}), tc.live, "a", tc.c)
 			if CodeOf(err) != tc.code {
 				t.Fatalf("err %v, want code %d", err, tc.code)
+			}
+			if errors.Is(err, ErrServedBeyond) != tc.beyond {
+				t.Fatalf("err %v: served beyond = %v, want %v", err, !tc.beyond, tc.beyond)
 			}
 			if !reflect.DeepEqual(plan, tc.want) {
 				t.Fatalf("plan %+v\nwant %+v", plan, tc.want)
@@ -341,36 +385,28 @@ func TestPlanPublishExport(t *testing.T) {
 	}
 }
 
-// F7: the limit is ZFS_MAXPROPLEN-1 on sharenfs and on the stored list,
-// which costs more per client (",host=rw" versus ":host").
+// F7: the limit is ZFS_MAXPROPLEN-1, on sharenfs alone (ADR 0004).
 func TestExportSizeLimit(t *testing.T) {
+	t.Parallel()
+	if maxPropLen != 8191 {
+		t.Fatalf("maxPropLen %d", maxPropLen)
+	}
 	var cs []NFSClient
 	for i := 0; len(ShareNFS(cs)) <= maxPropLen; i++ {
 		cs = append(cs, NFSClient{Host: fmt.Sprintf("10.%d.%d.%d/32", i/62500, i/250%250, i%250)})
 	}
-	if maxPropLen != 8191 {
-		t.Fatalf("maxPropLen %d", maxPropLen)
-	}
-	// both under the limit: planned
-	n := 0
-	for len(encodeClients(cs[:n+1])) <= maxPropLen {
-		n++
-	}
+	n := len(cs) - 1 // the most that fit
 	if _, err := pl.exportOps(fsv("a", nil), cs[:n]); err != nil {
 		t.Fatalf("%d clients: %v", n, err)
 	}
-	// sharenfs still fits, the stored list does not
-	if len(ShareNFS(cs[:n+1])) > maxPropLen {
-		t.Fatalf("test setup: sharenfs %d", len(ShareNFS(cs[:n+1])))
-	}
-	if _, err := pl.exportOps(fsv("a", nil), cs[:n+1]); CodeOf(err) != ResourceExhausted || !strings.Contains(err.Error(), "nfs_clients") {
+	if _, err := pl.exportOps(fsv("a", nil), cs); CodeOf(err) != ResourceExhausted || !strings.Contains(err.Error(), "sharenfs") {
 		t.Fatalf("%d clients: %v", n+1, err)
 	}
 }
 
 func TestPlanUnpublishExport(t *testing.T) {
 	t.Parallel()
-	two := exported("a", "10.0.0.1/32=rw,10.0.0.2/32=ro", "rw=10.0.0.1/32,ro=10.0.0.2/32")
+	two := exported("a", "rw=10.0.0.1/32,ro=10.0.0.2/32")
 	live := etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t10.0.0.2/32(ro)\n")
 	set := func(props map[string]string) Plan {
 		return Plan{{Kind: OpSet, Target: "tank/v/a", Props: props}}
@@ -384,47 +420,54 @@ func TestPlanUnpublishExport(t *testing.T) {
 		code Code
 	}{
 		{name: "one of two", row: two, live: live, host: "10.0.0.2",
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
 		{name: "spelled as /32", row: two, live: live, host: "10.0.0.2/32",
-			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
 		// never inherit: the parent may be shared to everyone
-		{name: "last sets off locally", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live, host: "10.0.0.1",
-			want: set(map[string]string{clientsProp: "none", "sharenfs": "off"})},
+		{name: "last sets off locally", row: exported("a", "rw=10.0.0.1/32"), live: live, host: "10.0.0.1",
+			want: set(map[string]string{"sharenfs": "off"})},
 		{name: "not a client", row: two, live: live, host: "10.0.0.3"},
 		{name: "network around a client is not that client", row: two, live: live, host: "10.0.0.0/24"},
-		{name: "already removed", row: exported("a", "none", "off"), host: "10.0.0.1"},
-		{name: "removed but still served: reshare", row: exported("a", "none", "off"), live: live, host: "10.0.0.1",
+		{name: "already removed", row: exported("a", "off"), host: "10.0.0.1"},
+		{name: "removed but still served: reshare", row: exported("a", "off"), live: live, host: "10.0.0.1",
 			want: set(map[string]string{"sharenfs": "off"})},
 		{name: "served by a foreign sharenfs", host: "10.0.0.1", live: live, code: FailedPrecondition,
-			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32" })},
+			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32,no_root_squash" })},
+		// wave12 S7: canonical without a stored list is ours, so a detach
+		// after a rollback revokes instead of failing for good
+		{name: "canonical sharenfs without a stored list is ours", host: "10.0.0.1", live: live,
+			row:  fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32,ro=10.0.0.2/32" }),
+			want: set(map[string]string{"sharenfs": "ro=10.0.0.2/32"})},
+		{name: "leftover stored list is ignored", host: "10.0.0.1", live: live,
+			row:  leftover(exported("a", "rw=10.0.0.1/32,ro=10.0.0.2/32")),
+			want: set(map[string]string{"sharenfs": "ro=10.0.0.2/32"})},
 		{name: "served by a received sharenfs", host: "10.0.0.1", live: live, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal, r.ShareNFSRecv = "rw=10.0.0.1/32", false, true })},
-		// D3 (wave9 nfs-diff): a line beyond the stored list that can
-		// match the host still serves it; on a volume whose sharenfs is
-		// ours it is rewritten, not reported gone. "Ours" is today's
-		// nfs_clients model, as in "drifted sharenfs is rewritten" above;
-		// when nfs_clients goes (ADR 0004) "rw=*" is foreign and this
-		// case becomes a FailedPrecondition
-		{name: "our sharenfs widened to *: rewritten", host: "10.0.0.1",
-			row: exported("a", "10.0.0.2/32=ro", "rw=*"), live: etab("/tank/v/a\t*(rw)\n"),
-			want: set(map[string]string{"sharenfs": "ro=10.0.0.2/32"})},
+		// D3 (wave9 nfs-diff): a line beyond the client list that can
+		// match the host still serves it, so the host is not reported
+		// gone. An admin's "rw=*" over the endpoint's value is foreign
+		// (ADR 0004): it is never rewritten, and Unpublish refuses
+		{name: "admin's * over our list: refused, not rewritten", host: "10.0.0.1",
+			row: leftover(exported("a", "rw=*")), live: etab("/tank/v/a\t*(rw)\n"), code: FailedPrecondition},
 		{name: "inherited world export after the last client: pinned off", host: "10.0.0.1",
 			row: func() Row {
-				r := exported("a", "none", "rw=")
+				r := exported("a", "rw=")
 				r.ShareNFSLocal = false
 				return r
 			}(),
 			live: etab("/tank/v/a\t*(rw)\n"), want: set(map[string]string{"sharenfs": "off"})},
-		{name: "foreign sharenfs to * is not ours to revoke", host: "10.0.0.1", live: etab("/tank/v/a\t*(rw)\n"),
-			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=*" })},
+		// not ours to revoke, and still serving the host: never "done"
+		{name: "foreign sharenfs to * still serves the host", host: "10.0.0.1", live: etab("/tank/v/a\t*(rw)\n"),
+			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=*" }), code: FailedPrecondition},
 		{name: "foreign but not served", host: "10.0.0.9", live: live,
-			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32" })},
+			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32,no_root_squash" })},
 		{name: "unmounted still revokes", host: "10.0.0.2",
-			row:  exported("a", "10.0.0.2/32=ro", "ro=10.0.0.2/32"),
-			want: set(map[string]string{clientsProp: "none", "sharenfs": "off"})},
+			row:  exported("a", "ro=10.0.0.2/32"),
+			want: set(map[string]string{"sharenfs": "off"})},
 		{name: "zvol", host: "10.0.0.1", row: vol("a", func(r *Row) { r.Type = zfs.TypeVolume })},
 		{name: "missing", host: "10.0.0.1", row: fsv("b", nil)},
-		{name: "corrupt", host: "10.0.0.1", row: exported("a", "x", "off"), code: FailedPrecondition},
+		{name: "leftover stored list, inherited off", host: "10.0.0.1",
+			row: leftover(fsv("a", func(r *Row) { r.ShareNFSLocal = false }))},
 		{name: "hostname", host: "node-a", row: two, live: live, code: InvalidArgument},
 	}
 	for _, tc := range cases {
@@ -448,16 +491,12 @@ func TestPlanUnpublishExport(t *testing.T) {
 // working NFS server would: the property test below needs no zfs.
 func applyRow(r Row, plan Plan) (Row, Etab) {
 	for _, op := range plan {
-		if v, ok := op.Props[clientsProp]; ok {
-			r.NFSClients, r.NFSClientsSet = v, true
-		}
 		if v, ok := op.Props["sharenfs"]; ok {
 			r.ShareNFS, r.ShareNFSLocal = v, true
 		}
 	}
 	e := Etab{}
-	cs, _ := decodeClients(r.NFSClients)
-	if r.ShareNFS == ShareNFS(cs) && r.ShareNFS != "off" {
+	if cs, ok := ParseShareNFS(r.ShareNFS); ok && len(cs) > 0 {
 		e[r.Mount] = cs
 	}
 	return r, e

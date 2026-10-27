@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -75,6 +76,10 @@ type Planner struct {
 	// skips the mount entirely; committing then would hand out a
 	// mountpoint that is a plain directory of the parent.
 	RequireMounted bool
+	// NFSServers and NFSMinPrefix are Config's: what a CreateVolume NFS
+	// export is checked against.
+	NFSServers   []string
+	NFSMinPrefix int
 
 	// now, when set, is stamped as committed_at by a create's commit: the
 	// caller's clock reading, so planning stays pure.
@@ -159,7 +164,100 @@ func (p Planner) validateCreate(r CreateVolumeRequest) (string, map[string]strin
 	if r.LimitBytes > 0 && !blockClone && p.want(r, props) > r.LimitBytes {
 		return "", nil, errorf(OutOfRange, "capacity %d (rounded) exceeds limit %d", p.want(r, props), r.LimitBytes)
 	}
+	if _, err := p.validateNFS(r); err != nil {
+		return "", nil, err
+	}
 	return id, props, nil
+}
+
+// nfsWant is a validated CreateVolume NFS export.
+type nfsWant struct {
+	clients  []NFSClient // sorted, canonical
+	server   string      // resolved: the request's, or the first advertised
+	explicit bool        // the request named the server
+}
+
+// validateNFS checks a request's NFS export on its own: a filesystem, an
+// endpoint that advertises NFS servers, client networks in the canonical
+// grammar (each with an explicit /N, host bits zero, at or above the
+// floor, none overlapping), never masked or completed, and an advertised
+// server. Nil without an export.
+func (p Planner) validateNFS(r CreateVolumeRequest) (*nfsWant, error) {
+	if r.NFS == nil {
+		return nil, nil
+	}
+	if r.Kind == Block {
+		return nil, errorf(InvalidArgument, "an NFS export needs a filesystem volume: a zvol cannot be exported over NFS")
+	}
+	if len(p.NFSServers) == 0 {
+		return nil, errorf(FailedPrecondition, "this endpoint advertises no NFS server (-nfs-server), so it takes no NFS export")
+	}
+	if len(r.NFS.Clients) == 0 {
+		return nil, errorf(InvalidArgument, "an NFS export needs at least one client network")
+	}
+	floor := cmp.Or(p.NFSMinPrefix, DefaultNFSMinPrefix)
+	var cs []NFSClient
+	for _, h := range r.NFS.Clients {
+		if h == "" {
+			return nil, errorf(InvalidArgument, "empty NFS client entry (an empty host exports to everyone)")
+		}
+		c, err := ParseClient(h, r.NFS.ReadOnly)
+		if err != nil {
+			return nil, err
+		}
+		if !strings.Contains(h, "/") {
+			return nil, errorf(InvalidArgument, "NFS client %q: write the network with its prefix length (%s): nfs-utils resolves and renames a bare address", h, c.Host)
+		}
+		if err := checkFloor(c, floor); err != nil {
+			return nil, err
+		}
+		if x, ok := overlap(cs, c); ok {
+			return nil, errorf(InvalidArgument, "NFS clients %s and %s overlap: nfs-utils applies the first matching line, so both cannot hold", x.Host, c.Host)
+		}
+		cs = append(cs, c)
+	}
+	cs = sortClients(cs)
+	if n := len(ShareNFS(cs)); n > maxPropLen {
+		return nil, errorf(InvalidArgument, "%d NFS clients make a %d-byte sharenfs, over the %d-byte limit; use wider networks", len(cs), n, maxPropLen)
+	}
+	server := r.NFS.Server
+	if server == "" {
+		server = p.NFSServers[0]
+	} else if !slices.Contains(p.NFSServers, server) {
+		return nil, errorf(InvalidArgument, "NFS server %q is not one this endpoint advertises (%s)", server, strings.Join(p.NFSServers, ", "))
+	}
+	return &nfsWant{clients: cs, server: server, explicit: r.NFS.Server != ""}, nil
+}
+
+// nfsCompatible applies CreateVolume idempotency to a committed volume's
+// export. The value is compared as parsed (canonical form is unique, so
+// order never matters); an admin's edit inside the grammar is the volume's
+// value, and the message names it. The server is fixed at create: another
+// one named explicitly is AlreadyExists, an omitted one takes the recorded
+// one, even when the advertised list changed since (csi-nfs-design §6 as
+// amended by wave13 Q1).
+func (p Planner) nfsCompatible(row Row, w *nfsWant) error {
+	if w == nil {
+		return nil
+	}
+	want := ShareNFS(w.clients)
+	if !row.ShareNFSLocal || foreign(row) {
+		src := "inherited"
+		switch {
+		case row.ShareNFSRecv:
+			src = "received"
+		case row.ShareNFSLocal:
+			src = "set outside the endpoint's grammar"
+		}
+		return errorf(AlreadyExists, "volume %s exists with sharenfs=%q (%s), requested %s", row.ID, row.ShareNFS, src, want)
+	}
+	if row.ShareNFS != want {
+		return errorf(AlreadyExists, "volume %s exists exported %s, requested %s", row.ID, row.ShareNFS, want)
+	}
+	if w.explicit && row.NFSServer != w.server {
+		return errorf(AlreadyExists, "volume %s was created with NFS server %q, requested %q: a volume's server never changes (its PVs hold it)", row.ID, row.NFSServer, w.server)
+	}
+	return nil
 }
 
 // PlanCreateVolume decides how to make the table satisfy r.
@@ -171,6 +269,10 @@ func (p Planner) validateCreate(r CreateVolumeRequest) (string, map[string]strin
 //     empty, or AlreadyExists
 func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) {
 	id, props, err := p.validateCreate(r)
+	if err != nil {
+		return nil, err
+	}
+	nfs, err := p.validateNFS(r)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +336,18 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 				return nil, errorf(AlreadyExists, "volume %s exists with volblocksize %d, requested %s", id, row.BlockSz, bs)
 			}
 			plan := p.sizeOps(id, row, r, size)
-			if set := propSet(row, props); len(set) > 0 {
+			set := propSet(row, props)
+			if nfs != nil {
+				// nobody holds an uncommitted volume's context yet: it
+				// converges to the request, server included
+				if share := ShareNFS(nfs.clients); !row.ShareNFSLocal || row.ShareNFS != share {
+					set["sharenfs"] = share
+				}
+				if row.NFSServer != nfs.server {
+					set[p.Names.nfsServer()] = nfs.server
+				}
+			}
+			if len(set) > 0 {
 				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: set})
 			}
 			if p.RequireMounted && mountable(row) && !row.Mounted {
@@ -251,7 +364,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if k, bad := propsMismatch(row, props); bad {
 			return nil, errorf(AlreadyExists, "volume %s exists without %s=%s set locally", id, k, props[k])
 		}
-		return nil, nil
+		return nil, p.nfsCompatible(row, nfs)
 	}
 
 	// validated properties first: none of them can name an ownership
@@ -271,6 +384,12 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		// honoured, nor exec. Server-side mount options: NFS clients and
 		// their own mounts are unaffected.
 		own["setuid"], own["exec"], own["devices"] = "off", "off", "off"
+	}
+	if nfs != nil {
+		// set in the create (or clone) itself: no committed volume can
+		// exist without its export or its server (csi-nfs-design §4); a
+		// clone takes the request's export, never its source's
+		own["sharenfs"], own[p.Names.nfsServer()] = ShareNFS(nfs.clients), nfs.server
 	}
 	var plan Plan
 	switch {

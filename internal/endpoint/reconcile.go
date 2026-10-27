@@ -62,6 +62,26 @@ const (
 	SkipChangedSinceScan = "changed since the scan, or not locked; next reconcile"
 )
 
+// Drift Reconcile reports and never acts on: the volume is left alone, and
+// the reason says what an operator may want to clear.
+const (
+	// SkipLegacyNFSClients: <prefix>:nfs_clients, the client list earlier
+	// versions computed sharenfs from, is still set. Export state is
+	// sharenfs alone (ADR 0004); the property is ignored, and `zfs inherit`
+	// clears it. The endpoint does not remove it itself: an earlier
+	// version rolled back to still reads it, and only sharenfs is served.
+	SkipLegacyNFSClients = "leftover nfs_clients property: ignored, sharenfs alone is the export state (ADR 0004); zfs inherit it to clear"
+	// SkipNFSServerNotLocal: <prefix>:nfs_server is inherited or received,
+	// so it is not the address this volume was created with; it is
+	// ignored (the volume reports no server).
+	SkipNFSServerNotLocal = "nfs_server is inherited or received, not set on the volume: ignored"
+	// SkipNFSServerUnadvertised: the server a volume was created with is
+	// no longer one the endpoint advertises (-nfs-server). Its PVs still
+	// mount it and can never be changed (a PV's attributes are
+	// immutable); re-create the PVs, or advertise the address again.
+	SkipNFSServerUnadvertised = "recorded NFS server is no longer advertised (-nfs-server): its PVs still mount it"
+)
+
 // Desired is the caller's statement of what to keep.
 type Desired struct {
 	// VolumeIDs is the complete set of volumes the caller wants. Every owned
@@ -339,6 +359,22 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		}
 		out.Actions = append(out.Actions, a)
 		out.groups = append(out.groups, reconcileGroup{target: r.ID, n: 1})
+	}
+
+	// report-only drift on the volumes that stay
+	for r := range cur.Volumes() {
+		if !r.OwnedVolume() {
+			continue
+		}
+		if r.NFSClientsSet {
+			skip(r.ID, SkipLegacyNFSClients)
+		}
+		if r.NFSServerElsewhere {
+			skip(r.ID, SkipNFSServerNotLocal)
+		}
+		if r.Committed && r.NFSServer != "" && !slices.Contains(p.NFSServers, r.NFSServer) {
+			skip(r.ID, SkipNFSServerUnadvertised)
+		}
 	}
 
 	// a volume planned in a later round waited for its clones: if one of

@@ -153,16 +153,16 @@ destroy tank/v/a@s +defer +ok-missing
 error: FailedPrecondition
 
 ## publish/first
-set tank/v/a democratic-csi:nfs_clients=10.0.0.1/32=rw sharenfs=rw=10.0.0.1/32
+set tank/v/a sharenfs=rw=10.0.0.1/32
 
 ## publish/second-ro
-set tank/v/a democratic-csi:nfs_clients=10.0.0.1/32=rw,10.9.0.0/16=ro sharenfs=rw=10.0.0.1/32,ro=10.9.0.0/16
+set tank/v/a sharenfs=rw=10.0.0.1/32,ro=10.9.0.0/16
 
 ## publish/zvol
 error: FailedPrecondition
 
 ## unpublish/last
-set tank/v/a democratic-csi:nfs_clients=none sharenfs=off
+set tank/v/a sharenfs=off
 
 ## reconcile/undesired-and-chain
 destroy tank/v/b@volume-source-for-volume-c +defer +ok-missing

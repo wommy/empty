@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strings"
 	"time"
@@ -50,7 +51,7 @@ type props struct{ p string }
 
 func (n props) all() []string {
 	return []string{n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt()}
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(), n.nfsServer()}
 }
 
 // validPrefix reports why prefix cannot name OpenZFS user properties:
@@ -96,9 +97,21 @@ func (n props) cloneSourceFor() string { return n.p + ":clone_source_for" }
 // provision retried long after its first attempt is new to the caller.
 func (n props) committedAt() string { return n.p + ":committed_at" }
 
-// nfsClients is the endpoint's own property (not the baseline's): the
-// desired NFS client list that sharenfs is computed from.
+// nfsClients is the client list earlier versions stored and computed
+// sharenfs from. Export state now lives in sharenfs alone (ADR 0004): the
+// property is never written or decided on, only read so Reconcile can
+// report a leftover one.
 func (n props) nfsClients() string { return n.p + ":nfs_clients" }
+
+// nfsServer is the endpoint's own property: the NFS server address a
+// volume exported at create was created with, set in the same `zfs create`
+// (or clone) as its sharenfs. CSI and Kubernetes hold it fixed for the
+// volume's life (a PV's volume attributes are immutable), and OpenZFS
+// keeps no such address, so it is recorded once. It is addressing
+// metadata, not export state (ADR 0004: who may mount is sharenfs alone).
+// Read only when set locally: an inherited or received one is not this
+// volume's (Reconcile reports it).
+func (n props) nfsServer() string { return n.p + ":nfs_server" }
 
 // baseline's name for the internal snapshot a volume-to-volume clone hangs off
 const cloneSourceSnapshotPrefix = "volume-source-for-volume-"
@@ -137,11 +150,20 @@ type Config struct {
 	// nfsd runs. Default: Etab when it also implements NFSDReader (the
 	// simulator), else /proc/fs/nfsd/threads.
 	NFSD NFSDReader
-	// NFSMinPrefix is the broadest client network PublishFileExport
-	// accepts: an IPv4 prefix length, 1-32. Default DefaultNFSMinPrefix
-	// (/16). Unpublish takes any network, so raising it never strands an
-	// export.
+	// NFSMinPrefix is the broadest client network PublishFileExport and
+	// CreateVolume's NFS export accept: an IPv4 prefix length, 1-32.
+	// Default DefaultNFSMinPrefix (/16). Unpublish takes any network, and
+	// the floor is not part of the ownership grammar (ParseShareNFS), so
+	// raising it never strands an export.
 	NFSMinPrefix int
+	// NFSServers are the addresses (IPv4 or DNS names) NFS clients mount
+	// this endpoint's volumes from, in order of preference: what
+	// CreateVolumeRequest.NFS.Server chooses among, and the first is the
+	// default. Advertise stable names (a VIP or a DNS name): a volume
+	// records the address it was created with, and the PVs that hold it
+	// can never be changed. Needs FileExport. Empty: CreateVolume takes no
+	// NFS export.
+	NFSServers []string
 	// DestroyForeignSnapshots lets DeleteVolume destroy a volume together
 	// with snapshots the endpoint did not cut (no locally set
 	// csi_snapshot_name or clone-source stamp: an administrator's, a backup
@@ -221,6 +243,18 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	if cfg.NFSMinPrefix < 1 || cfg.NFSMinPrefix > 32 {
 		return nil, fmt.Errorf("NFS minimum prefix /%d: want 1-32", cfg.NFSMinPrefix)
 	}
+	if len(cfg.NFSServers) > 0 && !cfg.FileExport {
+		return nil, errors.New("NFS servers are advertised, but file export is off (it needs root)")
+	}
+	for i, s := range cfg.NFSServers {
+		if err := ValidNFSServer(s); err != nil {
+			return nil, err
+		}
+		if slices.Contains(cfg.NFSServers[:i], s) {
+			return nil, fmt.Errorf("NFS server %q is listed twice", s)
+		}
+	}
+	cfg.NFSServers = slices.Clone(cfg.NFSServers)
 	names := props{cfg.PropertyPrefix}
 	return &Endpoint{
 		zfs:   z,
@@ -228,8 +262,44 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		names: names,
 		scans: make(chan struct{}, maxWholeScans),
 		plan: Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize, DestroyForeignSnapshots: cfg.DestroyForeignSnapshots,
-			RequireMounted: cfg.FileExport},
+			RequireMounted: cfg.FileExport, NFSServers: cfg.NFSServers, NFSMinPrefix: cfg.NFSMinPrefix},
 	}, nil
+}
+
+// ValidNFSServer checks an NFS server address as -nfs-server takes it: an
+// IPv4 address in canonical form or a DNS name (letters, digits, '-' and
+// '.', labels of 1-63 bytes, 253 bytes at most). csi-driver-nfs mounts
+// "<server>:<share>", so nothing else may reach it.
+func ValidNFSServer(s string) error {
+	if a, err := netip.ParseAddr(s); err == nil {
+		if a.Is4() && a.String() == s {
+			return nil
+		}
+		return fmt.Errorf("NFS server %q: want an IPv4 address or a DNS name (IPv6 is not supported yet)", s)
+	}
+	bad := fmt.Errorf("NFS server %q: want an IPv4 address or a DNS name", s)
+	if s == "" || len(s) > 253 {
+		return bad
+	}
+	labels := strings.Split(strings.TrimSuffix(s, "."), ".")
+	if last := labels[len(labels)-1]; last == "" || !(last[0] >= 'a' && last[0] <= 'z' || last[0] >= 'A' && last[0] <= 'Z') {
+		// a name whose last label starts with a digit is an address to
+		// inet_aton, which mount.nfs uses: "192.0.2.010" is octal,
+		// "0xc0000210" hex; only a top-level label that starts with a
+		// letter is a name (RFC 1123 2.1)
+		return bad
+	}
+	for _, l := range labels {
+		if l == "" || len(l) > 63 || l[0] == '-' || l[len(l)-1] == '-' {
+			return bad
+		}
+		for _, c := range []byte(l) {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+				return bad
+			}
+		}
+	}
+	return nil
 }
 
 // Volume as returned to front ends.
@@ -245,6 +315,21 @@ type Volume struct {
 	// DevicePath for Block (on the storage host), Mountpoint for Filesystem.
 	DevicePath string
 	Mountpoint string
+	// NFS, for a filesystem with a recorded NFS server or an export in
+	// the endpoint's grammar: Server is the address recorded at create,
+	// Clients and ReadOnly the local sharenfs (ReadOnly: every client).
+	NFS *NFSExport
+}
+
+// NFSExport is a static NFS export, given with CreateVolume.
+type NFSExport struct {
+	// Clients are IPv4 networks with an explicit prefix length and host
+	// bits zero ("10.20.0.0/24", "10.20.0.5/32"), at or above
+	// Config.NFSMinPrefix, none overlapping.
+	Clients  []string
+	ReadOnly bool
+	// Server is one of Config.NFSServers; "" is the first.
+	Server string
 }
 
 // Snapshot as returned to front ends.
@@ -273,6 +358,11 @@ type CreateVolumeRequest struct {
 	// against a per-kind allowlist (props.go). A committed volume is
 	// compatible only if each one is set locally to the same value.
 	Properties map[string]string
+	// NFS exports a filesystem at create (needs Config.NFSServers): the
+	// volume is committed only once the NFS server serves every client.
+	// A committed volume is compatible only with the same clients and
+	// mode, and with the same server or none.
+	NFS *NFSExport
 }
 
 func (e *Endpoint) dataset(id string) string { return e.cfg.Parent + "/" + id }
@@ -416,8 +506,15 @@ func volumeView(r Row) Volume {
 	}
 	if v.Kind == Block {
 		v.DevicePath = "/dev/zvol/" + r.Name
-	} else {
-		v.Mountpoint = r.Mount
+		return v
+	}
+	v.Mountpoint = r.Mount
+	if cs := clientsOf(r); r.NFSServer != "" || len(cs) > 0 {
+		v.NFS = &NFSExport{Server: r.NFSServer, ReadOnly: len(cs) > 0}
+		for _, c := range cs {
+			v.NFS.Clients = append(v.NFS.Clients, c.Host)
+			v.NFS.ReadOnly = v.NFS.ReadOnly && c.ReadOnly
+		}
 	}
 	return v
 }
@@ -479,17 +576,79 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		if err != nil {
 			return Volume{}, err
 		}
+		commit := Plan(nil)
+		if r.NFS != nil && p.commits(plan) {
+			// an NFS volume commits only once it is served (verifyExport)
+			plan, commit = plan[:len(plan)-1], plan[len(plan)-1:]
+		}
 		if err := e.apply(ctx, plan); err != nil {
 			if row, ok := t.Get(id); ok && !row.Committed {
 				return Volume{}, resumeErr(err)
 			}
 			return Volume{}, err
 		}
-		if pass > 0 || len(plan) == 0 || p.commits(plan) {
+		if commit != nil {
+			if err := e.verifyExport(ctx, id); err != nil {
+				return Volume{}, err
+			}
+			if err := e.apply(ctx, commit); err != nil {
+				return Volume{}, resumeErr(err)
+			}
+		}
+		if pass > 0 || len(plan)+len(commit) == 0 || commit != nil || p.commits(plan) {
 			break
 		}
 	}
 	return e.readVolume(ctx, id)
+}
+
+// verifyExport holds an NFS volume's commit until the NFS server serves
+// its export: `zfs create -o sharenfs` exits 0 when the share or exportfs
+// fails (csi-nfs-design §4, Fact A). Each client must be served in its
+// mode, by its own line, and nothing beyond the export; a miss re-shares
+// once (the value unchanged), then is Unavailable, uncommitted, and a
+// retry converges. nfsd must run: etab alone is no proof of a server.
+func (e *Endpoint) verifyExport(ctx context.Context, id string) error {
+	for try := 0; ; try++ {
+		t, err := e.scan(ctx, id)
+		if err != nil {
+			return err
+		}
+		row, ok := t.Get(id)
+		if !ok || !row.OwnedVolume() {
+			return errorf(Aborted, "volume %s vanished or changed owner during provisioning", id)
+		}
+		want := clientsOf(row)
+		if len(want) == 0 {
+			// the resume set the requested export just before this scan
+			return errorf(Aborted, "volume %s: sharenfs changed during provisioning (now %q); retry", id, row.ShareNFS)
+		}
+		live, err := e.exportTable(ctx, t, id)
+		if err != nil {
+			return err
+		}
+		var missing []string
+		for _, c := range want {
+			if !live.serves(row.Mount, c) {
+				missing = append(missing, c.Host+" "+c.mode())
+			}
+		}
+		if x := live.exposure(realPath(row.Mount), want); len(x) > 0 && len(missing) == 0 {
+			return errorf(FailedPrecondition, "volume %s is served beyond its export by the NFS export table: %s; "+
+				"remove these exports (an ancestor dataset's sharenfs with crossmnt, e.g. \"on\", or /etc/exports); the volume is not committed", id, strings.Join(x, "; "))
+		}
+		if len(missing) == 0 {
+			return e.nfsdRunning(ctx)
+		}
+		if try > 0 {
+			return errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s: "+
+				"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host; the volume is not committed",
+				row.Name, row.Mount, strings.Join(missing, ", "))
+		}
+		if err := e.apply(ctx, reshare(row, want)); err != nil {
+			return resumeErr(err)
+		}
+	}
 }
 
 // resumeErr maps the failure of a resumed provision. An earlier attempt
@@ -842,6 +1001,10 @@ func (e *Endpoint) GetCapacity(ctx context.Context) (uint64, error) {
 // FileExportEnabled reports whether this endpoint offers NFS export.
 func (e *Endpoint) FileExportEnabled() bool { return e.cfg.FileExport }
 
+// NFSServers are the NFS server addresses this endpoint advertises
+// (Config.NFSServers), in order.
+func (e *Endpoint) NFSServers() []string { return slices.Clone(e.cfg.NFSServers) }
+
 func (e *Endpoint) readEtab(ctx context.Context) (Etab, error) {
 	b, err := e.cfg.Etab.ReadEtab(ctx)
 	if err != nil {
@@ -873,8 +1036,8 @@ func (e *Endpoint) exportTable(ctx context.Context, t Table, volID string) (Etab
 // in the other mode is AlreadyExists, an overlapping network is
 // FailedPrecondition. A missing volume or an id this endpoint never issues
 // is NotFound. Zvols, volumes zfs would not mount (canmount off/noauto,
-// mountpoint none/legacy) and a sharenfs the endpoint did not write (set
-// locally by someone else, or received) are FailedPrecondition. Success
+// mountpoint none/legacy) and a sharenfs that is not the endpoint's (set
+// locally outside its grammar, or received) are FailedPrecondition. Success
 // means the kernel serves the export and nfsd runs: `zfs set sharenfs`
 // cannot report a failed exportfs, so the export table is read back and a
 // mismatch is Unavailable (the retry re-shares).
@@ -910,6 +1073,18 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 		return "", err
 	}
 	plan, row, err := e.plan.PlanPublishExport(t, live, volID, c)
+	if errors.Is(err, ErrServedBeyond) && row.Mounted {
+		// a stale table (an earlier exportfs failed) goes with a re-share
+		// of the unchanged value; what stays is someone else's, and the
+		// refusal then leaves every property as it was
+		if err := e.apply(ctx, reshare(row, clientsOf(row))); err != nil {
+			return "", err
+		}
+		if live, err = e.exportTable(ctx, t, volID); err != nil {
+			return "", err
+		}
+		plan, row, err = e.plan.PlanPublishExport(t, live, volID, c)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -925,12 +1100,19 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 				"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, c.Host, c.mode())
 		}
 	}
-	// served beyond the request: a line of another exports file for this
-	// path, or an ancestor exported with crossmnt (an inherited
-	// sharenfs=on) serves this mount to its own clients
+	// served beyond the request after the change: what the planner could
+	// not see (an inherited value's lines it replaced, an ancestor reached
+	// only through the mountpoint's real path, a concurrent edit). The
+	// change is undone, so a refused Publish leaves sharenfs as it was.
 	if x := live.exposure(realPath(row.Mount), publishWant(row, c)); len(x) > 0 {
-		return "", errorf(FailedPrecondition, "volume %s is served beyond its client list by the NFS export table: %s; "+
+		refused := errorf(FailedPrecondition, "volume %s is served beyond its client list by the NFS export table: %s; "+
 			"remove these exports (an ancestor dataset's sharenfs with crossmnt, e.g. \"on\", or /etc/exports) first", row.ID, strings.Join(x, "; "))
+		if len(plan) > 0 {
+			if rerr := e.restoreShareNFS(ctx, row); rerr != nil {
+				return "", errors.Join(refused, fmt.Errorf("restoring sharenfs: %w", rerr))
+			}
+		}
+		return "", refused
 	}
 	// etab is no proof of a server: exportfs -ra rewrites it with nfsd
 	// stopped
@@ -938,6 +1120,19 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 		return "", err
 	}
 	return row.Mount, nil
+}
+
+// restoreShareNFS puts back the sharenfs a refused Publish changed: the
+// local value it had (always the endpoint's own: Publish refuses anything
+// else before writing), or inheritance. It runs even when the caller's
+// context ended, bounded by its own timeout, still under the volume lock.
+func (e *Endpoint) restoreShareNFS(ctx context.Context, before Row) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	if before.ShareNFSLocal {
+		return e.zfs.Set(ctx, before.Name, map[string]string{"sharenfs": before.ShareNFS})
+	}
+	return e.zfs.Inherit(ctx, before.Name, "sharenfs")
 }
 
 // nfsdRunning is Unavailable unless nfsd threads run.
