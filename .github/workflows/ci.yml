@@ -25,8 +25,10 @@ defaults:
 
 jobs:
   # ADR 0005: a PR is green or red within 60s. Two jobs run in parallel next
-  # to the real-ZFS VM, each sized to a ~45s critical path:
-  #   static  gofmt, tidy, vet, buf lint, gen drift, fuzz seed corpus
+  # to the real-ZFS VM jobs (one per suite), each sized to a ~45s critical
+  # path:
+  #   static  gofmt, tidy, vet, buf lint, gen drift, fuzz seed corpus, the
+  #           real-ZFS suites cover every real-pool package once
   #   test    the simulator suite under -race
   # Go comes from the sha256-pinned tarball in .github/actions/setup-go, and
   # every job restores a Go build/module cache keyed by go.sum, saved by the
@@ -69,6 +71,11 @@ jobs:
           echo "$HOME/buf/bin" >> "$GITHUB_PATH"
       - name: gofmt
         run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: real-ZFS suites cover every real-pool package once
+        # the real-zfs matrix below, nightly.yml's and cache-warm.yml's
+        # against ci/real-zfs-suites.txt: with each job's own check-skips
+        # and check-split, every listed test runs in exactly one VM job
+        run: ci/check-suites.sh
       - name: go.mod and go.sum tidy
         run: go mod tidy -diff
       - name: vet
@@ -139,14 +146,29 @@ jobs:
     # version` reports 2.4.x for both userland and kmod, and enforces the
     # skip budget in ci/expected-skips.txt.
     #
+    #
+    # One job per suite (ci/real-zfs-suites.txt), each on its own runner
+    # with its own VM: endpoint (three endpoint shards, TestPropertyRoundTrip
+    # split across them) and csi (csi tests, csi-sanity on filesystems and
+    # on zvols). With all six shards in one 4-vCPU guest the guest was
+    # CPU-bound (run 40502060857: busy 92%, cpu pressure 78%); ADR 0005.
+    # Each job restores the same guest entry and boots its own VM.
+    #
     # Step order is the critical path: the guest and qemu restore first
     # (one cache entry), the guest boots in the background, and setup-go
     # and the test build run while it boots. The caches are kept warm on
     # the default branch by cache-warm.yml, which PRs read (a PR's own
     # saves are PR-scoped).
-    name: real ZFS 2.4 (Ubuntu 26.10 VM)
+    name: real ZFS 2.4 (${{ matrix.suite }}, Ubuntu 26.10 VM)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      # one suite's failure must not cancel the other's measurement
+      fail-fast: false
+      matrix:
+        # every suite of ci/real-zfs-suites.txt exactly once
+        # (ci/check-suites.sh)
+        suite: [endpoint, csi]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -204,32 +226,37 @@ jobs:
           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
           ZFSVM_PHASE: boot
           ZFSVM_SUMS: ${{ steps.keys.outputs.sums }}
+          ZFSVM_SUITE: ${{ matrix.suite }}
         run: ci/real-zfs-vm.sh stonking current 2.4
       - id: go
         uses: ./.github/actions/setup-go
         with:
-          # its own namespace: CGO_ENABLED=0 test builds share nothing with
-          # the test job's -race builds
-          cache-name: real-zfs
-      - name: test (Ubuntu 26.10, real zfs 2.4)
+          # its own namespace per suite: CGO_ENABLED=0 builds of this
+          # suite's test binaries share nothing with the test job's -race
+          # builds (cache-warm.yml warms each)
+          cache-name: real-zfs-${{ matrix.suite }}
+      - name: test ${{ matrix.suite }} (Ubuntu 26.10, real zfs 2.4)
         env:
           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
           ZFSVM_PHASE: run
+          ZFSVM_SUITE: ${{ matrix.suite }}
         run: ci/real-zfs-vm.sh stonking current 2.4
       - name: upload zfsdiff replay report and test times
         # every run: TestZFSDiffReplay reports real pool vs simulator vs
         # reference model divergences without failing the job (the job
         # summary has the verdicts; the full replay is in nightly.yml).
         # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh;
-        # load.txt + vmstat.txt: the guest's CPU and pressure in the tests
+        # load.txt + vmstat.txt: the guest's CPU and pressure in the tests.
+        # The endpoint job's artifact keeps the name zfsdiff-report (what
+        # ci/real-zfs-weights.sh reads); the csi job's has its times
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: zfsdiff-report
+          name: ${{ matrix.suite == 'endpoint' && 'zfsdiff-report' || format('real-zfs-report-{0}', matrix.suite) }}
           path: |
             ${{ runner.temp }}/zfsvm/out/zfsdiff.log
             ${{ runner.temp }}/zfsvm/out/test-times.tsv
-            ${{ runner.temp }}/zfsvm/out/endpoint.list
+            ${{ runner.temp }}/zfsvm/out/*.list
             ${{ runner.temp }}/zfsvm/out/load.txt
             ${{ runner.temp }}/zfsvm/out/vmstat.txt
           if-no-files-found: warn
@@ -242,7 +269,8 @@ jobs:
         # a cold guest, or a guest restored with another runner image's qemu
         # tree; after the tests, so a miss does not delay the boot. Also
         # after a test failure: provisioning succeeded, and the version
-        # checks run again on every warm boot
+        # checks run again on every warm boot. Both suites' jobs may try:
+        # the first save wins, the other only warns (the key is taken)
         if: always() && steps.stored.outputs.ok == '1'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
@@ -262,7 +290,7 @@ jobs:
         if: failure() || cancelled() # a timeout cancels the job
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: real-zfs-vm-logs
+          name: real-zfs-vm-logs-${{ matrix.suite }}
           path: |
             ${{ runner.temp }}/zfsvm/*.log
             ${{ runner.temp }}/zfsvm/user-data
