@@ -188,6 +188,13 @@ jobs:
           ZFSDIFF_FULL: "1"
           ZFS_CRASH_FULL: "1"
           ZFSVM_INITRD: ${{ matrix.suite == 'csi' && '1' || '' }}
+          # csi-sanity in NFS mode on the real pool (a fourth csi shard,
+          # through the guest's nfsd), its passed specs compared exactly
+          # with internal/csi/testdata/sanity-passed-nfs.txt. Nightly only:
+          # in the PR csi job it would add about 2-4s to a job that sets
+          # the pace in about half the runs (ADR 0005); the PR tier runs it
+          # on the simulator (ci.yml's test job)
+          ZFSVM_CSI_NFS: ${{ matrix.suite == 'csi' && '1' || '' }}
         run: ci/real-zfs-vm.sh stonking current 2.4
       - name: upload zfsdiff replay report and shard logs
         # with the shard plan and the test lists (what ci/check-split.sh
@@ -202,6 +209,7 @@ jobs:
             ${{ runner.temp }}/zfsvm/out/test-times.tsv
             ${{ runner.temp }}/zfsvm/out/*.list
             ${{ runner.temp }}/zfsvm/out/*.plan
+            ${{ runner.temp }}/zfsvm/out/*.passed
             ${{ runner.temp }}/zfsvm/out/load.txt
             ${{ runner.temp }}/zfsvm/out/vmstat.txt
             ${{ runner.temp }}/zfsvm/*.log
