@@ -91,7 +91,11 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
 	h := &harness{}
 	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
 		h.Z = zfs.New(zfs.LocalRunner{})
-		h.Parent = fmt.Sprintf("%s/ep-%s-%d", pool, unsafeChars.ReplaceAllString(t.Name(), "_"), time.Now().UnixNano())
+		// the name part is capped so the parent stays within
+		// endpoint.MaxParentLen whatever a subtest is called
+		name := unsafeChars.ReplaceAllString(t.Name(), "_")
+		name = name[:min(len(name), 64)]
+		h.Parent = fmt.Sprintf("%s/ep-%s-%d", pool, name, time.Now().UnixNano())
 		t.Cleanup(func() {
 			if err := h.Z.Destroy(ctx, h.Parent, zfs.DestroyOptions{Recursive: true}); err != nil {
 				t.Errorf("cleanup %s: %v", h.Parent, err)

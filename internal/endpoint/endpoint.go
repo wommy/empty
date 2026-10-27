@@ -174,10 +174,20 @@ type Endpoint struct {
 	locks lock.Keyed
 }
 
+// MaxParentLen is the longest parent dataset name New accepts: zfs names are
+// at most 255 bytes, and a volume (<parent>/<id>) or snapshot
+// (<parent>/<volume>@<name>) id is up to 128 bytes, so a longer parent
+// would refuse some CSI names that are valid everywhere else. Refused at
+// startup rather than on each CreateVolume.
+const MaxParentLen = 255 - 1 - 128
+
 // New returns an Endpoint.
 func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	if !zfs.ValidDataset(cfg.Parent) {
 		return nil, fmt.Errorf("invalid parent dataset %q", cfg.Parent)
+	}
+	if len(cfg.Parent) > MaxParentLen {
+		return nil, fmt.Errorf("parent dataset %q is %d bytes, over %d: its volumes' names (up to 128 bytes more) would exceed zfs's 255", cfg.Parent, len(cfg.Parent), MaxParentLen)
 	}
 	if cfg.PropertyPrefix == "" {
 		cfg.PropertyPrefix = DefaultPropertyPrefix

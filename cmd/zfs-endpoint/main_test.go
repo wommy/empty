@@ -53,6 +53,7 @@ func TestStartupRefusals(t *testing.T) {
 		{"no parent", []string{"-listen", sock}, nil, exitConfig, "-parent is required"},
 		{"dotdot parent", []string{"-parent", "tank/../x", "-listen", sock}, nil, exitConfig, `".." component`},
 		{"dot parent", []string{"-parent", "tank/./x", "-listen", sock}, nil, exitConfig, `"." component`},
+		{"overlong parent", []string{"-parent", "tank/" + strings.Repeat("p", 122), "-listen", sock, "-parent-wait", "0"}, nil, exitConfig, "over 126"},
 		{"non-root", []string{"-parent", "tank/k8s", "-listen", sock}, func(d *deps) { d.euid = 1000 }, exitConfig, "must run as root"},
 		{"zvol parent", []string{"-parent", "tank/zvol", "-listen", sock}, nil, exitConfig, "is a volume, not a filesystem"},
 		{"missing parent", []string{"-parent", "tank/nope", "-listen", sock, "-parent-wait", "0"}, nil, exitTempFail, "not available"},
