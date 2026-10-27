@@ -48,6 +48,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -778,12 +779,22 @@ func (s *Sim) spaceCheck(name, prop, value string) string {
 		if nv != 0 && (nv < get("reservation") || nv < s.dirUsed(name)) {
 			return less
 		}
-	case "refreservation", "reservation":
-		limit := "refquota"
-		if prop == "reservation" {
-			limit = "quota"
+	case "refreservation":
+		// unique is 0: delta is new less old
+		if cur := get(prop); nv > cur && (nv-cur > s.dirAvail(name) || get("refquota") > 0 && nv > get("refquota")) {
+			return more
 		}
-		if cur := get(prop); nv > cur && (nv-cur > s.available(name) || get(limit) > 0 && nv > get(limit)) {
+	case "reservation":
+		// delta = MAX(used, new) - MAX(used, old), against the parent's
+		// space (the pool's adjusted size less used at the root)
+		used := s.dirUsed(name)
+		avail := uint64(0)
+		if p := parent(name); p != "" {
+			avail = s.dirAvail(p)
+		} else if used < s.PoolSize {
+			avail = s.PoolSize - used
+		}
+		if a, b := max(used, nv), max(used, get(prop)); a > b && (a-b > avail || get("quota") > 0 && nv > get("quota")) {
 			return more
 		}
 	}
@@ -816,44 +827,54 @@ func (s *Sim) num(name, prop string) uint64 {
 	return v
 }
 
-// dirUsed approximates a dataset's dd_used_bytes with empty datasets: the
-// refreservations of the heads under it and its descendants'
-// reservations.
+// dirUsed is a dataset's dd_used_bytes with empty datasets (referenced
+// and unique taken as 0): its own refreservation (usedbyrefreservation)
+// plus what each child dir charges it, the larger of the child's used and
+// its reservation (dsl_dir.c dsl_dir_diduse_transfer_space: a reservation
+// is charged to the parent only above what the child uses).
 func (s *Sim) dirUsed(name string) uint64 {
-	var u uint64
-	for _, k := range append([]string{name}, s.children(name)...) {
-		if s.ds[k].typ == zfs.TypeSnapshot {
+	u := s.num(name, "refreservation")
+	for _, k := range s.children(name) {
+		if parent(k) != name || s.ds[k].typ == zfs.TypeSnapshot {
 			continue
 		}
-		u += s.num(k, "refreservation")
-		if k != name {
-			u += s.num(k, "reservation")
-		}
+		u += max(s.dirUsed(k), s.num(k, "reservation"))
 	}
 	return u
 }
 
-// available approximates dsl_dir_space_available: the pool's free space
-// less every reservation, capped by each ancestor's quota.
+// dirAvail is dsl_dir_space_available(dd, NULL, 0, TRUE) (dsl_dir.c):
+// the parent's space plus this dir's unused reservation, capped by its
+// quota; at the root the quota is the pool's size.
+func (s *Sim) dirAvail(name string) uint64 {
+	parentspace := uint64(math.MaxUint64)
+	if p := parent(name); p != "" {
+		parentspace = s.dirAvail(p)
+	}
+	quota := uint64(math.MaxUint64)
+	if q := s.num(name, "quota"); q > 0 {
+		quota = q
+	}
+	if parent(name) == "" {
+		quota = min(quota, s.PoolSize)
+	}
+	used := s.dirUsed(name)
+	if r := s.num(name, "reservation"); r > used && parentspace != math.MaxUint64 {
+		parentspace += r - used
+	}
+	if used > quota {
+		return 0
+	}
+	return min(parentspace, quota-used)
+}
+
+// available is dsl_dataset_space's availbytes: the dir's space plus the
+// head's unused refreservation (all of it: unique is 0), capped by its
+// refquota less referenced (0).
 func (s *Sim) available(name string) uint64 {
-	var used uint64
-	for k, n := range s.ds {
-		if n.typ != zfs.TypeSnapshot {
-			used += s.num(k, "refreservation") + s.num(k, "reservation")
-		}
-	}
-	avail := uint64(0)
-	if used < s.PoolSize {
-		avail = s.PoolSize - used
-	}
-	for p := name; p != ""; p = parent(p) {
-		if q := s.num(p, "quota"); q > 0 {
-			u := s.dirUsed(p)
-			if q < u {
-				return 0
-			}
-			avail = min(avail, q-u)
-		}
+	avail := s.dirAvail(name) + s.num(name, "refreservation")
+	if rq := s.num(name, "refquota"); rq > 0 {
+		avail = min(avail, rq)
 	}
 	return avail
 }
