@@ -1,11 +1,27 @@
 # Namespace, service account and the cluster permissions the three sidecars
-# need (csi-provisioner, csi-resizer, csi-snapshotter, as their upstream
-# deploy/kubernetes/rbac.yaml grant them). zfs-csi itself calls no
-# Kubernetes API. No leader election (one replica, Recreate), so no leases.
+# need: the union of the ClusterRoles in upstream deploy/kubernetes/rbac.yaml
+# for the pinned tags (external-provisioner v5.2.0, external-resizer v1.13.1,
+# external-snapshotter v8.2.0), minus what the flags in controller.yaml turn
+# off, never more (deploy_test.go TestSidecarRBAC):
+#   - pods: csi-resizer runs with --handle-volume-inuse-error=false (the
+#     driver expands ONLINE, controller only), so it starts no pod informer.
+#     Without the flag it needs pods get/list/watch, or it waits for that
+#     informer's sync forever and never expands a volume.
+#   - leases: no leader election (one replica, Recreate).
+#   - csistoragecapacities, pods/replicasets get: no --enable-capacity.
+#   - groupsnapshot.storage.k8s.io: the snapshotter's group snapshot feature
+#     gate is off by default.
+# zfs-csi itself calls no Kubernetes API, and gets no token (controller.yaml).
 apiVersion: v1
 kind: Namespace
 metadata:
   name: zfs-csi
+  labels:
+    # the pod mounts a hostPath (the endpoint's socket directory), which
+    # Pod Security baseline and restricted refuse; say so here rather than
+    # inherit a cluster default that rejects the pod with only a FailedCreate
+    # event on the ReplicaSet
+    pod-security.kubernetes.io/enforce: privileged
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -18,7 +34,7 @@ kind: ClusterRole
 metadata:
   name: zfs-csi-controller
 rules:
-  # csi-provisioner
+  # csi-provisioner (persistentvolumes patch: also csi-resizer)
   - apiGroups: [""]
     resources: ["persistentvolumes"]
     verbs: ["get", "list", "watch", "create", "patch", "delete"]
@@ -33,7 +49,7 @@ rules:
     verbs: ["list", "watch", "create", "update", "patch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots"]
-    verbs: ["get", "list", "watch", "update", "patch"]
+    verbs: ["get", "list"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["csinodes"]
     verbs: ["get", "list", "watch"]
