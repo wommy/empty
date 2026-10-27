@@ -155,3 +155,5 @@ TestUnknownFailureAfterAMutationIsRetryable 0.00
 TestUserValueDash 0.00
 TestValidatePropertyValues 0.00
 TestZfsErrCodes 0.00
+TestModel 5.00
+TestRealFacts 1.50

@@ -24,6 +24,14 @@ type Row struct {
 	Origin   string // full name of the clone origin snapshot, "" if none
 	Creation int64
 	Deferred bool // snapshot marked for deferred destroy
+	// Holds is a snapshot's user hold count (userrefs): zfs refuses a
+	// plain destroy of a held snapshot, and a deferred one outlives its
+	// last clone until the last hold is released.
+	Holds uint64
+	// Children are the ids of datasets below a volume. The endpoint makes
+	// none, so they are never its own and never in the table; zfs refuses
+	// to destroy the volume without -r while they exist.
+	Children []string
 	Mount    string
 	// Local holds the allowlisted properties (props.go) set on the dataset
 	// itself; inherited and default values read as "".
@@ -230,7 +238,7 @@ func (t Table) ClonesOf(snap string) iter.Seq[Row] { return t.pick(t.clonesOfSrc
 func (n props) columns() []string {
 	return append([]string{
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
-		"defer_destroy", "mountpoint", "sharenfs", "mounted", "canmount",
+		"defer_destroy", "userrefs", "mountpoint", "sharenfs", "mounted", "canmount",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
 		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(),
 	}, propNames[:]...)
@@ -245,6 +253,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 	j := func(p string) int { return c.Col(p) }
 	cType, cVolsize, cBlock, cRefquota, cRefres := j("type"), j("volsize"), j("volblocksize"), j("refquota"), j("refreservation")
 	cOrigin, cCreation, cDefer, cMount := j("origin"), j("creation"), j("defer_destroy"), j("mountpoint")
+	cHolds := j("userrefs")
 	cManaged, cSuccess, cVolName := j(n.managed()), j(n.success()), j(n.volumeName())
 	cSrcType, cSrcID, cSnapName, cSnapSrc := j(n.sourceType()), j(n.sourceID()), j(n.snapshotName()), j(n.snapshotSource())
 	var cLocal [nPropKeys]int
@@ -283,6 +292,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 			BlockSz:        u(cBlock),
 			Origin:         userValue(cell(cOrigin)),
 			Deferred:       cell(cDefer).Value == "on",
+			Holds:          u(cHolds),
 			Mount:          userValue(cell(cMount)),
 			Managed:        own(cManaged) == "true",
 			Committed:      own(cSuccess) == "true",
@@ -355,13 +365,27 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 	if err != nil {
 		return Table{}, err
 	}
+	// a dataset below a volume is dropped, but its volume records it: the
+	// volume cannot be destroyed without -r while it stands (OWN-12)
+	below := map[string][]string{}
 	rows = slices.DeleteFunc(rows, func(r Row) bool {
 		if !strings.HasPrefix(r.Name, e.cfg.Parent+"/") {
 			return true // the parent and its own snapshots (pool-root parents)
 		}
 		vol, _, _ := strings.Cut(r.ID, "@")
-		return vol == "" || strings.Contains(vol, "/")
+		if top, _, deeper := strings.Cut(vol, "/"); deeper {
+			if r.Type != zfs.TypeSnapshot && top != "" {
+				below[top] = append(below[top], r.ID)
+			}
+			return true
+		}
+		return vol == ""
 	})
+	for i := range rows {
+		if kids, ok := below[rows[i].ID]; ok {
+			rows[i].Children = kids
+		}
+	}
 	if only != "" {
 		return newPartialTable(rows, only), nil
 	}

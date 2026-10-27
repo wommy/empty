@@ -193,10 +193,12 @@ jobs:
           } > "$RUNNER_TEMP/issue.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly real-ZFS failure" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
 
-  # The scale tests and the model-based FSM explorer. Contract with the test
-  # code: they carry `//go:build nightly` and are named TestScale* and
-  # TestExplore*, and take their budget from -timeout. Until such tests exist
-  # this step runs nothing and passes.
+  # The scale tests and the recovery FSM explorer
+  # (internal/endpoint/fsm_explore_test.go: TestExploreLifecycle). Contract
+  # with the test code: they carry `//go:build nightly`, are named TestScale*
+  # and TestExplore*, and take their budget from -timeout. A run in which no
+  # such test passed (a lost build tag, a renamed test) fails: green with
+  # "[no tests to run]" is not coverage (ci/check-explore-ran.sh).
   explore:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -213,8 +215,11 @@ jobs:
       - name: scale tests and FSM explorer
         id: explore
         run: go test -tags nightly -count=1 -timeout 25m -run '^Test(Scale|Explore)' -v ./... | tee "$RUNNER_TEMP/explore.log"
+      - name: explorer tests ran
+        id: ran
+        run: ci/check-explore-ran.sh "$RUNNER_TEMP/explore.log"
       - name: file issue
-        if: failure() && steps.explore.conclusion == 'failure'
+        if: failure() && (steps.explore.conclusion == 'failure' || steps.ran.conclusion == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

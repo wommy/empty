@@ -407,7 +407,7 @@ func hasAny[T any](seq func(func(T) bool)) bool {
 // way zfs does, in one pass: -r takes a dataset and everything below it; a
 // deferred snapshot destroy removes the snapshot once no clone remains, else
 // marks it; removing a dataset reaps its origin when that was marked and now
-// has no clones.
+// has no clones or user holds.
 //
 // It is O(rows + ops); applying the plans one at a time was O(rows) per op,
 // which made PlanReconcile quadratic (31 s at 16k volumes, half of it under
@@ -461,7 +461,8 @@ func simulateDestroyAll(rows []Row, plans []Plan) []Row {
 			clones[r.Origin]++
 		}
 	}
-	return slices.DeleteFunc(rows, func(r Row) bool { return cand[r.Name] && r.Deferred && clones[r.Name] == 0 })
+	// a held snapshot outlives its last clone until the last release
+	return slices.DeleteFunc(rows, func(r Row) bool { return cand[r.Name] && r.Deferred && clones[r.Name] == 0 && r.Holds == 0 })
 }
 
 // ReconcileRequest is what a caller asks a reconcile to keep.
