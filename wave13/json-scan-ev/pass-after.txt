@@ -1,0 +1,7 @@
+--- PASS: TestSeamGhostRowFromForgedNewlines (0.00s)
+--- PASS: TestH_ScanRejectsRowsZFSNeverListed (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.016s
+--- PASS: TestH_ForgedLineForNonexistentDataset (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/zfs	0.007s

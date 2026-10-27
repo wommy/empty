@@ -1,0 +1,44 @@
+    forgery_seam_test.go:89: one foreign value fails every scan of the parent: scan tank/v: zfs list tank/v: unknown: line 83: tank/v/b zfs-endpoint:managed_resource printed twice: a property value contains a newline
+--- FAIL: TestF11NewlineValueDoesNotFailTheScan (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.009s
+    checkprops_test.go:43: set with value "a\rb": err <nil>, 1 commands run
+    checkprops_test.go:43: set with value "\x01": err <nil>, 1 commands run
+    checkprops_test.go:43: set with value "del\x7f": err <nil>, 1 commands run
+    checkprops_test.go:43: set with value "café": err <nil>, 1 commands run
+    checkprops_test.go:43: set with value "😀": err <nil>, 1 commands run
+    checkprops_test.go:43: set with value "\xff": err <nil>, 1 commands run
+    checkprops_test.go:43: set -u with value "a\rb": err <nil>, 1 commands run
+    checkprops_test.go:43: set -u with value "\x01": err <nil>, 1 commands run
+    checkprops_test.go:43: set -u with value "del\x7f": err <nil>, 1 commands run
+    checkprops_test.go:43: set -u with value "café": err <nil>, 1 commands run
+    checkprops_test.go:43: set -u with value "😀": err <nil>, 1 commands run
+    checkprops_test.go:43: set -u with value "\xff": err <nil>, 1 commands run
+    checkprops_test.go:43: create with value "a\rb": err <nil>, 1 commands run
+    checkprops_test.go:43: create with value "\x01": err <nil>, 1 commands run
+    checkprops_test.go:43: create with value "del\x7f": err <nil>, 1 commands run
+    checkprops_test.go:43: create with value "café": err <nil>, 1 commands run
+    checkprops_test.go:43: create with value "😀": err <nil>, 1 commands run
+    checkprops_test.go:43: create with value "\xff": err <nil>, 1 commands run
+    checkprops_test.go:43: create -V with value "a\rb": err <nil>, 1 commands run
+    checkprops_test.go:43: create -V with value "\x01": err <nil>, 1 commands run
+    checkprops_test.go:43: create -V with value "del\x7f": err <nil>, 1 commands run
+    checkprops_test.go:43: create -V with value "café": err <nil>, 1 commands run
+    checkprops_test.go:43: create -V with value "😀": err <nil>, 1 commands run
+    checkprops_test.go:43: create -V with value "\xff": err <nil>, 1 commands run
+    checkprops_test.go:43: snapshot with value "a\rb": err <nil>, 1 commands run
+    checkprops_test.go:43: snapshot with value "\x01": err <nil>, 1 commands run
+    checkprops_test.go:43: snapshot with value "del\x7f": err <nil>, 1 commands run
+    checkprops_test.go:43: snapshot with value "café": err <nil>, 1 commands run
+    checkprops_test.go:43: snapshot with value "😀": err <nil>, 1 commands run
+    checkprops_test.go:43: snapshot with value "\xff": err <nil>, 1 commands run
+    checkprops_test.go:43: clone with value "a\rb": err <nil>, 1 commands run
+    checkprops_test.go:43: clone with value "\x01": err <nil>, 1 commands run
+    checkprops_test.go:43: clone with value "del\x7f": err <nil>, 1 commands run
+    checkprops_test.go:43: clone with value "café": err <nil>, 1 commands run
+    checkprops_test.go:43: clone with value "😀": err <nil>, 1 commands run
+    checkprops_test.go:43: clone with value "\xff": err <nil>, 1 commands run
+--- FAIL: TestCheckPropsRefusesNonPrintable (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/internal/zfs	0.009s
+FAIL

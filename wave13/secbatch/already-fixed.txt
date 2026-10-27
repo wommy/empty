@@ -1,0 +1,19 @@
+ok  	github.com/wommy/empty/cmd/zfs-csi	0.013s [no tests to run]
+--- PASS: TestDefaultSocketLimit (0.00s)
+--- PASS: TestLockParentDoesNotFollowSymlinks (0.00s)
+--- PASS: TestStopDuringStartupIsClean (0.00s)
+--- PASS: TestStartupConfigRefusals (0.02s)
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	0.038s
+ok  	github.com/wommy/empty/deploy	0.011s [no tests to run]
+ok  	github.com/wommy/empty/internal/csi	0.016s [no tests to run]
+--- PASS: TestPlanCreateDoesNotAdoptUnnamedManaged (0.00s)
+--- PASS: TestShortDeadlineStillTakesAFreeLock (0.00s)
+ok  	github.com/wommy/empty/internal/endpoint	0.014s
+ok  	github.com/wommy/empty/internal/lock	0.016s [no tests to run]
+ok  	github.com/wommy/empty/internal/nfsref	0.010s [no tests to run]
+ok  	github.com/wommy/empty/internal/server	0.011s [no tests to run]
+--- PASS: TestSocketPathFitsSunPath (0.00s)
+--- PASS: TestListenSharedRelaxesOnlyTheDirectoryMode (0.01s)
+ok  	github.com/wommy/empty/internal/unixsock	0.017s
+ok  	github.com/wommy/empty/internal/zfs	0.004s [no tests to run]
+ok  	github.com/wommy/empty/internal/zfs/zfsdiff	0.010s [no tests to run]

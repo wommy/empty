@@ -1,0 +1,36 @@
+ok  	github.com/wommy/empty/cmd/zfs-csi	0.011s [no tests to run]
+--- PASS: TestDefaultSocketHasItsOwnDirectory (0.00s)
+--- PASS: TestUnitAdminSocketIsApart (0.00s)
+--- PASS: TestStartupRefusesACrossmntAncestor (0.00s)
+--- PASS: TestAdminSocketRefusals (0.02s)
+--- PASS: TestSocketNeverSharesTheLockDirectory (0.03s)
+--- PASS: TestAdminRPCsOnlyOnTheAdminSocket (0.03s)
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	0.047s
+--- PASS: TestUnitLint (0.00s)
+ok  	github.com/wommy/empty/deploy	0.023s
+ok  	github.com/wommy/empty/internal/csi	0.029s [no tests to run]
+--- PASS: TestSnapshotComponentNeverDots (0.00s)
+--- PASS: TestExposedByAncestor (0.00s)
+--- PASS: TestFilesystemsMountWithoutSetuidExecOrDevices (0.02s)
+--- PASS: TestWholeParentScansAreBounded (0.03s)
+--- PASS: TestReconcileBoundsItsOwnAnswer (0.02s)
+--- PASS: TestReconcileRefusesAnOversizedDesiredSet (0.05s)
+--- PASS: TestParseEtabSurvivesALongLine (0.05s)
+--- PASS: TestErrorsDoNotEchoUnboundedInput (0.09s)
+ok  	github.com/wommy/empty/internal/endpoint	0.101s
+ok  	github.com/wommy/empty/internal/lock	0.011s [no tests to run]
+ok  	github.com/wommy/empty/internal/nfsref	0.010s [no tests to run]
+--- PASS: TestLoggedAndReturnedInputIsBounded (0.04s)
+--- PASS: TestAdminPeerIsRootOrTheDaemonsUser (0.00s)
+--- PASS: TestHandlerPanicIsInternalAndTheDaemonServes (0.01s)
+--- PASS: TestEveryMethodHasARole (0.00s)
+--- PASS: TestCallWithoutDeadlineGetsOne (0.01s)
+--- PASS: TestPeerCredentialsAreLogged (0.02s)
+--- PASS: TestRolesPerListener (0.03s)
+ok  	github.com/wommy/empty/internal/server	0.079s
+ok  	github.com/wommy/empty/internal/unixsock	0.013s [no tests to run]
+--- PASS: TestChildRunsInTheCLocale (0.01s)
+--- PASS: TestNamesAndPropsNeverBecomeOptions (0.00s)
+--- PASS: TestStderrIsBounded (0.03s)
+ok  	github.com/wommy/empty/internal/zfs	0.068s
+ok  	github.com/wommy/empty/internal/zfs/zfsdiff	0.005s [no tests to run]

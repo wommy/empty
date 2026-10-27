@@ -1,0 +1,4 @@
+# base run 1
+base BenchmarkScan/1000-4         	      68	  21775296 ns/op	  68.61 MB/s	10049226 B/op	   35657 allocs/op
+base BenchmarkScan/10000-4        	       7	 186807804 ns/op	  79.93 MB/s	102065690 B/op	  355272 allocs/op
+# after run 1

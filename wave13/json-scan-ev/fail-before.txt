@@ -1,0 +1,21 @@
+=== RUN   TestSeamGhostRowFromForgedNewlines
+=== PAUSE TestSeamGhostRowFromForgedNewlines
+=== RUN   TestH_ScanRejectsRowsZFSNeverListed
+=== PAUSE TestH_ScanRejectsRowsZFSNeverListed
+=== CONT  TestSeamGhostRowFromForgedNewlines
+=== CONT  TestH_ScanRejectsRowsZFSNeverListed
+    forgery_test.go:41: ListVolumes returns a volume that does not exist: {ID:ghost Name:ghost Dataset:tank/k8s/vols/ghost Kind:filesystem CapacityBytes:0 SourceType: SourceID: DevicePath: Mountpoint:}
+--- FAIL: TestH_ScanRejectsRowsZFSNeverListed (0.00s)
+=== NAME  TestSeamGhostRowFromForgedNewlines
+    forgery_seam_test.go:48: ListVolumes = ["a" "ghost"], want [a]: it serves a dataset zfs never listed
+--- FAIL: TestSeamGhostRowFromForgedNewlines (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.015s
+=== RUN   TestH_ForgedLineForNonexistentDataset
+=== PAUSE TestH_ForgedLineForNonexistentDataset
+=== CONT  TestH_ForgedLineForNonexistentDataset
+    forgery_test.go:42: scan lists ["tank/csi" "tank/csi/pvc-a" "tank/csi/phantom"], want ["tank/csi" "tank/csi/pvc-a"]: a row for a dataset zfs never listed
+--- FAIL: TestH_ForgedLineForNonexistentDataset (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/internal/zfs	0.007s
+FAIL

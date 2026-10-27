@@ -1,0 +1,12 @@
+2026/10/27 11:38:42 INFO serving listen=unix:///tmp/TestAdminRPCsOnlyOnTheAdminSocket1036502981/002/sock/endpoint.sock admin_listen=unix:///tmp/TestAdminRPCsOnlyOnTheAdminSocket1036502981/002/admin/endpoint.sock parent=tank/k8s max_zfs=8 version=dev
+2026/10/27 11:38:42 INFO reconcile desired=0 min_age_seconds=0 dry_run=true
+2026/10/27 11:38:42 INFO rpc method=/zfsendpoint.v1.EndpointService/Reconcile code=OK duration=328.988µs peer=@ role=admin peer_uid=0 peer_gid=0 peer_pid=17224
+2026/10/27 11:38:42 INFO reconcile desired=0 min_age_seconds=0 dry_run=true
+2026/10/27 11:38:42 INFO rpc method=/zfsendpoint.v1.EndpointService/Reconcile code=OK duration=334.684µs peer=@ role=admin peer_uid=0 peer_gid=0 peer_pid=17224
+2026/10/27 11:38:42 INFO shutting down drain=30s
+2026/10/27 11:38:42 INFO stopped
+--- FAIL: TestAdminRPCsOnlyOnTheAdminSocket (0.02s)
+    admin_test.go:47: Reconcile on -listen: <nil>, want PermissionDenied
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.030s
+FAIL

@@ -1,0 +1,6 @@
+--- FAIL: TestUnitLint (0.00s)
+    deploy_test.go:326: unit LogRateLimitIntervalSec=[], want "0"
+    deploy_test.go:329: open systemd/zfs-endpoint@.service.d/hardening.conf: no such file or directory
+FAIL
+FAIL	github.com/wommy/empty/deploy	0.013s
+FAIL

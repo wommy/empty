@@ -1,0 +1,29 @@
+--- FAIL: TestErrorsDoNotEchoUnboundedInput (0.04s)
+    bounds_test.go:53: volumeID: error message is 65558 bytes for a 65536-byte input
+    bounds_test.go:53: validateProp: error message is 65562 bytes for a 65536-byte input
+    bounds_test.go:53: propValue: error message is 65576 bytes for a 65536-byte input
+    bounds_test.go:53: wideValue: error message is 65576 bytes for a 65536-byte input
+    bounds_test.go:53: planSnapshot: error message is 65562 bytes for a 65536-byte input
+    bounds_test.go:53: ExpandVolume: error message is 65587 bytes for a 65536-byte input
+    bounds_test.go:53: CreateSnapshot: error message is 65560 bytes for a 65536-byte input
+    bounds_test.go:53: SnapshotSource: error message is 65587 bytes for a 65536-byte input
+    bounds_test.go:53: issuedID: error message is 65588 bytes for a 65536-byte input
+    bounds_test.go:53: snapshotID: error message is 65560 bytes for a 65536-byte input
+    bounds_test.go:53: CreateVolume: error message is 65558 bytes for a 65536-byte input
+    bounds_test.go:53: GetVolume: error message is 65587 bytes for a 65536-byte input
+    bounds_test.go:53: ListToken: error message is 65561 bytes for a 65536-byte input
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.052s
+--- FAIL: TestStderrIsBounded (0.08s)
+    runner_bounds_test.go:26: ExitError carries 3000057 bytes of stderr (Error() 3000193)
+    runner_bounds_test.go:32: a cut stderr does not say so: ..."xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+FAIL
+FAIL	github.com/wommy/empty/internal/zfs	0.084s
+--- FAIL: TestLoggedAndReturnedInputIsBounded (0.02s)
+    guard_test.go:81: GetVolume error 65588 bytes for a 65536-byte id: rpc error: code = NotFound desc = volume "vvvvvvvvvvvvvvvvvv
+    guard_test.go:85: log line of 65677 bytes: {"time":"2026-10-27T11:39:05.545641512Z","level":"INFO","msg":"delete volume","volume_id":"vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    guard_test.go:85: log line of 65680 bytes: {"time":"2026-10-27T11:39:05.55062307Z","level":"INFO","msg":"delete snapshot","snapshot_id":"vvvvvvvvvvvvvvvvvvvvvvvvvv
+    guard_test.go:85: log line of 65839 bytes: {"time":"2026-10-27T11:39:05.558462045Z","level":"INFO","msg":"rpc","method":"/zfsendpoint.v1.EndpointService/GetVolume"
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.040s
+FAIL

@@ -1,0 +1,4 @@
+--- PASS: TestF11NewlineValueDoesNotFailTheScan (0.00s)
+ok  	github.com/wommy/empty/internal/endpoint	0.007s
+--- PASS: TestCheckPropsRefusesNonPrintable (0.00s)
+ok  	github.com/wommy/empty/internal/zfs	0.008s
