@@ -78,18 +78,34 @@ func TestReconcileCollectsLeakedCloneSource(t *testing.T) {
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "clone", CapacityBytes: 1 << 30, SourceVolumeID: "src"}); err != nil {
 		t.Fatal(err)
 	}
+	// the endpoint stamps the snapshot it cuts, at creation
+	cut := h.Parent + "/src@volume-source-for-volume-clone"
+	if h.Prop(cut, "zfs-endpoint:managed_resource") != "true" || h.Prop(cut, "zfs-endpoint:clone_source_for") != "clone" {
+		t.Fatal("clone source not stamped")
+	}
 	// review H3: a clone that failed after its source snapshot was cut
 	leaked := h.Parent + "/src@volume-source-for-volume-failed"
-	if err := h.Z.Snapshot(ctx, leaked, nil); err != nil {
+	if err := h.Z.Snapshot(ctx, leaked, map[string]string{
+		"zfs-endpoint:managed_resource": "true", "zfs-endpoint:clone_source_for": "failed",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// the reserved name alone is not ownership
+	manual := h.Parent + "/src@volume-source-for-volume-manual"
+	if err := h.Z.Snapshot(ctx, manual, nil); err != nil {
 		t.Fatal(err)
 	}
 	old := later(t, ep, h)
 	p, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"src", "clone"}})
-	if acts, _ := targets(p); err != nil || !slices.Equal(acts, []string{"src@volume-source-for-volume-failed"}) {
+	if acts, skips := targets(p); err != nil || !slices.Equal(acts, []string{"src@volume-source-for-volume-failed"}) ||
+		!slices.Equal(skips, []string{"src@volume-source-for-volume-manual"}) {
 		t.Fatalf("plan %+v %v", p, err)
 	}
 	if h.Has(leaked) {
 		t.Fatal("leaked clone source not collected")
+	}
+	if !h.Has(manual) {
+		t.Fatal("unstamped snapshot with the reserved name collected")
 	}
 	if !h.Has(h.Parent+"/src@volume-source-for-volume-clone") || !h.Has(h.Parent+"/clone") {
 		t.Fatal("clone source in use was collected")
@@ -127,8 +143,9 @@ func TestReconcileAgainstDesiredSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	acts, skips := targets(p)
-	// the clone first, its source snapshot with it, then the freed source
-	if !slices.Equal(acts, []string{"clone", "src@volume-source-for-volume-clone", "drop", "src"}) {
+	// the clone's source snapshot released (deferred) with the clone, then
+	// the freed source
+	if !slices.Equal(acts, []string{"src@volume-source-for-volume-clone", "clone", "drop", "src"}) {
 		t.Fatalf("actions %q", acts)
 	}
 	if !slices.Equal(skips, []string{"gone-pvc", "snapped"}) {
@@ -180,19 +197,20 @@ func (g *parked) Run(ctx context.Context, name string, args ...string) ([]byte, 
 	return g.Runner.Run(ctx, name, args...)
 }
 
-// Reconcile takes the lock of everything it touches: an operation holding
-// one makes it Aborted, with nothing applied. A dry run takes no locks.
+// Reconcile takes the lock of everything it touches, without waiting: a
+// volume another operation holds is skipped as busy, and the rest of the
+// run goes on. A dry run takes no locks.
 func TestReconcileLocksTargets(t *testing.T) {
 	ctx := context.Background()
-	_, h := setup(t)
+	ep0, h := setup(t)
 	g := &parked{Runner: h.Sim(t), entered: make(chan struct{}), release: make(chan struct{})}
 	ep, err := endpoint.New(zfs.New(g), endpoint.Config{Parent: h.Parent, LockWait: 200 * time.Millisecond,
 		Now: func() time.Time { return time.Now().Add(48 * time.Hour) }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"keep", "busy"} {
-		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+	for _, name := range []string{"keep", "busy", "free"} {
+		if _, err := ep0.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -203,10 +221,16 @@ func TestReconcileLocksTargets(t *testing.T) {
 	<-g.entered
 
 	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
-	_, err = ep.Reconcile(ctx, keep)
-	wantCode(t, err, endpoint.Aborted)
+	p, err := ep.Reconcile(ctx, keep)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !h.Has(h.Parent + "/busy") {
 		t.Fatal("destroyed a volume another operation held")
+	}
+	if acts, skips := targets(p); !slices.Equal(acts, []string{"free"}) || !slices.Equal(skips, []string{"busy"}) ||
+		p.Skipped[0].Reason != endpoint.SkipBusy || h.Has(h.Parent+"/free") {
+		t.Fatalf("busy volume: %+v", p)
 	}
 	dry := keep
 	dry.DryRun = true

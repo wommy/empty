@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -61,6 +62,10 @@ type Planner struct {
 	VolBlockSize uint64
 	// DestroyForeignSnapshots: Config.DestroyForeignSnapshots.
 	DestroyForeignSnapshots bool
+
+	// now, when set, is stamped as committed_at by a create's commit: the
+	// caller's clock reading, so planning stays pure.
+	now int64
 }
 
 func (p Planner) full(id string) string { return p.Parent + "/" + id }
@@ -81,11 +86,24 @@ func (p Planner) want(r CreateVolumeRequest, props map[string]string) uint64 {
 	return r.CapacityBytes
 }
 
+// MaxCapacityBytes is the largest capacity or limit a request may name:
+// 8 EiB. Above it, rounding up to a block size could wrap past 2^64 to a
+// small number, and OpenZFS keeps sizes in int64 arithmetic in places.
+const MaxCapacityBytes = math.MaxInt64
+
+// defaultVolBlockSize is the rounding unit when neither the volume nor the
+// Planner names one (a Planner built outside New).
+const defaultVolBlockSize = 16 * 1024
+
 // roundTo rounds n up to a multiple of bs (a volume's own volblocksize,
-// falling back to the configured default).
+// falling back to the configured default). Callers bound n by
+// MaxCapacityBytes first, so the result cannot wrap.
 func (p Planner) roundTo(n, bs uint64) uint64 {
 	if bs == 0 {
 		bs = p.VolBlockSize
+	}
+	if bs == 0 {
+		bs = defaultVolBlockSize
 	}
 	if r := n % bs; r != 0 {
 		n += bs - r
@@ -99,6 +117,9 @@ func (p Planner) validateCreate(r CreateVolumeRequest) (string, map[string]strin
 	id, err := volumeID(r.Name)
 	if err != nil {
 		return "", nil, err
+	}
+	if r.CapacityBytes > MaxCapacityBytes || r.LimitBytes > MaxCapacityBytes {
+		return "", nil, errorf(OutOfRange, "capacity %d / limit %d above %d bytes", r.CapacityBytes, r.LimitBytes, uint64(MaxCapacityBytes))
 	}
 	props, err := ValidateProperties(r.Kind, r.Properties)
 	if err != nil {
@@ -144,6 +165,9 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		return nil, err
 	}
 	commit := Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{p.Names.success(): "true"}}
+	if p.now > 0 {
+		commit.Props[p.Names.committedAt()] = strconv.FormatInt(p.now, 10)
+	}
 	// size is what a provision drives the volume to. A clone starts at its
 	// source's size and is never shrunk, and a filesystem clone without a
 	// capacity takes its source's quota. It is derived here, before the
@@ -221,7 +245,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		// a foreign dataset is not ours to clone (ADR 0003)
 		snap, ok := t.Get(r.SourceSnapshotID)
 		src, srcOK := t.Get(vol)
-		if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.OwnedVolume() || !src.Committed {
+		if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.ServedVolume() {
 			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
 		}
 		if src.Kind() != r.Kind {
@@ -245,7 +269,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		// only a committed volume the endpoint owns: cloning anything else
 		// would snapshot, and pin, a dataset that is not ours
 		src, ok := t.Get(srcID)
-		if !ok || !src.OwnedVolume() || !src.Committed {
+		if !ok || !src.ServedVolume() {
 			return nil, errorf(NotFound, "source volume %s not found", srcID)
 		}
 		if src.Kind() != r.Kind {
@@ -261,9 +285,21 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if !zfs.ValidSnapshot(internal) {
 			return nil, errorf(InvalidArgument, "names too long for clone source snapshot %q", internal)
 		}
+		// a snapshot already holding the reserved name is a replay of our
+		// own cut only when it carries our stamp for this clone; anything
+		// else is someone's snapshot, which a clone would pin (ADR 0003)
+		if s, ok := t.Get(srcID + "@" + cloneSourceSnapshotPrefix + id); ok {
+			if clone, ours := s.OwnedCloneSource(); !ours || clone != id {
+				return nil, errorf(AlreadyExists, "snapshot %s exists and was not cut by the endpoint for %s", s.ID, id)
+			}
+		}
 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, r.SourceVolumeID
 		plan = Plan{
-			{Kind: OpSnapshot, Target: internal, OkExists: true},
+			// stamped atomically with its creation: ownership is never a
+			// second step that a crash could skip
+			{Kind: OpSnapshot, Target: internal, OkExists: true, Props: map[string]string{
+				p.Names.managed(): "true", p.Names.cloneSourceFor(): id,
+			}},
 			{Kind: OpClone, Source: internal, Target: p.full(id), Props: own},
 		}
 		base := src
@@ -372,54 +408,128 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // baseline: CSI snapshots must outlive the call or it fails unchanged) or
 // cloned volumes are refused; an internal clone-source origin is released.
 // A volume with snapshots the endpoint did not cut is refused too, unless
-// DestroyForeignSnapshots: `zfs destroy -r` would take them, and they are
-// not the endpoint's (ADR 0003).
+// DestroyForeignSnapshots (ADR 0003).
+//
+// Never `destroy -r`: the volume's own snapshots are destroyed one by one,
+// then the volume plainly, so zfs itself refuses ("has children") on
+// anything the scan cannot see, such as a dataset someone created below a
+// filesystem volume, rather than taking it along.
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
+	d, err := p.planDelete(t, volID, p.DestroyForeignSnapshots)
+	return d.plan(), err
+}
+
+// deletion is a volume delete as parts: the clone-source origin it
+// releases, the volume's snapshots, and the volume (plan gives the order).
+type deletion struct {
+	snaps  Plan
+	vol    *Op
+	origin *Op
+	src    string // the volume the origin hangs off
+}
+
+func (d deletion) plan() Plan {
+	if d.vol == nil {
+		return nil
+	}
+	// 1. the released origin first, deferred: zfs keeps it while the clone
+	//    lives and reaps it with the clone, so no crash point leaves an
+	//    orphan that a retry (volume row gone) could no longer see
+	// 2. exactly the snapshots this plan judged, then the dataset without
+	//    -r: a snapshot or child made since the scan (sanoid, an admin)
+	//    fails the last op ("has children") instead of going with it
+	var plan Plan
+	if d.origin != nil {
+		plan = append(plan, *d.origin)
+	}
+	plan = append(plan, d.snaps...)
+	return append(plan, *d.vol)
+}
+
+// planDelete is PlanDeleteVolume with the foreign-snapshot opt-in explicit:
+// Reconcile never passes it (no per-volume request asked for anything).
+func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletion, error) {
 	id, err := issuedVolumeID(volID)
 	if err != nil {
-		return nil, err
+		return deletion{}, err
 	}
 	if err := t.mustCover(id); err != nil {
-		return nil, err
+		return deletion{}, err
 	}
 	row, ok := t.Get(id)
 	if !ok {
-		return nil, nil
+		return deletion{}, nil
 	}
 	if !row.OwnedVolume() {
-		return nil, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
+		return deletion{}, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
 	}
+	var d deletion
 	var foreign []string
 	for s := range t.SnapshotsOf(id) {
 		if s.SnapshotName != "" && !s.Deferred {
-			return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
-		}
-		if s.SnapshotName == "" && !s.Deferred && !internalCloneSource(s) {
-			foreign = append(foreign, s.ID)
+			return deletion{}, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
 		}
 		for c := range t.ClonesOf(s.Name) {
-			if !strings.HasPrefix(c.Name, row.Name+"/") {
-				return nil, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
-			}
+			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
 		}
+		// the endpoint's own: an internal clone-source snapshot, or one
+		// already pending deferred destruction (a deleted CSI snapshot)
+		if _, ours := s.OwnedCloneSource(); !ours && !s.Deferred {
+			foreign = append(foreign, s.ID)
+		}
+		// plain, never -d: a snapshot still in use must make zfs refuse
+		d.snaps = append(d.snaps, Op{Kind: OpDestroy, Target: s.Name, OkMissing: true})
 	}
-	if len(foreign) > 0 && !p.DestroyForeignSnapshots {
-		return nil, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
+	if len(foreign) > 0 && !destroyForeign {
+		return deletion{}, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
 			id, strings.Join(foreign, ", "))
 	}
-	plan := Plan{{Kind: OpDestroy, Target: row.Name, Recursive: true, OkMissing: true}}
-	if strings.Contains(row.Origin, "@"+cloneSourceSnapshotPrefix) {
-		plan = append(plan, Op{Kind: OpDestroy, Target: row.Origin, Defer: true, OkMissing: true})
+	d.vol = &Op{Kind: OpDestroy, Target: row.Name, OkMissing: true}
+	// an origin already marked (an earlier, interrupted delete) is released:
+	// zfs reaps it with the clone, and re-marking it would be a no-op op
+	// that a delete zfs keeps refusing repeats on every reconcile
+	if origin, src, ok := p.releasedOrigin(t, row); ok && !origin.Deferred {
+		d.origin = &Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true}
+		d.src = src
 	}
-	return plan, nil
+	return d, nil
 }
 
-// internalCloneSource reports whether s is the snapshot a volume-to-volume
-// clone hangs off: cut by the endpoint, unmarked, under a reserved name
-// (PlanCreateSnapshot refuses that prefix for CSI names).
-func internalCloneSource(s Row) bool {
-	_, name, _ := strings.Cut(s.ID, "@")
-	return strings.HasPrefix(name, cloneSourceSnapshotPrefix)
+// releasedOrigin is the internal clone-source snapshot that deleting row
+// releases, and the volume it hangs off. It is the endpoint's only when
+// all of these hold:
+//   - the origin is exactly <parent>/<src>@volume-source-for-volume-<row id>:
+//     cut for this clone, under the parent, from an addressable volume id
+//   - src is a volume the endpoint owns
+//   - the snapshot is stamped for this clone or, legacy (democratic-csi
+//     cuts them bare), carries no ownership marker at all: the clone's
+//     origin, recorded by zfs, is then the proof it was cut for this clone.
+//     A snapshot stamped for another clone, or a CSI snapshot, is not.
+func (p Planner) releasedOrigin(t Table, row Row) (Row, string, bool) {
+	rel, ok := strings.CutPrefix(row.Origin, p.Parent+"/")
+	if !ok {
+		return Row{}, "", false
+	}
+	src, name, ok := strings.Cut(rel, "@")
+	if !ok || name != cloneSourceSnapshotPrefix+row.ID || !zfs.ValidSnapshot(row.Origin) {
+		return Row{}, "", false
+	}
+	if _, err := volumeID(src); err != nil || !t.Covers(src) {
+		return Row{}, "", false
+	}
+	if s, ok := t.Get(src); !ok || !s.OwnedVolume() {
+		return Row{}, "", false
+	}
+	snap, ok := t.Get(rel)
+	if !ok || snap.Type != zfs.TypeSnapshot {
+		return Row{}, "", false
+	}
+	clone, stamped := snap.OwnedCloneSource()
+	legacy := !snap.Managed && snap.SnapshotName == "" && snap.CloneSourceFor == ""
+	if !(stamped && clone == row.ID) && !legacy {
+		return Row{}, "", false
+	}
+	return snap, src, true
 }
 
 // PlanExpandVolume grows to at least capacity; shrinking is a no-op.
@@ -432,8 +542,11 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 		return nil, Row{}, err
 	}
 	row, ok := t.Get(id)
-	if !ok || !row.OwnedVolume() {
+	if !ok || !row.ServedVolume() {
 		return nil, Row{}, errorf(NotFound, "volume %s not found", id)
+	}
+	if capacity > MaxCapacityBytes || limit > MaxCapacityBytes {
+		return nil, Row{}, errorf(OutOfRange, "capacity %d / limit %d above %d bytes", capacity, limit, uint64(MaxCapacityBytes))
 	}
 	want := capacity
 	if row.Kind() == Block {
@@ -494,7 +607,7 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		}
 	}
 	src, ok := t.Get(vol)
-	if !ok || !src.OwnedVolume() {
+	if !ok || !src.ServedVolume() {
 		return nil, "", errorf(NotFound, "source volume %s not found", vol)
 	}
 	if r, ok := t.Get(id); ok {

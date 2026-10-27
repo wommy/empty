@@ -118,11 +118,23 @@ func TestReconcile(t *testing.T) {
 		t.Fatal(err)
 	}
 	// just created: too young under the default minimum age
-	r, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"pvc-b"}, DryRun: true})
+	if _, err := c.CreateVolume(ctx, &pb.CreateVolumeRequest{Name: "pvc-c", CapacityBytes: 1 << 30}); err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"pvc-b", "pvc-c"}, DryRun: true})
 	if err != nil || len(r.Actions) != 0 || len(r.Skipped) != 2 ||
 		r.Skipped[0].Target != "pvc-b" || r.Skipped[0].Reason != endpoint.SkipDesiredMissing ||
 		r.Skipped[1].Target != "pvc-a" || r.Skipped[1].Reason != endpoint.SkipTooYoung {
 		t.Fatalf("reconcile %v %v", r, err)
+	}
+	if r.PlanDigest == "" {
+		t.Fatal("dry run without a plan digest")
+	}
+	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{MaxDeletions: 1, UnlimitedDeletions: true}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("both caps: %v", err)
+	}
+	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{MinAgeSeconds: 60}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("min age below the floor: %v", err)
 	}
 	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"a/b"}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("invalid id: %v", err)

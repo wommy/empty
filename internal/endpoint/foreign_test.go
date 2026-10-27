@@ -58,9 +58,15 @@ func TestDeleteVolumeSparesForeignSnapshots(t *testing.T) {
 	}
 
 	// the operator's opt-in: -destroy-foreign-snapshots
-	optIn, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second, DestroyForeignSnapshots: true})
+	optIn, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second, DestroyForeignSnapshots: true,
+		Now: func() time.Time { return time.Now().Add(48 * time.Hour) }})
 	if err != nil {
 		t.Fatal(err)
+	}
+	// which a bulk Reconcile never inherits
+	p, err = optIn.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	if err != nil || len(p.Actions) != 0 || !h.Has(ds+"@backup-1") {
+		t.Fatalf("opted-in reconcile: %+v %v", p, err)
 	}
 	if err := optIn.DeleteVolume(ctx, "pvc"); err != nil {
 		t.Fatal(err)

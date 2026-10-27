@@ -11,11 +11,17 @@ import (
 // apply runs a plan in order. Each op's tolerance makes replays converge:
 // a retry after a partial failure re-plans from a fresh scan and re-applies.
 func (e *Endpoint) apply(ctx context.Context, plan Plan) error {
+	_, err := e.applyN(ctx, plan)
+	return err
+}
+
+// applyN is apply that also says how many ops completed before an error.
+func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 	// an unknown kind is a planner bug: refuse the plan before any op runs,
 	// rather than half-apply it or skip the op as if it were done
 	for i, op := range plan {
 		if _, ok := opNames[op.Kind]; !ok {
-			return &Error{Code: Internal, Msg: fmt.Sprintf("op %d/%d: unknown kind %v on %s", i+1, len(plan), op.Kind, op.Target)}
+			return 0, &Error{Code: Internal, Msg: fmt.Sprintf("op %d/%d: unknown kind %v on %s", i+1, len(plan), op.Kind, op.Target)}
 		}
 	}
 	for i, op := range plan {
@@ -37,19 +43,19 @@ func (e *Endpoint) apply(ctx context.Context, plan Plan) error {
 			err = e.zfs.Destroy(ctx, op.Target, zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer})
 		default:
 			// unreachable after the check above; never treat it as done
-			return &Error{Code: Internal, Msg: "unknown op kind " + op.Kind.String()}
+			return i, &Error{Code: Internal, Msg: "unknown op kind " + op.Kind.String()}
 		}
 		switch {
 		case err == nil:
 		case op.OkExists && errors.Is(err, zfs.ErrExists):
 		case op.OkMissing && zfs.IsNotFound(err):
 		case op.Kind == OpClone && zfs.IsNotFound(err):
-			return &Error{Code: NotFound, Msg: "clone source " + op.Source + " not found", Err: err}
+			return i, &Error{Code: NotFound, Msg: "clone source " + op.Source + " not found", Err: err}
 		default:
-			return opErr(err, i, plan)
+			return i, opErr(err, i, plan)
 		}
 	}
-	return nil
+	return len(plan), nil
 }
 
 // opErr maps the failure of op i of plan by operation as well as by Kind:

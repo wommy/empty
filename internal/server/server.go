@@ -201,14 +201,17 @@ func (s *Server) Reconcile(ctx context.Context, r *pb.ReconcileRequest) (*pb.Rec
 		return nil, status.Error(codes.InvalidArgument, "min_age_seconds out of range")
 	}
 	plan, err := s.EP.Reconcile(ctx, endpoint.ReconcileRequest{
-		DesiredVolumeIDs: r.GetDesiredVolumeIds(),
-		MinAge:           time.Duration(age) * time.Second,
-		DryRun:           r.GetDryRun(),
+		DesiredVolumeIDs:   r.GetDesiredVolumeIds(),
+		MinAge:             time.Duration(age) * time.Second,
+		DryRun:             r.GetDryRun(),
+		MaxDeletions:       int(r.GetMaxDeletions()),
+		UnlimitedDeletions: r.GetUnlimitedDeletions(),
+		PlanDigest:         r.GetPlanDigest(),
 	})
 	if err != nil {
 		return nil, grpcErr(err)
 	}
-	out := &pb.ReconcileResponse{}
+	out := &pb.ReconcileResponse{PlanDigest: plan.Digest}
 	for _, a := range plan.Actions {
 		op := "destroy"
 		if a.Op.Defer {

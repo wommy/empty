@@ -34,6 +34,18 @@ func table(rows ...Row) Table {
 	return NewTable(rows)
 }
 
+// stamp makes a snapshot row an internal clone-source snapshot the
+// endpoint cut: no CSI name, managed and clone_source_for set at creation.
+func stamp(r *Row) {
+	_, name, _ := strings.Cut(r.ID, "@")
+	r.Managed, r.SnapshotName = true, ""
+	r.CloneSourceFor = strings.TrimPrefix(name, cloneSourceSnapshotPrefix)
+}
+
+// bare is a snapshot carrying only the reserved name: someone else's, or a
+// legacy one democratic-csi cut without properties.
+func bare(r *Row) { r.Managed, r.SnapshotName = false, "" }
+
 // summary renders a plan as "target:reason" lines for exact comparison.
 func summary(p ReconcilePlan) (acts, skips []string) {
 	for _, a := range p.Actions {
@@ -117,23 +129,23 @@ func TestPlanReconcile(t *testing.T) {
 			rows: []Row{
 				vol("a", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-a" }),
 				vol("b", nil),
-				snap("b@volume-source-for-volume-a", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+				snap("b@volume-source-for-volume-a", stamp),
 			},
 			want:  desired("a"),
 			skips: []string{"b:volume b has dependent clone a"},
 		},
 		{
-			name: "fixpoint: clone and its source collected together, clone first",
+			name: "fixpoint: clone and its source collected together, source last",
 			rows: []Row{
 				vol("a", nil),
 				vol("b", nil),
-				snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+				snap("b@volume-source-for-volume-c", stamp),
 				vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
 			},
 			want: desired("a"),
 			acts: []string{
-				"c:" + ReasonUndesired,
 				"b@volume-source-for-volume-c:" + ReasonReleasedWithVolume,
+				"c:" + ReasonUndesired,
 				"b:" + ReasonUndesired,
 			},
 		},
@@ -142,7 +154,7 @@ func TestPlanReconcile(t *testing.T) {
 			rows: []Row{
 				vol("a", nil),
 				vol("b", nil),
-				snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+				snap("b@volume-source-for-volume-c", stamp),
 				vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c"; young(r) }),
 			},
 			want:  desired("a"),
@@ -152,7 +164,7 @@ func TestPlanReconcile(t *testing.T) {
 			name: "orphan clone-source snapshot on a desired volume",
 			rows: []Row{
 				vol("a", nil),
-				snap("a@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+				snap("a@volume-source-for-volume-gone", stamp),
 			},
 			want: desired("a"),
 			acts: []string{"a@volume-source-for-volume-gone:" + ReasonOrphanCloneSource},
@@ -161,7 +173,7 @@ func TestPlanReconcile(t *testing.T) {
 			name: "clone-source snapshot in use is kept",
 			rows: []Row{
 				vol("a", nil),
-				snap("a@volume-source-for-volume-b", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+				snap("a@volume-source-for-volume-b", stamp),
 				vol("b", func(r *Row) { r.Origin = "tank/v/a@volume-source-for-volume-b" }),
 			},
 			want: desired("a", "b"),
@@ -178,7 +190,7 @@ func TestPlanReconcile(t *testing.T) {
 			name: "clone-source snapshot on an unowned volume is reported only",
 			rows: []Row{
 				vol("x", func(r *Row) { r.Managed = false }),
-				snap("x@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+				snap("x@volume-source-for-volume-gone", stamp),
 			},
 			want:  desired("a"),
 			skips: []string{"a:" + SkipDesiredMissing, "x@volume-source-for-volume-gone:" + SkipUnmanagedSource},
@@ -187,7 +199,7 @@ func TestPlanReconcile(t *testing.T) {
 			name: "young clone-source snapshot may be mid-clone",
 			rows: []Row{
 				vol("a", nil),
-				snap("a@volume-source-for-volume-b", func(r *Row) { r.Managed, r.SnapshotName = false, ""; young(r) }),
+				snap("a@volume-source-for-volume-b", func(r *Row) { stamp(r); young(r) }),
 			},
 			want:  desired("a"),
 			skips: []string{"a@volume-source-for-volume-b:" + SkipTooYoung},
@@ -197,16 +209,52 @@ func TestPlanReconcile(t *testing.T) {
 			rows: []Row{
 				vol("a", nil),
 				vol("b", nil),
-				snap("b@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+				snap("b@volume-source-for-volume-gone", stamp),
 			},
 			want: desired("a"),
-			acts: []string{"b:" + ReasonUndesired},
+			acts: []string{"b@volume-source-for-volume-gone:" + ReasonWithVolume, "b:" + ReasonUndesired},
 		},
 		{
 			name: "deferred CSI snapshot does not block",
 			rows: []Row{vol("a", nil), vol("b", nil), snap("b@s", func(r *Row) { r.Deferred = true })},
 			want: desired("a"),
-			acts: []string{"b:" + ReasonUndesired},
+			acts: []string{"b@s:" + ReasonWithVolume, "b:" + ReasonUndesired},
+		},
+		{
+			// adv4 F2: another cluster's set, or one naming only the gone
+			name:  "a desired set naming no existing volume counts as empty",
+			rows:  []Row{vol("a", nil), vol("x", func(r *Row) { r.Managed = false })},
+			want:  desired("gone", "x"),
+			skips: []string{"gone:" + SkipDesiredMissing, "a:" + SkipEmptyDesired},
+		},
+		{
+			// adv4 F6: anyone can `zfs snapshot` the reserved name
+			name:  "unstamped clone-source-named snapshot on a desired volume is not ours",
+			rows:  []Row{vol("a", nil), snap("a@volume-source-for-volume-manual", bare)},
+			want:  desired("a"),
+			skips: []string{"a@volume-source-for-volume-manual:" + SkipUnstampedCloneSource},
+		},
+		{
+			name: "unstamped clone-source snapshot makes its volume's deletion refuse",
+			rows: []Row{vol("a", nil), vol("b", nil), snap("b@volume-source-for-volume-gone", bare)},
+			want: desired("a"),
+			skips: []string{
+				"b:volume b has snapshots the endpoint did not make: b@volume-source-for-volume-gone (delete them, or run with -destroy-foreign-snapshots)",
+				"b@volume-source-for-volume-gone:" + SkipUnstampedCloneSource,
+			},
+		},
+		{
+			name:  "stamp for another clone is not ours",
+			rows:  []Row{vol("a", nil), snap("a@volume-source-for-volume-x", func(r *Row) { stamp(r); r.CloneSourceFor = "y" })},
+			want:  desired("a"),
+			skips: []string{"a@volume-source-for-volume-x:" + SkipUnstampedCloneSource},
+		},
+		{
+			// wave-5 R9b: a name zfs accepts but the client refuses
+			name:  "unaddressable clone-source snapshot is reported, not planned",
+			rows:  []Row{vol("a", nil), snap("a@volume-source-for-volume-x y", stamp)},
+			want:  desired("a"),
+			skips: []string{"a@volume-source-for-volume-x y:" + SkipUnaddressable},
 		},
 	}
 	for _, c := range cases {
@@ -224,8 +272,8 @@ func TestPlanReconcile(t *testing.T) {
 				if op.Kind != OpDestroy || !op.OkMissing {
 					t.Fatalf("op %+v: reconcile only destroys, replay-tolerantly", op)
 				}
-				if strings.Contains(op.Target, "@") != op.Defer {
-					t.Fatalf("op %+v: snapshots are destroyed deferred, volumes not", op)
+				if op.Recursive || op.Defer && !strings.Contains(op.Target, "@") {
+					t.Fatalf("op %+v: never -r; only snapshots are destroyed deferred", op)
 				}
 			}
 		})
@@ -235,9 +283,9 @@ func TestPlanReconcile(t *testing.T) {
 func TestPlanReconcileLocksEveryTarget(t *testing.T) {
 	tab := table(
 		vol("a", nil),
-		snap("a@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+		snap("a@volume-source-for-volume-gone", stamp),
 		vol("b", nil),
-		snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+		snap("b@volume-source-for-volume-c", stamp),
 		vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
 	)
 	plan, err := pl.PlanReconcile(tab, desired("a"))
@@ -261,7 +309,7 @@ func TestPlanReconcileHeldLimitsActions(t *testing.T) {
 	tab := table(
 		vol("a", nil),
 		vol("b", nil),
-		snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+		snap("b@volume-source-for-volume-c", stamp),
 		vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
 	)
 	d := desired("a")
@@ -283,12 +331,12 @@ func TestSimulateDestroyReapsDeferredOrigins(t *testing.T) {
 		{Name: "tank/v/c", ID: "c", Origin: "tank/v/b@s"},
 		{Name: "tank/v/d", ID: "d", Origin: "tank/v/b@s"},
 	}
-	rows = simulateDestroy(rows, Plan{{Kind: OpDestroy, Target: "tank/v/b@s", Defer: true}})
+	rows = simulateDestroyAll(rows, []Plan{{{Kind: OpDestroy, Target: "tank/v/b@s", Defer: true}}})
 	if len(rows) != 4 || !rows[1].Deferred {
 		t.Fatalf("deferred with clones: %+v", rows)
 	}
-	rows = simulateDestroy(rows, Plan{{Kind: OpDestroy, Target: "tank/v/c", Recursive: true}})
-	rows = simulateDestroy(rows, Plan{{Kind: OpDestroy, Target: "tank/v/d", Recursive: true}})
+	rows = simulateDestroyAll(rows, []Plan{{{Kind: OpDestroy, Target: "tank/v/c"}}})
+	rows = simulateDestroyAll(rows, []Plan{{{Kind: OpDestroy, Target: "tank/v/d"}}})
 	if len(rows) != 1 || rows[0].ID != "b" {
 		t.Fatalf("last clone gone: %+v", rows)
 	}

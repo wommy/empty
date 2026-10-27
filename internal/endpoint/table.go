@@ -47,6 +47,8 @@ type Row struct {
 	SourceID       string
 	SnapshotName   string
 	SnapshotSource string
+	CloneSourceFor string // internal clone-source snapshots: the clone's id
+	CommittedAt    int64  // committed_at, 0 if unset or unreadable
 }
 
 // Capacity is the volume's size: volsize for zvols (and their snapshots),
@@ -67,12 +69,22 @@ func (r Row) Kind() VolumeKind {
 }
 
 // OwnedVolume reports whether r is a volume the endpoint owns: marked
-// managed on the dataset itself and, where the volume-name marker is set,
-// marked for this id. A copy made with `zfs send | recv` or a renamed
-// dataset carries another volume's name and is not this volume (ADR 0003).
+// managed and with the volume-name marker for this id, both on the dataset
+// itself. A copy made with `zfs send | recv` or a renamed dataset carries
+// another volume's name and is not this volume (ADR 0003). Both the
+// endpoint and democratic-csi write the two markers in the same create, so
+// managed without a name is a state neither makes (an `zfs inherit`, a
+// hand-set marker): not ours.
 func (r Row) OwnedVolume() bool {
-	return r.Type != zfs.TypeSnapshot && r.Managed && (r.VolumeName == "" || r.VolumeName == r.ID)
+	return r.Type != zfs.TypeSnapshot && r.Managed && r.VolumeName == r.ID
 }
+
+// ServedVolume reports whether r is a volume front ends may see and use:
+// owned and committed. An uncommitted row is a provision still in flight
+// (or abandoned, which Reconcile collects); only CreateVolume's resume and
+// DeleteVolume act on it. Every serving path (get, list, expand, export,
+// snapshot and clone sources) uses this one rule.
+func (r Row) ServedVolume() bool { return r.OwnedVolume() && r.Committed }
 
 // OwnedSnapshot reports whether r is a CSI snapshot the endpoint cut: a
 // managed snapshot with a CSI name whose source marker, where set, is the
@@ -82,6 +94,19 @@ func (r Row) OwnedSnapshot() bool {
 	vol, _, _ := strings.Cut(r.ID, "@")
 	return r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != "" &&
 		(r.SnapshotSource == "" || r.SnapshotSource == vol)
+}
+
+// OwnedCloneSource reports whether r is an internal clone-source snapshot
+// the endpoint cut, and for which clone: named
+// "<vol>@volume-source-for-volume-<clone>" and stamped at creation with
+// managed_resource and clone_source_for=<clone>, both set locally. A
+// snapshot that only carries the reserved name is someone else's (an
+// administrator's, another tool's, or one democratic-csi cut unstamped).
+func (r Row) OwnedCloneSource() (string, bool) {
+	_, name, isSnap := strings.Cut(r.ID, "@")
+	clone, ok := strings.CutPrefix(name, cloneSourceSnapshotPrefix)
+	return clone, isSnap && ok && clone != "" && r.Type == zfs.TypeSnapshot &&
+		r.Managed && r.SnapshotName == "" && r.CloneSourceFor == clone
 }
 
 // Table is an immutable, ID-sorted set of rows with secondary indexes built
@@ -207,7 +232,7 @@ func (n props) columns() []string {
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
 		"defer_destroy", "mountpoint", "sharenfs", "mounted", "canmount",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(),
 	}, propNames[:]...)
 }
 
@@ -227,6 +252,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 		cLocal[k] = j(name)
 	}
 	cShare, cMounted, cCanMount, cClients := j("sharenfs"), j("mounted"), j("canmount"), j(n.nfsClients())
+	cCloneFor, cCommittedAt := j(n.cloneSourceFor()), j(n.committedAt())
 
 	rows := make([]Row, 0, len(c.Names))
 	var bad error
@@ -265,6 +291,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 			SourceID:       own(cSrcID),
 			SnapshotName:   own(cSnapName),
 			SnapshotSource: own(cSnapSrc),
+			CloneSourceFor: own(cCloneFor),
 			ShareNFS:       userValue(cell(cShare)),
 			ShareNFSLocal:  cell(cShare).Local(),
 			Mounted:        cell(cMounted).Value == "yes",
@@ -283,6 +310,9 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 		}
 		if r.Type == zfs.TypeVolume && (r.Volsize == 0 || r.BlockSz == 0 || r.Volsize%r.BlockSz != 0) && bad == nil {
 			bad = errorf(Internal, "scan: %s: zvol volsize %d / volblocksize %d breaks OpenZFS's own invariants", name, r.Volsize, r.BlockSz)
+		}
+		if v, err := strconv.ParseInt(own(cCommittedAt), 10, 64); err == nil && v > 0 {
+			r.CommittedAt = v
 		}
 		rows = append(rows, r)
 	}

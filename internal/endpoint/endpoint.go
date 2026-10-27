@@ -50,7 +50,7 @@ type props struct{ p string }
 
 func (n props) all() []string {
 	return []string{n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients()}
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt()}
 }
 
 // validPrefix reports why prefix cannot name OpenZFS user properties:
@@ -82,6 +82,19 @@ func (n props) sourceType() string     { return n.p + ":csi_volume_content_sourc
 func (n props) sourceID() string       { return n.p + ":csi_volume_content_source_id" }
 func (n props) snapshotName() string   { return n.p + ":csi_snapshot_name" }
 func (n props) snapshotSource() string { return n.p + ":csi_snapshot_source_volume_id" }
+
+// cloneSourceFor is the endpoint's own property (not the baseline's): set
+// locally on the internal snapshot a volume-to-volume clone hangs off, at
+// its creation (`zfs snapshot -o`), naming the clone it was cut for. With
+// managed_resource it is what makes such a snapshot the endpoint's; the
+// reserved name alone is not ownership (anyone can `zfs snapshot` it).
+func (n props) cloneSourceFor() string { return n.p + ":clone_source_for" }
+
+// committedAt is the endpoint's own property: the Unix time (endpoint
+// clock) CreateVolume committed the volume, set with provision_success.
+// Reconcile ages a committed volume from it, not from its zfs creation: a
+// provision retried long after its first attempt is new to the caller.
+func (n props) committedAt() string { return n.p + ":committed_at" }
 
 // nfsClients is the endpoint's own property (not the baseline's): the
 // desired NFS client list that sharenfs is computed from.
@@ -123,12 +136,13 @@ type Config struct {
 	// (/16). Unpublish takes any network, so raising it never strands an
 	// export.
 	NFSMinPrefix int
-	// DestroyForeignSnapshots lets DeleteVolume (and reconcile) destroy a
-	// volume together with snapshots the endpoint did not cut (no locally
-	// set csi_snapshot_name: an administrator's, a backup tool's, a
-	// received one). Default false: such a volume is refused with
-	// FailedPrecondition naming them (ADR 0003: never touch what you
-	// don't own).
+	// DestroyForeignSnapshots lets DeleteVolume destroy a volume together
+	// with snapshots the endpoint did not cut (no locally set
+	// csi_snapshot_name or clone-source stamp: an administrator's, a backup
+	// tool's, a received one), each by name. Default false: such a volume
+	// is refused with FailedPrecondition naming them (ADR 0003: never touch
+	// what you don't own). Reconcile never uses it: an operator opts in
+	// for a per-volume delete, not for a bulk collection.
 	DestroyForeignSnapshots bool
 }
 
@@ -338,9 +352,14 @@ func parentUnavailable(parent string, err error) error {
 	return &Error{Code: Unavailable, Msg: "parent dataset " + parent + " is unavailable", Err: err}
 }
 
-// userValue reads a user property; "-" means unset.
+// userValue reads a property value; "-" means unset only when zfs says
+// so with a source other than local ("-" for an unset user property). A
+// value set locally is the value, even a literal "-": `zfs set ns:prop=-`
+// is legal, and reading it as unset would, for instance, turn a
+// csi_volume_name of "-" into "no name marker", which OwnedVolume accepts
+// for any id.
 func userValue(p zfs.Prop) string {
-	if p.Value == "-" {
+	if p.Value == "-" && !p.Local() {
 		return ""
 	}
 	return p.Value
@@ -408,7 +427,9 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	if err != nil {
 		return Volume{}, err
 	}
-	plan, err := e.plan.PlanCreateVolume(t, r)
+	p := e.plan
+	p.now = e.cfg.Now().Unix()
+	plan, err := p.PlanCreateVolume(t, r)
 	if err != nil {
 		return Volume{}, err
 	}
@@ -448,7 +469,7 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 		return Volume{}, err
 	}
 	row, ok := t.Get(id)
-	if !ok || !row.OwnedVolume() {
+	if !ok || !row.ServedVolume() {
 		// only ours is ever returned: something replaced it after the plan
 		return Volume{}, errorf(Aborted, "volume %s vanished or changed owner after provisioning", id)
 	}
@@ -526,7 +547,7 @@ func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) 
 		return Volume{}, err
 	}
 	row, ok := t.Get(volID)
-	if !ok || !row.OwnedVolume() {
+	if !ok || !row.ServedVolume() {
 		return Volume{}, errorf(NotFound, "volume %s not found", volID)
 	}
 	return volumeView(row), nil
@@ -563,7 +584,7 @@ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToke
 	}
 	var vols []Volume
 	for r := range t.Volumes() {
-		if r.OwnedVolume() && r.Committed {
+		if r.ServedVolume() {
 			vols = append(vols, volumeView(r))
 		}
 	}
@@ -723,6 +744,10 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 	t, err := e.scan(ctx, volID)
 	if err != nil {
 		return "", err
+	}
+	if row, ok := t.Get(volID); ok && row.OwnedVolume() && !row.ServedVolume() {
+		// a provision still in flight is not a volume yet
+		return "", errorf(NotFound, "volume %s not found", volID)
 	}
 	live, err := e.exportTable(ctx, t, volID)
 	if err != nil {

@@ -126,12 +126,16 @@ func TestPlanDeleteVolume(t *testing.T) {
 	if _, err := pl.PlanDeleteVolume(tab, "b"); code(err) != FailedPrecondition {
 		t.Fatalf("cloned: %v", err)
 	}
+	// the released origin first (deferred), then the volume, never -r
 	plan, err := pl.PlanDeleteVolume(tab, "c")
-	if err != nil || len(plan) != 2 || !plan[1].Defer || plan[1].Target != "tank/v/b@volume-source-for-volume-c" {
+	if err != nil || len(plan) != 2 || !plan[0].Defer || plan[0].Target != "tank/v/b@volume-source-for-volume-c" ||
+		plan[1].Target != "tank/v/c" || plan[1].Recursive || plan[1].Defer {
 		t.Fatalf("clone delete %+v %v", plan, err)
 	}
-	// a deferred (already deleted) snapshot does not block its volume
-	if plan, err := pl.PlanDeleteVolume(tab, "d"); err != nil || len(plan) != 1 {
+	// a deferred (already deleted) snapshot does not block its volume; it
+	// is destroyed by name, plainly, before the volume
+	if plan, err := pl.PlanDeleteVolume(tab, "d"); err != nil || len(plan) != 2 ||
+		plan[0].Target != "tank/v/d@x" || plan[0].Defer || plan[1].Target != "tank/v/d" || plan[1].Recursive {
 		t.Fatalf("deferred %+v %v", plan, err)
 	}
 	if plan, err := pl.PlanDeleteVolume(tab, "gone"); err != nil || plan != nil {
