@@ -317,9 +317,14 @@ func parentUnavailable(parent string, err error) error {
 	return &Error{Code: Unavailable, Msg: "parent dataset " + parent + " is unavailable", Err: err}
 }
 
-// userValue reads a user property; "-" means unset.
+// userValue reads a property value; "-" means unset only when zfs says
+// so with a source other than local ("-" for an unset user property). A
+// value set locally is the value, even a literal "-": `zfs set ns:prop=-`
+// is legal, and reading it as unset would, for instance, turn a
+// csi_volume_name of "-" into "no name marker", which OwnedVolume accepts
+// for any id.
 func userValue(p zfs.Prop) string {
-	if p.Value == "-" {
+	if p.Value == "-" && !p.Local() {
 		return ""
 	}
 	return p.Value
