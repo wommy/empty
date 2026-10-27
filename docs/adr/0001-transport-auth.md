@@ -128,7 +128,7 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 - As built (`unixsock.ShareWithGroup`):
   - the flag takes a group name or a numeric gid; one that does not resolve exits 78;
   - the socket's directory becomes 0710 with the same group (search, no listing), which the group needs to reach the socket from the host;
-  - the directory must hold nothing but the socket, else exit 78 and nothing changes: opening a shared directory such as `/run` to a group would be far wider than the socket;
+  - the directory must hold nothing but the socket, else exit 78 and nothing changes: opening a shared directory such as `/run` to a group would be far wider than the socket. The one exception is the private bind directory (`.<digits>`, 0700, ours) a run killed mid-Listen leaves: it is removed, so a crash never keeps the daemon down;
   - a 0710 directory still passes `SecureDir`, so a restart works. Dropping the flag leaves the directory 0710, but the new socket is 0600, so the group can no longer connect;
   - the unit and the manifests do not set it: the controller pod still runs as root (ADR 0006).
 

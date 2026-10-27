@@ -452,7 +452,7 @@ func TestPlanReconcileHeldLimitsActions(t *testing.T) {
 	// the locked re-plan keeps an action only for the reason the unlocked
 	// plan had: an uncommitted row committed in between is judged afresh
 	d = desired("a")
-	d.planned = map[string]string{"b": ReasonUncommitted}
+	d.planned = map[string]plannedAction{"b": {ReasonUncommitted, ""}}
 	if plan, err = pl.PlanReconcile(table(vol("a", nil), vol("b", nil)), d); err != nil {
 		t.Fatal(err)
 	}

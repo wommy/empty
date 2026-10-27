@@ -118,17 +118,26 @@ type Desired struct {
 	// when the lock was tried and taken by someone else (false), and their
 	// volumes stay, so nothing that depends on them is planned either.
 	held map[string]bool
-	// planned, when non-nil, is the unlocked plan's target -> reason. The
-	// locked re-plan keeps only actions the first plan already made for the
-	// same reason: a row whose state changed in between (an uncommitted
-	// volume a racing CreateVolume just committed, now "undesired") is
-	// left for the next run, judged afresh (adv4 F1).
-	planned map[string]string
+	// planned, when non-nil, is the unlocked plan's target -> reason and
+	// guid. The locked re-plan keeps only actions the first plan already
+	// made for the same reason on the same dataset: a row whose state
+	// changed in between (an uncommitted volume a racing CreateVolume just
+	// committed, now "undesired") is left for the next run, judged afresh
+	// (adv4 F1), and so is a target renamed away and replaced, markers and
+	// all, between the scans: the digest named the first plan's guid, and
+	// the re-planned op, carrying the new one, would pass its own guid
+	// check (wave16 S1).
+	planned map[string]plannedAction
+}
+
+// plannedAction is what the unlocked plan did with a target.
+type plannedAction struct {
+	reason, guid string
 }
 
 // refuses says why a may not run under the locks: "" when its volumes
-// are all held and it was planned, for the same reason, before they were
-// taken.
+// are all held and it was planned, for the same reason and on the same
+// guid, before they were taken.
 func (d Desired) refuses(a ReconcileAction) string {
 	if d.held != nil {
 		for _, v := range a.Volumes {
@@ -141,18 +150,18 @@ func (d Desired) refuses(a ReconcileAction) string {
 		}
 	}
 	if d.planned != nil {
-		if why, ok := d.planned[a.Target]; !ok || why != a.Reason {
+		if was, ok := d.planned[a.Target]; !ok || was != (plannedAction{a.Reason, a.Op.GUID}) {
 			return SkipChangedSinceScan
 		}
 	}
 	return ""
 }
 
-// targets is p's target -> reason, for Desired.planned.
-func (r ReconcilePlan) targets() map[string]string {
-	m := make(map[string]string, len(r.Actions))
+// targets is p's target -> reason and guid, for Desired.planned.
+func (r ReconcilePlan) targets() map[string]plannedAction {
+	m := make(map[string]plannedAction, len(r.Actions))
 	for _, a := range r.Actions {
-		m[a.Target] = a.Reason
+		m[a.Target] = plannedAction{a.Reason, a.Op.GUID}
 	}
 	return m
 }
