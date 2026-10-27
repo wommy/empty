@@ -26,3 +26,4 @@ fail = [l.strip() for l in o1.splitlines() if "--- FAIL" in l or "panic:" in l][
 print(f"{mid}: mutant rc={rc1} {'KILLED' if rc1 else 'SURVIVED'} {fail}; clean rc={rc2} {'PASS' if rc2 == 0 else 'FAIL'}")
 if rc2: print(o2[-2000:])
 if rc1 == 0: print(o1[-800:])
+print("\n".join(l for l in o1.splitlines() if "_test.go:" in l)[:1500])

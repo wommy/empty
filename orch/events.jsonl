@@ -485,3 +485,6 @@
 {"ts": "2026-10-27T18:04:06Z", "id": "a71b115d463ec644e", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T18:04:06Z", "id": "a71b115d463ec644e", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T18:04:06Z", "id": "a672364fdc0482ef0", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T18:08:26Z", "id": "a6607ed9c8b495476", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T18:08:26Z", "id": "a6607ed9c8b495476", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T18:08:26Z", "id": "a6607ed9c8b495476", "from": "triaged", "to": "done", "note": ""}

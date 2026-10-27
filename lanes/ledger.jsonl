@@ -111,3 +111,4 @@
 {"t": "2026-10-27T18:00:27Z", "lane": "writer", "id": "rollback", "agent": "abc486f01809cbb6f", "commits": 1, "files": 19, "ins": 1204, "del": 152, "merge": "620cda8", "conflict": "weights (resolved: ours + rollback rows)", "outcome": "merged locally, gating; held until 08ca83f CI green"}
 {"t": "2026-10-27T18:04:06Z", "lane": "reader", "id": "authz", "agent": "a71b115d463ec644e", "medium": 2, "low": 4, "outcome": "queued q-authz-close prio 0"}
 {"t": "2026-10-27T18:04:06Z", "lane": "writer", "id": "ops-endpoint", "agent": "a672364fdc0482ef0", "commits": 8, "merge": "e42ecc7", "conflict": "errors.go remapMutated (both kept)", "outcome": "merged locally, gating"}
+{"t": "2026-10-27T18:08:26Z", "lane": "reader", "id": "critpath", "agent": "a6607ed9c8b495476", "runs": 6, "median_s": 44.5, "finding": "variance: restore bw 48%, pickup 26%; levers 1,2,5 ~-3s no key bump; nice keep (median 10.72/10.20)", "outcome": "queued q-ci-boot-levers prio 1"}
