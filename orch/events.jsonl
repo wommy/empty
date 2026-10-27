@@ -228,3 +228,12 @@
 {"ts": "2026-10-27T13:20:23Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T13:21:43Z", "id": "a878ddc98879e709a", "from": "triaged", "to": "merged", "note": ""}
 {"ts": "2026-10-27T13:22:03Z", "id": "a333dc9ca348961c0", "from": "queued", "to": "running", "note": "r-ci-76s"}
+{"ts": "2026-10-27T13:22:10Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T13:28:12Z", "id": "abfbc322f52297eb6", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T13:28:12Z", "id": "abfbc322f52297eb6", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T13:28:12Z", "id": "abfbc322f52297eb6", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T13:28:12Z", "id": "a333dc9ca348961c0", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T13:28:12Z", "id": "a333dc9ca348961c0", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T13:28:12Z", "id": "a333dc9ca348961c0", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T13:28:52Z", "id": "acb95d1a5553db2cb", "from": "queued", "to": "running", "note": "b-ci-trim"}
+{"ts": "2026-10-27T13:28:52Z", "id": "a2d5add9daefcd276", "from": "queued", "to": "running", "note": "b-ci-cache"}

@@ -10,3 +10,4 @@
 {"run": 40508107121, "sha": "b1421d3", "conclusion": "failure", "seconds": null, "cause": "A-umask-race"}
 {"run": 40510207805, "sha": "fd3ba30", "conclusion": "success", "seconds": 49, "cause": null, "note": "first warm split run: push-to-green 49s (was 70s single VM job); within 60s cap, 4s over 45s target. Includes umask fix 00f3699."}
 {"run": 40511042404, "sha": "1d4d623", "conclusion": "success", "seconds": 76, "cause": "endpoint job: guest cache restore 17s (was 8-13s), test step 43s (was 36s)", "note": "over 60s cap; variance or step1 cost - reader queued"}
+{"run": 40511369632, "sha": "806727d", "conclusion": "success", "seconds": 57, "cause": null, "note": "ci-boot merged; within 60s cap, over 45s target; whether no-initrd boot took effect (vs fallback) -> r-ci-76s checks"}
