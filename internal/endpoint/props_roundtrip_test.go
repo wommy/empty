@@ -29,6 +29,15 @@ type propRow struct {
 	canon      string
 }
 
+// propRTRows pins len(allowlistRows()). The real-ZFS endpoint suite runs
+// in two jobs (ADR 0005), each its part of the shards, each shard the rows
+// i mod n (PROPRT_SHARD): every row runs exactly once only if both jobs
+// split the same total, and neither job sees the other's. So the test
+// checks its total against this committed number, and ci/check-split.sh
+// every shard's logged total in each job: two jobs that pass agree.
+// Changing the allowlist or its candidate values changes it.
+const propRTRows = 196
+
 func allowlistRows() []propRow {
 	words := []string{"on", "off", "lzjb", "gzip", "zle", "lz4", "zstd", "zstd-fast", "standard", "always", "disabled",
 		"latency", "throughput", "verify", "sa", "dir", "posix", "nfsv4", "noacl", "posixacl", "hidden", "visible",
@@ -89,9 +98,6 @@ func propRTShard(t *testing.T) (shard, n int) {
 func TestPropertyRoundTrip(t *testing.T) {
 	t.Parallel()
 	rows := allowlistRows()
-	if len(rows) < 100 {
-		t.Fatalf("only %d allowlisted values found: the candidate list is stale", len(rows))
-	}
 	shard, n := propRTShard(t)
 	mine := 0
 	for i := range rows {
@@ -101,6 +107,9 @@ func TestPropertyRoundTrip(t *testing.T) {
 	}
 	// ci/check-split.sh reads this line from every shard's log
 	t.Logf("PROPRT_SHARD %d/%d: %d of %d rows", shard, n, mine, len(rows))
+	if len(rows) != propRTRows {
+		t.Fatalf("allowlistRows() gives %d rows, propRTRows pins %d: set propRTRows to %d", len(rows), propRTRows, len(rows))
+	}
 	ep, h := setup(t)
 	for i, r := range rows {
 		if i%n != shard {

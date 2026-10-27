@@ -207,7 +207,9 @@ run() {
 if has endpoint; then
   for i in $(seq $((ep_p * ep_per)) $((ep_p * ep_per + ep_per - 1))); do
     re=$(awk -v s="$i" '$1 == s { printf "%s%s", sep, $2; sep = "|" }' "$out/endpoint.plan")
-    [ -n "$re" ] || continue
+    # a shard the plan gives no test: an empty log, which ci/check-split.sh
+    # takes as exactly that (a missing log fails it)
+    [ -n "$re" ] || { : >"$out/endpoint.$i.log"; continue; }
     run "endpoint.$i" "zep$i" env PROPRT_SHARD="$i/$ep_shards" \
       ./endpoint.test "${t[@]}" -test.parallel=8 -test.run "^($re)\$"
   done
