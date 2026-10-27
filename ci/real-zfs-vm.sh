@@ -107,9 +107,12 @@ grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}
   || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
 [ "$(sed -n 's/^zfs-kmod-//p' <<<"$ver")" = "$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")" ] \
   || { echo "userland and kmod versions differ:" >&2; echo "$ver" >&2; exit 1; }
-# what the file-export tests need besides running nfsd threads
-vm 'command -v exportfs && test -d /etc/exports.d && sudo test -r /var/lib/nfs/etab' >/dev/null \
-  || { echo "NFS prerequisites missing in the VM (exportfs, /etc/exports.d, etab)" >&2; exit 1; }
+# what the file-export tests need besides running nfsd threads. Only
+# exportfs: libzfs creates /etc/exports.d on the first share, and
+# exportfs writes /var/lib/nfs/etab when it first exports
+vm 'sudo sh -c "command -v exportfs"' >/dev/null \
+  || { echo "exportfs missing in the VM (nfs-kernel-server not installed?)" >&2; exit 1; }
+vm 'ls -ld /etc/exports.d /var/lib/nfs/etab 2>&1 || true' # context for an export test failure
 vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
 
