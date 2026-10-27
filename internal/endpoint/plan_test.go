@@ -346,6 +346,40 @@ func TestPlanCreateRefusesForeignAndIncompatible(t *testing.T) {
 	}
 }
 
+// The resume of an uncommitted row converges thickness both ways, by the
+// rule compatible() then judges the committed row with: each plan commits,
+// and the same request on the result is compatible.
+func TestPlanResumeThickness(t *testing.T) {
+	t.Parallel()
+	zvol := func(refres uint64) func(*Row) {
+		return func(r *Row) { r.Type, r.Volsize, r.BlockSz, r.Refres = zfs.TypeVolume, 1<<30, 16384, refres }
+	}
+	fs := func(refres uint64) func(*Row) { return func(r *Row) { r.Refquota, r.Refres = 1<<30, refres } }
+	for _, tc := range []struct {
+		name    string
+		row     func(*Row)
+		r       CreateVolumeRequest
+		resv    string // refreservation the resume sets ("" none)
+		settled func(*Row)
+	}{
+		{"thick zvol, sparse request", zvol(1 << 30), CreateVolumeRequest{Kind: Block, CapacityBytes: 1 << 30, Sparse: true}, "none", zvol(0)},
+		{"thin zvol, thick request", zvol(0), CreateVolumeRequest{Kind: Block, CapacityBytes: 1 << 30}, "auto", zvol(1 << 30)},
+		{"reserved fs, plain request", fs(1 << 30), CreateVolumeRequest{CapacityBytes: 1 << 30}, "none", fs(0)},
+		{"plain fs, reserve request", fs(0), CreateVolumeRequest{CapacityBytes: 1 << 30, Reserve: true}, u64(1 << 30), fs(1 << 30)},
+		{"thin zvol, sparse request", zvol(0), CreateVolumeRequest{Kind: Block, CapacityBytes: 1 << 30, Sparse: true}, "", zvol(0)},
+	} {
+		tc.r.Name = "x"
+		half := vol("x", func(r *Row) { tc.row(r); r.Committed = false })
+		plan, err := pl.PlanCreateVolume(NewTable([]Row{half}), tc.r)
+		if err != nil || !pl.commits(plan) || setProp(plan, "refreservation") != tc.resv {
+			t.Errorf("%s: %+v %v, want refreservation %q and a commit", tc.name, plan, err, tc.resv)
+		}
+		if again, err := pl.PlanCreateVolume(NewTable([]Row{vol("x", tc.settled)}), tc.r); err != nil || again != nil {
+			t.Errorf("%s: retry on the committed result: %+v %v", tc.name, again, err)
+		}
+	}
+}
+
 // setProp is the value plan sets for prop with an OpSet ("" if none).
 func setProp(plan Plan, prop string) string {
 	v := ""

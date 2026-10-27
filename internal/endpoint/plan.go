@@ -441,7 +441,13 @@ func cloneBlockSize(own map[string]string, src Row) error {
 }
 
 // sizeOps converges an owned-but-uncommitted (or freshly cloned) volume to
-// the requested size and reservation. It never shrinks.
+// the requested size and reservation. It never shrinks the size.
+//
+// Thick or thin converges both ways, by the rule compatible() judges a
+// committed volume with (a zvol is thick when refreservation > 0, a
+// filesystem when reserve was asked): a resume that committed a row of the
+// other kind as-is would succeed once and then make the identical retry
+// AlreadyExists.
 func (p Planner) sizeOps(id string, row Row, r CreateVolumeRequest, want uint64) Plan {
 	set := map[string]string{}
 	if r.Kind == Block {
@@ -451,12 +457,18 @@ func (p Planner) sizeOps(id string, row Row, r CreateVolumeRequest, want uint64)
 		if !r.Sparse && row.Refres == 0 {
 			set["refreservation"] = "auto"
 		}
+		if r.Sparse && row.Refres > 0 {
+			set["refreservation"] = "none"
+		}
 	} else {
 		if want > 0 && (row.Refquota == 0 || want > row.Refquota) {
 			set["refquota"] = u64(want)
 		}
 		if r.Reserve && row.Refres < want {
 			set["refreservation"] = u64(want)
+		}
+		if !r.Reserve && row.Refres > 0 {
+			set["refreservation"] = "none"
 		}
 	}
 	if len(set) == 0 {

@@ -645,6 +645,40 @@ func TestCreateVolumeProperties(t *testing.T) {
 	}
 }
 
+// An interrupted provision of the other thickness converges to the request
+// (refreservation=none), so the commit and the identical retry agree with
+// compatible(): before, the first call committed the thick row as-is and
+// the retry was AlreadyExists.
+func TestResumeConvergesThickToThin(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	own := func(name string) map[string]string {
+		return map[string]string{"zfs-endpoint:managed_resource": "true", "zfs-endpoint:csi_volume_name": name}
+	}
+	if err := h.Z.CreateVolume(ctx, h.Parent+"/z", 1<<30, false, own("z")); err != nil {
+		t.Fatal(err)
+	}
+	fsOwn := own("f")
+	fsOwn["refquota"], fsOwn["refreservation"] = "1073741824", "1073741824"
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/f", fsOwn, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []endpoint.CreateVolumeRequest{
+		{Name: "z", Kind: endpoint.Block, CapacityBytes: 1 << 30, Sparse: true},
+		{Name: "f", CapacityBytes: 1 << 30},
+	} {
+		for i := 0; i < 2; i++ {
+			if _, err := ep.CreateVolume(ctx, r); err != nil {
+				t.Fatalf("%s attempt %d: %v", r.Name, i, err)
+			}
+		}
+		if got := h.Prop(h.Parent+"/"+r.Name, "refreservation"); got != "0" {
+			t.Errorf("%s: refreservation %s, want 0", r.Name, got)
+		}
+	}
+}
+
 // A thick filesystem's Expand sets refquota and refreservation in one
 // `zfs set`; zfs applies refquota, then refreservation fails ENOSPC
 // (zfs_set_prop_nvlist applies space properties one by one). The retry
