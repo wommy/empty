@@ -132,10 +132,13 @@ func (e *Endpoint) setRoot(ctx context.Context, op Op) error {
 // rootErr maps the failure of an OpSetRoot, op i of plan: a classified
 // one (*Error, from LocalRoot) keeps its code; anything else is
 // unclassified, as opErr treats it (Aborted once an earlier op applied).
+// LocalRoot's Internal (an open, stat, mount table or chown failure it
+// has no better code for) is no classification: it is unclassified too,
+// or the after-change rule would miss the one setter production runs.
 func rootErr(err error, i int, plan Plan) error {
 	what := fmt.Sprintf("op %d/%d %s %s", i+1, len(plan), plan[i].Kind, plan[i].Target)
 	var e *Error
-	if errors.As(err, &e) {
+	if errors.As(err, &e) && CodeOf(e) != Internal {
 		return &Error{Code: e.Code, Msg: what + ": " + e.Msg, Err: e.Err}
 	}
 	code := Internal

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/wommy/empty/internal/endpoint"
@@ -299,31 +300,43 @@ func (f failRoot) SetRoot(ctx context.Context, ds, mp string, uid, gid, mode int
 // a failed SetRoot leaves a half-made volume. An unclassified failure
 // there must be retryable (Aborted), never Internal, which would stop the
 // provisioner retrying and strand it; a retry with the setter fixed
-// converges with the owner set.
+// converges with the owner set. LocalRoot's own Internal (an open, stat,
+// mount table or chown failure it does not classify) is unclassified too
+// (wave25 item 1): it is what production returns, not a bare error.
 func TestFileExportCreateRootFailureIsRetryable(t *testing.T) {
-	ctx := context.Background()
-	var rootErr error
-	sim, _, ep := simNFS(t, func(c *endpoint.Config) {
-		c.Root = failRoot{c.Etab.(*zfstest.Sim), &rootErr}
-	})
-	uid := uint32(1000)
-	req := nfsCreate("pvc", "", "10.20.0.0/24")
-	req.NFS.UID = &uid
-	rootErr = errors.New("x")
-	_, err := ep.CreateVolume(ctx, req)
-	wantCode(t, err, endpoint.Aborted)
-	if !errors.Is(err, rootErr) {
-		t.Fatalf("the setter's error is not wrapped: %v", err)
-	}
-	const ds = "tank/k8s/vols/pvc"
-	if !sim.Has(ds) || sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success") == "true" {
-		t.Fatal("want the volume created and uncommitted")
-	}
-	rootErr = nil
-	if _, err := ep.CreateVolume(ctx, req); err != nil {
-		t.Fatalf("retry: %v", err)
-	}
-	if r, ok := sim.RootOf(ds); !ok || r.UID != uid {
-		t.Fatalf("root %+v after the retry, want uid %d", r, uid)
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"bare error", errors.New("x")},
+		{"LocalRoot's Internal", &endpoint.Error{Code: endpoint.Internal, Msg: "open /tank/k8s/vols/pvc", Err: syscall.EIO}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			var rootErr error
+			sim, _, ep := simNFS(t, func(c *endpoint.Config) {
+				c.Root = failRoot{c.Etab.(*zfstest.Sim), &rootErr}
+			})
+			uid := uint32(1000)
+			req := nfsCreate("pvc", "", "10.20.0.0/24")
+			req.NFS.UID = &uid
+			rootErr = tc.err
+			_, err := ep.CreateVolume(ctx, req)
+			wantCode(t, err, endpoint.Aborted)
+			if !errors.Is(err, rootErr) && !strings.Contains(err.Error(), rootErr.Error()) {
+				t.Fatalf("the setter's error is not wrapped: %v", err)
+			}
+			const ds = "tank/k8s/vols/pvc"
+			if !sim.Has(ds) || sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success") == "true" {
+				t.Fatal("want the volume created and uncommitted")
+			}
+			rootErr = nil
+			if _, err := ep.CreateVolume(ctx, req); err != nil {
+				t.Fatalf("retry: %v", err)
+			}
+			if r, ok := sim.RootOf(ds); !ok || r.UID != uid {
+				t.Fatalf("root %+v after the retry, want uid %d", r, uid)
+			}
+		})
 	}
 }
