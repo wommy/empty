@@ -16,6 +16,12 @@
 # 25s and fails past 30s.
 TestNFSReplay 5.00
 #
+# Estimates (model suite): TestModel runs MODEL_BUDGET=50 steps on the real
+# pool, 2 sequences of 25 in parallel, about 6 zfs commands a step at
+# 30-60 ms each; TestRealFacts is 16 short plain-zfs facts.
+TestModel 5.00
+TestRealFacts 1.50
+#
 # Its subtests run in parallel, so its own line reads 0.00s; the weight is
 # its measured wall on the sampled real leg (~14s; run 40468413047, 5b42809).
 # 6.00, an estimate, left its shard the critical path by 7-11s.
