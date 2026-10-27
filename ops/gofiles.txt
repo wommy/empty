@@ -1,6 +1,3 @@
-internal/endpoint/report.go
-internal/endpoint/report_test.go
-internal/server/oplog_test.go
 ci/skiplint/main.go
 ci/skiplint/main_test.go
 ci/unitprobe/main.go
@@ -9,6 +6,7 @@ cmd/zfs-csi/main.go
 cmd/zfs-csi/main_test.go
 cmd/zfs-endpoint/admin_test.go
 cmd/zfs-endpoint/deploy_test.go
+cmd/zfs-endpoint/exit_test.go
 cmd/zfs-endpoint/exposure_test.go
 cmd/zfs-endpoint/lockparent.go
 cmd/zfs-endpoint/main.go
@@ -24,6 +22,7 @@ deploy/classes_test.go
 deploy/deploy_test.go
 deploy/k8s_test.go
 deploy/reconcile_timer_test.go
+deploy/runbook_test.go
 deploy/unitcheck_test.go
 gen/zfsendpoint/v1/endpoint.pb.go
 gen/zfsendpoint/v1/endpoint_grpc.pb.go
@@ -78,6 +77,8 @@ internal/endpoint/headroom.go
 internal/endpoint/headroom_test.go
 internal/endpoint/lockwait_test.go
 internal/endpoint/main_test.go
+internal/endpoint/messages.go
+internal/endpoint/messages_test.go
 internal/endpoint/model_nightly_test.go
 internal/endpoint/model_test.go
 internal/endpoint/modelrun_test.go
@@ -108,6 +109,8 @@ internal/endpoint/reconcile.go
 internal/endpoint/reconcile_contract_test.go
 internal/endpoint/reconcile_fuzz_test.go
 internal/endpoint/reconcile_test.go
+internal/endpoint/report.go
+internal/endpoint/report_test.go
 internal/endpoint/retry25_test.go
 internal/endpoint/root.go
 internal/endpoint/root_linux.go
@@ -136,6 +139,7 @@ internal/server/daemon.go
 internal/server/daemon_test.go
 internal/server/guard_test.go
 internal/server/main_test.go
+internal/server/oplog_test.go
 internal/server/peer_test.go
 internal/server/peercred.go
 internal/server/peercred_linux.go

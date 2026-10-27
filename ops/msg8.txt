@@ -1,0 +1,14 @@
+README: "Runbook: when a PVC is stuck", one paragraph per error family
+
+Where to look (journalctl -u 'zfs-endpoint@*' -p warning; grep the
+volume id; follow a request_id), then one short paragraph each for
+ABORTED (lock wait with its holder, after a change, out of space after a
+change), RESOURCE_EXHAUSTED, UNAVAILABLE, FAILED_PRECONDITION (NFS
+exposure, dependent clone, not managed, snapshots) and INTERNAL.
+
+deploy.TestRunbookQuotesLiveMessages pins every message the runbook
+quotes to the endpoint's non-test sources, so a reworded message fails
+the build instead of leaving the runbook pointing at nothing.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
