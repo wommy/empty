@@ -33,6 +33,9 @@ type gateRunner struct {
 	gate                    chan struct{}
 	cur, peak, total, ended atomic.Int64
 	onCancel                time.Duration // time a killed zfs takes to exit
+	// stuck, when set, is a killed zfs that does not exit (D state) until
+	// the channel closes: no sleep stands in for "never".
+	stuck chan struct{}
 }
 
 func (r *gateRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -46,6 +49,9 @@ func (r *gateRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	case <-r.gate:
 	case <-ctx.Done():
 		time.Sleep(r.onCancel)
+		if r.stuck != nil {
+			<-r.stuck
+		}
 		return nil, &zfs.ExitError{Args: args, Code: -1, Stderr: "signal: terminated"}
 	}
 	return []byte(args[len(args)-1] + "\tavailable\t1000\t-\n"), nil
@@ -81,6 +87,7 @@ func daemon(t *testing.T, r zfs.Runner, log *slog.Logger) daemonClient {
 
 // A retry storm forks at most -max-zfs zfs children at once.
 func TestConcurrentZFSIsBounded(t *testing.T) {
+	t.Parallel()
 	r := &gateRunner{gate: make(chan struct{})}
 	c := daemon(t, zfs.Limit(r, 4), nil)
 	var wg sync.WaitGroup
@@ -88,7 +95,10 @@ func TestConcurrentZFSIsBounded(t *testing.T) {
 		wg.Add(1)
 		go func() { defer wg.Done(); c.GetCapacity(context.Background(), &pb.GetCapacityRequest{}) }()
 	}
-	time.Sleep(100 * time.Millisecond)
+	// the limit is full (4 children running) and more calls are queued
+	// behind it than it admits: then a broken limit would show a 5th
+	waitFor(t, func() bool { return r.cur.Load() >= 4 })
+	time.Sleep(5 * time.Millisecond)
 	close(r.gate)
 	wg.Wait()
 	if r.total.Load() != 300 || r.peak.Load() > 4 {
@@ -99,6 +109,7 @@ func TestConcurrentZFSIsBounded(t *testing.T) {
 // Shutdown waits for a call in flight, refuses new ones with Unavailable,
 // and reports NOT_SERVING while it drains.
 func TestShutdownDrainsInFlightCalls(t *testing.T) {
+	t.Parallel()
 	r := &gateRunner{gate: make(chan struct{})}
 	c := daemon(t, r, nil)
 	ctx := context.Background()
@@ -107,15 +118,15 @@ func TestShutdownDrainsInFlightCalls(t *testing.T) {
 	}
 	res := make(chan error, 1)
 	go func() { _, err := c.GetCapacity(ctx, &pb.GetCapacityRequest{}); res <- err }()
-	for r.cur.Load() == 0 {
-		time.Sleep(time.Millisecond)
-	}
+	waitFor(t, func() bool { return r.cur.Load() != 0 })
 	stopped := make(chan struct{})
 	go func() { c.d.Shutdown(10*time.Second, time.Second, nil); close(stopped) }()
-	time.Sleep(50 * time.Millisecond)
-	if h, err := c.health.Check(ctx, &healthpb.HealthCheckRequest{Service: server.ServiceName}); err == nil && h.Status == healthpb.HealthCheckResponse_SERVING {
-		t.Fatal("still SERVING while draining")
-	}
+	// draining turns health NOT_SERVING (or refuses the check) while the
+	// call is still in flight
+	waitFor(t, func() bool {
+		h, err := c.health.Check(ctx, &healthpb.HealthCheckRequest{Service: server.ServiceName})
+		return err != nil || h.Status != healthpb.HealthCheckResponse_SERVING
+	})
 	if _, err := c.GetCapacity(ctx, &pb.GetCapacityRequest{}); status.Code(err) != codes.Unavailable {
 		t.Fatalf("new call while draining: %v", err)
 	}
@@ -139,40 +150,40 @@ func TestShutdownDrainsInFlightCalls(t *testing.T) {
 // (bounded) for their handlers, so the process never exits while a zfs
 // it just told to stop is still running.
 func TestShutdownWaitsForCancelledHandlers(t *testing.T) {
-	r := &gateRunner{gate: make(chan struct{}), onCancel: 200 * time.Millisecond}
+	t.Parallel()
+	// the durations are injected and short: what is asserted is the order
+	// (Shutdown returns only after the killed zfs has exited), not a time
+	r := &gateRunner{gate: make(chan struct{}), onCancel: 20 * time.Millisecond}
 	c := daemon(t, r, nil)
 	go c.GetCapacity(context.Background(), &pb.GetCapacityRequest{})
-	for r.cur.Load() == 0 {
-		time.Sleep(time.Millisecond)
-	}
+	waitFor(t, func() bool { return r.cur.Load() != 0 })
 	start := time.Now()
-	c.d.Shutdown(100*time.Millisecond, 5*time.Second, nil)
+	c.d.Shutdown(10*time.Millisecond, 5*time.Second, nil)
 	if r.ended.Load() != 1 {
 		t.Fatalf("shutdown returned after %v with the zfs call still running", time.Since(start))
 	}
 
-	// and the wait is bounded: a zfs that never exits (D state)
-	stuck := &gateRunner{gate: make(chan struct{}), onCancel: 2 * time.Second}
+	// and the wait is bounded: a zfs that never exits (D state) is still
+	// running when Shutdown gives up after stopWait
+	stuck := &gateRunner{gate: make(chan struct{}), stuck: make(chan struct{})}
 	c2 := daemon(t, stuck, nil)
+	t.Cleanup(func() { close(stuck.stuck) }) // after daemon's, so it runs first
 	go c2.GetCapacity(context.Background(), &pb.GetCapacityRequest{})
-	for stuck.cur.Load() == 0 {
-		time.Sleep(time.Millisecond)
-	}
+	waitFor(t, func() bool { return stuck.cur.Load() != 0 })
 	start = time.Now()
-	c2.d.Shutdown(50*time.Millisecond, 200*time.Millisecond, nil)
-	if d := time.Since(start); d > 3*time.Second {
-		t.Fatalf("stuck handler held shutdown for %v", d)
+	c2.d.Shutdown(5*time.Millisecond, 20*time.Millisecond, nil)
+	if d := time.Since(start); d > 3*time.Second || stuck.ended.Load() != 0 {
+		t.Fatalf("stuck handler held shutdown for %v (ended %d)", d, stuck.ended.Load())
 	}
 }
 
 // A second signal cuts the drain short.
 func TestShutdownInterrupt(t *testing.T) {
+	t.Parallel()
 	r := &gateRunner{gate: make(chan struct{})}
 	c := daemon(t, r, nil)
 	go c.GetCapacity(context.Background(), &pb.GetCapacityRequest{})
-	for r.cur.Load() == 0 {
-		time.Sleep(time.Millisecond)
-	}
+	waitFor(t, func() bool { return r.cur.Load() != 0 })
 	again := make(chan struct{})
 	close(again)
 	start := time.Now()
@@ -253,19 +264,25 @@ func (s *syncBuffer) String() string {
 // max_entries=0 is paged server-side, and a Reconcile desired set of 100k
 // ids fits the receive limit.
 func TestMessageSizes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	z := zfs.New(sim)
 	if err := z.CreateFilesystem(ctx, "tank/vols", nil, false); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: "tank/vols"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// the volumes are rows to page through: made directly as owned,
+	// committed zvols (what CreateVolume leaves), since n CreateVolumes
+	// each scan the parent, which is quadratic in n
 	n := server.MaxPageSize + 5
 	for i := range n {
-		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: fmt.Sprintf("pvc-%05d", i), Kind: endpoint.Block, CapacityBytes: 1 << 20, Sparse: true}); err != nil {
+		id := fmt.Sprintf("pvc-%05d", i)
+		own := map[string]string{
+			endpoint.DefaultPropertyPrefix + ":managed_resource":  "true",
+			endpoint.DefaultPropertyPrefix + ":csi_volume_name":   id,
+			endpoint.DefaultPropertyPrefix + ":provision_success": "true",
+		}
+		if err := z.CreateVolume(ctx, "tank/vols/"+id, 1<<20, true, own); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -301,5 +318,16 @@ func TestMessageSizes(t *testing.T) {
 	}
 	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: ids, DryRun: true}); err != nil {
 		t.Fatalf("reconcile with 100k desired ids: %v", err)
+	}
+}
+
+// waitFor polls cond: the observable state a test waits for, never a
+// fixed sleep standing in for it.
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); !cond(); time.Sleep(200 * time.Microsecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("condition never held")
+		}
 	}
 }

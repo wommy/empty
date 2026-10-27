@@ -1,0 +1,175 @@
+## create/fs
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1073741824 sharenfs=off sharesmb=off
+set tank/v/a democratic-csi:provision_success=true
+
+## create/fs-unlimited
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+set tank/v/a democratic-csi:provision_success=true
+
+## create/fs-limit-only
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1048576 sharenfs=off sharesmb=off
+set tank/v/a democratic-csi:provision_success=true
+
+## create/fs-reserve
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1073741824 refreservation=1073741824 sharenfs=off sharesmb=off
+set tank/v/a democratic-csi:provision_success=true
+
+## create/fs-props
+create-filesystem tank/v/a atime=off compression=gzip democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true recordsize=16384 sharenfs=off sharesmb=off
+set tank/v/a democratic-csi:provision_success=true
+
+## create/fs-props-xattr-on
+error: InvalidArgument
+
+## create/zvol-thick
+create-volume tank/v/z size=1073758208 democratic-csi:csi_volume_name=z democratic-csi:managed_resource=true
+set tank/v/z democratic-csi:provision_success=true
+
+## create/zvol-sparse
+create-volume tank/v/z size=1073741824 +sparse democratic-csi:csi_volume_name=z democratic-csi:managed_resource=true
+set tank/v/z democratic-csi:provision_success=true
+
+## create/zvol-volblocksize
+create-volume tank/v/z size=1052672 democratic-csi:csi_volume_name=z democratic-csi:managed_resource=true volblocksize=4096
+set tank/v/z democratic-csi:provision_success=true
+
+## create/denied-prop
+error: InvalidArgument
+
+## create/bad-name
+error: InvalidArgument
+
+## create/satisfied
+(empty)
+
+## create/foreign
+error: AlreadyExists
+
+## create/incompatible-size
+error: AlreadyExists
+
+## create/incompatible-kind
+error: AlreadyExists
+
+## create/thick-on-sparse-zvol
+error: AlreadyExists
+
+## create/uncommitted-resume
+set tank/v/a refquota=1073741824
+set tank/v/a democratic-csi:provision_success=true
+
+## create/uncommitted-clone-converges
+set tank/v/dst refreservation=auto volsize=2147483648
+set tank/v/dst democratic-csi:provision_success=true
+
+## restore/fs-grow
+clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+set tank/v/r refquota=2097152
+set tank/v/r democratic-csi:provision_success=true
+
+## restore/zvol-grow
+clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true
+set tank/v/r refreservation=auto volsize=2097152
+set tank/v/r democratic-csi:provision_success=true
+
+## restore/larger-than-limit
+error: OutOfRange
+
+## restore/unknown-source
+error: NotFound
+
+## restore/malformed-source
+error: NotFound
+
+## clone/malformed-source
+error: NotFound
+
+## clone/from-volume-reserve
+snapshot tank/v/src@volume-source-for-volume-c +ok-exists democratic-csi:clone_source_for=c democratic-csi:managed_resource=true
+clone tank/v/c from=tank/v/src@volume-source-for-volume-c democratic-csi:csi_volume_content_source_id=src democratic-csi:csi_volume_content_source_type=volume democratic-csi:csi_volume_name=c democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+set tank/v/c refquota=1048576 refreservation=1048576
+set tank/v/c democratic-csi:provision_success=true
+
+## clone/from-uncommitted-volume
+error: NotFound
+
+## delete/plain
+destroy tank/v/a +ok-missing
+
+## delete/missing
+(empty)
+
+## delete/has-csi-snapshot
+error: FailedPrecondition
+
+## delete/has-deferred-snapshot
+destroy tank/v/a@s +ok-missing
+destroy tank/v/a +ok-missing
+
+## delete/clone-releases-source
+destroy tank/v/b@volume-source-for-volume-c +defer +ok-missing
+destroy tank/v/c +ok-missing
+
+## delete/cloned-source
+error: FailedPrecondition
+
+## delete/unmanaged
+error: FailedPrecondition
+
+## expand/zvol
+set tank/v/z volsize=1179648
+
+## expand/zvol-shrink-noop
+(empty)
+
+## expand/fs-quota
+set tank/v/a refquota=2097152
+
+## expand/fs-unlimited
+(empty)
+
+## expand/missing
+error: NotFound
+
+## snapshot/new
+snapshot tank/v/a@s democratic-csi:csi_snapshot_name=s democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true
+
+## snapshot/exists
+(empty)
+
+## snapshot/name-taken-elsewhere
+error: AlreadyExists
+
+## snapshot/reserved-prefix
+error: InvalidArgument
+
+## snapshot/long-name
+snapshot tank/v/a@csi-dd2411b970d6f3272b9824bdc649c6d7 democratic-csi:csi_snapshot_name=nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true
+
+## delete-snapshot/plain
+destroy tank/v/a@s +defer +ok-missing
+
+## delete-snapshot/foreign
+error: FailedPrecondition
+
+## publish/first
+set tank/v/a democratic-csi:nfs_clients=10.0.0.1/32=rw sharenfs=rw=10.0.0.1/32
+
+## publish/second-ro
+set tank/v/a democratic-csi:nfs_clients=10.0.0.1/32=rw,10.9.0.0/16=ro sharenfs=rw=10.0.0.1/32,ro=10.9.0.0/16
+
+## publish/zvol
+error: FailedPrecondition
+
+## unpublish/last
+set tank/v/a democratic-csi:nfs_clients=none sharenfs=off
+
+## reconcile/undesired-and-chain
+destroy tank/v/b@volume-source-for-volume-c +defer +ok-missing
+destroy tank/v/c +ok-missing
+destroy tank/v/drop +ok-missing
+destroy tank/v/b +ok-missing
+
+## reconcile/empty-desired-set
+destroy tank/v/half +ok-missing
+

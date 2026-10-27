@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/wommy/empty/internal/zfs"
@@ -78,7 +79,16 @@ func (h *a4) must(err error) {
 // Reconcile waits for its lock. Reconcile re-planned under the lock, saw a
 // committed volume absent from the (stale) desired set, and destroyed it
 // right after CreateVolume returned success to the provisioner.
+//
+// In a synctest bubble the sleep below ends only once Reconcile is durably
+// blocked (waiting for vol:pvc-x) or finished: the interleaving is exact,
+// not a 50ms guess, and costs no wall time.
 func TestAdv4CommitRaceDestroysJustProvisionedVolume(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, adv4CommitRace)
+}
+
+func adv4CommitRace(t *testing.T) {
 	h := newA4(t)
 	ctx := context.Background()
 	h.vol("keep", true)
@@ -96,7 +106,7 @@ func TestAdv4CommitRaceDestroysJustProvisionedVolume(t *testing.T) {
 		p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
 		done <- res{p, err}
 	}()
-	time.Sleep(50 * time.Millisecond) // reconcile has scanned and reached the lock
+	time.Sleep(50 * time.Millisecond) // bubble: reconcile has scanned and reached the lock
 	tbl, err := h.ep.scanFor(ctx, "pvc-x")
 	h.must(err)
 	plan, err := h.ep.plan.PlanCreateVolume(tbl, CreateVolumeRequest{Name: "pvc-x"})

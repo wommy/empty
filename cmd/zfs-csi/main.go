@@ -84,13 +84,10 @@ func run() error {
 	return srv.Serve(lis)
 }
 
-// endpointTarget accepts only unix:///absolute/path.
+// endpointTarget accepts only unix:///absolute/path (the endpoint serves
+// no TCP until ADR 0001); unixsock.Target is the check, tested there.
 func endpointTarget(addr string) error {
-	path, ok := strings.CutPrefix(addr, "unix://")
-	if !ok {
-		return fmt.Errorf("-endpoint %q: want unix:///absolute/path (the endpoint serves no TCP until ADR 0001)", addr)
-	}
-	if err := unixsock.CheckPath(path); err != nil {
+	if _, err := unixsock.Target(addr); err != nil {
 		return fmt.Errorf("-endpoint: %w", err)
 	}
 	return nil

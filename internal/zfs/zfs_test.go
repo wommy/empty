@@ -14,6 +14,7 @@ import (
 )
 
 func TestClassify(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, tc := range []struct {
 		stderr string
@@ -50,6 +51,7 @@ func TestClassify(t *testing.T) {
 // treat any list error as not-found, which turns transient failures into
 // duplicate creates or false delete successes).
 func TestExistsDoesNotSwallowUnknownErrors(t *testing.T) {
+	t.Parallel()
 	c := zfs.New(failRunner("internal error: Input/output error\n"))
 	ok, err := c.Exists(context.Background(), "tank/a")
 	if err == nil || ok {
@@ -63,6 +65,7 @@ func TestExistsDoesNotSwallowUnknownErrors(t *testing.T) {
 }
 
 func TestRejectsFlagLikeAndShellNames(t *testing.T) {
+	t.Parallel()
 	c := zfs.New(zfstest.New("tank"))
 	for _, name := range []string{"-rf", "tank/a b", "tank/$(id)", "tank/a;rm", "tank//a", ""} {
 		if err := c.CreateFilesystem(context.Background(), name, nil, false); err == nil {
@@ -75,6 +78,7 @@ func TestRejectsFlagLikeAndShellNames(t *testing.T) {
 }
 
 func TestLifecycleAgainstSim(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	c := zfs.New(sim)
@@ -142,6 +146,7 @@ func (f failRunner) Run(ctx context.Context, name string, args ...string) ([]byt
 // is reported as interrupted (outcome unknown), carrying the context's
 // error, never as an unclassified failure.
 func TestKilledCommandIsInterrupted(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	// sh dies on SIGTERM, but its child keeps stdout open: only WaitDelay
@@ -150,7 +155,7 @@ func TestKilledCommandIsInterrupted(t *testing.T) {
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	c := &zfs.Client{Runner: zfs.LocalRunner{WaitDelay: 200 * time.Millisecond}, Binary: bin}
+	c := &zfs.Client{Runner: zfs.LocalRunner{WaitDelay: 50 * time.Millisecond}, Binary: bin}
 	start := time.Now()
 	_, err := c.Get(ctx, "10", "x")
 	if time.Since(start) > 5*time.Second {
@@ -164,6 +169,7 @@ func TestKilledCommandIsInterrupted(t *testing.T) {
 // The simulator stores index properties by value and prints the first
 // table name, like zfs_prop.c/zprop_index_to_string (OpenZFS 2.4).
 func TestSimPrintsIndexPropertiesLikeOpenZFS(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, tc := range []struct {
 		prop, set string
@@ -200,6 +206,7 @@ func TestSimPrintsIndexPropertiesLikeOpenZFS(t *testing.T) {
 // ADR 0003: ownership is a user property set locally. A received value
 // (zfs send -R | zfs recv) was set by whoever owned the source, not here.
 func TestPropLocalIsOnlyLocal(t *testing.T) {
+	t.Parallel()
 	for src, want := range map[string]bool{
 		"local": true, "received": false, "default": false, "-": false,
 		"inherited from tank": false, "temporary": false,
@@ -213,6 +220,7 @@ func TestPropLocalIsOnlyLocal(t *testing.T) {
 // `zfs set -u` changes sharenfs without mounting: an unmounted canmount=on
 // filesystem stays unmounted, where a plain set mounts and shares it.
 func TestSetNoMountLeavesUnmounted(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	c := zfs.New(sim)

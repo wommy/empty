@@ -13,6 +13,7 @@ import (
 // ADR 0003: the endpoint's state lives under its own user-property
 // namespace by default; democratic-csi's is the adoption mode.
 func TestDefaultPropertyPrefixIsOurOwn(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	ep, err := endpoint.New(zfs.New(sim), endpoint.Config{Parent: "tank"})
@@ -32,6 +33,7 @@ func TestDefaultPropertyPrefixIsOurOwn(t *testing.T) {
 // zfs_check_userprops: shorter than ZAP_MAXNAMELEN, 256). zfs would
 // otherwise refuse each create with a bad property name, after startup.
 func TestPropertyPrefixIsValidated(t *testing.T) {
+	t.Parallel()
 	sim := zfstest.New("tank")
 	for _, p := range []string{"democratic-csi", "zfs-endpoint", "com.example", "a:b", "x_1", strings.Repeat("a", 224)} {
 		if _, err := endpoint.New(zfs.New(sim), endpoint.Config{Parent: "tank", PropertyPrefix: p}); err != nil {

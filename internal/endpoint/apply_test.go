@@ -11,6 +11,7 @@ import (
 // An op kind apply does not know is a program bug: the whole plan is
 // refused as Internal before anything runs, never skipped as if done.
 func TestApplyRefusesAnUnknownOpKind(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	e, err := New(zfs.New(sim), Config{Parent: "tank"})

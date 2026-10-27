@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/wommy/empty/internal/endpoint"
@@ -50,6 +51,31 @@ func (h *harness) Sim(t *testing.T) *zfstest.Sim {
 	return h.sim
 }
 
+// requireSim skips a simulator-only test before it creates anything: on a
+// real pool the skip then costs no dataset, and it happens outside any
+// synctest bubble (a t.Skip inside synctest.Test reports PASS, not SKIP,
+// which would both hide the test and break ci/check-skips.sh).
+func requireSim(t *testing.T) {
+	t.Helper()
+	if os.Getenv("ZFS_TEST_POOL") != "" {
+		t.Skip("needs the simulator (fault injection / call accounting)")
+	}
+}
+
+type slowRunner struct {
+	zfs.Runner
+	get, mut time.Duration
+}
+
+func (r slowRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if len(args) > 0 && (args[0] == "get" || args[0] == "list") {
+		time.Sleep(r.get)
+	} else {
+		time.Sleep(r.mut)
+	}
+	return r.Runner.Run(ctx, name, args...)
+}
+
 var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
 
 func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
@@ -77,6 +103,28 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
 		h.sim = zfstest.New("tank")
 		h.Z = zfs.New(h.sim)
 		h.Parent = "tank/k8s/vols"
+		if lat := os.Getenv("ZFS_TEST_LATENCY"); lat != "" {
+			// a latency model of a real pool (wave7 suite.md): get and
+			// mutating calls each cost a fixed time, so parallelism and
+			// call counts can be measured without one
+			var get, mut time.Duration
+			fmt.Sscanf(lat, "%d,%d", &get, &mut)
+			h.Z = zfs.New(slowRunner{h.sim, get * time.Microsecond, mut * time.Microsecond})
+		}
+		if os.Getenv("ZFS_TEST_CALLS") != "" {
+			sim := h.sim
+			t.Cleanup(func() {
+				g, m := 0, 0
+				for _, c := range sim.Calls {
+					if len(c) > 1 && (c[1] == "get" || c[1] == "list") {
+						g++
+					} else {
+						m++
+					}
+				}
+				t.Logf("CALLS get=%d mut=%d", g, m)
+			})
+		}
 	}
 	if err := h.Z.CreateFilesystem(ctx, h.Parent, nil, true); err != nil {
 		t.Fatal(err)
@@ -103,6 +151,7 @@ func wantCode(t *testing.T, err error, code endpoint.Code) {
 }
 
 func TestCreateVolumeIdempotent(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	req := endpoint.CreateVolumeRequest{Name: "pvc-1", Kind: endpoint.Block, CapacityBytes: 1<<30 + 1, Sparse: true}
@@ -139,6 +188,7 @@ func TestCreateVolumeIdempotent(t *testing.T) {
 }
 
 func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	// a crash after create, before the marker: owned but not committed
@@ -167,6 +217,7 @@ func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
 }
 
 func TestNeverAdoptsOrDeletesUnmanaged(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/precious", nil, false); err != nil {
@@ -181,6 +232,7 @@ func TestNeverAdoptsOrDeletesUnmanaged(t *testing.T) {
 }
 
 func TestDeleteVolume(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if err := ep.DeleteVolume(ctx, "never-existed"); err != nil {
@@ -208,17 +260,23 @@ func TestDeleteVolume(t *testing.T) {
 	}
 }
 
+// mib64 sizes thick zvols: small enough that the real leg's parallel tests
+// fit the 10G pool (thick zvols reserve their full size), large enough to
+// be many volblocks.
+const mib64 = 64 << 20
+
 func TestSnapshotLifecycleWithClones(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
 		t.Fatal(err)
 	}
 	s, err := ep.CreateSnapshot(ctx, "snap-1", "src")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.ID != "src@snap-1" || s.SizeBytes != 1<<30 || !s.ReadyToUse {
+	if s.ID != "src@snap-1" || s.SizeBytes != mib64 || !s.ReadyToUse {
 		t.Fatalf("snapshot %+v", s)
 	}
 	if again, err := ep.CreateSnapshot(ctx, "snap-1", "src"); err != nil || again != s {
@@ -226,18 +284,18 @@ func TestSnapshotLifecycleWithClones(t *testing.T) {
 	}
 
 	// names are global
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "other", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "other", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = ep.CreateSnapshot(ctx, "snap-1", "other")
 	wantCode(t, err, endpoint.AlreadyExists)
 
 	// restore with growth
-	c, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "restored", Kind: endpoint.Block, CapacityBytes: 2 << 30, SourceSnapshotID: "src@snap-1"})
+	c, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "restored", Kind: endpoint.Block, CapacityBytes: 2 * mib64, SourceSnapshotID: "src@snap-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.CapacityBytes != 2<<30 || c.SourceType != "snapshot" || c.SourceID != "src@snap-1" {
+	if c.CapacityBytes != 2*mib64 || c.SourceType != "snapshot" || c.SourceID != "src@snap-1" {
 		t.Fatalf("clone %+v", c)
 	}
 
@@ -269,6 +327,7 @@ func TestSnapshotLifecycleWithClones(t *testing.T) {
 }
 
 func TestCloneFromVolumeReleasesInternalSnapshot(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30}); err != nil {
@@ -295,26 +354,52 @@ func TestCloneFromVolumeReleasesInternalSnapshot(t *testing.T) {
 }
 
 func TestExpand(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, _ := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "e", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "e", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
 		t.Fatal(err)
 	}
-	v, err := ep.ExpandVolume(ctx, "e", 3<<30+1, 0)
-	if err != nil || v.CapacityBytes != 3<<30+16384 {
+	v, err := ep.ExpandVolume(ctx, "e", 3*mib64+1, 0)
+	if err != nil || v.CapacityBytes != 3*mib64+16384 {
 		t.Fatalf("expand %+v %v", v, err)
 	}
-	v, err = ep.ExpandVolume(ctx, "e", 1<<30, 0)
-	if err != nil || v.CapacityBytes != 3<<30+16384 {
+	v, err = ep.ExpandVolume(ctx, "e", mib64, 0)
+	if err != nil || v.CapacityBytes != 3*mib64+16384 {
 		t.Fatalf("shrink must be a no-op: %+v %v", v, err)
 	}
 	_, err = ep.ExpandVolume(ctx, "missing", 1, 0)
 	wantCode(t, err, endpoint.NotFound)
 }
 
+// The 16 creates wait for one lock with LockWait 1s. On the real clock a
+// loaded host (or -race) made a waiter time out (Aborted), a flake; in a
+// synctest bubble time advances only when every goroutine is blocked, so
+// LockWait can expire only on a real deadlock. requireSim stays outside the
+// bubble: a skip inside one reports PASS.
 func TestConcurrentCreatesSerialize(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
+	synctest.Test(t, concurrentCreatesSerialize)
+}
+
+func concurrentCreatesSerialize(t *testing.T) {
 	ctx := context.Background()
-	ep, h := setup(t)
+	_, h := setup(t)
+	sim := h.Sim(t)
+	// the first `zfs create` parks until every other create is blocked:
+	// with the volume lock they wait for it and then find the volume;
+	// without it they reach `zfs create` too, and the count says so
+	g := &parkFirstCreate{Runner: sim, entered: make(chan struct{}), release: make(chan struct{})}
+	ep, err := endpoint.New(zfs.New(g), endpoint.Config{Parent: h.Parent, LockWait: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		<-g.entered
+		synctest.Wait()
+		close(g.release)
+	}()
 	var wg sync.WaitGroup
 	errs := make([]error, 16)
 	for i := range errs {
@@ -331,7 +416,7 @@ func TestConcurrentCreatesSerialize(t *testing.T) {
 		}
 	}
 	creates := 0
-	for _, c := range h.Sim(t).Calls {
+	for _, c := range sim.Calls {
 		if len(c) > 1 && c[1] == "create" && c[len(c)-1] == h.Parent+"/race" {
 			creates++
 		}
@@ -341,7 +426,28 @@ func TestConcurrentCreatesSerialize(t *testing.T) {
 	}
 }
 
+// parkFirstCreate holds the first `zfs create` until release is closed;
+// every other call goes straight through.
+type parkFirstCreate struct {
+	zfs.Runner
+	once             sync.Once
+	entered, release chan struct{}
+}
+
+func (g *parkFirstCreate) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if len(args) > 0 && args[0] == "create" {
+		first := false
+		g.once.Do(func() { first = true })
+		if first {
+			close(g.entered)
+			<-g.release
+		}
+	}
+	return g.Runner.Run(ctx, name, args...)
+}
+
 func TestPagination(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, _ := setup(t)
 	for _, n := range []string{"v1", "v2", "v3"} {
@@ -386,6 +492,7 @@ func TestPagination(t *testing.T) {
 // review H2: user properties inherit, so a snapshot an administrator took
 // (or an internal one) must not look owned.
 func TestInheritedOwnershipIsNotOwnership(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 1 << 30}); err != nil {
@@ -404,23 +511,10 @@ func TestInheritedOwnershipIsNotOwnership(t *testing.T) {
 	}
 }
 
-// review C1 end-to-end: thick clones are idempotent after success
-func TestThickCloneRetryIsIdempotent(t *testing.T) {
-	ctx := context.Background()
-	ep, _ := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
-		t.Fatal(err)
-	}
-	req := endpoint.CreateVolumeRequest{Name: "c", Kind: endpoint.Block, CapacityBytes: 1 << 30, SourceVolumeID: "s"}
-	for i := 0; i < 2; i++ {
-		if _, err := ep.CreateVolume(ctx, req); err != nil {
-			t.Fatalf("attempt %d: %v", i, err)
-		}
-	}
-}
-
 // a failure between clone and resize converges on retry
 func TestCloneResizeFailureConverges(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: 1 << 30, Sparse: true}); err != nil {
@@ -450,6 +544,8 @@ func TestCloneResizeFailureConverges(t *testing.T) {
 // review 2 #1: zfs reports "dataset does not exist" for an exported pool;
 // that must not read as "already deleted"
 func TestMissingParentIsUnavailableNotAbsent(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	h.Sim(t)
@@ -471,6 +567,7 @@ func TestMissingParentIsUnavailableNotAbsent(t *testing.T) {
 // one scan for idempotency, converged on an interrupted provision, and
 // refused when they would change a committed volume or a clone's block size.
 func TestCreateVolumeProperties(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 

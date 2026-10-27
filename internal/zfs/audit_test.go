@@ -10,6 +10,7 @@ import (
 )
 
 func TestAuditLogsOnlyMutations(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&buf, nil))
 	r := Audit(scriptRunner{"get -Hp type tank": "", "destroy -r tank/k8s/v": ""}, log)

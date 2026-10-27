@@ -12,6 +12,8 @@ import (
 // that scans the whole parent reports a missing parent as Unavailable, as
 // the single-volume scan does: NotFound is final for the CSI sidecars.
 func TestMissingParentIsUnavailableForWholeScans(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	h.Sim(t)

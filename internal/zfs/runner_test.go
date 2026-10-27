@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/wommy/empty/internal/zfs"
@@ -37,6 +38,11 @@ func (r *peakRunner) Run(ctx context.Context, name string, args ...string) ([]by
 }
 
 func TestLimitBoundsConcurrentCommands(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, limitBoundsConcurrentCommands)
+}
+
+func limitBoundsConcurrentCommands(t *testing.T) {
 	r := &peakRunner{release: make(chan struct{})}
 	l := zfs.Limit(r, 4)
 	var wg sync.WaitGroup
@@ -54,6 +60,11 @@ func TestLimitBoundsConcurrentCommands(t *testing.T) {
 // never starts; through the Client that is an interrupted call carrying
 // the context's error, like a killed one.
 func TestLimitWaiterRespectsContext(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, limitWaiterRespectsContext)
+}
+
+func limitWaiterRespectsContext(t *testing.T) {
 	r := &peakRunner{release: make(chan struct{})}
 	block := blockRunner{r: r, started: make(chan struct{}, 1), unblock: make(chan struct{})}
 	l := zfs.Limit(block, 1)
@@ -98,6 +109,7 @@ func (b blockRunner) Run(ctx context.Context, name string, args ...string) ([]by
 // A signal sent to the daemon's process group must not reach its zfs
 // children: each runs in a group of its own.
 func TestChildRunsInItsOwnProcessGroup(t *testing.T) {
+	t.Parallel()
 	bin := filepath.Join(t.TempDir(), "zfs")
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho $$ $(cut -d' ' -f5 /proc/$$/stat)\n"), 0o755); err != nil {
 		t.Fatal(err)

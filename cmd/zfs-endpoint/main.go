@@ -51,6 +51,9 @@ type deps struct {
 	// settle is Config.Settle (endpoint.UdevSettle); nil for the
 	// simulator, which has no devices.
 	settle func(context.Context) error
+	// after is the startup backoff timer; nil: time.After. Tests inject
+	// it so a parent wait costs no wall time.
+	after func(time.Duration) <-chan time.Time
 }
 
 const (
@@ -121,7 +124,11 @@ func run(ctx context.Context, args []string, d deps) error {
 		}
 	}
 	// refuse to start against a parent that is not there: never create it
-	if err := waitParent(ctx, z, *parent, *parentWait); err != nil {
+	after := d.after
+	if after == nil {
+		after = time.After
+	}
+	if err := waitParent(ctx, z, *parent, *parentWait, after); err != nil {
 		return err
 	}
 	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})

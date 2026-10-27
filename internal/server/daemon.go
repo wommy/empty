@@ -134,7 +134,10 @@ func (d *Daemon) Shutdown(drain, stopWait time.Duration, interrupt <-chan struct
 	case <-time.After(drain):
 		d.log.Warn("drain timed out: cancelling in-flight calls", "after", drain, "in_flight", d.calls.count())
 	}
-	d.GRPC.Stop()
+	// Stop closes the connections, which cancels the calls' contexts, but
+	// then blocks until every handler has returned: run it aside, so a
+	// handler stuck in an unkillable zfs cannot hold Shutdown past stopWait
+	go d.GRPC.Stop()
 	select {
 	case <-idle:
 	case <-time.After(stopWait):

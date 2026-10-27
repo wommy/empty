@@ -19,6 +19,7 @@ func (s scriptRunner) Run(ctx context.Context, name string, args ...string) ([]b
 }
 
 func TestVersion(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, tc := range []struct {
 		name   string

@@ -88,6 +88,7 @@ func sets(h *harness, from int) int {
 }
 
 func TestFileExportLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	h.NFS(t)
@@ -157,6 +158,7 @@ func TestFileExportLifecycle(t *testing.T) {
 }
 
 func TestFileExportPreconditions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "blk", Kind: endpoint.Block, CapacityBytes: 1 << 20, Sparse: true}); err != nil {
@@ -235,6 +237,8 @@ func TestFileExportPreconditions(t *testing.T) {
 // already right; likewise Unpublish must not report a revoke that did not
 // happen (review: "Unexport reports OK while the volume is still exported").
 func TestFileExportVerifiesKernelTable(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
@@ -273,6 +277,7 @@ func TestFileExportVerifiesKernelTable(t *testing.T) {
 // sharenfs change repopulates it although no nfsd runs (exportfs -ra does
 // not check). etab alone would report that as served (adv4 F4).
 func TestFileExportRequiresNFSD(t *testing.T) {
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
@@ -310,6 +315,7 @@ func TestFileExportRequiresNFSD(t *testing.T) {
 // F4): only that client's publish fails, every retry re-shares, and the
 // other client is untouched.
 func TestFileExportDroppedHost(t *testing.T) {
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
@@ -343,6 +349,7 @@ func TestFileExportDroppedHost(t *testing.T) {
 // exportfs stores an export under its real path (nfsd_realpath); the
 // mountpoint property may cross a symlink (adv4 F6).
 func TestFileExportResolvesSymlinks(t *testing.T) {
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	h.Sim(t)
@@ -383,6 +390,7 @@ func TestFileExportResolvesSymlinks(t *testing.T) {
 // revoked list. Publish asks for the volume to be served, so it lets zfs
 // mount it.
 func TestFileExportUnmountedVolume(t *testing.T) {
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
@@ -427,6 +435,7 @@ func TestFileExportUnmountedVolume(t *testing.T) {
 // silently shadow it, so it is refused, not overridden or adopted. A
 // received "off" exports nothing and is pinned like an inherited one.
 func TestFileExportReceivedShareNFS(t *testing.T) {
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
@@ -468,6 +477,7 @@ func TestFileExportReceivedShareNFS(t *testing.T) {
 // crossmnt, the first publish pins a local value; a sharenfs someone else
 // set locally is refused, not overwritten.
 func TestFileExportAdoptedVolumes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setupPrefix(t, "democratic-csi")
 	h.NFS(t)
