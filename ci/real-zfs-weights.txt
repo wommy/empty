@@ -15,6 +15,11 @@
 # runs ~46 `zfs set sharenfs`, each an exportfs -ra; it stops itself at
 # 25s and fails past 30s.
 TestNFSReplay 5.00
+#
+# Its subtests run in parallel, so its own line reads 0.00s; the weight is
+# the sampled real leg's 34 runs (28.7s of subtest time for the full 93 on
+# run 40468062545, f3706a7), scaled and halved for 2 vCPUs.
+TestCrashAtEveryMutationConverges 6.00
 TestFileExportUnpublishStillServed 0.30
 TestFileExportServedBeyondRequest 0.20
 #

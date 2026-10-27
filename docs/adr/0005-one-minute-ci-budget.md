@@ -39,7 +39,8 @@ Status: accepted (budget); proposed (mechanisms, pending measurement) · Date: 2
     - exploratory fuzzing (long runs);
     - the model-based FSM explorer;
     - scale tests;
-    - real-pool mutant samples.
+    - real-pool mutant samples;
+    - the full real-pool crash sweep (`ZFS_CRASH_FULL=1`). The PR's real leg runs each crash case uninterrupted plus one crash point, rotated across cases; the simulator leg runs every point on every PR. The full sweep cost about 29s of the VM's two vCPUs (run 40468062545), and it slowed every other shard.
 
     A nightly failure files an issue, and the reproducer goes into the seed corpus so the PR tier keeps it.
 - **Mechanisms.** These are proposed, measured in wave 10 and adopted when they show their savings:

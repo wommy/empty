@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -272,8 +273,23 @@ func runCrash(t *testing.T, c crashCase, crashAt int, after bool) (string, int) 
 	return fingerprint(t, h), fr.count()
 }
 
+// crashSample: on a real pool the PR leg runs one crash point per case,
+// rotated by the case's index, besides its uninterrupted run: the full sweep
+// (93 runs) costs ~29s of the VM's 2 vCPUs, which ADR 0005's budget cannot
+// carry. The simulator leg and ZFS_CRASH_FULL=1 run every point.
+func crashSample(ci, k int, after bool, n int) bool {
+	if os.Getenv("ZFS_TEST_POOL") == "" || os.Getenv("ZFS_CRASH_FULL") != "" {
+		return true
+	}
+	i := 2 * k
+	if after {
+		i++
+	}
+	return i == ci%(2*n)
+}
+
 func TestCrashAtEveryMutationConverges(t *testing.T) {
-	for _, c := range crashCases {
+	for ci, c := range crashCases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel() // each run has its own parent dataset (sim: its own Sim)
 			var want string
@@ -289,6 +305,9 @@ func TestCrashAtEveryMutationConverges(t *testing.T) {
 						mode = "after"
 					}
 					label := fmt.Sprintf("k%d-%s", k, mode)
+					if !crashSample(ci, k, after, n) {
+						continue
+					}
 					t.Run(label, func(t *testing.T) {
 						t.Parallel()
 						got, _ := runCrash(t, c, k, after)
