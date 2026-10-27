@@ -362,13 +362,17 @@ func (x *Volume) GetMountpoint() string {
 }
 
 type Snapshot struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // "<volume id>@<name>"
-	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	SourceVolumeId string                 `protobuf:"bytes,3,opt,name=source_volume_id,json=sourceVolumeId,proto3" json:"source_volume_id,omitempty"`
-	SizeBytes      uint64                 `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	CreationUnix   int64                  `protobuf:"varint,5,opt,name=creation_unix,json=creationUnix,proto3" json:"creation_unix,omitempty"`
-	ReadyToUse     bool                   `protobuf:"varint,6,opt,name=ready_to_use,json=readyToUse,proto3" json:"ready_to_use,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// "<volume id>@<component>", where component is name itself when it is a
+	// valid zfs snapshot name and the id fits CSI's 128 bytes, else "csi-"
+	// and 32 hex digits of name's sha256. Opaque: look snapshots up by id,
+	// never rebuild it from name.
+	Id             string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name           string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	SourceVolumeId string `protobuf:"bytes,3,opt,name=source_volume_id,json=sourceVolumeId,proto3" json:"source_volume_id,omitempty"`
+	SizeBytes      uint64 `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	CreationUnix   int64  `protobuf:"varint,5,opt,name=creation_unix,json=creationUnix,proto3" json:"creation_unix,omitempty"`
+	ReadyToUse     bool   `protobuf:"varint,6,opt,name=ready_to_use,json=readyToUse,proto3" json:"ready_to_use,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1396,7 +1400,11 @@ type ReconcileRequest struct {
 	// The complete set of volume ids the caller wants kept. Every other owned,
 	// committed volume is collected. Empty collects no committed volume: it
 	// cannot be told apart from a caller that sent nothing. A set naming none
-	// of the endpoint's volumes counts as empty.
+	// of the endpoint's volumes counts as empty. An id that names no volume,
+	// including one the endpoint could never issue (another driver's
+	// "ns/pv"), is reported in skipped ("desired volume does not exist") and
+	// the run goes on; it neither protects nor dooms any volume. An empty id
+	// is INVALID_ARGUMENT.
 	DesiredVolumeIds []string `protobuf:"bytes,1,rep,name=desired_volume_ids,json=desiredVolumeIds,proto3" json:"desired_volume_ids,omitempty"`
 	// Nothing created (or committed) less than this long ago is touched
 	// (in-flight creates, volumes newer than the caller's desired set).
@@ -1735,8 +1743,11 @@ func (x *PublishFileExportRequest) GetReadOnly() bool {
 
 type PublishFileExportResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// path to mount from the storage host (server:export_path). It is read
-	// fresh on every call: pass it on (CSI publish_context), do not store it.
+	// The volume's mountpoint: the bare path a client mounts from the storage
+	// host, with no "server:" part (the front end knows the host's address).
+	// It is read fresh on every call: use it, do not store it. CSI passes no
+	// export in publish_context: ADR 0004 hands the node side (csi-driver-nfs)
+	// "server" and "share" in volume_context.
 	ExportPath    string `protobuf:"bytes,1,opt,name=export_path,json=exportPath,proto3" json:"export_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
