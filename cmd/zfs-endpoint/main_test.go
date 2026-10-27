@@ -31,7 +31,7 @@ func simDeps(t *testing.T) (deps, *zfstest.Sim) {
 	if err := z.CreateVolume(ctx, "tank/zvol", 1<<20, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	return deps{runner: sim, lockDir: t.TempDir(), euid: 0}, sim
+	return deps{runner: sim, lockDir: t.TempDir(), euid: 0, etab: sim}, sim
 }
 
 // Startup refuses what it cannot serve safely, with an exit code the unit

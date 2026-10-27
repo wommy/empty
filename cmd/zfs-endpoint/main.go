@@ -58,6 +58,9 @@ type deps struct {
 	// after is the startup backoff timer; nil: time.After. Tests inject
 	// it so a parent wait costs no wall time.
 	after func(time.Duration) <-chan time.Time
+	// etab is the NFS export table (endpoint.Config.Etab); nil:
+	// endpoint.DefaultEtab. Tests pass the simulator.
+	etab endpoint.EtabReader
 	// stdout receives -version; nil: os.Stdout.
 	stdout io.Writer
 }
@@ -168,7 +171,14 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err := waitParent(ctx, z, *parent, *parentWait, after); err != nil {
 		return startupErr(ctx, err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})
+	etab := d.etab
+	if etab == nil {
+		etab = endpoint.DefaultEtab
+	}
+	if err := checkExposure(ctx, z, *parent, etab); err != nil {
+		return startupErr(ctx, err)
+	}
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle, Etab: etab})
 	if err != nil {
 		return configErr("%v", err)
 	}
@@ -257,6 +267,35 @@ func startupErr(ctx context.Context, err error) error {
 		return nil
 	}
 	return err
+}
+
+// checkExposure refuses (78) a parent whose mountpoint is under a crossmnt
+// NFS export: that line would serve every volume to its clients from
+// creation on, whatever the volume's sharenfs (endpoint.ExposedByAncestor,
+// F5). Typically `zfs set sharenfs=on` on the pool or an ancestor dataset,
+// or a crossmnt line in /etc/exports. Restarting cannot fix it; removing
+// the export can. A parent with no mountpoint (none, legacy) mounts no
+// volume through it and is not checked.
+func checkExposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.EtabReader) error {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	ds, err := z.Get(ctx, parent, "mountpoint")
+	if err != nil {
+		return fmt.Errorf("parent %s: reading its mountpoint: %w", parent, err)
+	}
+	mount := ds.Props["mountpoint"].Value
+	if !filepath.IsAbs(mount) {
+		return nil
+	}
+	b, err := etab.ReadEtab(ctx)
+	if err != nil {
+		return fmt.Errorf("reading the NFS export table: %w", err)
+	}
+	if x := endpoint.ExposedByAncestor(b, mount); len(x) > 0 {
+		return configErr("parent %s (mounted at %s) is under a crossmnt NFS export, which serves every volume to its clients as soon as it is created: %s; "+
+			"unshare it (zfs set sharenfs=off on that dataset, or remove the /etc/exports line) and start again", parent, mount, strings.Join(x, "; "))
+	}
+	return nil
 }
 
 // configLockWait maps -lock-wait (validated: not negative) to
