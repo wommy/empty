@@ -1,0 +1,11 @@
+TestPropertyRoundTrip	harness	endpoint_test.setupConfig	zfs create
+TestPropertyRoundTrip	endpoint	(*Endpoint).scan	zfs get
+TestPropertyRoundTrip	endpoint	(*Endpoint).scan	zfs get
+TestPropertyRoundTrip	endpoint	(*Endpoint).parentMountpoint	zfs get
+TestPropertyRoundTrip	endpoint	(*Endpoint).applyN	zfs create
+TestPropertyRoundTrip	endpoint	(*Endpoint).scan	zfs get
+TestPropertyRoundTrip	endpoint	(*Endpoint).applyN	zfs set
+TestPropertyRoundTrip	endpoint	(*Endpoint).scan	zfs get
+TestPropertyRoundTrip	harness	endpoint_test.(*harness).propSource	zfs get
+TestPropertyRoundTrip	endpoint	(*Endpoint).scan	zfs get
+TestPropertyRoundTrip	endpoint	(*Endpoint).scan	zfs get

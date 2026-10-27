@@ -1,4 +1,4 @@
-internal/endpoint/seams16_test.go
+internal/endpoint/zfscalls_test.go
 ci/unitprobe/main.go
 ci/unitprobe/main_test.go
 cmd/zfs-csi/main.go
@@ -101,6 +101,7 @@ internal/endpoint/root_linux.go
 internal/endpoint/root_linux_test.go
 internal/endpoint/root_other.go
 internal/endpoint/scan_bench_test.go
+internal/endpoint/seams16_test.go
 internal/endpoint/seams_test.go
 internal/endpoint/settle.go
 internal/endpoint/settle_test.go

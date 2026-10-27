@@ -69,6 +69,12 @@
 {"id": "ab6cbda7109c7041a", "name": "r-sshpenalty", "lane": "reader", "wave": 20, "status": "done", "branch": null, "report": "wave20/sshpenalty.md", "anomaly": false, "queue": "q-r-sshpen"}
 {"id": "a28eef26cea011034", "name": "r-csi-seams", "lane": "reader", "wave": 20, "status": "done", "branch": null, "report": "wave20/csi-seams.md", "anomaly": false, "queue": "q-r-csi"}
 {"id": "ad93611adda6052c2", "name": "sim-facts", "lane": "writer", "wave": 18, "status": "running", "branch": "sim-facts", "report": null, "anomaly": false, "queue": "q-sim-facts"}
-{"id": "aa647cb4002c0887c", "name": "headroom-parent", "lane": "writer", "wave": 21, "status": "running", "branch": "headroom-parent", "report": "wave18/simfacts-spec.md (out-of-scope finding)", "anomaly": false, "queue": "q-headroom-parent"}
+{"id": "aa647cb4002c0887c", "name": "headroom-parent", "lane": "writer", "wave": 21, "status": "merged", "branch": "headroom-parent", "report": "wave18/simfacts-spec.md (out-of-scope finding)", "anomaly": false, "queue": "q-headroom-parent"}
 {"id": "a3cabf7e2841ab2bc", "name": "test-forks", "lane": "writer", "wave": 21, "status": "running", "branch": "test-forks", "report": null, "anomaly": false, "queue": "q-test-forks"}
 {"id": "a87ea2bda358892a6", "name": "r-docs-drift", "lane": "reader", "wave": 21, "status": "done", "branch": null, "report": "wave21/docs-drift.md", "anomaly": false, "queue": "q-r-docs"}
+{"id": "a2b5201181f2560a4", "name": "k8s-deploy", "lane": "reader", "wave": 21, "status": "done", "branch": null, "report": "wave21/k8s-deploy.md", "anomaly": false, "queue": "q-k8s-deploy"}
+{"id": "a59084ea56f2aa1fd", "name": "ci-flake", "lane": "reader", "wave": 21, "status": "running", "branch": null, "report": "wave21/ci-flake.md", "anomaly": false, "queue": "q-ci-flake"}
+{"id": "ad6423faa483b13fe", "name": "nightly", "lane": "reader", "wave": 21, "status": "done", "branch": null, "report": "wave21/nightly.md", "anomaly": false, "queue": "q-nightly"}
+{"id": "aef78df78baf6c978", "name": "k8s-harden", "lane": "writer", "wave": 22, "status": "running", "branch": "k8s-harden", "report": null, "anomaly": true, "queue": "q-k8s-harden"}
+{"id": "a31ac8f2d46f012a6", "name": "headroom-verify", "lane": "reader", "wave": 22, "status": "running", "branch": null, "report": "wave22/headroom-verify.md", "anomaly": false, "queue": "q-headroom-verify"}
+{"id": "a9b42460cb57dc59e", "name": "coverage", "lane": "reader", "wave": 22, "status": "running", "branch": null, "report": "wave22/coverage.md", "anomaly": false, "queue": "q-coverage"}

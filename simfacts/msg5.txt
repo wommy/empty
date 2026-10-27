@@ -1,0 +1,15 @@
+realfacts: VOL-12, copies=2 does not grow a thick zvol's reservation
+
+zvol_volsize_to_reservation reads copies with nvlist_lookup_string, but
+zfs create passes real_props, where zfs_valid_proplist has already made
+the index property a uint64, so the lookup fails and ncopies stays 1;
+the set paths get validated lists too. The Sim's autoResv ignores copies
+and is right. The row pins that on a real pool by comparing the two
+refreservations, not a number, so it holds on any vdev layout.
+
+The Sim passes it before and after this series (nothing in the Sim
+changes); a Sim whose create path multiplies the auto reservation by
+copies fails it (3145728 against 6291456).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

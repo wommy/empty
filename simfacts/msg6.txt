@@ -1,0 +1,12 @@
+ci: weights for the new real-pool rows and the stale-share test
+
+Estimates until a run measures them, so the planner does not balance
+the new work at the 0.1s default: TestRealFacts 8.35 -> 10.90 (SPC-01,
+MNT-01, MNT-02, VOL-12) and TestFileExportStaleShareOnlySharenfsHeals
+0.80 (NFS group). With 2 parts of 3 shards, each part goes from 37.2 to
+38.9 weight-s; part 0's longest shard is unchanged (16.61), part 1's
+goes from 13.23 to 14.12. Regenerate with ci/real-zfs-weights.sh from the
+next run.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

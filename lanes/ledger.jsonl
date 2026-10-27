@@ -70,3 +70,6 @@
 {"t":"2026-10-27T16:25Z","lane":"writer","agent":"a72cce936e66b59ef","name":"ci-latent","tokens":148931,"tools":60,"outcome":"merged","notes":"33/33 harness"}
 {"t":"2026-10-27T16:30Z","lane":"reader","agent":"a28eef26cea011034","name":"r-csi-seams","tokens":172382,"tools":35,"findings":8,"actionable":7,"outcome":"done -> q-csi-code, q-csi-deploy; HIGH deployment cannot mount"}
 {"t": "2026-10-27T16:10:15Z", "lane": "reader", "id": "docs-drift", "agent": "a87ea2bda358892a6", "tokens": 210239, "tools": 44, "ms": 285483, "findings": 9, "high": 3, "outcome": "queued q-docs-fix writer"}
+{"lane": "writer", "id": "headroom-parent", "agent": "aa647cb4002c0887c", "tokens": 122651, "tools": 49, "ms": 489455, "commit": "d845622", "merge": "d232d63", "tests_failing_first": 8, "outcome": "merged, gate ok", "t": "2026-10-27T16:15:55Z"}
+{"lane": "reader", "id": "k8s-deploy", "agent": "a2b5201181f2560a4", "tokens": 114638, "tools": 18, "ms": 245066, "findings": 8, "high": 1, "outcome": "fold into q-csi-deploy", "t": "2026-10-27T16:15:55Z"}
+{"lane": "reader", "id": "nightly", "agent": "ad6423faa483b13fe", "tokens": 178276, "tools": 30, "ms": 245085, "findings": 5, "high": 1, "outcome": "q-ci-nightly; label creation -> owner report", "t": "2026-10-27T16:15:55Z"}

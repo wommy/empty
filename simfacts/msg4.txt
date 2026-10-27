@@ -1,0 +1,16 @@
+zfstest: canmount=off unmounts through a mountpoint changelist
+
+zfs_prop_set_list_flags gathers canmount=off on a mounted filesystem
+(only then), and changelist_gather maps canmount to a mountpoint list:
+prefix unmounts the filesystem and the children inheriting its
+mountpoint, and fails busy over a pinned child mounted inside it, before
+canmount is set. postfix remounts the children (cn_mounted); the
+filesystem itself is no longer mountable. The Sim unmounted only the
+filesystem, and never failed.
+
+TestRealFacts MNT-01 sets canmount=off over a pinned child and wants
+busy with the parent still mounted and canmount=on; it fails on the Sim
+before this commit (the set succeeds).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
