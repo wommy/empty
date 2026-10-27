@@ -1,0 +1,13 @@
+--- FAIL: TestDefaultSocketHasItsOwnDirectory (0.00s)
+    sockdir_test.go:65: tank/k8s/vols: socket directory /run/zfs-endpoint, want /run/zfs-endpoint/sock/tank-k8s-vols
+    sockdir_test.go:65: tank/a: socket directory /run/zfs-endpoint, want /run/zfs-endpoint/sock/tank-a
+    sockdir_test.go:65: tank/my-vols: socket directory /run/zfs-endpoint, want /run/zfs-endpoint/sock/tank-my\x2dvols
+    sockdir_test.go:72: two parents share a socket directory: unix:///run/zfs-endpoint/tank-a.sock, unix:///run/zfs-endpoint/tank-b.sock
+--- FAIL: TestSocketNeverSharesTheLockDirectory (0.17s)
+    --- FAIL: TestSocketNeverSharesTheLockDirectory/in_the_lock_directory (0.06s)
+        sockdir_test.go:48: exit 1 /tmp/TestSocketNeverSharesTheLockDirectoryin_the_lock_directory1108041718/002/run/zfs-endpoint/x.sock exists and is not a socket (----------): refusing to replace it; refused false, want true
+    --- FAIL: TestSocketNeverSharesTheLockDirectory/in_a_directory_containing_it (0.00s)
+        sockdir_test.go:48: exit 1 /tmp/TestSocketNeverSharesTheLockDirectoryin_a_directory_containing_2393308813/002/run/x.sock exists and is not a socket (----------): refusing to replace it; refused false, want true
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.174s
+FAIL

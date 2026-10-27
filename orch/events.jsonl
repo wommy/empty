@@ -150,3 +150,4 @@
 {"ts": "2026-10-27T11:15:25Z", "id": "ad597b436ccbfeb45", "from": "queued", "to": "running", "note": "r-ci-path"}
 {"ts": "2026-10-27T11:15:58Z", "id": "a19aec7306147c3be", "from": "queued", "to": "running", "note": "b-json-scan"}
 {"ts": "2026-10-27T11:15:58Z", "id": "abc547657367f7600", "from": "queued", "to": "running", "note": "b-nfs-csi"}
+{"ts": "2026-10-27T11:16:08Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

@@ -1,0 +1,11 @@
+--- PASS: TestDefaultSocketHasItsOwnDirectory (0.00s)
+--- PASS: TestSocketNeverSharesTheLockDirectory (0.12s)
+    --- PASS: TestSocketNeverSharesTheLockDirectory/in_the_lock_directory (0.01s)
+    --- PASS: TestSocketNeverSharesTheLockDirectory/in_a_directory_containing_it (0.00s)
+    --- PASS: TestSocketNeverSharesTheLockDirectory/in_its_own_directory_under_it (0.06s)
+    --- PASS: TestSocketNeverSharesTheLockDirectory/in_a_sibling_directory (0.05s)
+PASS
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	1.148s
+--- PASS: TestUnitServesTheConventionalSocket (0.00s)
+--- PASS: TestManifests (0.00s)
+ok  	github.com/wommy/empty/deploy	0.011s
