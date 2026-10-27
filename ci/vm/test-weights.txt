@@ -1,0 +1,120 @@
+# Seconds each top-level endpoint test took on the real-ZFS VM: the time
+# cost of a test as data (ADR 0005). ci/vm/guest-run.sh shards the endpoint
+# binary by these weights (longest first, onto the lightest shard); a test
+# missing here weighs 0.1s. Only the balance depends on this file, never the
+# coverage: every listed test runs in exactly one shard, and
+# ci/check-skips.sh fails a test that neither passed nor skipped.
+#
+# Source: run 40456494050 (8cc52ef), one serial pass on a 10G file-backed
+# pool. Refresh with the durations from a newer run when shards drift apart.
+#
+# <test> <seconds>
+TestCreateVolumeProperties 1.27
+TestReconcileAgainstDesiredSet 0.68
+TestReserveRestoreIsIdempotent 0.57
+TestCloneSourcesMustBeOwned 0.46
+TestSnapshotLifecycleWithClones 0.43
+TestCloneLargerThanLimitIsOutOfRange 0.39
+TestReconcileCollectsLeakedCloneSource 0.36
+TestCloneFromVolumeReleasesInternalSnapshot 0.29
+TestThickCloneRetryIsIdempotent 0.29
+TestPagination 0.28
+TestFileExportLifecycle 0.26
+TestConcurrentCreatesSerialize 0.25
+TestDeleteVolumeAfterItsCloneIsGone 0.25
+TestSimulateDestroyAllEquivalent 0.25
+TestBusyIsMappedByOperation 0.24
+TestFileExportPreconditions 0.24
+TestDeleteVolume 0.23
+TestFileExportAdoptedVolumes 0.22
+TestCloneFailureAfterCloneConvergesToSameState 0.20
+TestExpand 0.17
+TestInheritedOwnershipIsNotOwnership 0.16
+TestCloneResizeFailureConverges 0.15
+TestCreateVolumeIdempotent 0.15
+TestCreateVolumeResumesInterruptedProvision 0.15
+TestDeleteVolumeSparesForeignSnapshots 0.15
+TestVolumeNameMustMatchID 0.15
+TestReconcileCollectsAbandonedCreate 0.14
+TestNeverAdoptsOrDeletesUnmanaged 0.10
+TestUnknownFailureAfterAMutationIsRetryable 0.07
+TestExportSizeLimit 0.06
+TestMissingParentIsUnavailableForWholeScans 0.06
+TestReconcileLocksTargets 0.06
+TestAdv4CommitRaceDestroysJustProvisionedVolume 0.05
+TestFileExportRequiresNFSD 0.05
+TestFileExportUnmountedVolume 0.05
+TestFileExportVerifiesKernelTable 0.05
+TestMissingParentIsUnavailableNotAbsent 0.05
+TestReconcileSparesReceivedAndRenamed 0.05
+TestFileExportDroppedHost 0.04
+TestFileExportReceivedShareNFS 0.04
+TestFileExportResolvesSymlinks 0.04
+TestReceivedCopyIsNotOwned 0.04
+TestAdv4PartialDesiredSetMassDeletes 0.01
+TestPlanPublishExport 0.01
+TestAdv4BusyDestroyAbortsRun 0.00
+TestAdv4ChildDatasetsDestroyed 0.00
+TestAdv4OneBusyLockAbortsWholeRun 0.00
+TestAdv4OneFailureStarvesAndHidesDestroys 0.00
+TestAdv4ReleasedOriginOutsideParent 0.00
+TestAdv4TinyMinAgeInFlightCreate 0.00
+TestAdv4UserSnapshotWithReservedPrefixCollected 0.00
+TestAdv4_AddressDedupPublishNeverVerifies 0.00
+TestAdv4_ClientPolicyGaps 0.00
+TestAdv4_PrefixMatchPublishFalseSuccess 0.00
+TestAdv4_PrefixMatchUnpublishLivelock 0.00
+TestAdv4_TwoSpellingsBypassModeConflict 0.00
+TestApplyRefusesAnUnknownOpKind 0.00
+TestCheckFloor 0.00
+TestCloneNeverAdoptsARacingDataset 0.00
+TestCloneRefusesUnstampedReservedSnapshot 0.00
+TestCodeOfNeverReportsAFailureAsOK 0.00
+TestDecodeRejectsImpossibleZvolSizes 0.00
+TestDefaultPropertyPrefixIsOurOwn 0.00
+TestDeleteCloneInterruptedThenRetriedReleasesOrigin 0.00
+TestDeleteVolumeSparesChildDatasets 0.00
+TestDeleteVolumeSparesSnapshotCutAfterScan 0.00
+TestExportConverges 0.00
+TestLegacyUnstampedOriginReleasedWithItsClone 0.00
+TestLiteralDashMarkerIsAValue 0.00
+TestManagedWithoutNameIsNotOwned 0.00
+TestOpKindString 0.00
+TestParseClient 0.00
+TestParseEtab 0.00
+TestPlanCreateAppliesProperties 0.00
+TestPlanCreateConvergesUncommittedClone 0.00
+TestPlanCreateFilesystemsAreNotShared 0.00
+TestPlanCreateHonorsLimitOnly 0.00
+TestPlanCreateIsEmptyWhenSatisfied 0.00
+TestPlanCreateMalformedSourceIsNotFound 0.00
+TestPlanCreatePropertiesConvergeUncommitted 0.00
+TestPlanCreatePropertiesDenyList 0.00
+TestPlanCreatePropertiesRetry 0.00
+TestPlanCreateRefusesForeignAndIncompatible 0.00
+TestPlanCreateThickZvolLeavesReservationToZFS 0.00
+TestPlanDeleteVolume 0.00
+TestPlanExpand 0.00
+TestPlanReconcile 0.00
+TestPlanReconcileHeldLimitsActions 0.00
+TestPlanReconcileLocksEveryTarget 0.00
+TestPlanSnapshotLongAndUnusualNames 0.00
+TestPlanSnapshotReservedPrefix 0.00
+TestPlanUnpublishExport 0.00
+TestPlannersRequireACoveringTable 0.00
+TestPropertyPrefixIsValidated 0.00
+TestReachCapacityWrap 0.00
+TestReachOriginOutsideParent 0.00
+TestReachOutsideCloneWedgesReconcile 0.00
+TestReachPlannerZeroBlockSize 0.00
+TestReachUncommittedServed 0.00
+TestReconcileAgesFromCommit 0.00
+TestReconcileMaxDeletionsAndDigest 0.00
+TestReconcileSkipsSourceOfFailedClone 0.00
+TestScanRecordsCoverage 0.00
+TestShareNFSAndClientEncoding 0.00
+TestSimulateDestroyReapsDeferredOrigins 0.00
+TestSortClientsIsTotal 0.00
+TestUserValueDash 0.00
+TestValidatePropertyValues 0.00
+TestZfsErrCodes 0.00

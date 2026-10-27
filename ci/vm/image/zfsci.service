@@ -1,0 +1,17 @@
+[Unit]
+Description=zfs-endpoint CI: run the tests from the host's 9p share
+ConditionKernelCommandLine=zfsci=1
+# nfsd threads and the zfs module must be up before any test runs; network
+# ordering keeps exportfs's name resolution as it was under cloud-init
+Wants=nfs-server.service network-online.target
+After=nfs-server.service network-online.target zfs-load-module.service systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/zfsci-boot
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,26 @@
+#!/bin/bash
+# Baked into the guest (ci/vm/bake.sh). On a boot with zfsci=1 on the kernel
+# command line: mount the host's 9p share, wait until the host has built the
+# test binaries, run the guest-run.sh the host put there (the PR's own copy,
+# not a baked one), then power off. The host reads the results from the
+# share; nothing here decides pass or fail.
+set -u
+say() { echo "zfsci: $*"; }
+mkdir -p /mnt/ci
+if ! mount -t 9p -o trans=virtio,version=9p2000.L,msize=524288 ci /mnt/ci; then
+  say "cannot mount the 9p share"
+  systemctl poweroff --no-block
+  exit 1
+fi
+say "up at $(cut -d' ' -f1 /proc/uptime)s, waiting for the test binaries"
+while [ ! -e /mnt/ci/ready ]; do sleep 0.1; done
+say "binaries ready at $(cut -d' ' -f1 /proc/uptime)s"
+mkdir -p /mnt/ci/out
+mode=$(cat /mnt/ci/mode 2>/dev/null || echo full)
+bash /mnt/ci/guest-run.sh "$mode" >/mnt/ci/out/guest.log 2>&1
+rc=$?
+# guest-run.sh writes out/rc as its last act; if it died first, say so
+[ -e /mnt/ci/out/rc ] || echo "$rc" >/mnt/ci/out/rc
+say "done (rc $(cat /mnt/ci/out/rc)) at $(cut -d' ' -f1 /proc/uptime)s"
+sync
+systemctl poweroff --no-block
