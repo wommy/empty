@@ -8,7 +8,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 
 | Edge | State |
 |---|---|
-| ZFS execution (`internal/zfs`) | done: typed `zfs(8)` client, `-Hp` columnar parsing, error classification from OpenZFS's own CLI strings |
+| ZFS execution (`internal/zfs`) | done: typed `zfs(8)` client, strict `zfs get -j -p` scan decoding, error classification from OpenZFS's own CLI strings |
 | Volume/snapshot lifecycle (`internal/endpoint`) | done: create (plain, from snapshot, from volume), delete, expand, get, list, snapshot create/delete/list, capacity |
 | ZFS property passthrough (`internal/endpoint/props.go`) | done: default-deny per-kind allowlist with value checks; requested properties must be set locally for a retry to be compatible (`docs/research/gaps/adv-csi-frontend.md` B3) |
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
@@ -25,10 +25,10 @@ The core is data-oriented:
 ```
 lock(keys) → scan → Table → plan(Table, request) → Plan → apply → re-read
              one zfs     typed,     pure function,     ops as     each op carries its
-             get -Hp     immutable  no I/O             plain data own replay tolerance
+             get -j -p   immutable  no I/O             plain data own replay tolerance
 ```
 
-- **Scan** (`table.go`): one `zfs get -Hp -d` per scan reads the parent's volumes and their snapshots (or one volume and its snapshots) into a flat columnar buffer. The parent itself and anything deeper, such as a dataset someone made below a volume, are dropped, so planners never see them. An RPC may scan more than once: once per volume it touches, and again to re-read after applying. Each scan is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
+- **Scan** (`table.go`): one `zfs get -j -p -d` per scan reads the parent's volumes and their snapshots (or one volume and its snapshots) into a flat columnar buffer. The parent itself and anything deeper, such as a dataset someone made below a volume, are dropped, so planners never see them. An RPC may scan more than once: once per volume it touches, and again to re-read after applying. Each scan is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
 - **Plan** (`plan.go`): pure functions take a `Table` and a request and return either a `Plan` (a `[]Op` of plain data) or a typed error.
   - Idempotency means the plan is empty.
   - A provision that was interrupted converges, because uncommitted rows are driven toward the request rather than judged for compatibility.
@@ -103,7 +103,7 @@ go test -race ./...                                       # simulator
 ZFS_TEST_POOL=testpool go test ./internal/endpoint/...    # real pool, as root
 go test -run '^$' -fuzz FuzzCreateConverges ./internal/endpoint
 go test -run '^$' -fuzz FuzzReconcileSafe ./internal/endpoint
-go test -run '^$' -fuzz FuzzParseColumns ./internal/zfs
+go test -run '^$' -fuzz FuzzDecodeGetJSON ./internal/zfs
 ```
 
 The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter in an Ubuntu VM running OpenZFS 2.4 (`ci/real-zfs-vm.sh`): six concurrent shards, each on its own pool backed by a sparse file on a guest tmpfs (`ci/real-zfs-guest.sh`). Planner tests build `Table`s directly from rows, with no I/O.

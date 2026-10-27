@@ -40,7 +40,7 @@ jobs:
         target:
           - { name: FuzzCreateConverges, pkg: ./internal/endpoint }
           - { name: FuzzReconcileSafe, pkg: ./internal/endpoint }
-          - { name: FuzzParseColumns, pkg: ./internal/zfs }
+          - { name: FuzzDecodeGetJSON, pkg: ./internal/zfs }
           - { name: FuzzClassify, pkg: ./internal/zfs }
           # the NFS export chain against the libshare/exportfs/mountd
           # models in internal/nfsref (wave9 nfs-diff)

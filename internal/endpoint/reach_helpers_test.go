@@ -6,8 +6,6 @@ package endpoint
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -112,14 +110,27 @@ func merge(ms ...map[string][2]string) map[string][2]string {
 	return out
 }
 
+// rawOf renders cells as `zfs get -j -p` prints them (the simulator's
+// printer): datasets in order of first appearance, properties in the
+// order given, the dataset type from its "type" cell.
 func rawOf(groups ...[][4]string) []byte {
-	var b strings.Builder
+	var ds []zfstest.JSONDataset
+	at := map[string]int{}
 	for _, g := range groups {
 		for _, c := range g {
-			fmt.Fprintf(&b, "%s\t%s\t%s\t%s\n", c[0], c[1], c[2], c[3])
+			i, ok := at[c[0]]
+			if !ok {
+				i = len(ds)
+				at[c[0]] = i
+				ds = append(ds, zfstest.JSONDataset{Name: c[0], Createtxg: uint64(i + 1)})
+			}
+			if c[1] == "type" {
+				ds[i].Type = c[2]
+			}
+			ds[i].Props = append(ds[i].Props, zfstest.JSONProp{Name: c[1], Value: c[2], Source: c[3]})
 		}
 	}
-	return []byte(b.String())
+	return zfstest.AppendGetJSON(nil, ds)
 }
 
 // tableFromRaw runs raw bytes through the real client parser and scan.

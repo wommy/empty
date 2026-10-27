@@ -11,7 +11,7 @@ import (
 )
 
 // Row is one dataset or snapshot under the parent, decoded once from
-// `zfs get -Hp` into typed columns. Everything the planners decide on is
+// `zfs get -j -p` into typed columns. Everything the planners decide on is
 // here; nothing downstream reads property strings.
 type Row struct {
 	Name     string // full zfs name

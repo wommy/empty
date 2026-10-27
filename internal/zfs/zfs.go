@@ -1,11 +1,14 @@
 // Package zfs is a typed client for the zfs(8) command line.
 //
 // It is deliberately strict where the Go ZFS libraries surveyed are loose:
-// output is parsed from `-Hp` (tab separated, exact numbers), every failure
-// is classified into a Kind, and only KindNotFound ever means "absent".
+// the scan (ListColumns) is decoded from `zfs get -j -p` by a strict JSON
+// decoder, single-dataset reads from `-Hp` (tab separated, exact numbers),
+// every failure is classified into a Kind, and only KindNotFound ever means
+// "absent".
 package zfs
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -169,6 +172,15 @@ func (c *Client) Exists(ctx context.Context, name string) (bool, error) {
 }
 
 // parseGet parses `zfs get -Hp -o name,property,value,source` output.
+//
+// zfs prints user property values raw, so a value with a newline can print
+// as lines for any (dataset, property), including a dataset zfs never
+// listed: no real line has to be there to collide with, and nothing here
+// can tell a forged line from a real one. Get reads only the queried name
+// and the health check one native property, so a forged line can at worst
+// overwrite a value of that same dataset; List serves only the daemon's
+// startup prefix check. The scan that ownership and planning rest on is ListColumns, which
+// reads JSON and is immune.
 func parseGet(out []byte) (map[string]Dataset, error) {
 	res := map[string]Dataset{}
 	for i, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
@@ -420,9 +432,15 @@ func (c *Columns) Col(prop string) int {
 	return -1
 }
 
-// ListColumns is List in columnar form, including root itself. The whole
-// output is parsed before anything is returned: callers plan destructive
-// operations from it, so a partial result must never escape.
+// ListColumns is List in columnar form, including root itself, read from
+// `zfs get -j -p` (OpenZFS 2.4, ADR 0004) by the strict decoder in json.go.
+// The JSON printer escapes every value, so a property value cannot forge a
+// row, a column or a dataset the way a newline could in `-Hp` text. The
+// whole document is decoded before anything is returned: callers plan
+// destructive operations from it, so a partial result must never escape.
+// Every requested property must be a canonical name (no aliases, no
+// "all"): zfs keys its JSON by canonical name, and the decoder requires
+// exactly the requested set for every dataset.
 func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*Columns, error) {
 	if !ValidDataset(root) {
 		return nil, &Error{Kind: KindInvalidProperty, Op: "list", Dataset: root, Stderr: "invalid name"}
@@ -435,7 +453,9 @@ func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*
 	for i, t := range types {
 		ts[i] = string(t)
 	}
-	args := []string{"get", "-Hp", "-o", "name,property,value,source", "-t", strings.Join(ts, ",")}
+	// -o and -H do not apply to -j output; -p keeps numbers exact and
+	// strings ("--json-int" would turn them into JSON numbers)
+	args := []string{"get", "-j", "-p", "-t", strings.Join(ts, ",")}
 	if o.Depth < 0 {
 		args = append(args, "-r")
 	} else {
@@ -446,55 +466,9 @@ func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*
 	if err != nil {
 		return nil, err
 	}
-	cols, err := parseColumns(out, o.Props)
+	cols, err := decodeGetJSON(bytes.NewReader(out), o.Props)
 	if err != nil {
 		return nil, &Error{Op: "list", Dataset: root, Err: err}
 	}
 	return cols, nil
-}
-
-func parseColumns(out []byte, props []string) (*Columns, error) {
-	col := make(map[string]int, len(props))
-	for j, p := range props {
-		col[p] = j
-	}
-	c := &Columns{Props: props}
-	row := map[string]int{}
-	unset := Prop{Value: "-", Source: "-"}
-	var seen []bool
-	for i, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-		f := strings.SplitN(line, "\t", 3)
-		last := strings.LastIndexByte(line, '\t')
-		if len(f) != 3 || last <= len(f[0])+len(f[1])+1 {
-			return nil, fmt.Errorf("line %d: want 4 fields: %q", i+1, line)
-		}
-		r, ok := row[f[0]]
-		if !ok {
-			r = len(c.Names)
-			row[f[0]] = r
-			c.Names = append(c.Names, f[0])
-			for range props {
-				c.Cells = append(c.Cells, unset)
-				seen = append(seen, false)
-			}
-		}
-		j, ok := col[f[1]]
-		if !ok {
-			continue // a property we did not ask for
-		}
-		// zfs prints exactly one line per (dataset, property), and user
-		// property values are printed raw: a value with a newline can forge
-		// a line for another dataset, e.g. claiming ownership of it. The
-		// forged line always collides with that dataset's real one, so a
-		// repeat means the output cannot be trusted at all.
-		if seen[r*len(props)+j] {
-			return nil, fmt.Errorf("line %d: %s %s printed twice: a property value contains a newline", i+1, f[0], f[1])
-		}
-		seen[r*len(props)+j] = true
-		c.Cells[r*len(props)+j] = Prop{Value: line[len(f[0])+len(f[1])+2 : last], Source: line[last+1:]}
-	}
-	return c, nil
 }

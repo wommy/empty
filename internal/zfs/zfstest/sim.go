@@ -60,7 +60,7 @@ type node struct {
 	defer_ bool              // deferred destroy pending
 	holds  map[string]bool   // user holds (snapshots): tag -> held
 	birth  int64             // creation, unix seconds
-	txg    uint64            // snapshots: creation order
+	txg    uint64            // createtxg: snapshots at creation (promote orders by it), others on first JSON read
 	// mounted: filesystems only. zfs create/clone/recv mount a
 	// canmount=on filesystem; later only the changelist rules move it
 	// (see mount).
@@ -1434,9 +1434,12 @@ func (s *Sim) get(args []string) ([]byte, error) {
 	depth := 0
 	recursive := false
 	var pos []string
+	asJSON := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "-Hp":
+		case "-j":
+			asJSON = true
+		case "-Hp", "-H", "-p":
 		case "-o":
 			i++ // columns are fixed to name,property,value,source
 		case "-t":
@@ -1478,6 +1481,7 @@ func (s *Sim) get(args []string) ([]byte, error) {
 		}
 	}
 	var b strings.Builder
+	var js []JSONDataset
 	for _, nm := range names {
 		if types != nil && nm != root {
 			ok := false
@@ -1495,6 +1499,23 @@ func (s *Sim) get(args []string) ([]byte, error) {
 				list = append(list, k)
 			}
 		}
+		if asJSON {
+			n := s.ds[nm]
+			if n.txg == 0 {
+				// createtxg: only snapshots need an order (promote);
+				// anything else gets the next txg the first time it is read
+				s.txg++
+				n.txg = s.txg
+			}
+			jd := JSONDataset{Name: nm, Type: string(n.typ), Createtxg: n.txg}
+			for _, p := range list {
+				if v, src, ok := s.value(nm, p); ok {
+					jd.Props = append(jd.Props, JSONProp{Name: p, Value: v, Source: src})
+				}
+			}
+			js = append(js, jd)
+			continue
+		}
 		for _, p := range list {
 			v, src, ok := s.value(nm, p)
 			if !ok {
@@ -1502,6 +1523,9 @@ func (s *Sim) get(args []string) ([]byte, error) {
 			}
 			fmt.Fprintf(&b, "%s\t%s\t%s\t%s\n", nm, p, v, src)
 		}
+	}
+	if asJSON {
+		return AppendGetJSON(nil, js), nil
 	}
 	return []byte(b.String()), nil
 }
