@@ -676,12 +676,23 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // cutting the snapshot and cloning, then given up on, would otherwise leak
 // it until Reconcile's orphan rule collects it, MinAge later. Finding those
 // needs the whole parent: they hang off whichever volume was the source.
+//
+// A present volume releases them too, first: CreateVolume re-issued
+// without the source after such a crash makes a plain volume, and a
+// delete that left the snapshot to a retry (which finds the volume absent)
+// would not be idempotent: DV;DV != DV.
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	d, err := p.planDelete(t, volID, p.DestroyForeignSnapshots)
-	if err != nil || d.vol != nil {
-		return d.plan(), err
+	if err != nil {
+		return nil, err
 	}
-	return p.releaseCloneSourcesFor(t, volID)
+	rel, err := p.releaseCloneSourcesFor(t, volID)
+	if err != nil || d.vol == nil {
+		return rel, err
+	}
+	// the volume's own origin is in use (by the volume), so never in rel;
+	// d.plan releases it
+	return append(rel, d.plan()...), nil
 }
 
 // releaseCloneSourcesFor plans the release (destroy -d, as a clone delete
