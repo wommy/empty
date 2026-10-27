@@ -444,6 +444,33 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 const maxWholeScans = 2
 
 func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
+	t, missing, err := e.scanUnproven(ctx, only)
+	if missing != nil {
+		if err := e.proveParent(ctx, missing); err != nil {
+			return Table{}, err
+		}
+	}
+	return t, err
+}
+
+// proveParent makes missing, a single-volume scan's "does not exist", an
+// absence: nil when the parent exists, else Unavailable (never NotFound,
+// which is final for the CSI sidecars). One zfs call.
+func (e *Endpoint) proveParent(ctx context.Context, missing error) error {
+	if ok, err := e.zfs.Exists(ctx, e.cfg.Parent); err == nil && ok {
+		return nil
+	}
+	return parentUnavailable(e.cfg.Parent, missing)
+}
+
+// scanUnproven is scan, except that a volume zfs says does not exist comes
+// back absent with that error as missing, its parent not yet proven: zfs
+// says "dataset does not exist" for an exported pool too, so only an
+// existing parent makes a missing volume truly absent. The caller proves
+// the parent before it acts on the absence (proveParent, or a later call
+// on the parent that is Unavailable when it is missing); it proves it once
+// per RPC however many volumes it scans.
+func (e *Endpoint) scanUnproven(ctx context.Context, only string) (t Table, missing, err error) {
 	root, depth := e.cfg.Parent, 1 // parent/vol and parent/vol@snap
 	if only == "" {
 		select {
@@ -454,7 +481,7 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				code = DeadlineExceeded
 			}
-			return Table{}, &Error{Code: code, Msg: "waiting for a whole-parent scan slot", Err: ctx.Err()}
+			return Table{}, nil, &Error{Code: code, Msg: "waiting for a whole-parent scan slot", Err: ctx.Err()}
 		}
 	}
 	if only != "" {
@@ -468,22 +495,17 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 	if err != nil {
 		if only == "" && zfs.IsNotFound(err) {
 			// the root is the parent itself: missing or its pool exported
-			return Table{}, parentUnavailable(e.cfg.Parent, err)
+			return Table{}, nil, parentUnavailable(e.cfg.Parent, err)
 		}
 		if only != "" && zfs.IsNotFound(err) {
-			// zfs says "dataset does not exist" for an exported pool too:
-			// only an existing parent makes a missing volume truly absent
-			ok, perr := e.zfs.Exists(ctx, e.cfg.Parent)
-			if perr == nil && ok {
-				return newPartialTable(nil, only), nil
-			}
-			return Table{}, parentUnavailable(e.cfg.Parent, err)
+			// absent, unless the parent is missing too (proveParent)
+			return newPartialTable(nil, only), err, nil
 		}
-		return Table{}, zfsErr(err, "scan "+root)
+		return Table{}, nil, zfsErr(err, "scan "+root)
 	}
 	rows, err := e.names.decodeColumns(e.cfg.Parent, cols)
 	if err != nil {
-		return Table{}, err
+		return Table{}, nil, err
 	}
 	// a dataset below a volume is dropped, but its volume records it: the
 	// volume cannot be destroyed without -r while it stands (OWN-12)
@@ -507,7 +529,7 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 		}
 	}
 	if only != "" {
-		return newPartialTable(rows, only), nil
+		return newPartialTable(rows, only), nil, nil
 	}
-	return NewTable(rows), nil
+	return NewTable(rows), nil, nil
 }

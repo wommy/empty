@@ -557,7 +557,7 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	// whose mount only a scan can confirm) takes a second pass: the
 	// resume, which commits or says why not. Two passes at most.
 	for pass := 0; ; pass++ {
-		t, err := e.scanFor(ctx, id, r.SourceVolumeID, r.SourceSnapshotID)
+		t, missing, err := e.scanForUnproven(ctx, id, r.SourceVolumeID, r.SourceSnapshotID)
 		if err != nil {
 			return Volume{}, err
 		}
@@ -565,8 +565,17 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		p.now = e.cfg.Now().Unix()
 		if _, exists := t.Get(id); !exists && r.Kind == Filesystem {
 			// a new filesystem's mountpoint is pinned where the parent's
-			// puts it now: one read, on a create only
+			// puts it now: one read, on a create only. It proves the
+			// parent too (Unavailable when missing).
 			if p.parentMount, err = e.parentMountpoint(ctx); err != nil {
+				return Volume{}, err
+			}
+			missing = nil
+		}
+		if missing != nil {
+			// nothing read so far proves the parent: absent is not yet
+			// "create" (nor a source NotFound)
+			if err := e.proveParent(ctx, missing); err != nil {
 				return Volume{}, err
 			}
 		}
@@ -596,7 +605,10 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 				return Volume{}, resumeErr(err)
 			}
 		}
-		if pass > 0 || len(plan)+len(commit) == 0 || commit != nil || p.commits(plan) {
+		if pass == 0 && len(plan)+len(commit) == 0 {
+			return e.servedFrom(ctx, t, id) // a compatible repeat
+		}
+		if pass > 0 || commit != nil || p.commits(plan) {
 			break
 		}
 	}
@@ -674,10 +686,26 @@ func resumeErr(err error) error {
 	return remapMutated(err, " (resuming an earlier attempt; a retry converges)")
 }
 
-// scanFor reads the volumes an operation touches (one zfs call each).
+// scanFor reads the volumes an operation touches (one zfs call each), and
+// proves the parent when one is missing (one more).
 func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
+	t, missing, err := e.scanForUnproven(ctx, ids...)
+	if missing != nil {
+		if err := e.proveParent(ctx, missing); err != nil {
+			return Table{}, err
+		}
+	}
+	return t, err
+}
+
+// scanForUnproven is scanFor that leaves the parent unproven, as
+// scanUnproven: missing is set when some volume does not exist and none
+// does (a volume that exists proves its parent). The caller proves it
+// once, if no other call of its own does.
+func (e *Endpoint) scanForUnproven(ctx context.Context, ids ...string) (t Table, missing error, err error) {
 	var rows []Row
 	var covered []string
+	found := false
 	seen := map[string]bool{}
 	for _, id := range ids {
 		vol, _, _ := strings.Cut(id, "@")
@@ -688,14 +716,22 @@ func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
 		if _, err := volumeID(vol); err != nil {
 			continue // invalid ids simply have no rows; planners report them
 		}
-		t, err := e.scan(ctx, vol)
+		t, miss, err := e.scanUnproven(ctx, vol)
 		if err != nil {
-			return Table{}, err
+			return Table{}, nil, err
+		}
+		if miss == nil {
+			found = true
+		} else if missing == nil {
+			missing = miss
 		}
 		rows = slices.AppendSeq(rows, t.All())
 		covered = append(covered, vol)
 	}
-	return newPartialTable(rows, covered...), nil
+	if found {
+		missing = nil
+	}
+	return newPartialTable(rows, covered...), missing, nil
 }
 
 func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
@@ -709,6 +745,17 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 		return Volume{}, errorf(Aborted, "volume %s vanished or changed owner after provisioning", id)
 	}
 	return volumeView(row), nil
+}
+
+// servedFrom is readVolume answered from t: a scan made under the
+// volume's lock with nothing applied since, so a re-read would read the
+// same rows again (a compatible repeat, an expand already done). A row
+// that is not a served volume still gets the re-read and its verdict.
+func (e *Endpoint) servedFrom(ctx context.Context, t Table, id string) (Volume, error) {
+	if row, ok := t.Get(id); ok && row.ServedVolume() {
+		return volumeView(row), nil
+	}
+	return e.readVolume(ctx, id)
 }
 
 // DeleteVolume destroys a volume. Missing volumes succeed (CSI). Like the
@@ -791,7 +838,9 @@ func (e *Endpoint) deleteLocked(ctx context.Context, volID string, vols *[]strin
 // The table covers those volumes and every such snapshot (srcsFor).
 // vol:<id> is held: no CreateVolume of id cuts a new one meanwhile.
 func (e *Endpoint) scanDelete(ctx context.Context, id string) (Table, error) {
-	t, err := e.scan(ctx, id)
+	// a missing volume's parent is proven by the listing of the parent
+	// right after, Unavailable when it is missing: no Exists of its own
+	t, _, err := e.scanUnproven(ctx, id)
 	if err != nil {
 		return Table{}, err
 	}
@@ -863,7 +912,12 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 		}
 		return Volume{}, err
 	}
-	v, err := e.readVolume(ctx, volID)
+	var v Volume
+	if len(plan) == 0 {
+		v, err = e.servedFrom(ctx, t, volID) // already at least capacity
+	} else {
+		v, err = e.readVolume(ctx, volID)
+	}
 	if err == nil && v.Kind == Filesystem && v.CapacityBytes == 0 {
 		// unlimited (no refquota) already satisfies the request, and a
 		// quota would shrink it; capacity after expansion is reported as
