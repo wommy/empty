@@ -107,6 +107,9 @@ func (g *Gen) Step() Step {
 		if g.coin(0.25) {
 			add("-p")
 		}
+		if g.coin(0.2) {
+			add("-u") // left unmounted, for mount steps
+		}
 		if g.coin(0.3) {
 			add("-o", g.prop())
 		}
