@@ -120,3 +120,59 @@ FAIL
 FAIL	github.com/wommy/empty/internal/server	0.008s
 FAIL
 ```
+
+## Item 3: OWN-15 guard in the busy-then-settle window
+
+internal/endpoint/settle_test.go TestDeleteVolumeSettleWindow (own simulator, runs on the VM binary too): the
+first destroy is busy (Sim.Fail); Config.Settle renames the volume away and creates an impostor zvol with
+the same markers. DeleteVolume is Aborted, the impostor and the moved original survive, one destroy argv.
+Second case: Settle errors, the result is the busy (FailedPrecondition, errors.Is ErrBusy), one destroy.
+
+### 3a: no guid re-check after the settle
+
+Mutation in `internal/endpoint/apply.go`:
+
+```diff
+- 	if e.cfg.Settle(ctx) != nil {
+- 		return err
+- 	}
+- 	if err := e.sameDataset(ctx, op); err != nil {
+- 		return err
+- 	}
++ 	if e.cfg.Settle(ctx) != nil {
++ 		return err
++ 	}
+```
+
+`go test -count=1 -run 'TestDeleteVolumeSettleWindow'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestDeleteVolumeSettleWindow (0.00s)
+    --- FAIL: TestDeleteVolumeSettleWindow/replaced_while_settling (0.00s)
+        settle_test.go:174: code = 0 (<nil>), want 10
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.007s
+FAIL
+```
+
+### 3b: a failed settle is ignored (retries anyway)
+
+Mutation in `internal/endpoint/apply.go`:
+
+```diff
+- 	if e.cfg.Settle(ctx) != nil {
+- 		return err
+- 	}
++ 	_ = e.cfg.Settle(ctx)
+```
+
+`go test -count=1 -run 'TestDeleteVolumeSettleWindow'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestDeleteVolumeSettleWindow (0.00s)
+    --- FAIL: TestDeleteVolumeSettleWindow/settle_fails (0.00s)
+        settle_test.go:189: code = 0 (<nil>), want 9
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.008s
+FAIL
+```

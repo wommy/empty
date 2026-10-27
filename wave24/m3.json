@@ -1,0 +1,10 @@
+[
+{"label": "3a: no guid re-check after the settle", "file": "internal/endpoint/apply.go",
+ "old": "\tif e.cfg.Settle(ctx) != nil {\n\t\treturn err\n\t}\n\tif err := e.sameDataset(ctx, op); err != nil {\n\t\treturn err\n\t}\n",
+ "new": "\tif e.cfg.Settle(ctx) != nil {\n\t\treturn err\n\t}\n",
+ "pkg": "./internal/endpoint", "run": "TestDeleteVolumeSettleWindow"},
+{"label": "3b: a failed settle is ignored (retries anyway)", "file": "internal/endpoint/apply.go",
+ "old": "\tif e.cfg.Settle(ctx) != nil {\n\t\treturn err\n\t}\n",
+ "new": "\t_ = e.cfg.Settle(ctx)\n",
+ "pkg": "./internal/endpoint", "run": "TestDeleteVolumeSettleWindow"}
+]

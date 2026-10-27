@@ -370,3 +370,7 @@
 {"ts": "2026-10-27T16:32:44Z", "id": "ac1787ce6d014e384", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-27T16:32:44Z", "id": "ac1787ce6d014e384", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T16:32:44Z", "id": "ac1787ce6d014e384", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T16:35:13Z", "id": "accba30d5e3475e2b", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T16:35:13Z", "id": "accba30d5e3475e2b", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T16:35:13Z", "id": "accba30d5e3475e2b", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T16:35:13Z", "id": "abe0dd621404bc340", "from": "queued", "to": "running", "note": "q-csi-quick"}

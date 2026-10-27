@@ -78,10 +78,11 @@
 {"id": "aef78df78baf6c978", "name": "k8s-harden", "lane": "writer", "wave": 22, "status": "merged", "branch": "k8s-harden", "report": null, "anomaly": true, "queue": "q-k8s-harden"}
 {"id": "a31ac8f2d46f012a6", "name": "headroom-verify", "lane": "reader", "wave": 22, "status": "done", "branch": null, "report": "wave22/headroom-verify.md", "anomaly": false, "queue": "q-headroom-verify"}
 {"id": "a9b42460cb57dc59e", "name": "coverage", "lane": "reader", "wave": 22, "status": "done", "branch": null, "report": "wave22/coverage.md", "anomaly": false, "queue": "q-coverage"}
-{"id": "accba30d5e3475e2b", "name": "ci-harden", "lane": "writer", "wave": 23, "status": "running", "branch": "ci-harden", "report": null, "anomaly": true, "queue": "q-ci-harden"}
+{"id": "accba30d5e3475e2b", "name": "ci-harden", "lane": "writer", "wave": 23, "status": "merged", "branch": "ci-harden", "report": null, "anomaly": true, "queue": "q-ci-harden"}
 {"id": "a7b0ee7e8649d8e0b", "name": "headroom-2", "lane": "writer", "wave": 23, "status": "running", "branch": "headroom-2", "report": null, "anomaly": false, "queue": "q-headroom-2"}
 {"id": "a3f0a5f1f843a9fe2", "name": "docs-fix", "lane": "writer", "wave": 23, "status": "merged", "branch": "docs-fix", "report": null, "anomaly": false, "queue": "q-docs-fix"}
 {"id": "a4d747b6e8fa52105", "name": "scan-reduction", "lane": "reader", "wave": 24, "status": "running", "branch": null, "report": "wave24/scan-reduction.md", "anomaly": false, "queue": "q-scan-reduction"}
 {"id": "ac1787ce6d014e384", "name": "csi-recheck", "lane": "reader", "wave": 24, "status": "done", "branch": null, "report": "wave24/csi-recheck.md", "anomaly": false, "queue": "q-csi-recheck"}
 {"id": "a62addd0d2b7fd9ff", "name": "weakening", "lane": "reader", "wave": 24, "status": "running", "branch": null, "report": "wave24/weakening.md", "anomaly": false, "queue": "q-weakening"}
 {"id": "a3b322c80ba25f7fc", "name": "cov-tests", "lane": "writer", "wave": 24, "status": "running", "branch": "cov-tests", "report": null, "anomaly": false, "queue": "q-cov-tests"}
+{"id": "abe0dd621404bc340", "name": "csi-quick", "lane": "writer", "wave": 25, "status": "running", "branch": "csi-quick", "report": null, "anomaly": true, "queue": "q-csi-quick"}
