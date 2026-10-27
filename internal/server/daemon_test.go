@@ -264,19 +264,25 @@ func (s *syncBuffer) String() string {
 // max_entries=0 is paged server-side, and a Reconcile desired set of 100k
 // ids fits the receive limit.
 func TestMessageSizes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	z := zfs.New(sim)
 	if err := z.CreateFilesystem(ctx, "tank/vols", nil, false); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: "tank/vols"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// the volumes are rows to page through: made directly as owned,
+	// committed zvols (what CreateVolume leaves), since n CreateVolumes
+	// each scan the parent, which is quadratic in n
 	n := server.MaxPageSize + 5
 	for i := range n {
-		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: fmt.Sprintf("pvc-%05d", i), Kind: endpoint.Block, CapacityBytes: 1 << 20, Sparse: true}); err != nil {
+		id := fmt.Sprintf("pvc-%05d", i)
+		own := map[string]string{
+			endpoint.DefaultPropertyPrefix + ":managed_resource":  "true",
+			endpoint.DefaultPropertyPrefix + ":csi_volume_name":   id,
+			endpoint.DefaultPropertyPrefix + ":provision_success": "true",
+		}
+		if err := z.CreateVolume(ctx, "tank/vols/"+id, 1<<20, true, own); err != nil {
 			t.Fatal(err)
 		}
 	}

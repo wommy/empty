@@ -109,6 +109,7 @@ func (b blockRunner) Run(ctx context.Context, name string, args ...string) ([]by
 // A signal sent to the daemon's process group must not reach its zfs
 // children: each runs in a group of its own.
 func TestChildRunsInItsOwnProcessGroup(t *testing.T) {
+	t.Parallel()
 	bin := filepath.Join(t.TempDir(), "zfs")
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho $$ $(cut -d' ' -f5 /proc/$$/stat)\n"), 0o755); err != nil {
 		t.Fatal(err)

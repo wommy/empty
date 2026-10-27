@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/wommy/empty/internal/endpoint"
@@ -368,14 +369,34 @@ func TestExpand(t *testing.T) {
 	wantCode(t, err, endpoint.NotFound)
 }
 
+// The 16 creates wait for one lock with LockWait 1s. On the real clock a
+// loaded host (or -race) made a waiter time out (Aborted), a flake; in a
+// synctest bubble time advances only when every goroutine is blocked, so
+// LockWait can expire only on a real deadlock. requireSim stays outside the
+// bubble: a skip inside one reports PASS.
 func TestConcurrentCreatesSerialize(t *testing.T) {
 	t.Parallel()
 	requireSim(t)
+	synctest.Test(t, concurrentCreatesSerialize)
+}
+
+func concurrentCreatesSerialize(t *testing.T) {
 	ctx := context.Background()
-	ep, h := setup(t)
-	// skip before the work, not after it: on a real pool 16 serialized
-	// creates can outlast LockWait (1s) and fail before the skip
+	_, h := setup(t)
 	sim := h.Sim(t)
+	// the first `zfs create` parks until every other create is blocked:
+	// with the volume lock they wait for it and then find the volume;
+	// without it they reach `zfs create` too, and the count says so
+	g := &parkFirstCreate{Runner: sim, entered: make(chan struct{}), release: make(chan struct{})}
+	ep, err := endpoint.New(zfs.New(g), endpoint.Config{Parent: h.Parent, LockWait: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		<-g.entered
+		synctest.Wait()
+		close(g.release)
+	}()
 	var wg sync.WaitGroup
 	errs := make([]error, 16)
 	for i := range errs {
@@ -400,6 +421,26 @@ func TestConcurrentCreatesSerialize(t *testing.T) {
 	if creates != 1 {
 		t.Fatalf("zfs create ran %d times", creates)
 	}
+}
+
+// parkFirstCreate holds the first `zfs create` until release is closed;
+// every other call goes straight through.
+type parkFirstCreate struct {
+	zfs.Runner
+	once             sync.Once
+	entered, release chan struct{}
+}
+
+func (g *parkFirstCreate) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if len(args) > 0 && args[0] == "create" {
+		first := false
+		g.once.Do(func() { first = true })
+		if first {
+			close(g.entered)
+			<-g.release
+		}
+	}
+	return g.Runner.Run(ctx, name, args...)
 }
 
 func TestPagination(t *testing.T) {

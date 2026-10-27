@@ -41,6 +41,7 @@ func FuzzClassify(f *testing.F) {
 // ownership of victim; victim's own lines still follow, and the repeat must
 // fail the whole scan rather than let either line win.
 func TestParseColumnsRejectsForgedLines(t *testing.T) {
+	t.Parallel()
 	props := []string{"p:managed_resource", "p:csi_volume_name"}
 	out := []byte("tank/csi/pvc-a\tp:managed_resource\ttrue\tlocal\n" +
 		"tank/csi/pvc-a\tp:csi_volume_name\tx\tlocal\n" +

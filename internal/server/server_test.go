@@ -49,6 +49,7 @@ func clientWith(t *testing.T, fileExport bool) pb.EndpointServiceClient {
 }
 
 func TestRoundTripAndCodes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	c := client(t)
 
@@ -108,6 +109,7 @@ func TestRoundTripAndCodes(t *testing.T) {
 }
 
 func TestReconcile(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	c := client(t)
 	caps, err := c.GetCapabilities(ctx, &pb.GetCapabilitiesRequest{})
@@ -145,6 +147,7 @@ func TestReconcile(t *testing.T) {
 }
 
 func TestFileExport(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// not root: not advertised, and the calls are UNIMPLEMENTED

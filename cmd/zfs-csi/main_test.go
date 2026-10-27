@@ -3,6 +3,7 @@ package main
 import "testing"
 
 func TestEndpointTargetIsAnAbsoluteSocketPath(t *testing.T) {
+	t.Parallel()
 	if err := endpointTarget("unix:///run/zfs-endpoint/endpoint.sock"); err != nil {
 		t.Fatal(err)
 	}
