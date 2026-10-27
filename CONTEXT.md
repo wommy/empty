@@ -33,7 +33,7 @@ What the endpoint may act on, read only from its marker properties set locally: 
 _Avoid_: managed (alone), adopted
 
 **Marker properties**:
-The user properties under the property prefix that record what the endpoint made: `managed_resource`, `provision_success`, `committed_at`, `csi_volume_name`, `csi_volume_content_source_*`, `csi_snapshot_name`, `csi_snapshot_source_volume_id`, `clone_source_for`, `nfs_server` (`props`, `internal/endpoint/endpoint.go`).
+The user properties under the property prefix that record what the endpoint made: `managed_resource`, `provision_success`, `committed_at`, `csi_volume_name`, `csi_volume_content_source_*`, `csi_snapshot_name`, `csi_snapshot_source_volume_id`, `clone_source_for`, `nfs_server`, `snapshot_size` (a filesystem snapshot's size when taken) (`props`, `internal/endpoint/endpoint.go`).
 _Avoid_: tags, labels, metadata
 
 **Property prefix**:
