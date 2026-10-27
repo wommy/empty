@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -46,5 +47,77 @@ func TestRootErrMapping(t *testing.T) {
 	// first op's unclassified failure is after a change too
 	if got := resumeErr(rootErr(plain, 0, root)); CodeOf(got) != Aborted || !errors.Is(got, plain) {
 		t.Errorf("unclassified, resumed: %v (code %d), want Aborted", got, CodeOf(got))
+	}
+}
+
+// Item 8 (wave22): a Reconcile run whose context ends mid-collection (the
+// drain: Daemon.Shutdown cancels handler contexts) destroys nothing more.
+// The group that ran is reported, every later group is skipped as not
+// attempted, and its volume is still there.
+func TestReconcileCancelledMidRunStops(t *testing.T) {
+	h := newA4(t)
+	h.vol("keep", true)
+	for _, id := range []string{"a", "b", "c"} {
+		h.vol(id, true)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r := digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	destroys := 0
+	h.sim.Fail = func(a []string) error {
+		if a[0] == "destroy" {
+			// shut down while the first group's destroy runs
+			destroys++
+			cancel()
+		}
+		return nil
+	}
+	p, err := h.ep.Reconcile(ctx, r)
+	h.must(err)
+	if destroys != 1 || len(p.Actions) != 1 {
+		t.Fatalf("%d destroys, actions %+v: want the first group only", destroys, p.Actions)
+	}
+	gone := p.Actions[0].Target
+	var skipped []string
+	for _, s := range p.Skipped {
+		if !strings.HasPrefix(s.Reason, SkipNotAttempted+": ") {
+			t.Fatalf("skip %+v, want %q", s, SkipNotAttempted)
+		}
+		skipped = append(skipped, s.Target)
+	}
+	if len(skipped) != 2 || slices.Contains(skipped, gone) {
+		t.Fatalf("skipped %v after %s, want the other two", skipped, gone)
+	}
+	for _, id := range skipped {
+		if !h.has(a4Parent + "/" + id) {
+			t.Fatalf("%s destroyed after the cancel", id)
+		}
+	}
+}
+
+// Reconcile re-scans and re-plans under the volume locks; a failed re-scan
+// fails the run with nothing destroyed.
+func TestReconcileRescanFailureDestroysNothing(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.vol("a", true)
+	r := digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	scans := 0
+	failed := errors.New("injected: re-scan failed")
+	h.sim.Fail = func(a []string) error {
+		if a[0] == "get" && slices.Contains(a, "-d") {
+			if scans++; scans == 2 {
+				return failed
+			}
+		}
+		return nil
+	}
+	_, err := h.ep.Reconcile(ctx, r)
+	if !errors.Is(err, failed) {
+		t.Fatalf("re-scan failure not reported: %v", err)
+	}
+	if scans != 2 || !h.has(a4Parent+"/a") {
+		t.Fatalf("%d scans; a destroyed: %v", scans, !h.has(a4Parent+"/a"))
 	}
 }
