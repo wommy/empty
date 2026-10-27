@@ -3,6 +3,7 @@ package endpoint_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -223,4 +224,60 @@ func TestFileExportRefusedPublishRestoresLocalList(t *testing.T) {
 			t.Fatalf("want the refusal and the failed restore, both wrapped: %v", err)
 		}
 	})
+}
+
+// Item 6 (wave22): a thick filesystem's grow fails ENOSPC after zfs applied
+// its refquota, and the rollback of that refquota fails too (its `zfs set`,
+// or the scan before it). The caller sees both errors under the grow's
+// code; the volume is left half-applied (refquota raised, reservation not),
+// and a retry the pool can back converges to refquota = refreservation.
+func TestExpandRollbackFailureIsReported(t *testing.T) {
+	ctx := context.Background()
+	const gib = 1 << 30
+	const big = 2 << 40 // beyond the simulator's 1 TiB pool
+	failed := errors.New("injected: rollback failed")
+	for _, tc := range []struct {
+		name string
+		fail func(args []string) bool // on the first command after the grow's set
+	}{
+		{"set", func(a []string) bool { return a[0] == "set" && slices.Contains(a, fmt.Sprintf("refquota=%d", gib)) }},
+		{"scan", func(a []string) bool { return a[0] == "get" && slices.Contains(a, "-d") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sim, z, ep := simNFS(t, nil)
+			if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "thick", CapacityBytes: gib, Reserve: true}); err != nil {
+				t.Fatal(err)
+			}
+			const ds = "tank/k8s/vols/thick"
+			grown := false
+			sim.Fail = func(a []string) error {
+				if grown && tc.fail(a) {
+					return failed
+				}
+				if a[0] == "set" && slices.Contains(a, fmt.Sprintf("refquota=%d", uint64(big))) {
+					grown = true
+				}
+				return nil
+			}
+			_, err := ep.ExpandVolume(ctx, "thick", big, 0)
+			wantCode(t, err, endpoint.ResourceExhausted)
+			if !strings.Contains(err.Error(), "rolling refquota back") || !errors.Is(err, failed) {
+				t.Fatalf("the failed rollback is not reported: %v", err)
+			}
+			if q, r := sim.Prop(ds, "refquota"), sim.Prop(ds, "refreservation"); q != fmt.Sprint(uint64(big)) || r != fmt.Sprint(gib) {
+				t.Fatalf("refquota/refreservation %s/%s, want the half-applied %d/%d", q, r, uint64(big), gib)
+			}
+			// the pool grows; the retry converges
+			sim.Fail = nil
+			sim.PoolSize = 1 << 50
+			v, err := ep.ExpandVolume(ctx, "thick", big, 0)
+			if err != nil || v.CapacityBytes != big {
+				t.Fatalf("retry: %+v, %v", v, err)
+			}
+			d, err := z.Get(ctx, ds, "refquota", "refreservation")
+			if err != nil || d.Props["refquota"].Value != fmt.Sprint(uint64(big)) || d.Props["refreservation"].Value != fmt.Sprint(uint64(big)) {
+				t.Fatalf("after the retry: %+v %v", d.Props, err)
+			}
+		})
+	}
 }
