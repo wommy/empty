@@ -1715,20 +1715,29 @@ func (s *Sim) gather(name, real string) *clist {
 // mountpoint first (compare_mountpoints). A node with a filesystem
 // mounted below its mountpoint that is not in the list (its own
 // mountpoint and sharenfs set locally, as every endpoint volume has)
-// cannot unmount: the change fails busy before anything is set, and the
-// nodes unmounted before it stay unmounted.
+// cannot unmount: zfs_unmount shares it again and commits, the nodes
+// after it get no postfix, changelist_postfix remounts and reshares the
+// nodes before it, and the change fails busy before anything is set.
 func (s *Sim) prefix(cl *clist) error {
 	if cl.prop != "mountpoint" {
 		return nil
 	}
 	mp := func(k string) string { v, _, _ := s.value(k, "mountpoint"); return v }
-	for _, k := range cl.nodes {
+	for i, k := range cl.nodes {
 		if !s.mounted(k) {
 			continue // zfs_unmount of an unmounted filesystem does nothing
 		}
 		dir := mp(k)
 		for o, n := range s.ds {
 			if n.mounted && o != k && strings.HasPrefix(mp(o), dir+"/") {
+				s.unshare(k)
+				s.commitShares()
+				s.shareOne(k)
+				s.commitShares()
+				for _, r := range cl.nodes[i:] {
+					cl.needpost[r] = false
+				}
+				s.postfix(cl)
 				return exit("cannot unmount '%s': pool or dataset is busy", dir)
 			}
 		}

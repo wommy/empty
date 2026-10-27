@@ -334,6 +334,35 @@ var facts = []fact{
 			}
 			return availNear(f, g+"/d", 16<<20)
 		}},
+	// changelist_prefix: zfs_unmount of the busy node fails, and
+	// changelist_postfix remounts (and reshares) the nodes unmounted
+	// before it
+	{row: "MNT-02", what: "a mountpoint change refused busy by a pinned child remounts the inherited children it had unmounted",
+		check: func(f *factEnv) error {
+			p := f.p + "/p"
+			for _, d := range []string{p, p + "/a"} {
+				if err := f.zfs("create", d); err != nil {
+					return err
+				}
+			}
+			mp, err := f.get(p, "mountpoint")
+			if err != nil {
+				return err
+			}
+			if err := f.zfs("create", "-o", "mountpoint="+mp+"/b", p+"/b"); err != nil {
+				return err
+			}
+			if err := f.z.Set(context.Background(), p, map[string]string{"mountpoint": mp + "-moved"}); !errors.Is(err, zfs.ErrBusy) {
+				return fmt.Errorf("set mountpoint: %v, want busy", err)
+			}
+			if v, _ := f.get(p+"/a", "mounted"); v != "yes" {
+				return fmt.Errorf("inherited child mounted=%q after the refused move, want yes", v)
+			}
+			if v, _ := f.get(p, "mountpoint"); v != mp {
+				return fmt.Errorf("mountpoint %q after the refused move, want %q", v, mp)
+			}
+			return nil
+		}},
 }
 
 // availNear: name's available is want within 1 MiB (the real pool's
