@@ -10,7 +10,7 @@
 # (sequential test: wall, parallel subtests included; parallel test:
 # test-seconds / nproc). Do not edit by hand; rerun the script on newer
 # runs when shards drift apart (shards.txt in the job summary).
-# Source: run 40511369632 (806727d, job 122213851523), its -test.v shard logs from the job log through ci/test-times.awk, without timestamps. TestDestroyNeverHitsAReplacedDataset: 4.69 measured with its every-destroy sweep (18.77 test-s over 19 subtests), set by hand to 1.99 for the PR leg's first-destroy-per-case run on a real pool (its 5 destroy0 subtests: 7.96 test-s / nproc 4; crash_test.go swapSweep). Estimated by hand until the next run measures them: TestRealFacts 8.35 + 3.15 for SPC-01, SPC-02, MNT-01, MNT-02 and VOL-12 (0.75 + 0.6 + 0.6 + 0.7 + 0.5, from the 0.22-0.77 s per row of run 40513522394), and TestFileExportStaleShareOnlySharenfsHeals 0.80 (a shared create, two exportfs, three cheap sets).
+# Source: run 40511369632 (806727d, job 122213851523), its -test.v shard logs from the job log through ci/test-times.awk, without timestamps. TestDestroyNeverHitsAReplacedDataset: 4.69 measured with its every-destroy sweep (18.77 test-s over 19 subtests), set by hand to 1.99 for the PR leg's first-destroy-per-case run on a real pool (its 5 destroy0 subtests: 7.96 test-s / nproc 4; crash_test.go swapSweep). Estimated by hand until the next run measures them: TestRealFacts 8.35 + 3.15 for SPC-01, SPC-02, MNT-01, MNT-02 and VOL-12 (0.75 + 0.6 + 0.6 + 0.7 + 0.5, from the 0.22-0.77 s per row of run 40513522394), and TestFileExportStaleShareOnlySharenfsHeals 0.80 (a shared create, two exportfs, three cheap sets). Wave 24's sim-only endpoint tests (own simulator, no real-pool work) are set by hand to 0.00 like the other sim-only tests: TestDeleteVolumeLockPassesAreBounded, TestDeleteVolumeSettleWindow, TestExpandRollbackFailureIsReported, TestFileExportCreateChangedBeforeCommit, TestFileExportCreateRootFailureIsRetryable, TestFileExportCreateServedBeyondByAncestor, TestFileExportRefusedPublishRestoresLocalList, TestReconcileCancelledMidRunStops, TestReconcileDefaultMaxDeletionsWithDigest, TestReconcileRescanFailureDestroysNothing, TestRootErrMapping, TestWholeScanSlotWaitEndsWithTheContext.
 #
 # <test> <seconds>
 TestPropertyRoundTrip 19.33
@@ -116,7 +116,9 @@ TestDecodeRejectsImpossibleZvolSizes 0.00
 TestDeleteCloneInterruptedThenRetriedReleasesOrigin 0.00
 TestDeleteCloneWaitsForBusySource 0.00
 TestDeleteOfAbsentCloneReleasesItsCloneSource 0.00
+TestDeleteVolumeLockPassesAreBounded 0.00
 TestDeleteVolumeRefusesACloneOutsideTheParent 0.00
+TestDeleteVolumeSettleWindow 0.00
 TestDeleteVolumeSettlesDeviceEventsOnBusy 0.00
 TestDeleteVolumeSparesChildDatasets 0.00
 TestDeleteVolumeSparesForeignSnapshots 0.00
@@ -124,13 +126,18 @@ TestDeleteVolumeSparesSnapshotCutAfterScan 0.00
 TestErrTableIsTotal 0.00
 TestErrorText 0.00
 TestEtabServesPrecedence 0.00
+TestExpandRollbackFailureIsReported 0.00
 TestExportConverges 0.00
 TestExposedByAncestor 0.00
 TestF11NewlineValueDoesNotFailTheScan 0.00
+TestFileExportCreateChangedBeforeCommit 0.00
 TestFileExportCreateNeedsServers 0.00
 TestFileExportCreateNotServed 0.00
+TestFileExportCreateRootFailureIsRetryable 0.00
+TestFileExportCreateServedBeyondByAncestor 0.00
 TestFileExportDroppedHost 0.00
 TestFileExportReceivedShareNFS 0.00
+TestFileExportRefusedPublishRestoresLocalList 0.00
 TestFileExportRequiresNFSD 0.00
 TestFileExportResolvesSymlinks 0.00
 TestFileExportUnmountedVolume 0.00
@@ -192,12 +199,16 @@ TestReachUncommittedServed 0.00
 TestReceivedCopyIsNotOwned 0.00
 TestReconcileAgesFromCommit 0.00
 TestReconcileBoundsItsOwnAnswer 0.00
+TestReconcileCancelledMidRunStops 0.00
+TestReconcileDefaultMaxDeletionsWithDigest 0.00
 TestReconcileLocksTargets 0.00
 TestReconcileMaxDeletionsAndDigest 0.00
 TestReconcileReportsHeldSnapshots 0.00
+TestReconcileRescanFailureDestroysNothing 0.00
 TestReconcileSkipsNonIssuableDesiredID 0.00
 TestReconcileSkipsSourceOfFailedClone 0.00
 TestReconcileSparesReceivedAndRenamed 0.00
+TestRootErrMapping 0.00
 TestRootPropsRoundTrip 0.00
 TestRowKindAndCapacity 0.00
 TestRowOwnedCloneSource 0.00
@@ -219,4 +230,5 @@ TestValidateNFSRoot 0.00
 TestValidatePropertyValues 0.00
 TestVolumeViewNFS 0.00
 TestVolumesOf 0.00
+TestWholeScanSlotWaitEndsWithTheContext 0.00
 TestZfsErrCodes 0.00
