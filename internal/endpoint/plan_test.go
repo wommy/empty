@@ -81,6 +81,56 @@ func TestPlanExpandReplansHalfAppliedReservation(t *testing.T) {
 	}
 }
 
+// A thick filesystem's grow plans refquota before refreservation (zfs
+// refuses a reservation above the quota); when the reservation fails, the
+// rollback puts back exactly the refquota that grow raised, and nothing in
+// any other state.
+func TestPlanExpandRollback(t *testing.T) {
+	t.Parallel()
+	const gib = 1 << 30
+	thick := vol("thick", func(r *Row) { r.Refquota, r.Refres = gib, gib })
+	plan, before, err := pl.PlanExpandVolume(NewTable([]Row{thick}), "thick", 1<<50, 0)
+	if err != nil || len(plan) != 1 || plan[0].Props["refquota"] != u64(1<<50) || plan[0].Props["refreservation"] != u64(1<<50) {
+		t.Fatalf("grow: %+v %v", plan, err)
+	}
+	after := func(refquota, refres uint64) Table {
+		return NewTable([]Row{vol("thick", func(r *Row) { r.Refquota, r.Refres = refquota, refres })})
+	}
+	for _, tc := range []struct {
+		name string
+		t    Table
+		want string // refquota the rollback sets, "" for no plan
+	}{
+		{"refquota raised, reservation failed", after(1<<50, gib), u64(gib)},
+		{"neither applied", after(gib, gib), ""},
+		{"both applied", after(1<<50, 1<<50), ""},
+		{"volume gone", NewTable(nil), ""},
+	} {
+		got := pl.PlanExpandRollback(tc.t, before)
+		if setProp(got, "refquota") != tc.want || (tc.want == "" && got != nil) || len(got) > 1 {
+			t.Errorf("%s: %+v, want refquota %q", tc.name, got, tc.want)
+		}
+		if len(got) == 1 && (got[0].Target != "tank/v/thick" || len(got[0].Props) != 1) {
+			t.Errorf("%s: %+v sets more than the refquota", tc.name, got)
+		}
+	}
+	// a half-applied row from before this Expand (no rollback ran) is not
+	// this grow's to undo
+	half := vol("thick", func(r *Row) { r.Refquota, r.Refres = 1<<50, gib })
+	if _, b, err := pl.PlanExpandVolume(NewTable([]Row{half}), "thick", 2*gib, 0); err != nil || pl.PlanExpandRollback(NewTable([]Row{half}), b) != nil {
+		t.Errorf("rollback of a state this grow did not make: %v", err)
+	}
+	// thin filesystems and zvols have nothing to roll back
+	for _, r := range []Row{
+		vol("thick", func(r *Row) { r.Refquota = gib }),
+		vol("thick", func(r *Row) { r.Type, r.Volsize, r.BlockSz, r.Refres = zfs.TypeVolume, gib, 16384, gib }),
+	} {
+		if got := pl.PlanExpandRollback(NewTable([]Row{r}), r); got != nil {
+			t.Errorf("%+v: %+v", r, got)
+		}
+	}
+}
+
 // The CSI code of every planner refusal, one row each: callers (the CSI
 // sidecars) retry or give up by code, so "an error" is not enough. Rows
 // with want OK are the boundary controls of a neighbouring refusal.

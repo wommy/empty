@@ -629,11 +629,14 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 	if err != nil {
 		return Volume{}, err
 	}
-	plan, _, err := e.plan.PlanExpandVolume(t, volID, capacity, limit)
+	plan, before, err := e.plan.PlanExpandVolume(t, volID, capacity, limit)
 	if err != nil {
 		return Volume{}, err
 	}
 	if err := e.apply(ctx, plan); err != nil {
+		if rerr := e.rollbackExpand(ctx, before); rerr != nil {
+			return Volume{}, errors.Join(err, fmt.Errorf("rolling refquota back: %w", rerr))
+		}
 		return Volume{}, err
 	}
 	v, err := e.readVolume(ctx, volID)
@@ -648,6 +651,26 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 	}
 	return v, err
 }
+
+// rollbackExpand puts back a refquota a failed grow raised without its
+// reservation (PlanExpandRollback), still under the volume's lock. It runs
+// even when the caller's context ended (that may be why the grow failed),
+// bounded by its own timeout.
+func (e *Endpoint) rollbackExpand(ctx context.Context, before Row) error {
+	if before.ID == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	t, err := e.scan(ctx, before.ID)
+	if err != nil {
+		return err
+	}
+	return e.apply(ctx, e.plan.PlanExpandRollback(t, before))
+}
+
+// rollbackTimeout bounds rollbackExpand: one scan and one `zfs set`.
+const rollbackTimeout = 30 * time.Second
 
 // GetVolume returns a managed volume.
 func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) {

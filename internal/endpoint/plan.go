@@ -705,8 +705,9 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 	if row.Kind() == Filesystem && row.Refres > 0 && row.Refres < max(want, row.Refquota) {
 		// thick and under-reserved: an earlier Expand's set applied
 		// refquota, then refreservation failed ENOSPC (zfs applies space
-		// properties one by one). Reserve the capacity, never report it
-		// done.
+		// properties one by one), and its rollback (PlanExpandRollback)
+		// never ran: killed in between, or the rollback failed too.
+		// Reserve the capacity, never report it done.
 		set := map[string]string{"refreservation": u64(max(want, row.Refquota))}
 		if want > row.Refquota {
 			set["refquota"] = u64(want)
@@ -721,12 +722,35 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 		// refreservation follows volsize by itself when it was auto
 		set["volsize"] = u64(want)
 	} else {
+		// refquota must land first: zfs refuses a refreservation above
+		// the refquota (dsl_dataset_set_refreservation_check), so a grow
+		// cannot reserve before it raises the quota. A failed reservation
+		// is rolled back instead (PlanExpandRollback).
 		set["refquota"] = u64(want)
 		if row.Refres > 0 {
 			set["refreservation"] = u64(want)
 		}
 	}
 	return Plan{{Kind: OpSet, Target: row.Name, Props: set}}, row, nil
+}
+
+// PlanExpandRollback undoes the half of a failed thick-filesystem grow that
+// landed. zfs applies refquota, then refreservation; when the reservation
+// fails (ENOSPC: the pool cannot back the new size) the raised refquota
+// stays, and the volume would report a capacity it cannot reserve, which
+// every later Expand must then reserve (ResourceExhausted until the pool
+// grows). before is the row the failed plan was made from, t a scan after
+// the failure. The plan puts refquota back where it was, and only when
+// this grow raised it and the reservation stayed behind; otherwise nil.
+func (p Planner) PlanExpandRollback(t Table, before Row) Plan {
+	row, ok := t.Get(before.ID)
+	if !ok || row.Name != before.Name || row.Kind() != Filesystem || before.Kind() != Filesystem {
+		return nil
+	}
+	if row.Refres == 0 || row.Refres >= row.Refquota || row.Refquota <= before.Refquota {
+		return nil
+	}
+	return Plan{{Kind: OpSet, Target: row.Name, Props: map[string]string{"refquota": u64(max(before.Refquota, row.Refres))}}}
 }
 
 // PlanCreateSnapshot: CSI snapshot names are global; the same name on the
