@@ -140,6 +140,38 @@ func TestLockParentDoesNotFollowSymlinks(t *testing.T) {
 	}
 }
 
+// H-14: a stop (SIGTERM cancels ctx) while waiting for the pool, or while
+// probing the OpenZFS version, is a normal stop, not a failed unit.
+func TestStopDuringStartupIsClean(t *testing.T) {
+	t.Parallel()
+	t.Run("parent wait", func(t *testing.T) {
+		t.Parallel()
+		d, _ := simDeps(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		// the stop arrives during the first backoff; the timer never fires
+		d.after = func(time.Duration) <-chan time.Time { cancel(); return nil }
+		err := run(ctx, []string{"-parent", "tank/late", "-listen", notASocket(t), "-parent-wait", "30s"}, d)
+		if err != nil {
+			t.Errorf("exit %d %v; want a clean stop", exitCode(err), err)
+		}
+	})
+	t.Run("version probe", func(t *testing.T) {
+		t.Parallel()
+		d, _ := simDeps(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		d.version = func(ctx context.Context, _ *zfs.Client) error {
+			cancel()
+			return tempErr("cannot read the OpenZFS version: %v", context.Canceled)
+		}
+		err := run(ctx, []string{"-parent", "tank/k8s", "-listen", notASocket(t)}, d)
+		if err != nil {
+			t.Errorf("exit %d %v; want a clean stop", exitCode(err), err)
+		}
+	})
+}
+
 // gate blocks the first `zfs create` until released, holding that
 // volume's lock.
 type gate struct {

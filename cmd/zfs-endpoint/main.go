@@ -147,7 +147,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	z := zfs.New(zfs.Limit(zfs.Audit(d.runner, nil), *maxZFS))
 	if d.version != nil {
 		if err := d.version(ctx, z); err != nil {
-			return err
+			return startupErr(ctx, err)
 		}
 	}
 	// refuse to start against a parent that is not there: never create it
@@ -156,7 +156,7 @@ func run(ctx context.Context, args []string, d deps) error {
 		after = time.After
 	}
 	if err := waitParent(ctx, z, *parent, *parentWait, after); err != nil {
-		return err
+		return startupErr(ctx, err)
 	}
 	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})
 	if err != nil {
@@ -208,6 +208,18 @@ func run(ctx context.Context, args []string, d deps) error {
 	<-served
 	slog.Info("stopped")
 	return nil
+}
+
+// startupErr is err from a startup step, or nil once ctx has ended: a
+// SIGTERM (systemctl stop) while waiting for the pool or probing zfs is a
+// normal stop, whatever the interrupted probe returned. Exit 1 would leave
+// the unit failed, and 75 would have Restart=on-failure start it again.
+func startupErr(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		slog.Info("stopped during startup", "error", err)
+		return nil
+	}
+	return err
 }
 
 // configLockWait maps -lock-wait (validated: not negative) to
