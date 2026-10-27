@@ -50,19 +50,14 @@ type Planner struct {
 
 func (p Planner) full(id string) string { return p.Parent + "/" + id }
 
-func (p Planner) round(n uint64) uint64 {
-	if r := n % p.VolBlockSize; r != 0 {
-		n += p.VolBlockSize - r
-	}
-	return n
-}
-
 func u64(n uint64) string { return strconv.FormatUint(n, 10) }
 
-// want is the capacity a request resolves to (rounded for zvols).
-func (p Planner) want(r CreateVolumeRequest) uint64 {
+// want is the capacity a request resolves to (rounded for zvols, to the
+// requested volblocksize when props, the validated properties, carry one).
+func (p Planner) want(r CreateVolumeRequest, props map[string]string) uint64 {
 	if r.Kind == Block {
-		return p.round(r.CapacityBytes)
+		bs, _ := strconv.ParseUint(props[volblocksizeProp], 10, 64)
+		return p.roundTo(r.CapacityBytes, bs)
 	}
 	if r.CapacityBytes == 0 && r.LimitBytes > 0 {
 		// "at most limit": unlimited would violate it
@@ -83,31 +78,36 @@ func (p Planner) roundTo(n, bs uint64) uint64 {
 	return n
 }
 
-// validateCreate checks a request on its own, before looking at state.
-func (p Planner) validateCreate(r CreateVolumeRequest) (string, error) {
+// validateCreate checks a request on its own, before looking at state, and
+// returns the volume id and the canonical properties.
+func (p Planner) validateCreate(r CreateVolumeRequest) (string, map[string]string, error) {
 	id, err := volumeID(r.Name)
 	if err != nil {
-		return "", err
+		return "", nil, err
+	}
+	props, err := ValidateProperties(r.Kind, r.Properties)
+	if err != nil {
+		return "", nil, err
 	}
 	if r.SourceSnapshotID != "" && r.SourceVolumeID != "" {
-		return "", errorf(InvalidArgument, "at most one content source")
+		return "", nil, errorf(InvalidArgument, "at most one content source")
 	}
 	if r.Kind == Block && r.CapacityBytes == 0 && r.SourceSnapshotID == "" && r.SourceVolumeID == "" {
-		return "", errorf(InvalidArgument, "block volume needs a capacity")
+		return "", nil, errorf(InvalidArgument, "block volume needs a capacity")
 	}
-	if r.Kind == Filesystem && r.Reserve && p.want(r) == 0 && r.SourceSnapshotID == "" && r.SourceVolumeID == "" {
-		return "", errorf(InvalidArgument, "reserve needs a capacity or limit")
+	if r.Kind == Filesystem && r.Reserve && p.want(r, props) == 0 && r.SourceSnapshotID == "" && r.SourceVolumeID == "" {
+		return "", nil, errorf(InvalidArgument, "reserve needs a capacity or limit")
 	}
 	if r.Kind == Block && r.Reserve {
-		return "", errorf(InvalidArgument, "reserve applies to filesystems; use sparse for zvols")
+		return "", nil, errorf(InvalidArgument, "reserve applies to filesystems; use sparse for zvols")
 	}
 	if r.Kind == Filesystem && r.Sparse {
-		return "", errorf(InvalidArgument, "sparse applies to zvols; filesystems are thin unless reserved")
+		return "", nil, errorf(InvalidArgument, "sparse applies to zvols; filesystems are thin unless reserved")
 	}
-	if r.LimitBytes > 0 && p.want(r) > r.LimitBytes {
-		return "", errorf(OutOfRange, "capacity %d (rounded) exceeds limit %d", p.want(r), r.LimitBytes)
+	if r.LimitBytes > 0 && p.want(r, props) > r.LimitBytes {
+		return "", nil, errorf(OutOfRange, "capacity %d (rounded) exceeds limit %d", p.want(r, props), r.LimitBytes)
 	}
-	return id, nil
+	return id, props, nil
 }
 
 // PlanCreateVolume decides how to make the table satisfy r.
@@ -118,11 +118,11 @@ func (p Planner) validateCreate(r CreateVolumeRequest) (string, error) {
 //   - committed row: must be compatible (CSI idempotency) and the plan is
 //     empty, or AlreadyExists
 func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) {
-	id, err := p.validateCreate(r)
+	id, props, err := p.validateCreate(r)
 	if err != nil {
 		return nil, err
 	}
-	want := p.want(r)
+	want := p.want(r, props)
 	srcType, srcID := sourceOf(r)
 	commit := Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{p.Names.success(): "true"}}
 
@@ -137,13 +137,32 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			return nil, errorf(AlreadyExists, "volume %s exists as %s from %q %q", id, row.Kind(), row.SourceType, row.SourceID)
 		}
 		if !row.Committed {
+			// volblocksize is create-only: a row without it cannot converge
+			if bs, ok := props[volblocksizeProp]; ok && u64(row.BlockSz) != bs {
+				return nil, errorf(AlreadyExists, "volume %s exists with volblocksize %d, requested %s", id, row.BlockSz, bs)
+			}
 			plan := p.sizeOps(id, row, r, want)
+			if set := propSet(row, props); len(set) > 0 {
+				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: set})
+			}
 			return append(plan, commit), nil
 		}
-		return nil, p.compatible(row, r, want)
+		if err := p.compatible(row, r, want); err != nil {
+			return nil, err
+		}
+		if k, bad := propsMismatch(row, props); bad {
+			return nil, errorf(AlreadyExists, "volume %s exists without %s=%s set locally", id, k, props[k])
+		}
+		return nil, nil
 	}
 
-	own := map[string]string{p.Names.managed(): "true", p.Names.volumeName(): r.Name}
+	// validated properties first: none of them can name an ownership
+	// marker (user properties are refused) or a share property
+	own := make(map[string]string, len(props)+6)
+	for k, v := range props {
+		own[k] = v
+	}
+	own[p.Names.managed()], own[p.Names.volumeName()] = "true", r.Name
 	if r.Kind == Filesystem {
 		// sharenfs/sharesmb inherit: a parent shared to "*" would export
 		// every new volume (restores included) to everyone. Exports are
@@ -166,6 +185,10 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if src, ok := t.Get(vol); ok && src.Kind() != r.Kind {
 			return nil, errorf(InvalidArgument, "source is %s, requested %s", src.Kind(), r.Kind)
 		}
+		src, _ := t.Get(vol)
+		if err := cloneBlockSize(own, src); err != nil {
+			return nil, err
+		}
 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, srcID
 		plan = Plan{{Kind: OpClone, Source: snap.Name, Target: p.full(id), Props: own, OkExists: true}}
 		plan = append(plan, p.sizeOps(id, Row{Type: kindType(r.Kind), Volsize: snap.Volsize}, r, want)...)
@@ -186,6 +209,9 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		}
 		if src.Kind() != r.Kind {
 			return nil, errorf(InvalidArgument, "source is %s, requested %s", src.Kind(), r.Kind)
+		}
+		if err := cloneBlockSize(own, src); err != nil {
+			return nil, err
 		}
 		internal := src.Name + "@" + cloneSourceSnapshotPrefix + id
 		if !zfs.ValidSnapshot(internal) {
@@ -219,6 +245,22 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		plan = Plan{{Kind: OpCreateFS, Target: p.full(id), Props: own}}
 	}
 	return append(plan, commit), nil
+}
+
+// cloneBlockSize enforces that a clone's requested volblocksize is its
+// source's, and drops it from the clone's -o: a clone takes the origin's
+// block size, and libzfs refuses volblocksize there as readonly
+// (zfs_valid_proplist with a non-NULL zhp).
+func cloneBlockSize(own map[string]string, src Row) error {
+	bs, ok := own[volblocksizeProp]
+	if !ok {
+		return nil
+	}
+	if src.Type != zfs.TypeVolume || u64(src.BlockSz) != bs {
+		return errorf(InvalidArgument, "volblocksize %s: a clone keeps its source's block size (%d)", bs, src.BlockSz)
+	}
+	delete(own, volblocksizeProp)
+	return nil
 }
 
 // sizeOps converges an owned-but-uncommitted (or freshly cloned) volume to

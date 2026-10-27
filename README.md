@@ -10,6 +10,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 |---|---|
 | ZFS execution (`internal/zfs`) | done: typed `zfs(8)` client, `-Hp` columnar parsing, error classification from OpenZFS's own CLI strings |
 | Volume/snapshot lifecycle (`internal/endpoint`) | done: create (plain, from snapshot, from volume), delete, expand, get, list, snapshot create/delete/list, capacity |
+| ZFS property passthrough (`internal/endpoint/props.go`) | done: default-deny per-kind allowlist with value checks; requested properties must be set locally for a retry to be compatible (`docs/research/gaps/adv-csi-frontend.md` B3) |
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
 | File export (NFS/SMB) | not started; the design calls for `sharenfs`/`sharesmb` properties (`docs/research/edges/file-export.md`) |
 | Block export (iSCSI/NVMe-oF) | not started; the design calls for LIO/nvmet configfs (`docs/research/edges/block-export.md`) |

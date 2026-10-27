@@ -136,6 +136,10 @@ type CreateVolumeRequest struct {
 	// at most one of these
 	SourceSnapshotID string
 	SourceVolumeID   string
+	// Properties are native ZFS properties applied at create, checked
+	// against a per-kind allowlist (props.go). A committed volume is
+	// compatible only if each one is set locally to the same value.
+	Properties map[string]string
 }
 
 func (e *Endpoint) dataset(id string) string { return e.cfg.Parent + "/" + id }
@@ -257,7 +261,7 @@ func snapshotView(t Table, r Row) Snapshot {
 // request is compatible (CSI idempotency), or completes a provision that was
 // interrupted before its commit marker.
 func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Volume, error) {
-	id, err := e.plan.validateCreate(r)
+	id, _, err := e.plan.validateCreate(r)
 	if err != nil {
 		return Volume{}, err
 	}

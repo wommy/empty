@@ -25,6 +25,9 @@ type Row struct {
 	Creation int64
 	Deferred bool // snapshot marked for deferred destroy
 	Mount    string
+	// Local holds the allowlisted properties (props.go) set on the dataset
+	// itself; inherited and default values read as "".
+	Local LocalProps
 
 	// ownership, from user properties
 	Managed        bool
@@ -120,12 +123,12 @@ func (t Table) ClonesOf(snap string) iter.Seq[Row] { return t.pick(t.clonesOfSrc
 
 // columns fetched by every scan; decode below is the only place they are read.
 func (n props) columns() []string {
-	return []string{
+	return append([]string{
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
 		"defer_destroy", "mountpoint",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
 		n.snapshotName(), n.snapshotSource(),
-	}
+	}, propNames[:]...)
 }
 
 // decodeColumns turns a columnar scan into rows: each column is located
@@ -136,6 +139,10 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 	cOrigin, cCreation, cDefer, cMount := j("origin"), j("creation"), j("defer_destroy"), j("mountpoint")
 	cManaged, cSuccess, cVolName := j(n.managed()), j(n.success()), j(n.volumeName())
 	cSrcType, cSrcID, cSnapName, cSnapSrc := j(n.sourceType()), j(n.sourceID()), j(n.snapshotName()), j(n.snapshotSource())
+	var cLocal [nPropKeys]int
+	for k, name := range propNames {
+		cLocal[k] = j(name)
+	}
 
 	rows := make([]Row, 0, len(c.Names))
 	for i, name := range c.Names {
@@ -167,6 +174,11 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 			SourceID:       own(cSrcID),
 			SnapshotName:   own(cSnapName),
 			SnapshotSource: own(cSnapSrc),
+		}
+		for k, col := range cLocal {
+			// only local values: an inherited compression is the parent's
+			// choice, not this volume's, and must not satisfy a request
+			r.Local[k] = own(col)
 		}
 		if v, err := strconv.ParseInt(cell(cCreation).Value, 10, 64); err == nil {
 			r.Creation = v

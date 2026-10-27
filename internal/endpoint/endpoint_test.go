@@ -438,3 +438,84 @@ func TestMissingParentIsUnavailableNotAbsent(t *testing.T) {
 	_, err := ep.GetVolume(ctx, "v")
 	wantCode(t, err, endpoint.Unavailable)
 }
+
+// StorageClass properties end to end: applied at create, read back from the
+// one scan for idempotency, converged on an interrupted provision, and
+// refused when they would change a committed volume or a clone's block size.
+func TestCreateVolumeProperties(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+
+	fs := endpoint.CreateVolumeRequest{Name: "fs", CapacityBytes: 1 << 30,
+		Properties: map[string]string{"compression": "lz4", "recordsize": "16K", "atime": "off"}}
+	v1, err := ep.CreateVolume(ctx, fs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{"compression": "lz4", "recordsize": "16384", "atime": "off"} {
+		if got := h.Prop(h.Parent+"/fs", k); got != want {
+			t.Fatalf("%s = %q, want %q", k, got, want)
+		}
+	}
+	calls := 0
+	if h.sim != nil {
+		calls = mutations(h.sim)
+	}
+	if v2, err := ep.CreateVolume(ctx, fs); err != nil || v2 != v1 {
+		t.Fatalf("retry: %+v %v", v2, err)
+	}
+	if h.sim != nil && mutations(h.sim) != calls {
+		t.Fatal("retry with properties mutated state")
+	}
+	fs.Properties = map[string]string{"compression": "lz4", "recordsize": "128K"}
+	_, err = ep.CreateVolume(ctx, fs)
+	wantCode(t, err, endpoint.AlreadyExists)
+	_, err = ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "evil", Properties: map[string]string{"mountpoint": "/etc"}})
+	wantCode(t, err, endpoint.InvalidArgument)
+	if h.Has(h.Parent + "/evil") {
+		t.Fatal("denied request created a dataset")
+	}
+
+	// zvol: volblocksize at create rounds volsize; restores must match it
+	z := endpoint.CreateVolumeRequest{Name: "z", Kind: endpoint.Block, CapacityBytes: 1<<20 + 1,
+		Properties: map[string]string{"volblocksize": "8K", "sync": "always"}}
+	zv, err := ep.CreateVolume(ctx, z)
+	if err != nil || zv.CapacityBytes != 1<<20+8192 || h.Prop(h.Parent+"/z", "volblocksize") != "8192" {
+		t.Fatalf("zvol: %+v %v", zv, err)
+	}
+	if _, err := ep.CreateVolume(ctx, z); err != nil {
+		t.Fatalf("zvol retry: %v", err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "zs", "z"); err != nil {
+		t.Fatal(err)
+	}
+	restore := endpoint.CreateVolumeRequest{Name: "zr", Kind: endpoint.Block, SourceSnapshotID: "z@zs",
+		Properties: map[string]string{"volblocksize": "16K"}}
+	_, err = ep.CreateVolume(ctx, restore)
+	wantCode(t, err, endpoint.InvalidArgument)
+	restore.Properties = map[string]string{"volblocksize": "8K", "compression": "zle"}
+	for i := 0; i < 2; i++ {
+		if _, err := ep.CreateVolume(ctx, restore); err != nil {
+			t.Fatalf("restore attempt %d: %v", i, err)
+		}
+	}
+	if h.Prop(h.Parent+"/zr", "compression") != "zle" || h.Prop(h.Parent+"/zr", "volblocksize") != "8192" {
+		t.Fatal("restore properties not applied")
+	}
+
+	// an interrupted provision (owned, not committed) converges with set
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/half", map[string]string{
+		"democratic-csi:managed_resource": "true",
+		"democratic-csi:csi_volume_name":  "half",
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "half",
+		Properties: map[string]string{"compression": "zle", "snapdir": "visible"}}); err != nil {
+		t.Fatal(err)
+	}
+	if h.Prop(h.Parent+"/half", "compression") != "zle" || h.Prop(h.Parent+"/half", "snapdir") != "visible" ||
+		h.Prop(h.Parent+"/half", "democratic-csi:provision_success") != "true" {
+		t.Fatal("uncommitted volume did not converge")
+	}
+}

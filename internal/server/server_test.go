@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"net"
+	"slices"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -63,6 +64,25 @@ func TestRoundTripAndCodes(t *testing.T) {
 	req.CapacityBytes = 2 << 30
 	if _, err := c.CreateVolume(ctx, req); status.Code(err) != codes.AlreadyExists {
 		t.Fatalf("incompatible create: %v", err)
+	}
+	if !slices.Contains(caps.Capabilities, pb.Capability_CAPABILITY_PROPERTIES) {
+		t.Fatalf("caps %v lack PROPERTIES", caps.Capabilities)
+	}
+	preq := &pb.CreateVolumeRequest{Name: "pvc-p", CapacityBytes: 1 << 20,
+		Properties: map[string]string{"compression": "zstd", "recordsize": "16K"}}
+	if _, err := c.CreateVolume(ctx, preq); err != nil {
+		t.Fatalf("create with properties: %v", err)
+	}
+	if _, err := c.CreateVolume(ctx, preq); err != nil {
+		t.Fatalf("idempotent create with properties: %v", err)
+	}
+	preq.Properties["compression"] = "lz4"
+	if _, err := c.CreateVolume(ctx, preq); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("property mismatch: %v", err)
+	}
+	if _, err := c.CreateVolume(ctx, &pb.CreateVolumeRequest{Name: "pvc-m",
+		Properties: map[string]string{"mountpoint": "/etc"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("denied property: %v", err)
 	}
 	if _, err := c.CreateSnapshot(ctx, &pb.CreateSnapshotRequest{Name: "s1", SourceVolumeId: "pvc-a"}); err != nil {
 		t.Fatal(err)
