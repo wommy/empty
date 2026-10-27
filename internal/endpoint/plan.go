@@ -61,7 +61,12 @@ type Op struct {
 	Props     map[string]string // create/clone/snapshot -o, or OpSet values
 	OkExists  bool              // create/snapshot/clone: already exists is done
 	OkMissing bool              // destroy: already gone is done
-	Path      string            // OpSetRoot: the mountpoint
+	// GUID: OpDestroy, the guid of the dataset the plan inspected under
+	// Target. apply destroys Target only while it still has this guid: a
+	// dataset renamed away and another made under the name since is never
+	// destroyed in its place (OWN-15).
+	GUID string
+	Path string // OpSetRoot: the mountpoint
 }
 
 // Plan is the ordered ops of one request.
@@ -717,7 +722,7 @@ func (p Planner) releaseCloneSourcesFor(t Table, id string) (Plan, error) {
 		if clone, ours := s.OwnedCloneSource(); !ours || clone != id {
 			continue
 		}
-		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true})
+		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true, GUID: s.GUID})
 	}
 	return plan, nil
 }
@@ -817,18 +822,18 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 			foreign = append(foreign, s.ID)
 		}
 		// plain, never -d: a snapshot still in use must make zfs refuse
-		d.snaps = append(d.snaps, Op{Kind: OpDestroy, Target: s.Name, OkMissing: true})
+		d.snaps = append(d.snaps, Op{Kind: OpDestroy, Target: s.Name, OkMissing: true, GUID: s.GUID})
 	}
 	if len(foreign) > 0 && !destroyForeign {
 		return deletion{}, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
 			id, strings.Join(foreign, ", "))
 	}
-	d.vol = &Op{Kind: OpDestroy, Target: row.Name, OkMissing: true}
+	d.vol = &Op{Kind: OpDestroy, Target: row.Name, OkMissing: true, GUID: row.GUID}
 	// an origin already marked (an earlier, interrupted delete) is released:
 	// zfs reaps it with the clone, and re-marking it would be a no-op op
 	// that a delete zfs keeps refusing repeats on every reconcile
 	if origin, src, ok := p.releasedOrigin(t, row); ok && !origin.Deferred {
-		d.origin = &Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true}
+		d.origin = &Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true, GUID: origin.GUID}
 		d.src = src
 	}
 	return d, nil
@@ -1023,7 +1028,7 @@ func (p Planner) PlanDeleteSnapshot(t Table, snapID string) (Plan, error) {
 	if !row.OwnedSnapshot() {
 		return nil, errorf(FailedPrecondition, "snapshot %s is not managed", snapID)
 	}
-	return Plan{{Kind: OpDestroy, Target: row.Name, Defer: true, OkMissing: true}}, nil
+	return Plan{{Kind: OpDestroy, Target: row.Name, Defer: true, OkMissing: true, GUID: row.GUID}}, nil
 }
 
 func sourceOf(r CreateVolumeRequest) (string, string) {

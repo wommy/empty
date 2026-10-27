@@ -111,6 +111,12 @@ func CodeOf(err error) Code {
 // while a final code would strand the half-applied plan
 // (external-provisioner never deletes what it never got). Before any
 // change it stays Internal.
+//
+// A destroy whose target no longer has the guid the plan read (OWN-15:
+// renamed away, another dataset made under the name) is not a zfs failure
+// and has no cell: apply refuses it as Aborted whatever ran before, the
+// code an interrupted command gets, since a retry re-scans and plans
+// against what is there now.
 var errRules = []errRule{
 	// zfs prints the same "dataset does not exist" for an exported pool as
 	// for a missing dataset, and the parent is configuration, so it is

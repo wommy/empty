@@ -22,6 +22,9 @@ func (p Plan) String() string {
 		if op.Path != "" {
 			b.WriteString(" path=" + op.Path)
 		}
+		if op.GUID != "" {
+			b.WriteString(" guid=" + op.GUID)
+		}
 		if op.Size != 0 {
 			b.WriteString(" size=" + u64(op.Size))
 		}
