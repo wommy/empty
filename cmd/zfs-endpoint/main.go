@@ -249,7 +249,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	dmn.SetServing(true)
 	probeCtx, stopProbe := context.WithCancel(ctx)
 	defer stopProbe()
-	go dmn.Probe(probeCtx, healthInterval, healthCheck(z, *parent, etab, slog.Default()))
+	go dmn.Probe(probeCtx, healthInterval, healthCheck(z, *parent, etab, *minFree, slog.Default()))
 
 	// the -listen socket serves the CSI role (what zfs-csi calls); the
 	// admin role (Reconcile, NFS export) only on -admin-listen (F2)
@@ -372,13 +372,31 @@ func exposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.E
 // when the covering lines appear or change, and an info line when they
 // are gone; between, nothing repeats. Failing to read the exposure
 // changes nothing either.
-func healthCheck(z *zfs.Client, parent string, etab endpoint.EtabReader, log *slog.Logger) func(context.Context) error {
+//
+// The same zfs get reads the parent's available space: with minFree set
+// (-min-free-bytes), a WARN is logged once when it falls below the floor
+// and an INFO once it is back, so a filling pool is seen before the first
+// RESOURCE_EXHAUSTED create. Advisory like the floor itself: health stays
+// SERVING (deletes free space).
+func healthCheck(z *zfs.Client, parent string, etab endpoint.EtabReader, minFree uint64, log *slog.Logger) func(context.Context) error {
 	var last string
+	low := false
 	return func(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 		defer cancel()
-		if _, err := z.Get(ctx, parent, "type"); err != nil {
+		ds, err := z.Get(ctx, parent, "type", "available")
+		if err != nil {
 			return err
+		}
+		if avail, err := ds.Props["available"].Uint(); err == nil && minFree > 0 {
+			switch now := avail < minFree; {
+			case now && !low:
+				log.Warn("health: free space below -min-free-bytes: CreateVolume and ExpandVolume that reserve space are refused RESOURCE_EXHAUSTED; free space on the pool",
+					"parent", parent, "available", avail, "min_free_bytes", minFree)
+			case !now && low:
+				log.Info("health: free space back above -min-free-bytes", "parent", parent, "available", avail, "min_free_bytes", minFree)
+			}
+			low = avail < minFree
 		}
 		mount, x, err := exposure(ctx, z, parent, etab)
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/wommy/empty/internal/zfs"
@@ -270,5 +271,17 @@ func remapMutated(err error, because string) error {
 	if c.code() == e.cell.code() {
 		return err
 	}
+	if c.kind == errKind(zfs.KindNoSpace) {
+		because = noSpaceAfterChange(because)
+	}
 	return &Error{Code: c.code(), Msg: e.Msg + because, Err: e.Err, cell: &c}
+}
+
+// noSpaceAfterChange is because for an out-of-space failure after a
+// change: ABORTED, so the provisioner retries, but no retry converges
+// while the pool stays full. "(earlier ops applied; a retry converges)"
+// becomes "(earlier ops applied; out of space: free space on the pool
+// first, then a retry converges)".
+func noSpaceAfterChange(because string) string {
+	return strings.Replace(because, "; a retry converges", "; out of space: free space on the pool first, then a retry converges", 1)
 }
