@@ -1,0 +1,86 @@
+# One zfs-endpoint per parent dataset. The instance is the systemd-escaped
+# dataset name:
+#
+#   systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
+#
+# serves tank/k8s/vols on /run/zfs-endpoint/tank-k8s-vols.sock.
+#
+# For an encrypted parent, add After=zfs-load-key.service (or the matching
+# zfs-load-key@ unit) in a drop-in.
+
+[Unit]
+Description=ZFS endpoint for dataset %I
+Documentation=https://github.com/wommy/empty
+# the pool must be imported and its datasets mounted before the parent
+# check; zfs-import.target is reached even when an import fails, so the
+# daemon also waits (-parent-wait) and the restart policy below retries
+After=zfs-import.target zfs-mount.service zfs.target
+Wants=zfs-import.target zfs-mount.service
+# NFS file export: sharenfs needs a running nfs-server, and etab is read back
+After=nfs-server.service
+Wants=nfs-server.service
+# keep retrying across a late or encrypted pool import instead of giving up
+StartLimitIntervalSec=0
+
+[Service]
+# READY=1 once serving, STOPPING=1 when draining (sd_notify, no library)
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/local/sbin/zfs-endpoint \
+    -parent %I \
+    -listen unix:///run/zfs-endpoint/%i.sock \
+    -drain 30s \
+    -stop-wait 10s \
+    -parent-wait 60s
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+# /run/zfs-endpoint, 0700, shared by all instances: it holds every
+# instance's socket and the per-parent locks (which must be shared to
+# refuse nested parents). Preserve it, so stopping one instance does not
+# delete the others' sockets and locks.
+RuntimeDirectory=zfs-endpoint
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UMask=0077
+
+# Shutdown: SIGTERM to the daemon only, never to its zfs children (which
+# also run in their own process groups), so in-flight operations finish
+# inside -drain. After -drain the daemon cancels the rest and waits up to
+# -stop-wait for them; anything still left is SIGKILLed by systemd.
+# TimeoutStopSec > drain + stop-wait.
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=45
+# > the version probe (10s) + -parent-wait (60s) + one parent probe (10s)
+TimeoutStartSec=90
+
+# restart with backoff (RestartSteps/RestartMaxDelaySec: systemd >= 254)
+Restart=on-failure
+RestartSec=2s
+RestartSteps=8
+RestartMaxDelaySec=60s
+# exit 78 = configuration error (bad flags, wrong OpenZFS, a parent that
+# is not a filesystem): restarting cannot fix it
+RestartPreventExitStatus=78
+
+# resource caps (defense in depth beside -max-zfs and MaxConcurrentStreams)
+TasksMax=512
+LimitNOFILE=65536
+OOMScoreAdjust=-500
+
+# Hardening: only options that do NOT create a private mount namespace.
+# zfs mounts datasets and exportfs edits host state from inside this
+# service; a private namespace (PrivateTmp, ProtectSystem, ProtectHome,
+# PrivateDevices, ReadOnlyPaths, ProtectKernel*, ...) would hide every
+# mount from the host and from nfsd. zfs-mount.service and zed use none.
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+# exportfs resolves client hostnames, so keep INET
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target zfs.target
