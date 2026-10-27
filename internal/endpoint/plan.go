@@ -485,7 +485,10 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 			id, strings.Join(foreign, ", "))
 	}
 	d.vol = &Op{Kind: OpDestroy, Target: row.Name, OkMissing: true}
-	if origin, src, ok := p.releasedOrigin(t, row); ok {
+	// an origin already marked (an earlier, interrupted delete) is released:
+	// zfs reaps it with the clone, and re-marking it would be a no-op op
+	// that a delete zfs keeps refusing repeats on every reconcile
+	if origin, src, ok := p.releasedOrigin(t, row); ok && !origin.Deferred {
 		d.origin = &Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true}
 		d.src = src
 	}
