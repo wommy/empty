@@ -125,6 +125,22 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	want := p.want(r, props)
 	srcType, srcID := sourceOf(r)
 	commit := Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{p.Names.success(): "true"}}
+	// size is what a provision drives the volume to. A clone starts at its
+	// source's size and is never shrunk, and a filesystem clone without a
+	// capacity takes its source's quota. It is derived here, before the
+	// resume branch, so a retry after a failure at any op boundary reaches
+	// the end state an uninterrupted run reaches.
+	size, sizeErr := want, error(nil)
+	if n, ok := sourceSize(t, r); ok {
+		if r.Kind == Filesystem && size == 0 {
+			size = n
+		}
+		if r.LimitBytes > 0 && n > r.LimitBytes {
+			sizeErr = errorf(OutOfRange, "source capacity %d exceeds limit %d: a clone is never smaller than its source", n, r.LimitBytes)
+		} else if r.Kind == Filesystem && r.Reserve && size == 0 {
+			sizeErr = errorf(InvalidArgument, "reserve needs a capacity or limit (the source is unlimited)")
+		}
+	}
 
 	if row, ok := t.Get(id); ok {
 		if !row.Managed {
@@ -137,11 +153,14 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			return nil, errorf(AlreadyExists, "volume %s exists as %s from %q %q", id, row.Kind(), row.SourceType, row.SourceID)
 		}
 		if !row.Committed {
+			if sizeErr != nil {
+				return nil, sizeErr
+			}
 			// volblocksize is create-only: a row without it cannot converge
 			if bs, ok := props[volblocksizeProp]; ok && u64(row.BlockSz) != bs {
 				return nil, errorf(AlreadyExists, "volume %s exists with volblocksize %d, requested %s", id, row.BlockSz, bs)
 			}
-			plan := p.sizeOps(id, row, r, want)
+			plan := p.sizeOps(id, row, r, size)
 			if set := propSet(row, props); len(set) > 0 {
 				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: set})
 			}
@@ -189,18 +208,16 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if src.Kind() != r.Kind {
 			return nil, errorf(InvalidArgument, "source is %s, requested %s", src.Kind(), r.Kind)
 		}
+		if sizeErr != nil {
+			return nil, sizeErr
+		}
 		if err := cloneBlockSize(own, src); err != nil {
 			return nil, err
 		}
 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, srcID
 		plan = Plan{{Kind: OpClone, Source: snap.Name, Target: p.full(id), Props: own}}
-		plan = append(plan, p.sizeOps(id, Row{Type: kindType(r.Kind), Volsize: snap.Volsize}, r, want)...)
-		if r.Kind == Filesystem {
-			// filesystem clones start without refquota; size from the source
-			if src, ok := t.Get(vol); ok && want == 0 && src.Refquota > 0 {
-				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{"refquota": u64(src.Refquota)}})
-			}
-		}
+		// filesystem clones start without refquota or refreservation
+		plan = append(plan, p.sizeOps(id, Row{Type: kindType(r.Kind), Volsize: snap.Volsize}, r, size)...)
 	case r.SourceVolumeID != "":
 		srcID, err := volumeID(r.SourceVolumeID)
 		if err != nil {
@@ -215,6 +232,9 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if src.Kind() != r.Kind {
 			return nil, errorf(InvalidArgument, "source is %s, requested %s", src.Kind(), r.Kind)
 		}
+		if sizeErr != nil {
+			return nil, sizeErr
+		}
 		if err := cloneBlockSize(own, src); err != nil {
 			return nil, err
 		}
@@ -228,13 +248,10 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			{Kind: OpClone, Source: internal, Target: p.full(id), Props: own},
 		}
 		base := src
-		if r.Kind == Filesystem && want == 0 {
-			want = src.Refquota
-		}
 		// a clone starts with neither the source's refquota nor its
 		// refreservation; size from what the clone really has
 		base.Refquota, base.Refres = 0, 0
-		plan = append(plan, p.sizeOps(id, base, r, want)...)
+		plan = append(plan, p.sizeOps(id, base, r, size)...)
 	case r.Kind == Block:
 		// thick zvols: zfs create -V sets refreservation to zvol_auto_resv
 		// (volsize plus metadata) and keeps it in step with volsize; setting
@@ -250,6 +267,27 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		plan = Plan{{Kind: OpCreateFS, Target: p.full(id), Props: own}}
 	}
 	return append(plan, commit), nil
+}
+
+// sourceSize is the capacity a clone of r's source starts with: a zvol
+// snapshot's or volume's volsize, a filesystem source volume's refquota (0
+// is unlimited; a filesystem snapshot carries none). It reads rows as they
+// are; ownership is checked where a clone is planned.
+func sourceSize(t Table, r CreateVolumeRequest) (uint64, bool) {
+	switch {
+	case r.SourceSnapshotID != "":
+		if r.Kind == Block {
+			s, ok := t.Get(r.SourceSnapshotID)
+			return s.Volsize, ok && s.Type == zfs.TypeSnapshot
+		}
+		vol, _, _ := strings.Cut(r.SourceSnapshotID, "@")
+		src, ok := t.Get(vol)
+		return src.Refquota, ok && vol != "" && src.Type != zfs.TypeSnapshot
+	case r.SourceVolumeID != "":
+		src, ok := t.Get(r.SourceVolumeID)
+		return src.Capacity(), ok && src.Type != zfs.TypeSnapshot
+	}
+	return 0, false
 }
 
 // cloneBlockSize enforces that a clone's requested volblocksize is its
