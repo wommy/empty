@@ -389,6 +389,33 @@ var facts = []fact{
 			}
 			return nil
 		}},
+	// zvol_volsize_to_reservation (libzfs_dataset.c) looks copies up
+	// with nvlist_lookup_string, but zfs create hands it real_props, where
+	// zfs_valid_proplist has already made the index property a uint64
+	// (libzfs_util.c): the lookup fails and ncopies stays 1, and the set
+	// paths get validated lists too. So copies=2 does not double the
+	// thick reservation, as the Sim's autoResv has it. Compared, not
+	// hardcoded, so the row holds on any vdev layout.
+	{row: "VOL-12", what: "`create -V` with copies=2 reserves what copies=1 does", check: func(f *factEnv) error {
+		if err := f.zfs("create", "-V", "1048576", f.p+"/one"); err != nil {
+			return err
+		}
+		if err := f.zfs("create", "-V", "1048576", "-o", "copies=2", f.p+"/two"); err != nil {
+			return err
+		}
+		one, err := f.get(f.p+"/one", "refreservation")
+		if err != nil {
+			return err
+		}
+		two, err := f.get(f.p+"/two", "refreservation")
+		if err != nil {
+			return err
+		}
+		if one == "" || one == "0" || two != one {
+			return fmt.Errorf("refreservation copies=1 %q, copies=2 %q; want equal and nonzero", one, two)
+		}
+		return nil
+	}},
 }
 
 // availNear: name's available is want within 1 MiB (the real pool's
