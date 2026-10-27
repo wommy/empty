@@ -2,7 +2,11 @@
 # Runs inside the real-ZFS guest, as root, from the directory ci/real-zfs-vm.sh
 # copied the test binaries, this script and ci/real-zfs-weights.txt into.
 # Runs the real-pool tests as concurrent shards, each on its own pool, and
-# leaves their -test.v logs and -test.list output in out/. Pass or fail is
+# leaves their -test.v logs and -test.list output in out/, plus
+# out/test-times.tsv: per top-level test its own time, its time with
+# parallel subtests summed, and its wall (ci/test-times.awk, which must be
+# next to this script), which ci/real-zfs-weights.sh turns into
+# ci/real-zfs-weights.txt. Pass or fail is
 # decided on the host by ci/check-skips.sh on the merged logs; the exit code
 # here only says whether every shard exited 0.
 #
@@ -64,6 +68,17 @@ export NFS_REPLAY_REPORT=$out/nfs-replay.log
 # on (zfsdiff.PRSample) and so need not share the NFS tests' shard
 export ZFSDIFF_REPORT=$out/zfsdiff.log
 export ZFSDIFF_FULL=${ZFSDIFF_FULL:-}
+# ZFS_CRASH_FULL=1 (nightly): every crash point of every case on the real
+# pool (internal/endpoint/crash_test.go crashSample), not the PR's rotation
+export ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-}
+# stamp: "@<unix seconds> " before each line, for ci/test-times.awk's wall
+# column. Only the RUN/PAUSE/CONT and result lines reach it, so the shard
+# log itself is byte-for-byte what the test binary wrote
+stamp() {
+  local l
+  while IFS= read -r l; do printf '@%s %s\n' "$EPOCHREALTIME" "$l"; done
+}
+marks='=== (RUN|PAUSE|CONT) |--- (PASS|FAIL|SKIP): '
 pids=() names=()
 # run <name> <pool> <command...>: one shard on its own pool, in the background
 run() {
@@ -72,8 +87,9 @@ run() {
   mkpool "$pool" || { echo "zpool create $pool failed" | tee "$out/$name.log"; rc=1; return; }
   (
     s=$(up)
-    env ZFS_TEST_POOL="$pool" ZFS_REQUIRE_REAL=1 "$@" >"$out/$name.log" 2>&1
-    r=$?
+    env ZFS_TEST_POOL="$pool" ZFS_REQUIRE_REAL=1 "$@" 2>&1 | tee "$out/$name.log" |
+      grep --line-buffered -E "$marks" | stamp >"$out/$name.marks"
+    r=${PIPESTATUS[0]}
     echo "$name rc=$r ${s}s..$(up)s" >>"$out/shards.txt"
     exit $r
   ) &
@@ -94,6 +110,19 @@ for k in "${!pids[@]}"; do
   wait "${pids[$k]}" || { echo "${names[$k]} failed"; rc=1; }
 done
 cat "$out/shards.txt"
+# per top-level test: own time, time with parallel subtests summed, wall
+# (ci/test-times.awk); ci/real-zfs-weights.sh turns it into the weights.
+# mode=full marks a nightly run, which the weights must not learn from
+mode=pr
+[ -z "$ZFSDIFF_FULL$ZFS_CRASH_FULL" ] || mode=full
+{
+  echo "# shard test status parallel own_s cost_s wall_s subtests (ci/test-times.awk)"
+  echo "# nproc=$(nproc) mode=$mode"
+  for f in "$out"/*.marks; do
+    awk -v shard="$(basename "$f" .marks)" -f test-times.awk "$f"
+  done
+} >"$out/test-times.tsv" || echo "test-times.tsv incomplete (timing only, not a failure)"
+rm -f "$out"/*.marks
 # as before: a pool that will not go means a test left something busy
 for p in $(zpool list -H -o name); do
   case $p in zep[0-9] | zcsi[0-9]) zpool destroy -f "$p" || { echo "zpool destroy $p failed"; rc=1; } ;; esac

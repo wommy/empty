@@ -91,8 +91,8 @@ jobs:
           go test -count=1 -run '^Fuzz' -v $pkgs | tee "$RUNNER_TEMP/seed.log"
           got=$(grep -oE '^--- PASS: Fuzz[A-Za-z0-9_]+' "$RUNNER_TEMP/seed.log" | awk '{ print $3 }' | sort)
           test "$want" = "$got" || { echo "::error::fuzz targets that did not pass their seeds:"; diff <(echo "$want") <(echo "$got") || true; exit 1; }
-      - name: save Go caches (when the restore missed)
-        if: steps.go.outputs.cache-hit != 'true'
+      - name: save Go caches (none for this go.sum was restored)
+        if: steps.go.outputs.save == 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
@@ -112,15 +112,22 @@ jobs:
         with:
           cache-name: test
       - name: test (simulator)
+        env:
+          # the race runtime sleeps 1s at exit in every test binary (9 of
+          # them) by default; a race still fails the binary (exit 66).
+          # Measured locally: lock 1.43s -> 0.21s, unixsock 1.11 -> 0.16,
+          # zfs-csi 1.14 -> 0.12 (wave10 atexit.txt)
+          GORACE: atexit_sleep_ms=0
         run: go test -race -count=1 ./...
-      - name: save Go caches (when the restore missed)
-        if: steps.go.outputs.cache-hit != 'true'
+      - name: save Go caches (none for this go.sum was restored)
+        if: steps.go.outputs.save == 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
           key: ${{ steps.go.outputs.cache-key }}
+
 
   real-zfs:
     # The real-ZFS gate: the endpoint contract tests and csi-sanity
@@ -131,6 +138,11 @@ jobs:
     # would test the host's ZFS instead. The script asserts that `zfs
     # version` reports 2.4.x for both userland and kmod, and enforces the
     # skip budget in ci/expected-skips.txt.
+    #
+    # Step order is the critical path: the guest and qemu restore first,
+    # the guest boots in the background, and setup-go and the test build
+    # run while it boots. The caches are kept warm on the default branch by
+    # cache-warm.yml, which PRs read (a PR's own saves are PR-scoped).
     name: real ZFS 2.4 (Ubuntu 26.10 VM)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -138,38 +150,22 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - id: go
-        uses: ./.github/actions/setup-go
-        with:
-          # its own namespace: CGO_ENABLED=0 test builds share nothing with
-          # the test job's -race builds
-          cache-name: real-zfs
       - name: enable kvm
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
-      - name: resolve the cloud image
-        # the provisioned-guest cache is keyed by the image's sha256 (the
-        # script verifies it against the gpg-signed list) and the script
-        id: image
-        run: |
-          f=stonking-server-cloudimg-amd64.img
-          sum=$(curl -fsSL --retry 3 https://cloud-images.ubuntu.com/stonking/current/SHA256SUMS | awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }')
-          test -n "$sum"
-          # provisioning inputs only: editing how the tests run must not
-          # reprovision. v2: trimmed, zstd-compressed disk. The ISO week bounds
-          # how far the guest can lag zfsutils updates published after the image
-          echo "key=zfsvm-v2-stonking-$sum-$(date -u +%G-W%V)-${{ hashFiles('ci/real-zfs-cloud-config.yaml') }}" >>"$GITHUB_OUTPUT"
-          # the qemu tree is unpacked from this runner image's apt view
-          echo "qemu=qemu-tree-$ImageOS-$ImageVersion-${{ hashFiles('ci/qemu-tree.sh') }}" >>"$GITHUB_OUTPUT"
+      - name: resolve the cloud image and cache keys
+        # fetches and gpg-verifies SHA256SUMS once; the script reuses it
+        id: keys
+        uses: ./.github/actions/real-zfs-keys
       - name: restore the provisioned guest
         id: guest
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.image.outputs.key }}
+          key: ${{ steps.keys.outputs.guest }}
       # qemu without apt: the packages apt would add, unpacked once per
       # runner image version and cached (~90 MB); 14s of apt-get becomes ~1s
       - name: restore qemu
@@ -177,7 +173,7 @@ jobs:
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/qemu
-          key: ${{ steps.image.outputs.qemu }}
+          key: ${{ steps.keys.outputs.qemu }}
       - name: set up qemu
         id: qemutree
         run: |
@@ -198,25 +194,38 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
-      - name: save qemu
-        if: steps.qemu.outputs.cache-hit != 'true' && steps.qemutree.outputs.ok == '1'
-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      - name: boot the guest (in the background)
+        # returns once qemu runs; the test step waits for the guest. qemu
+        # outlives this step (the runner reaps orphans only at job end)
+        env:
+          ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+          ZFSVM_PHASE: boot
+          ZFSVM_SUMS: ${{ steps.keys.outputs.sums }}
+        run: ci/real-zfs-vm.sh stonking current 2.4
+      - id: go
+        uses: ./.github/actions/setup-go
         with:
-          path: ${{ runner.temp }}/qemu
-          key: ${{ steps.image.outputs.qemu }}
+          # its own namespace: CGO_ENABLED=0 test builds share nothing with
+          # the test job's -race builds
+          cache-name: real-zfs
       - name: test (Ubuntu 26.10, real zfs 2.4)
         env:
           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+          ZFSVM_PHASE: run
         run: ci/real-zfs-vm.sh stonking current 2.4
-      - name: upload zfsdiff replay report
+      - name: upload zfsdiff replay report and test times
         # every run: TestZFSDiffReplay reports real pool vs simulator vs
         # reference model divergences without failing the job (the job
-        # summary has the verdicts; the full replay is in nightly.yml)
+        # summary has the verdicts; the full replay is in nightly.yml).
+        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zfsdiff-report
-          path: ${{ runner.temp }}/zfsvm/out/zfsdiff.log
+          path: |
+            ${{ runner.temp }}/zfsvm/out/zfsdiff.log
+            ${{ runner.temp }}/zfsvm/out/test-times.tsv
+            ${{ runner.temp }}/zfsvm/out/endpoint.list
           if-no-files-found: warn
           retention-days: 30
       - name: check for a stored guest
@@ -230,9 +239,16 @@ jobs:
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.image.outputs.key }}
-      - name: save Go caches (when the restore missed)
-        if: steps.go.outputs.cache-hit != 'true'
+          key: ${{ steps.keys.outputs.guest }}
+      - name: save qemu
+        # after the tests: a miss (new runner image) does not delay the boot
+        if: always() && steps.qemu.outputs.cache-hit != 'true' && steps.qemutree.outputs.ok == '1'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.qemu }}
+      - name: save Go caches (none for this go.sum was restored)
+        if: steps.go.outputs.save == 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
