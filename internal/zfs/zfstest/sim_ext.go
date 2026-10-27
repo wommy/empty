@@ -20,6 +20,18 @@ func (s *Sim) guid(n *node) string {
 	return strconv.FormatUint(n.guid, 10)
 }
 
+// KeepGUID gives snapshot to the guid of snapshot from, as `zfs send |
+// zfs recv` does (test helper for a receive built step by step).
+func (s *Sim) KeepGUID(from, to string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, t := s.ds[from], s.ds[to]
+	if f == nil || t == nil || f.typ != zfs.TypeSnapshot || t.typ != zfs.TypeSnapshot {
+		panic("KeepGUID: " + from + " -> " + to + ": not two snapshots")
+	}
+	t.guid, _ = strconv.ParseUint(s.guid(f), 10, 64)
+}
+
 // rename is `zfs rename a b` for a filesystem or zvol in the same pool:
 // descendants and snapshots move with it, and guids, properties, holds and
 // the clone/origin graph follow. A shared filesystem is unshared under its

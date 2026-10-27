@@ -223,7 +223,9 @@ func (s *Sim) SendRecv(snap, dst string) error {
 	}
 	s.ds[dst] = n
 	s.txg++
+	// a received snapshot keeps its guid: it is the same snapshot
 	sn := &node{typ: zfs.TypeSnapshot, props: map[string]string{}, birth: s.now(), txg: s.txg}
+	sn.guid, _ = strconv.ParseUint(s.guid(src), 10, 64)
 	if v, ok := n.props["volsize"]; ok {
 		sn.props["volsize"] = v
 	}

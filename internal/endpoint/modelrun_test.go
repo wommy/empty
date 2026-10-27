@@ -609,6 +609,9 @@ func (g *rig) recv(ctx context.Context, vol, tag, to string) error {
 			if err := g.raw(ctx, "snapshot", target); err != nil {
 				return err
 			}
+			if strings.Contains(name, "@") {
+				g.sim.KeepGUID(name, target)
+			}
 		}
 		for j, prop := range cols.Props {
 			c := cols.Cell(i, j)
@@ -825,7 +828,7 @@ func (s *stats) report() string {
 type runner struct {
 	g         *rig
 	m         *Model
-	protected map[string]bool // guids of datasets the endpoint must never change
+	protected map[string]bool // identities (ident) of datasets the endpoint must never change
 	masks     map[string]int
 }
 
@@ -833,18 +836,29 @@ func (r *runner) protect(world map[string]wrow, names ...string) {
 	for _, n := range names {
 		for k, w := range world {
 			if (k == n || strings.HasPrefix(k, n+"@") || strings.HasPrefix(k, n+"/")) && !(w.snap && isInternal(k)) {
-				r.protected[w.guid] = true
+				r.protected[ident(world, k)] = true
 			}
 		}
 	}
 }
 
-// foreignSnapshot is the guid -> (name, projection) of protected rows.
+// ident names a row across renames: its guid, and for a snapshot also its
+// dataset's guid, since `zfs send | zfs recv` keeps a snapshot's guid and a
+// received copy would otherwise collide with its source (run 40496125430).
+func ident(world map[string]wrow, k string) string {
+	id := world[k].guid
+	if ds, _, ok := strings.Cut(k, "@"); ok {
+		id += "@" + world[ds].guid
+	}
+	return id
+}
+
+// foreignSnapshot is the ident -> (name, projection) of protected rows.
 func (r *runner) foreignSnapshot(world map[string]wrow) map[string]string {
 	out := map[string]string{}
 	for k, w := range world {
-		if r.protected[w.guid] && !w.deferred && !w.owned {
-			out[w.guid] = k + " " + w.proj
+		if id := ident(world, k); r.protected[id] && !w.deferred && !w.owned {
+			out[id] = k + " " + w.proj
 		}
 	}
 	return out
@@ -1064,8 +1078,8 @@ func (r *runner) step(ctx context.Context, i int, st Step) *failure {
 // checkForeign: nothing the endpoint does not own ever changes.
 func (r *runner) checkForeign(i int, st Step, before map[string]string, world map[string]wrow) *failure {
 	after := r.foreignSnapshot(world)
-	for guid, was := range before {
-		if now, ok := after[guid]; !ok || now != was {
+	for id, was := range before {
+		if now, ok := after[id]; !ok || now != was {
 			if !ok {
 				now = "(gone)"
 			}
@@ -1294,4 +1308,18 @@ func FuzzModel(f *testing.F) {
 			t.Fatal(fl)
 		}
 	})
+}
+
+// A received snapshot keeps its source's guid, on a real pool and now on the
+// simulator: the foreign-object check must not take the copy for its source
+// (run 40496125430, seed 2, shrunk).
+func TestModelReceivedSnapshotSharesGUID(t *testing.T) {
+	t.Parallel()
+	trace := []Step{
+		{Op: "CreateVolume", Req: endpoint.CreateVolumeRequest{Name: "v2", Kind: endpoint.Filesystem, CapacityBytes: 2 << 20}},
+		{Op: "adm.recv", ID: "v2", Name: "v1"},
+	}
+	if f := runTrace(t, newSimRig(t), trace); f != nil {
+		t.Fatal(f)
+	}
 }
