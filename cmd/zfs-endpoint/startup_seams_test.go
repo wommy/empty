@@ -172,6 +172,59 @@ func TestStopDuringStartupIsClean(t *testing.T) {
 	})
 }
 
+// S10: the default prefix moved from democratic-csi to zfs-endpoint
+// (7f5cb39). A parent whose volumes all carry democratic-csi's marker
+// would serve as empty (List empty, Delete FAILED_PRECONDITION): refuse,
+// naming the flag that adopts them.
+func TestLegacyPrefixRefusal(t *testing.T) {
+	t.Parallel()
+	const (
+		legacy = "democratic-csi:managed_resource"
+		ours   = "zfs-endpoint:managed_resource"
+	)
+	for _, tc := range []struct {
+		name   string
+		props  []map[string]string // one child of tank/k8s each
+		parent map[string]string   // set on tank/k8s, inherited below
+		args   []string
+		code   int // 0: passes the check (then fails at the non-socket, 1)
+	}{
+		{"legacy only", []map[string]string{{legacy: "true"}, {legacy: "true"}}, nil, nil, exitConfig},
+		{"no volumes", nil, nil, nil, 0},
+		{"ours only", []map[string]string{{ours: "true"}}, nil, nil, 0},
+		{"both", []map[string]string{{legacy: "true"}, {ours: "true"}}, nil, nil, 0},
+		{"legacy false", []map[string]string{{legacy: "false"}}, nil, nil, 0},
+		// inherited is not owned (ADR 0003)
+		{"legacy inherited", []map[string]string{nil}, map[string]string{legacy: "true"}, nil, 0},
+		{"adopted", []map[string]string{{legacy: "true"}}, nil, []string{"-property-prefix", "democratic-csi"}, 0},
+		// an explicit prefix is the operator's choice, legacy volumes or not
+		{"explicit default", []map[string]string{{legacy: "true"}}, nil, []string{"-property-prefix", "zfs-endpoint"}, 0},
+	} {
+		d, sim := simDeps(t)
+		z := zfs.New(sim)
+		if tc.parent != nil {
+			if err := z.Set(context.Background(), "tank/k8s", tc.parent); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i, p := range tc.props {
+			if err := z.CreateFilesystem(context.Background(), "tank/k8s/v"+string(rune('a'+i)), p, false); err != nil {
+				t.Fatal(err)
+			}
+		}
+		args := append([]string{"-parent", "tank/k8s", "-listen", notASocket(t)}, tc.args...)
+		err := run(context.Background(), args, d)
+		switch {
+		case tc.code == exitConfig:
+			if exitCode(err) != exitConfig || !strings.Contains(err.Error(), "-property-prefix democratic-csi") {
+				t.Errorf("%s: exit %d %v; want 78 naming -property-prefix democratic-csi", tc.name, exitCode(err), err)
+			}
+		case err == nil || !strings.Contains(err.Error(), "not a socket"):
+			t.Errorf("%s: exit %d %v; want the check passed", tc.name, exitCode(err), err)
+		}
+	}
+}
+
 // gate blocks the first `zfs create` until released, holding that
 // volume's lock.
 type gate struct {

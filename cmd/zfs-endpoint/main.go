@@ -162,6 +162,15 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err != nil {
 		return configErr("%v", err)
 	}
+	// an explicit -property-prefix is the operator's choice; the default
+	// is checked for an upgrade across its change
+	explicitPrefix := false
+	fs.Visit(func(f *flag.Flag) { explicitPrefix = explicitPrefix || f.Name == "property-prefix" })
+	if !explicitPrefix {
+		if err := checkLegacyPrefix(ctx, z, *parent, *prefix); err != nil {
+			return startupErr(ctx, err)
+		}
+	}
 	if !root {
 		slog.Warn("not running as root: NFS file export disabled")
 	}

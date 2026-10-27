@@ -62,7 +62,8 @@ KillMode=mixed
 KillSignal=SIGTERM
 TimeoutStopSec=45
 # > the version probe (10s) + -parent-wait (60s) + one parent probe (10s)
-TimeoutStartSec=90
+# + the property-prefix check (10s)
+TimeoutStartSec=100
 
 # restart with backoff (RestartSteps/RestartMaxDelaySec: systemd >= 254)
 Restart=on-failure
