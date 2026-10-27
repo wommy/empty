@@ -72,6 +72,84 @@ func (h *a4) must(err error) {
 	}
 }
 
+// F1: a CreateVolume retry that commits an old uncommitted row while
+// Reconcile waits for its lock. Reconcile re-planned under the lock, saw a
+// committed volume absent from the (stale) desired set, and destroyed it
+// right after CreateVolume returned success to the provisioner.
+func TestAdv4CommitRaceDestroysJustProvisionedVolume(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.vol("pvc-x", false) // first CreateVolume failed hours ago (e.g. ENOSPC)
+
+	// CreateVolume("pvc-x") retry: lock, scan, plan, apply
+	release, err := h.ep.lock(ctx, "vol:pvc-x")
+	h.must(err)
+	type res struct {
+		p   ReconcilePlan
+		err error
+	}
+	done := make(chan res, 1)
+	go func() {
+		p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+		done <- res{p, err}
+	}()
+	time.Sleep(50 * time.Millisecond) // reconcile has scanned and reached the lock
+	tbl, err := h.ep.scanFor(ctx, "pvc-x")
+	h.must(err)
+	plan, err := h.ep.plan.PlanCreateVolume(tbl, CreateVolumeRequest{Name: "pvc-x"})
+	h.must(err)
+	h.must(h.ep.apply(ctx, plan))
+	_, err = h.ep.readVolume(ctx, "pvc-x")
+	h.must(err) // CreateVolume returns OK to the provisioner here
+	release()
+
+	r := <-done
+	if r.err != nil && CodeOf(r.err) != Aborted {
+		t.Fatal(r.err)
+	}
+	if !h.has(a4Parent + "/pvc-x") {
+		t.Fatalf("committed volume pvc-x destroyed right after a successful CreateVolume: %+v", r.p)
+	}
+}
+
+// F1b: a tiny MinAge (the API had no lower bound) let an in-flight
+// first-time CreateVolume be collected. Below the floor is refused.
+func TestAdv4TinyMinAgeInFlightCreate(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.sim.Clock = func() int64 { return a4Now - 5 } // made 5s ago, in flight
+	h.vol("keep", true)
+	h.vol("pvc-y", false)
+	_, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}, MinAge: time.Second})
+	if CodeOf(err) != InvalidArgument || !h.has(a4Parent+"/pvc-y") {
+		t.Fatalf("MinAge=1s: %v", err)
+	}
+	if _, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}, MinAge: MinReconcileMinAge}); err != nil {
+		t.Fatal(err)
+	}
+	if !h.has(a4Parent + "/pvc-y") {
+		t.Fatal("in-flight volume destroyed")
+	}
+}
+
+// F1, no lock race: the commit lands between the caller's list and the
+// scan. The volume is aged from its commit, not its first attempt.
+func TestReconcileAgesFromCommit(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.vol("pvc-z", false) // created at a4Old, hours before a4Now
+	if _, err := h.ep.CreateVolume(ctx, CreateVolumeRequest{Name: "pvc-z"}); err != nil {
+		t.Fatal(err) // the retry commits at a4Now
+	}
+	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	h.must(err)
+	if !h.has(a4Parent+"/pvc-z") || len(p.Skipped) != 1 || p.Skipped[0].Reason != SkipTooYoung {
+		t.Fatalf("just-committed volume: %+v", p)
+	}
+}
+
 // F6: clone-source snapshots were recognised by name alone. A snapshot an
 // admin or another tool cut with that name on a desired volume was
 // collected.

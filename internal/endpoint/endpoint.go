@@ -50,7 +50,7 @@ type props struct{ p string }
 
 func (n props) all() []string {
 	return []string{n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor()}
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt()}
 }
 
 // validPrefix reports why prefix cannot name OpenZFS user properties:
@@ -89,6 +89,12 @@ func (n props) snapshotSource() string { return n.p + ":csi_snapshot_source_volu
 // managed_resource it is what makes such a snapshot the endpoint's; the
 // reserved name alone is not ownership (anyone can `zfs snapshot` it).
 func (n props) cloneSourceFor() string { return n.p + ":clone_source_for" }
+
+// committedAt is the endpoint's own property: the Unix time (endpoint
+// clock) CreateVolume committed the volume, set with provision_success.
+// Reconcile ages a committed volume from it, not from its zfs creation: a
+// provision retried long after its first attempt is new to the caller.
+func (n props) committedAt() string { return n.p + ":committed_at" }
 
 // nfsClients is the endpoint's own property (not the baseline's): the
 // desired NFS client list that sharenfs is computed from.
@@ -400,7 +406,9 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	if err != nil {
 		return Volume{}, err
 	}
-	plan, err := e.plan.PlanCreateVolume(t, r)
+	p := e.plan
+	p.now = e.cfg.Now().Unix()
+	plan, err := p.PlanCreateVolume(t, r)
 	if err != nil {
 		return Volume{}, err
 	}

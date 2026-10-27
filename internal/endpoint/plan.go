@@ -62,6 +62,10 @@ type Planner struct {
 	VolBlockSize uint64
 	// DestroyForeignSnapshots: Config.DestroyForeignSnapshots.
 	DestroyForeignSnapshots bool
+
+	// now, when set, is stamped as committed_at by a create's commit: the
+	// caller's clock reading, so planning stays pure.
+	now int64
 }
 
 func (p Planner) full(id string) string { return p.Parent + "/" + id }
@@ -161,6 +165,9 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		return nil, err
 	}
 	commit := Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{p.Names.success(): "true"}}
+	if p.now > 0 {
+		commit.Props[p.Names.committedAt()] = strconv.FormatInt(p.now, 10)
+	}
 	// size is what a provision drives the volume to. A clone starts at its
 	// source's size and is never shrunk, and a filesystem clone without a
 	// capacity takes its source's quota. It is derived here, before the

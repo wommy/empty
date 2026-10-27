@@ -201,7 +201,7 @@ func (g *parked) Run(ctx context.Context, name string, args ...string) ([]byte, 
 // one makes it Aborted, with nothing applied. A dry run takes no locks.
 func TestReconcileLocksTargets(t *testing.T) {
 	ctx := context.Background()
-	_, h := setup(t)
+	ep0, h := setup(t)
 	g := &parked{Runner: h.Sim(t), entered: make(chan struct{}), release: make(chan struct{})}
 	ep, err := endpoint.New(zfs.New(g), endpoint.Config{Parent: h.Parent, LockWait: 200 * time.Millisecond,
 		Now: func() time.Time { return time.Now().Add(48 * time.Hour) }})
@@ -209,7 +209,7 @@ func TestReconcileLocksTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"keep", "busy"} {
-		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+		if _, err := ep0.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
 			t.Fatal(err)
 		}
 	}

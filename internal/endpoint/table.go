@@ -45,6 +45,7 @@ type Row struct {
 	SnapshotName   string
 	SnapshotSource string
 	CloneSourceFor string // internal clone-source snapshots: the clone's id
+	CommittedAt    int64  // committed_at, 0 if unset or unreadable
 }
 
 // Capacity is the volume's size: volsize for zvols (and their snapshots),
@@ -228,7 +229,7 @@ func (n props) columns() []string {
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
 		"defer_destroy", "mountpoint", "sharenfs", "mounted",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(),
 	}, propNames[:]...)
 }
 
@@ -245,7 +246,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 		cLocal[k] = j(name)
 	}
 	cShare, cMounted, cClients := j("sharenfs"), j("mounted"), j(n.nfsClients())
-	cCloneFor := j(n.cloneSourceFor())
+	cCloneFor, cCommittedAt := j(n.cloneSourceFor()), j(n.committedAt())
 
 	rows := make([]Row, 0, len(c.Names))
 	for i, name := range c.Names {
@@ -291,6 +292,9 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 		}
 		if v, err := strconv.ParseInt(cell(cCreation).Value, 10, 64); err == nil {
 			r.Creation = v
+		}
+		if v, err := strconv.ParseInt(own(cCommittedAt), 10, 64); err == nil && v > 0 {
+			r.CommittedAt = v
 		}
 		rows = append(rows, r)
 	}
