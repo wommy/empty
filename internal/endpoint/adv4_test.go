@@ -176,7 +176,7 @@ func TestAdv4OneFailureStarvesAndHidesDestroys(t *testing.T) {
 	h.must(h.z.Snapshot(ctx, a4Parent+"/b@backup", nil))
 	h.must(h.z.Clone(ctx, a4Parent+"/b@backup", "tank/other/restore", nil))
 
-	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	h.must(err)
 	if h.has(a4Parent+"/a") || h.has(a4Parent+"/c") || !h.has(a4Parent+"/b") || !h.has("tank/other/restore") {
 		t.Fatalf("plan %+v", p)
@@ -201,7 +201,7 @@ func TestAdv4BusyDestroyAbortsRun(t *testing.T) {
 		}
 		return nil
 	}
-	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	h.must(err)
 	if h.has(a4Parent+"/a") || h.has(a4Parent+"/c") || !h.has(a4Parent+"/b") {
 		t.Fatalf("plan %+v", p)
@@ -230,7 +230,7 @@ func TestReconcileSkipsSourceOfFailedClone(t *testing.T) {
 		}
 		return nil
 	}
-	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	h.must(err)
 	if !h.has(a4Parent+"/src") || !h.has(a4Parent+"/cl") {
 		t.Fatalf("plan %+v", p)
@@ -244,7 +244,7 @@ func TestReconcileSkipsSourceOfFailedClone(t *testing.T) {
 	}
 	// the released origin stays, deferred: zfs reaps it with the clone
 	h.sim.Fail = nil
-	if _, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}); err != nil {
+	if _, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})); err != nil {
 		t.Fatal(err)
 	}
 	if h.has(a4Parent+"/src") || h.has(a4Parent+"/cl") || h.has(a4Parent+"/src@"+cloneSourceSnapshotPrefix+"cl") {
@@ -264,7 +264,7 @@ func TestAdv4OneBusyLockAbortsWholeRun(t *testing.T) {
 	h.must(err)
 	defer release()
 	start := time.Now()
-	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	if err != nil || h.has(a4Parent+"/a") || !h.has(a4Parent+"/z") {
 		t.Fatalf("a not collected because z is busy: %+v %v", p, err)
 	}
@@ -372,7 +372,7 @@ func TestAdv4ReleasedOriginOutsideParent(t *testing.T) {
 	h.must(h.z.Snapshot(ctx, other, map[string]string{h.n.managed(): "true", h.n.cloneSourceFor(): "someone-else"}))
 	h.must(h.z.Clone(ctx, other, a4Parent+"/c2", map[string]string{
 		h.n.managed(): "true", h.n.volumeName(): "c2", h.n.success(): "true"}))
-	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep", "src"}})
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep", "src"}}))
 	h.must(err)
 	for _, a := range p.Actions {
 		for _, v := range a.Volumes {

@@ -170,7 +170,7 @@ func TestReachOutsideCloneWedgesReconcile(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range 2 {
-		plan, err := later.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+		plan, err := later.Reconcile(ctx, digested(ctx, t, later, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 		if err != nil || sim.Has(rParent+"/b") || !sim.Has(rParent+"/a") || !sim.Has("tank/backup/a-copy") {
 			t.Fatalf("run %d: err=%v plan=%+v", i, err, plan)
 		}

@@ -1526,9 +1526,12 @@ type ReconcileRequest struct {
 	MaxDeletions uint32 `protobuf:"varint,4,opt,name=max_deletions,json=maxDeletions,proto3" json:"max_deletions,omitempty"`
 	// Lift max_deletions. Setting both is INVALID_ARGUMENT.
 	UnlimitedDeletions bool `protobuf:"varint,5,opt,name=unlimited_deletions,json=unlimitedDeletions,proto3" json:"unlimited_deletions,omitempty"`
-	// Optional: the plan_digest of a dry run. When set, the run applies
-	// only if it plans exactly what that dry run did, else ABORTED (dry-run
-	// again); what runs is always a subset of it.
+	// The plan_digest of a dry run. When set, the run applies only if it
+	// plans exactly what that dry run did, else ABORTED (dry-run again);
+	// what runs is always a subset of it. Required when the run would
+	// collect any volume as not in the desired set: without it such a run
+	// applies nothing and fails with FAILED_PRECONDITION (ADR 0001 D3).
+	// Uncommitted rows and orphan clone sources alone need none.
 	PlanDigest    string `protobuf:"bytes,6,opt,name=plan_digest,json=planDigest,proto3" json:"plan_digest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

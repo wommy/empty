@@ -534,9 +534,13 @@ type ReconcileRequest struct {
 	// do not count: they never depend on the desired set.
 	MaxDeletions       int
 	UnlimitedDeletions bool
-	// PlanDigest, when set, is a dry run's Digest: the run applies only if
-	// its unlocked plan is exactly that one, else Aborted. The locked
-	// re-plan is always a subset of the unlocked plan.
+	// PlanDigest is a dry run's Digest: the run applies only if its
+	// unlocked plan is exactly that one, else Aborted. The locked re-plan
+	// is always a subset of the unlocked plan. A run that would collect
+	// any volume as undesired needs it (FailedPrecondition without one):
+	// a blind run is the one call that destroys volumes the caller merely
+	// left out (ADR 0001 v2 D3). It guards against the plan changing
+	// between the dry run and the apply; it is not an approval.
 	PlanDigest string
 }
 
@@ -622,6 +626,12 @@ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (Reconcile
 	plan.Digest = plan.digest()
 	if r.DryRun || len(plan.Actions) == 0 {
 		return plan, nil
+	}
+	if r.PlanDigest == "" && plan.undesired() > 0 {
+		// nothing is applied, as for max deletions: the uncommitted rows
+		// and orphan clone sources wait for the same, digested, run
+		return plan, errorf(FailedPrecondition, "would collect %d volumes not in the desired set without a plan digest: "+
+			"dry-run first and pass its plan_digest (digest %s)", plan.undesired(), plan.Digest)
 	}
 	if r.PlanDigest != "" && r.PlanDigest != plan.Digest {
 		return plan, errorf(Aborted, "the plan changed since the dry run (digest %s, now %s): dry-run again", r.PlanDigest, plan.Digest)

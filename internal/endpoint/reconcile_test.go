@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -15,6 +16,20 @@ const (
 	oldT   = 1_000_000
 	recNow = oldT + 10*3600 // ten hours after oldT
 )
+
+// digested is r with the plan_digest of a dry run of it: a run that
+// collects an undesired volume needs one (ADR 0001 v2 D3).
+func digested(ctx context.Context, t testing.TB, ep *Endpoint, r ReconcileRequest) ReconcileRequest {
+	t.Helper()
+	dry := r
+	dry.DryRun = true
+	p, err := ep.Reconcile(ctx, dry)
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	r.PlanDigest = p.Digest
+	return r
+}
 
 func desired(ids ...string) Desired {
 	return Desired{VolumeIDs: ids, MinAge: time.Hour, Now: time.Unix(recNow, 0)}

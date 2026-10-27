@@ -35,7 +35,7 @@ func TestAdv4ChildDatasetsDestroyed(t *testing.T) {
 	h.vol("old", true)
 	h.must(h.z.CreateFilesystem(ctx, a4Parent+"/old/someone-elses", nil, false))
 	h.must(h.z.Snapshot(ctx, a4Parent+"/old/someone-elses@s", nil))
-	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	h.must(err)
 	if !h.has(a4Parent+"/old/someone-elses@s") || !h.has(a4Parent+"/old") {
 		t.Fatalf("unowned child dataset destroyed: %+v", p)
@@ -72,7 +72,7 @@ func TestReconcileReportsHeldSnapshots(t *testing.T) {
 		h.must(err)
 	}
 	zfsRun("hold", "backup", src)
-	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	h.must(err)
 	acts, skips := summary(p)
 	want := "old:volume old has held snapshot old@volume-source-for-volume-gone (1 user hold): zfs release it first"
@@ -92,7 +92,7 @@ func TestReconcileReportsHeldSnapshots(t *testing.T) {
 	if h.has(src) {
 		t.Fatal("release of a deferred snapshot's last hold did not destroy it")
 	}
-	p, err = h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	p, err = h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	h.must(err)
 	if acts, skips := summary(p); len(acts) != 1 || acts[0] != "old:"+ReasonUndesired || len(skips) != 0 || h.has(a4Parent+"/old") {
 		t.Fatalf("after release: actions %q skipped %q", acts, skips)

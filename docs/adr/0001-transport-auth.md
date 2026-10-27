@@ -26,7 +26,7 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 |---|---|---|
 | D1 | The tenancy unit is the parent dataset | yes (it is what the daemon already was) |
 | D2 | Per-listener roles, not a policy file | yes |
-| D3 | Reconcile requires `plan_digest` to collect | **no**: decided, not built |
+| D3 | Reconcile requires `plan_digest` to collect | yes |
 | D4 | Two-person Reconcile: deferred | n/a |
 | D5 | TCP stays refused; mTLS is future work | yes (refused) |
 | D6 | `SO_PEERCRED`: logged now, authorized later | logged; admin role checks uid |
@@ -84,10 +84,11 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
   - an admin socket whose directory is the csi socket's directory or under it.
 - **Path budget:** sun_path leaves 70 bytes of escaped parent name for the csi socket and 69 for the admin socket.
 
-### D3. Reconcile requires a digest to collect (not built)
+### D3. Reconcile requires a digest to collect
 
 - A run that collects any undesired volume must carry a `plan_digest` from a dry run. Without one it returns FAILED_PRECONDITION.
 - The digest guards against the plan changing between the dry run and the apply. It is not an approval (F4).
+- As built: "undesired" is the unlocked plan's `not in the desired set` actions. A run without a digest that would collect one applies nothing, not even the uncommitted rows and orphan clone sources in the same plan; a run whose plan holds only those needs no digest. The check sits before `max_deletions`. `TestReconcileNeedsADigestToCollectUndesired` proves it.
 
 ### D4. Two-person Reconcile: deferred
 

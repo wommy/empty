@@ -237,9 +237,12 @@ message ReconcileRequest {
   uint32 max_deletions = 4;
   // Lift max_deletions. Setting both is INVALID_ARGUMENT.
   bool unlimited_deletions = 5;
-  // Optional: the plan_digest of a dry run. When set, the run applies
-  // only if it plans exactly what that dry run did, else ABORTED (dry-run
-  // again); what runs is always a subset of it.
+  // The plan_digest of a dry run. When set, the run applies only if it
+  // plans exactly what that dry run did, else ABORTED (dry-run again);
+  // what runs is always a subset of it. Required when the run would
+  // collect any volume as not in the desired set: without it such a run
+  // applies nothing and fails with FAILED_PRECONDITION (ADR 0001 D3).
+  // Uncommitted rows and orphan clone sources alone need none.
   string plan_digest = 6;
 }
 
