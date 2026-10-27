@@ -1,0 +1,6 @@
+=== RUN   TestReconcileNeedsADigestToCollectUndesired
+=== PAUSE TestReconcileNeedsADigestToCollectUndesired
+=== CONT  TestReconcileNeedsADigestToCollectUndesired
+--- PASS: TestReconcileNeedsADigestToCollectUndesired (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.007s

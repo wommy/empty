@@ -9,3 +9,12 @@ after BenchmarkScan/10000-4         	      10	 191161176 ns/op	 134.76 MB/s	1851
 base BenchmarkScan/10000-4         	      10	 158193143 ns/op	  94.39 MB/s	102065732 B/op	  355272 allocs/op
 after BenchmarkScan/10000-4         	      10	 195169844 ns/op	 132.00 MB/s	18518455 B/op	     105 allocs/op
 base BenchmarkScan/10000-4         	      10	 166999532 ns/op	  89.41 MB/s	102065699 B/op	  355272 allocs/op
+after BenchmarkScan/10000-4         	      10	 199208548 ns/op	 129.32 MB/s	18518555 B/op	     105 allocs/op
+base BenchmarkScan/10000-4         	      10	 150348502 ns/op	  99.31 MB/s	102065699 B/op	  355272 allocs/op
+after BenchmarkScan/10000-4         	      10	 185850060 ns/op	 138.61 MB/s	18518422 B/op	     105 allocs/op
+base BenchmarkScan/10000-4         	      10	 147415567 ns/op	 101.29 MB/s	102065688 B/op	  355272 allocs/op
+after BenchmarkScan/10000-4         	      10	 179136258 ns/op	 143.81 MB/s	18518412 B/op	     105 allocs/op
+base BenchmarkScan/10000-4         	      10	 165822522 ns/op	  90.04 MB/s	102065721 B/op	  355272 allocs/op
+after BenchmarkScan/10000-4         	      10	 197373860 ns/op	 130.52 MB/s	18518493 B/op	     105 allocs/op
+base BenchmarkScan/10000-4         	      10	 151085015 ns/op	  98.83 MB/s	102065721 B/op	  355272 allocs/op
+after BenchmarkScan/10000-4         	      10	 188909075 ns/op	 136.37 MB/s	18518484 B/op	     105 allocs/op

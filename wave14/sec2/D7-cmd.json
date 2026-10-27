@@ -1,0 +1,4 @@
+{"name": "D7-cmd", "pkg": "./cmd/zfs-endpoint", "run": "TestSocketGroup",
+ "edits": [{"file": "cmd/zfs-endpoint/main.go",
+            "old": "\tif group == \"\" {\n\t\treturn noGroup, nil\n\t}",
+            "new": "\tif true {\n\t\treturn noGroup, nil\n\t}"}]}

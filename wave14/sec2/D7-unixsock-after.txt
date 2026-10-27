@@ -1,0 +1,6 @@
+=== RUN   TestShareWithGroupOpensOnlyTheSocketAndItsDirectory
+=== PAUSE TestShareWithGroupOpensOnlyTheSocketAndItsDirectory
+=== CONT  TestShareWithGroupOpensOnlyTheSocketAndItsDirectory
+--- PASS: TestShareWithGroupOpensOnlyTheSocketAndItsDirectory (0.01s)
+PASS
+ok  	github.com/wommy/empty/internal/unixsock	1.036s

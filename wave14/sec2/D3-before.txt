@@ -1,0 +1,8 @@
+=== RUN   TestReconcileNeedsADigestToCollectUndesired
+=== PAUSE TestReconcileNeedsADigestToCollectUndesired
+=== CONT  TestReconcileNeedsADigestToCollectUndesired
+    reconcile_contract_test.go:299: code = 0 (<nil>), want 9
+--- FAIL: TestReconcileNeedsADigestToCollectUndesired (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.011s
+FAIL

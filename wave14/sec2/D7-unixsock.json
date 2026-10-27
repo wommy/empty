@@ -1,0 +1,4 @@
+{"name": "D7-unixsock", "pkg": "./internal/unixsock", "run": "TestShareWithGroup",
+ "edits": [{"file": "internal/unixsock/unixsock.go",
+            "old": "\tif gid < 0 {\n\t\treturn fmt.Errorf(\"socket group %d: want a gid of 0 or more\", gid)\n\t}",
+            "new": "\tif true {\n\t\treturn nil\n\t}"}]}

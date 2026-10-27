@@ -1,0 +1,11 @@
+# fix disabled: ["internal/unixsock/unixsock.go"]
+=== RUN   TestShareWithGroupOpensOnlyTheSocketAndItsDirectory
+=== PAUSE TestShareWithGroupOpensOnlyTheSocketAndItsDirectory
+=== CONT  TestShareWithGroupOpensOnlyTheSocketAndItsDirectory
+    unixsock_test.go:276: /tmp/TestShareWithGroupOpensOnlyTheSocketAndItsDirectory1715794182/001/sock/endpoint.sock: Srw------- gid 0, want -rw-rw---- gid 65534
+    unixsock_test.go:277: /tmp/TestShareWithGroupOpensOnlyTheSocketAndItsDirectory1715794182/001/sock: drwx------ gid 0, want -rwx--x--- gid 65534
+    unixsock_test.go:294: shared directory: <nil>
+--- FAIL: TestShareWithGroupOpensOnlyTheSocketAndItsDirectory (0.01s)
+FAIL
+FAIL	github.com/wommy/empty/internal/unixsock	0.033s
+FAIL
