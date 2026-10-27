@@ -92,3 +92,7 @@
 {"ts": "2026-10-27T07:29:34Z", "id": "a0f85a155c91152de", "from": "reported", "to": "triaged", "note": "12 commits on b5c4ec4; trial merge: 1 conflict (ci/real-zfs-vm.sh). HELD: merge after busy diagnosis (branch raises VM concurrency: endpoint 8-wide + 3 binaries at once). -race CPU -23%, sleeps 6.7s->0.1s, mutation kills held, Server.Stop hang fixed."}
 {"ts": "2026-10-27T07:29:34Z", "id": "a4b19369ba5ad6297", "from": "queued", "to": "running", "note": "b-zfsdiff"}
 {"ts": "2026-10-27T07:29:34Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:31:50Z", "id": "a7917f0701b7632ef", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T07:31:50Z", "id": "a7917f0701b7632ef", "from": "reported", "to": "triaged", "note": "Root cause zvol device held by udev add-event handling (EBUSY long hold), pre-existing, not 0a0bea3 or the replay. Patch applied 768713e after gate. Residual: udisks2 if it recurs; capture udevadm monitor/fuser."}
+{"ts": "2026-10-27T07:31:50Z", "id": "a7917f0701b7632ef", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T07:31:50Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
