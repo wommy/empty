@@ -60,6 +60,7 @@ func NewDaemon(s *Server, log *slog.Logger) *Daemon {
 	}
 	d := &Daemon{Health: health.NewServer(), log: log}
 	d.GRPC = grpc.NewServer(
+		grpc.Creds(peerCreds{}),
 		grpc.MaxConcurrentStreams(MaxConcurrentStreams),
 		grpc.MaxRecvMsgSize(MaxMsgSize),
 		grpc.MaxSendMsgSize(MaxMsgSize),
@@ -176,8 +177,13 @@ func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo,
 	resp, err := d.call(ctx, req, info, handler)
 	if !strings.HasPrefix(info.FullMethod, "/grpc.health.") {
 		attrs := []any{"method", info.FullMethod, "code", status.Code(err).String(), "duration", time.Since(start)}
-		if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
-			attrs = append(attrs, "peer", p.Addr.String())
+		if p, ok := peer.FromContext(ctx); ok {
+			if p.Addr != nil {
+				attrs = append(attrs, "peer", p.Addr.String())
+			}
+			if pi, ok := p.AuthInfo.(PeerInfo); ok && pi.HasCred {
+				attrs = append(attrs, "peer_uid", pi.UID, "peer_gid", pi.GID, "peer_pid", pi.PID)
+			}
 		}
 		if err != nil {
 			attrs = append(attrs, "error", status.Convert(err).Message())
