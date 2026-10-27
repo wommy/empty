@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"os"
@@ -177,6 +178,12 @@ func renderGolden(r goldenRow) string {
 	return plan.String()
 }
 
+// goldenPlans is embedded: the real-ZFS leg runs a prebuilt test binary
+// with no source tree beside it.
+//
+//go:embed testdata/plans.golden
+var goldenPlans string
+
 func TestGoldenPlans(t *testing.T) {
 	var b strings.Builder
 	seen := map[string]bool{}
@@ -203,12 +210,8 @@ func TestGoldenPlans(t *testing.T) {
 		}
 		return
 	}
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("%v (run with -update to create it)", err)
-	}
-	if got := b.String(); got != string(want) {
-		t.Errorf("plans differ from %s (review, then -update):\n%s", path, lineDiff(string(want), got))
+	if got := b.String(); got != goldenPlans {
+		t.Errorf("plans differ from %s (review, then -update):\n%s", path, lineDiff(goldenPlans, got))
 	}
 }
 

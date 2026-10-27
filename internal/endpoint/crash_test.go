@@ -203,7 +203,8 @@ func fingerprint(t *testing.T, h *harness) string {
 			}
 			s := k + "=" + strings.TrimPrefix(v.Value, h.Parent+"/")
 			if strings.HasPrefix(k, p) && !v.Local() {
-				s += "(" + v.Source + ")"
+				// a source names the parent, which differs per run
+				s += "(" + strings.ReplaceAll(v.Source, h.Parent+"/", "") + ")"
 			}
 			kv = append(kv, s)
 		}
