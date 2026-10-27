@@ -103,17 +103,28 @@ var (
 )
 
 var propRules = map[string]propRule{
-	"compression":    {fs: true, zvol: true, canon: index(compression)},
-	"recordsize":     {fs: true, canon: blockSize(512, 16<<20)},
-	"atime":          {fs: true, canon: index(onOff)},
-	"relatime":       {fs: true, canon: index(onOff)},
-	"sync":           {fs: true, zvol: true, canon: index(same("standard", "always", "disabled"))},
-	"logbias":        {fs: true, zvol: true, canon: index(same("latency", "throughput"))},
-	"dedup":          {fs: true, zvol: true, canon: index(same("off", "on", "verify"))},
-	"xattr":          {fs: true, canon: index(map[string]string{"off": "off", "sa": "sa", "on": "sa", "dir": "dir"})},
-	"acltype":        {fs: true, canon: index(map[string]string{"off": "off", "posix": "posix", "nfsv4": "nfsv4", "disabled": "off", "noacl": "off", "posixacl": "posix"})},
-	"snapdir":        {fs: true, canon: index(same("hidden", "visible", "disabled"))},
-	"copies":         {fs: true, zvol: true, canon: index(same("1", "2", "3"))},
+	"compression": {fs: true, zvol: true, canon: index(compression)},
+	"recordsize":  {fs: true, canon: blockSize(512, 16<<20)},
+	"atime":       {fs: true, canon: index(onOff)},
+	"relatime":    {fs: true, canon: index(onOff)},
+	"sync":        {fs: true, zvol: true, canon: index(same("standard", "always", "disabled"))},
+	"logbias":     {fs: true, zvol: true, canon: index(same("latency", "throughput"))},
+	"dedup":       {fs: true, zvol: true, canon: index(same("off", "on", "verify"))},
+	// xattr: only sa and off. "on" is ZFS_XATTR_DIR in 2.2's xattr_table
+	// but ZFS_XATTR_SA from 2.4, and 2.2 prints dir as "on" (the first name
+	// for the index), so on and dir neither mean nor read back the same
+	// across the userlands this endpoint runs on (zfs_prop.c, 2.2.9 and
+	// 2.4.0). Accepting them would need a userland version probe.
+	"xattr":   {fs: true, canon: index(same("sa", "off"))},
+	"acltype": {fs: true, canon: index(map[string]string{"off": "off", "posix": "posix", "nfsv4": "nfsv4", "disabled": "off", "noacl": "off", "posixacl": "posix"})},
+	// snapdir=disabled exists only from 2.4 (2.2's snapdir_table has hidden
+	// and visible); without a version probe it is refused everywhere
+	"snapdir": {fs: true, canon: index(same("hidden", "visible"))},
+	// copies only on zvols: on a filesystem the extra copies count against
+	// refquota (zfsprops.7, copies), so copies=2 would silently halve the
+	// capacity; a zvol's refreservation=auto already scales by copies
+	// (zvol_volsize_to_reservation)
+	"copies":         {zvol: true, canon: index(same("1", "2", "3"))},
 	volblocksizeProp: {zvol: true, canon: blockSize(512, 128<<10)},
 }
 
