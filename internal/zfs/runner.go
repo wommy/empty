@@ -41,6 +41,10 @@ func (LocalRunner) Run(ctx context.Context, name string, args ...string) ([]byte
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
+	if err != nil && !errors.As(err, new(*exec.ExitError)) {
+		// never ran: binary missing, context cancelled before start, ...
+		return nil, fmt.Errorf("run %s: %w", name, err)
+	}
 	if err != nil {
 		var ee *exec.ExitError
 		code := -1

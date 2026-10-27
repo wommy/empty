@@ -168,3 +168,22 @@ func TestPlanSnapshotLongAndUnusualNames(t *testing.T) {
 		t.Fatalf("129 bytes: %v", err)
 	}
 }
+
+// review (file-export adversary): a shared parent must not export new
+// filesystems; zvols have no share properties
+func TestPlanCreateFilesystemsAreNotShared(t *testing.T) {
+	for _, r := range []CreateVolumeRequest{
+		{Name: "fs", CapacityBytes: 1},
+		{Name: "restored", SourceSnapshotID: "src@s"},
+	} {
+		tab := NewTable([]Row{vol("src", nil), snap("src@s", nil)})
+		plan, err := pl.PlanCreateVolume(tab, r)
+		if err != nil || plan[0].Props["sharenfs"] != "off" || plan[0].Props["sharesmb"] != "off" {
+			t.Fatalf("%+v: %+v %v", r, plan, err)
+		}
+	}
+	plan, err := pl.PlanCreateVolume(NewTable(nil), CreateVolumeRequest{Name: "z", Kind: Block, CapacityBytes: 1})
+	if _, set := plan[0].Props["sharenfs"]; err != nil || set {
+		t.Fatalf("zvol: %+v %v", plan, err)
+	}
+}

@@ -191,14 +191,23 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 	})
 	if err != nil {
 		if only != "" && zfs.IsNotFound(err) {
-			return NewTable(nil), nil
+			// zfs says "dataset does not exist" for an exported pool too:
+			// only an existing parent makes a missing volume truly absent
+			ok, perr := e.zfs.Exists(ctx, e.cfg.Parent)
+			if perr == nil && ok {
+				return NewTable(nil), nil
+			}
+			return Table{}, &Error{Code: Unavailable, Msg: "parent dataset " + e.cfg.Parent + " is unavailable", Err: err}
 		}
 		return Table{}, zfsErr(err, "scan "+root)
 	}
 	rows := e.names.decodeColumns(e.cfg.Parent, cols)
 	rows = slices.DeleteFunc(rows, func(r Row) bool {
+		if !strings.HasPrefix(r.Name, e.cfg.Parent+"/") {
+			return true // the parent and its own snapshots (pool-root parents)
+		}
 		vol, _, _ := strings.Cut(r.ID, "@")
-		return r.Name == e.cfg.Parent || vol == "" || strings.Contains(vol, "/")
+		return vol == "" || strings.Contains(vol, "/")
 	})
 	return NewTable(rows), nil
 }

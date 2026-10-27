@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -34,6 +35,7 @@ func run() error {
 	listen := flag.String("listen", "unix:///run/zfs-endpoint/endpoint.sock", "unix:///path or host:port")
 	prefix := flag.String("property-prefix", "democratic-csi", "user property namespace")
 	lockWait := flag.Duration("lock-wait", 30*time.Second, "max wait for a busy resource")
+	drain := flag.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
 	flag.Parse()
 	if *parent == "" {
 		return fmt.Errorf("-parent is required")
@@ -63,25 +65,50 @@ func run() error {
 	go func() {
 		<-ctx.Done()
 		// drain in-flight operations; each is idempotent, so anything cut
-		// short is completed by the caller's retry
+		// short is completed by the caller's retry. A suspended pool can
+		// hang zfs uninterruptibly, so the drain is bounded and a second
+		// signal stops at once.
 		slog.Info("shutting down")
-		srv.GracefulStop()
+		again := make(chan os.Signal, 1)
+		signal.Notify(again, syscall.SIGINT, syscall.SIGTERM)
+		done := make(chan struct{})
+		go func() { srv.GracefulStop(); close(done) }()
+		select {
+		case <-done:
+		case <-again:
+			slog.Warn("second signal: stopping without drain")
+			srv.Stop()
+		case <-time.After(*drain):
+			slog.Warn("drain timed out: stopping", "after", *drain)
+			srv.Stop()
+		}
 	}()
 	slog.Info("serving", "listen", *listen, "parent", *parent)
 	return srv.Serve(lis)
 }
 
 func listener(addr string) (net.Listener, error) {
-	if path, ok := strings.CutPrefix(addr, "unix://"); ok {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return nil, err
-		}
-		l, err := net.Listen("unix", path)
-		if err != nil {
-			return nil, err
-		}
-		// owner-only until transport auth lands (docs/research/edges2/transport-auth.md)
-		return l, os.Chmod(path, 0o600)
+	path, ok := strings.CutPrefix(addr, "unix://")
+	if !ok {
+		return net.Listen("tcp", addr)
 	}
-	return net.Listen("tcp", addr)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	// a live socket means another endpoint serves this path; two daemons
+	// would each hold their own locks over the same datasets
+	if c, err := net.DialTimeout("unix", path, time.Second); err == nil {
+		c.Close()
+		return nil, fmt.Errorf("%s is already being served", path)
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	// owner-only from the moment it exists, until transport auth lands
+	// (docs/research/edges2/transport-auth.md); umask is process-wide, and
+	// nothing else runs yet
+	old := syscall.Umask(0o177)
+	l, err := net.Listen("unix", path)
+	syscall.Umask(old)
+	return l, err
 }

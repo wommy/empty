@@ -144,6 +144,12 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	}
 
 	own := map[string]string{p.Names.managed(): "true", p.Names.volumeName(): r.Name}
+	if r.Kind == Filesystem {
+		// sharenfs/sharesmb inherit: a parent shared to "*" would export
+		// every new volume (restores included) to everyone. Exports are
+		// opt-in, set locally at creation.
+		own["sharenfs"], own["sharesmb"] = "off", "off"
+	}
 	var plan Plan
 	switch {
 	case r.SourceSnapshotID != "":
@@ -339,6 +345,11 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		return nil, "", errorf(InvalidArgument, "snapshot name prefix %q is reserved", cloneSourceSnapshotPrefix)
 	}
 	id := vol + "@" + snapComponent(vol, name)
+	if len(id) > 128 {
+		// ids are "<volume>@<component>"; a volume id over 91 bytes cannot
+		// carry even a hashed component within CSI's limit
+		return nil, "", errorf(InvalidArgument, "volume id %q too long to address snapshots within 128 bytes", vol)
+	}
 	for r := range t.All() {
 		if r.Type == zfs.TypeSnapshot && r.SnapshotName == name && !r.Deferred {
 			if r.ID == id {

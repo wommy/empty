@@ -418,3 +418,23 @@ func TestCloneResizeFailureConverges(t *testing.T) {
 		t.Fatalf("retry: %+v %v", v, err)
 	}
 }
+
+// review 2 #1: zfs reports "dataset does not exist" for an exported pool;
+// that must not read as "already deleted"
+func TestMissingParentIsUnavailableNotAbsent(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.Sim(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 1 << 30}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "s", "v"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.Destroy(ctx, h.Parent, zfs.DestroyOptions{Recursive: true}); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, ep.DeleteSnapshot(ctx, "v@s"), endpoint.Unavailable)
+	_, err := ep.GetVolume(ctx, "v")
+	wantCode(t, err, endpoint.Unavailable)
+}
