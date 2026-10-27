@@ -36,7 +36,30 @@ jobs:
           git diff --exit-code -- gen/
 
   real-zfs:
-    # the same contract tests, against a real (file-backed) pool
+    # the contract tests against Ubuntu 26.10 (OpenZFS 2.4.x, what TrueNAS 27
+    # ships), booted under KVM: no hosted runner exists for it, and ZFS lives
+    # in the kernel, so a container would test the host's ZFS instead
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: enable kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: install qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+      - name: test (Ubuntu 26.10, real zfs)
+        run: ci/real-zfs-vm.sh stonking release
+
+  real-zfs-noble:
+    # compatibility: the distro ZFS on the hosted runner (24.04)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
