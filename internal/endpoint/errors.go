@@ -3,6 +3,7 @@ package endpoint
 import (
 	"errors"
 	"fmt"
+	"unicode/utf8"
 )
 
 // Code is the endpoint's error category. Values deliberately mirror the
@@ -41,7 +42,25 @@ func (e *Error) Error() string {
 func (e *Error) Unwrap() error { return e.Err }
 
 func errorf(code Code, format string, a ...any) *Error {
-	return &Error{Code: code, Msg: fmt.Sprintf(format, a...)}
+	return &Error{Code: code, Msg: clamp(fmt.Sprintf(format, a...), maxMsg)}
+}
+
+// maxMsg bounds an errorf message. Many echo a caller's input with %q, and
+// the message is returned to the caller and logged: one client sending a
+// 1 MiB name must not turn into 1 MiB errors and log lines.
+const maxMsg = 512
+
+// clamp cuts s to at most n bytes (on a rune boundary, so the result stays
+// valid UTF-8 for gRPC and JSON logs) and marks the cut.
+func clamp(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	i := n
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return fmt.Sprintf("%s...[%d bytes cut]", s[:i], len(s)-i)
 }
 
 // CodeOf returns the Code of err (Internal for foreign errors, OK for nil).

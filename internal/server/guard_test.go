@@ -58,6 +58,38 @@ func TestCallWithoutDeadlineGetsOne(t *testing.T) {
 	}
 }
 
+// H-09: the audit fields DeleteVolume and DeleteSnapshot log before
+// validation, and the rpc line's error, are clamped: a 64 KiB id is
+// neither logged nor returned whole.
+func TestLoggedAndReturnedInputIsBounded(t *testing.T) {
+	var buf syncBuffer
+	log := slog.New(server.LogHandler(slog.NewJSONHandler(&buf, nil)))
+	prev := slog.Default()
+	slog.SetDefault(log)
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	c := daemon(t, &deadlineRunner{}, log)
+	big := strings.Repeat("v", 64<<10)
+	ctx := context.Background()
+	if _, err := c.DeleteVolume(ctx, &pb.DeleteVolumeRequest{VolumeId: big}); err != nil {
+		t.Fatal(err) // never issued: done
+	}
+	if _, err := c.DeleteSnapshot(ctx, &pb.DeleteSnapshotRequest{SnapshotId: big}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := c.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: big + "/"})
+	if n := len(status.Convert(err).Message()); err == nil || n > 1024 {
+		t.Errorf("GetVolume error %d bytes for a %d-byte id: %.60v", n, len(big), err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if len(line) > 4<<10 {
+			t.Errorf("log line of %d bytes: %.120s", len(line), line)
+		}
+	}
+	if !strings.Contains(buf.String(), `"msg":"delete volume","volume_id":"vvvv`) {
+		t.Errorf("delete volume line lost its id: %.300s", buf.String())
+	}
+}
+
 // panicOnce panics in its first zfs call (any latent parse bug on a
 // handler path), then answers like zfs.
 type panicOnce struct{ done atomic.Bool }
