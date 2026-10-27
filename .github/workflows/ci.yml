@@ -156,8 +156,37 @@ jobs:
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils
           # the cloud image signing key ships in ubuntu-keyring on 24.04
           test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+      - name: resolve the cloud image
+        # the provisioned-guest cache is keyed by the image's sha256 (the
+        # script verifies it against the gpg-signed list) and the script
+        id: image
+        run: |
+          f=stonking-server-cloudimg-amd64.img
+          sum=$(curl -fsSL --retry 3 https://cloud-images.ubuntu.com/stonking/current/SHA256SUMS | awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }')
+          test -n "$sum"
+          echo "key=zfsvm-stonking-$sum-${{ hashFiles('ci/real-zfs-vm.sh') }}" >>"$GITHUB_OUTPUT"
+      - name: restore the provisioned guest
+        id: guest
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/zfsvm-cache
+          key: ${{ steps.image.outputs.key }}
       - name: test (Ubuntu 26.10, real zfs 2.4)
+        env:
+          ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
         run: ci/real-zfs-vm.sh stonking current 2.4
+      - name: check for a stored guest
+        id: stored
+        if: always() && steps.guest.outputs.cache-hit != 'true'
+        run: test -f "$RUNNER_TEMP/zfsvm-cache/ok" && echo "ok=1" >>"$GITHUB_OUTPUT" || true
+      - name: save the provisioned guest
+        # also after a test failure: provisioning succeeded, and the version
+        # checks run again on every warm boot
+        if: always() && steps.stored.outputs.ok == '1'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/zfsvm-cache
+          key: ${{ steps.image.outputs.key }}
       - name: save Go caches (when the restore missed)
         if: steps.go.outputs.cache-hit != 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3

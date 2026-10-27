@@ -11,6 +11,14 @@
 # against SHA256SUMS, itself verified with the Ubuntu cloud image key
 # (/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg, from ubuntu-keyring).
 # Both `zfs version` lines (userland and kmod) must be <openzfs-minor>.x.
+#
+# ZFSVM_CACHE=<dir> keeps the provisioned guest (packages installed) between
+# runs: guest apt took 47-73s per run, varying with the mirror. A cold run
+# provisions, powers off and stores the disk; a warm run boots a copy-on-
+# write overlay of it and skips the image download and apt. The workflow
+# keys the directory by the image's sha256 and this script's hash. Every
+# boot still runs the version, module and nfsd checks below, so a stale
+# disk fails them rather than testing another ZFS.
 set -euo pipefail
 
 series=${1:?series, e.g. stonking}
@@ -22,6 +30,7 @@ keyring=/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
 # only packages whose tests reach a real pool through ZFS_TEST_POOL;
 # internal/server and internal/zfs run on the simulator in the unit job
 pkgs=(endpoint csi)
+cache=${ZFSVM_CACHE:-}
 mkdir -p "$work"
 cd "$(git rev-parse --show-toplevel)"
 
@@ -34,11 +43,17 @@ curl -fsSL --retry 3 -o "$work/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg"
 gpgv --keyring "$keyring" "$work/SHA256SUMS.gpg" "$work/SHA256SUMS"
 sum=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
 [ -n "$sum" ] || { echo "$file is not in $base/SHA256SUMS" >&2; exit 1; }
-curl -fsSL --retry 3 -o "$img" "$base/$file"
-echo "$sum  $img" | sha256sum -c -
-qemu-img resize "$img" 20G
-
-ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
+warm=
+if [ -n "$cache" ] && [ -f "$cache/ok" ] && [ "$(cat "$cache/sum")" = "$sum" ]; then
+  warm=1
+  echo "warm guest: $cache (provisioned from image $sum)"
+  cp "$cache/key" "$cache/key.pub" "$cache/seed.img" "$work/"
+else
+  curl -fsSL --retry 3 -o "$img" "$base/$file"
+  echo "$sum  $img" | sha256sum -c -
+  qemu-img resize "$img" 20G
+  ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
+fi
 cat >"$work/user-data" <<EOF
 #cloud-config
 users:
@@ -52,14 +67,23 @@ runcmd:
   - [modprobe, zfs]
   - [systemctl, enable, --now, nfs-server]
 EOF
-cloud-localds "$work/seed.img" "$work/user-data"
+[ -n "$warm" ] || cloud-localds "$work/seed.img" "$work/user-data"
 
-# boot first: the guest's apt install overlaps the test compile below
-# -display none, not -nographic: QEMU refuses -nographic with -daemonize
-qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -display none \
-  -drive file="$img",if=virtio -drive file="$work/seed.img",if=virtio,format=raw \
-  -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
-  -serial file:"$work/console.log" -daemonize -pidfile "$work/qemu.pid"
+# -display none, not -nographic: QEMU refuses -nographic with -daemonize.
+# A warm boot reuses the cold boot's seed: same instance-id, so cloud-init
+# does not provision again.
+boot() {
+  qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -display none \
+    -drive file="$1",if=virtio -drive file="$work/seed.img",if=virtio,format=raw \
+    -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
+    -serial file:"$work/console.log" -daemonize -pidfile "$work/qemu.pid"
+}
+overlay() {
+  qemu-img create -q -f qcow2 -F qcow2 -b "$cache/disk.qcow2" "$work/run.qcow2" 20G
+  boot "$work/run.qcow2"
+}
+# boot first: provisioning (or a warm boot) overlaps the test compile below
+if [ -n "$warm" ]; then overlay; else boot "$img"; fi
 
 common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
 vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
@@ -82,16 +106,46 @@ for pkg in "${pkgs[@]}"; do
   CGO_ENABLED=0 go test -c -o "$work/$pkg.test" "./internal/$pkg"
 done
 
-up=
-for _ in $(seq 1 90); do vm true 2>/dev/null && { up=1; break; }; sleep 5; done
-[ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
+wait_ssh() {
+  local up=
+  for _ in $(seq 1 180); do vm true 2>/dev/null && { up=1; break; }; sleep 1; done
+  [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
+}
+wait_ssh
 # status exits non-zero on recoverable warnings; the version, module and
 # nfsd checks below are the real gates
 # wait for cloud-init by its marker file: `status --wait` dies with ssh 255
 # when sshd restarts during the package install
 done_=
-for _ in $(seq 1 120); do vm 'test -e /var/lib/cloud/instance/boot-finished' 2>/dev/null && { done_=1; break; }; sleep 5; done
+for _ in $(seq 1 600); do vm 'test -e /var/lib/cloud/instance/boot-finished' 2>/dev/null && { done_=1; break; }; sleep 1; done
 [ -n "$done_" ] || { echo "cloud-init never finished" >&2; exit 1; }
+if [ -z "$warm" ] && [ -n "$cache" ]; then
+  # store the provisioned disk, then carry on from an overlay of it, as a
+  # warm run would; failing to store only costs the next run its speed
+  t0=$SECONDS
+  vm 'sudo apt-get clean; sudo sync'
+  vm 'sudo systemctl poweroff' 2>/dev/null || true
+  for _ in $(seq 1 60); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 1; done
+  if ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
+    rm -rf "$cache" && mkdir -p "$cache"
+    qemu-img convert -O qcow2 "$img" "$cache/disk.qcow2"
+    cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
+    echo "$sum" >"$cache/sum"
+    touch "$cache/ok"
+    echo "stored provisioned guest in $cache ($(du -sh "$cache" | cut -f1), $((SECONDS - t0))s)"
+    overlay
+  else
+    echo "guest did not power off; not caching it" >&2
+    kill "$(cat "$work/qemu.pid")" 2>/dev/null || true
+    sleep 2
+    boot "$img"
+  fi
+  wait_ssh
+fi
+# services (zfs module, nfsd) come up after sshd on a reboot
+vm 'systemctl is-system-running --wait >/dev/null || true'
+# cloud-init's runcmd ran only on the provisioning boot
+vm 'sudo modprobe zfs'
 vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
 
 ver=$(vm 'zfs version 2>&1' || true) # a missing module fails below, with the output
