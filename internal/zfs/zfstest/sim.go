@@ -1080,8 +1080,9 @@ func (s *Sim) set(args []string) error {
 		if k, bad := misfit(map[string]string{p[0]: p[1]}, n.typ); bad {
 			return exit("cannot set property for '%s': '%s' does not apply to datasets of this type", name, k)
 		}
-		if p[0] == "volblocksize" {
-			return exit("cannot set property for '%s': 'volblocksize' is readonly", name)
+		if readonlyProps[p[0]] {
+			// zfs_valid_proplist: readonly and set-once properties
+			return exit("cannot set property for '%s': '%s' is readonly", name, p[0])
 		}
 		if p[0] == "refreservation" && p[1] == "auto" {
 			if n.typ != zfs.TypeVolume {
@@ -1257,6 +1258,7 @@ func (s *Sim) inherit(args []string) error {
 var readonlyProps = map[string]bool{
 	"type": true, "origin": true, "mounted": true, "defer_destroy": true, "userrefs": true, "clones": true,
 	"used": true, "available": true, "creation": true, "name": true, "volblocksize": true,
+	"usedbyrefreservation": true,
 }
 
 // hasRecvd reports $hasrecvd, which zfs recv sets and the kernel looks up
@@ -1342,6 +1344,10 @@ var applies = map[string][]zfs.Type{
 	"devices":        {zfs.TypeFilesystem, zfs.TypeSnapshot},
 	"available":      {zfs.TypeFilesystem, zfs.TypeVolume},
 	"defer_destroy":  {zfs.TypeSnapshot},
+	// registered for snapshots too, but only dsl_dir_stats reports it,
+	// which a snapshot's stats skip: zfs get prints "-" (libzfs
+	// get_numeric_property, a readonly property with no value)
+	"usedbyrefreservation": {zfs.TypeFilesystem, zfs.TypeVolume},
 }
 
 // misfit reports a native property that does not exist on typ
@@ -1390,7 +1396,18 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 	}
 	switch prop {
 	case "used":
-		return "0", "-", true
+		// a snapshot's used is its unique data, 0 here; a head's is its
+		// dir's dd_used_bytes (dsl_dataset.c dsl_get_used)
+		if n.typ == zfs.TypeSnapshot {
+			return "0", "-", true
+		}
+		return strconv.FormatUint(s.dirUsed(name), 10), "-", true
+	case "usedbyrefreservation":
+		// dd_used_breakdown[DD_USED_REFRSRV] (dsl_dir.c dsl_dir_stats):
+		// max(0, refreservation - unique), charged by
+		// dsl_dataset_set_refreservation_sync_impl; unique is 0 here, so
+		// all of it, as dirUsed counts it
+		return strconv.FormatUint(s.num(name, "refreservation"), 10), "-", true
 	case "name":
 		return name, "-", true
 	case "type":

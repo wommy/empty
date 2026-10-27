@@ -98,8 +98,11 @@ var propDefs = func() map[string]pdef {
 		"userrefs":      {types: kSnap, attr: pReadonly, typ: tNumber},
 		"used":          {types: kFS | kVol | kSnap, attr: pReadonly, typ: tNumber},
 		"available":     {types: fsvol, attr: pReadonly, typ: tNumber},
-		"creation":      {types: kFS | kVol | kSnap, attr: pReadonly, typ: tNumber},
-		"name":          {types: kFS | kVol | kSnap, attr: pReadonly, typ: tString},
+		// registered for snapshots, but only dsl_dir_stats reports it:
+		// a snapshot prints "-" as for a type it does not apply to
+		"usedbyrefreservation": {types: fsvol, attr: pReadonly, typ: tNumber},
+		"creation":             {types: kFS | kVol | kSnap, attr: pReadonly, typ: tNumber},
+		"name":                 {types: kFS | kVol | kSnap, attr: pReadonly, typ: tString},
 		// onetime (zfs_prop.c:641-643)
 		"volblocksize": {types: kVol, attr: pOnetime, typ: tNumber, def: "16384"},
 		// default numbers (zfs_prop.c:691-704)

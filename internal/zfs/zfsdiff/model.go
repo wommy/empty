@@ -484,7 +484,7 @@ func (m *Model) value(d *dset, prop string) (string, string) {
 		return "off", "-"
 	case "userrefs":
 		return strconv.Itoa(len(d.holds)), "-"
-	case "used", "available", "creation":
+	case "used", "available", "usedbyrefreservation", "creation":
 		return "0", "-"
 	case "volsize":
 		// zvol_get_stats adds volsize with no source; get_numeric_property
