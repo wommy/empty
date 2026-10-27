@@ -360,3 +360,6 @@
 {"ts": "2026-10-27T16:23:41Z", "id": "a9b42460cb57dc59e", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-27T16:23:41Z", "id": "a9b42460cb57dc59e", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T16:23:41Z", "id": "a9b42460cb57dc59e", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T16:24:30Z", "id": "a4d747b6e8fa52105", "from": "queued", "to": "running", "note": "q-scan-reduction"}
+{"ts": "2026-10-27T16:24:30Z", "id": "ac1787ce6d014e384", "from": "queued", "to": "running", "note": "q-csi-recheck"}
+{"ts": "2026-10-27T16:24:30Z", "id": "a62addd0d2b7fd9ff", "from": "queued", "to": "running", "note": "q-weakening"}

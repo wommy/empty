@@ -24,3 +24,5 @@
 {"run": 40536492611, "sha": "8a9784d", "conclusion": "success", "seconds": 45, "cause": null, "note": "quiet guest trial: phase 8.5s vs 6.6s without (spread 6.6-10.4) -> reverted 4a63496 per ADR rule"}
 {"run": 40537085486, "sha": "3a45760", "conclusion": "success", "seconds": 43, "cause": null, "note": "review-fix + ci-latent merged; reconcile unit hardening passed in csi job"}
 {"run": 40537458909, "sha": "4a63496", "conclusion": "success", "seconds": 51, "cause": null, "note": "quiet guest reverted; run updated_at 51s (job-level not pulled)"}
+{"run":40539209599,"sha":"d232d63","result":"green","s":47}
+{"run":40540322181,"sha":"286cf47","result":"green","s":43}
