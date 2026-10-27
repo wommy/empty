@@ -171,12 +171,17 @@ func strs(v any) []string {
 	return out
 }
 
-var versionTag = regexp.MustCompile(`:v\d+\.\d+\.\d+$`)
+// versionTag is an image pinned to a version tag, and maybe also by
+// digest (tag@sha256:...); pinnedDigest one pinned by both.
+var (
+	versionTag   = regexp.MustCompile(`:v\d+\.\d+\.\d+(@sha256:[0-9a-f]{64})?$`)
+	pinnedDigest = regexp.MustCompile(`:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}$`)
+)
 
 // The manifests parse, name this driver, need no attach, share one emptyDir
 // CSI socket between zfs-csi and the sidecars, and give zfs-csi the host's
 // endpoint directory and a -parent (so it dials the unit's socket). Images
-// are pinned by version tag.
+// are pinned by version tag, and the sidecars by digest too.
 func TestManifests(t *testing.T) {
 	t.Parallel()
 	objs := k8sObjects(t)
@@ -228,6 +233,11 @@ func TestManifests(t *testing.T) {
 		image, _ := get(c, "image").(string)
 		if !versionTag.MatchString(image) {
 			t.Errorf("%s: image %q not pinned to a version tag", name, image)
+		}
+		// the sidecars are released images: tag and digest. zfs-csi has
+		// no published image yet, so its digest is a TODO in the manifest
+		if name != "zfs-csi" && !pinnedDigest.MatchString(image) {
+			t.Errorf("%s: image %q not pinned by digest as well as tag", name, image)
 		}
 		mounts := map[string]string{}
 		for _, m := range get(c, "volumeMounts").([]any) {
