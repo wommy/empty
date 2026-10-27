@@ -33,6 +33,7 @@ import (
 type node struct {
 	typ    zfs.Type
 	props  map[string]string // local props
+	recv   map[string]string // received props (zfs recv), below local ones
 	origin string            // clone origin snapshot
 	defer_ bool              // deferred destroy pending
 	birth  int64             // creation, unix seconds
@@ -127,6 +128,18 @@ func (s *Sim) Prop(name, prop string) string {
 	return ""
 }
 
+// Receive sets a property with source "received", as `zfs recv` of a
+// replication stream does (test helper). A local value still wins.
+func (s *Sim) Receive(name, prop, value string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.ds[name]
+	if n.recv == nil {
+		n.recv = map[string]string{}
+	}
+	n.recv[prop] = value
+}
+
 func parent(name string) string {
 	if i := strings.LastIndex(name, "@"); i >= 0 {
 		return name[:i]
@@ -215,6 +228,9 @@ func (s *Sim) create(args []string) error {
 	if k, bad := misfit(props, typ); bad {
 		return exit("cannot create '%s': '%s' does not apply to datasets of this type", name, k)
 	}
+	if msg, ok := s.canonProps(props); !ok {
+		return exit("cannot create '%s': %s", name, msg)
+	}
 	n := &node{typ: zfs.TypeFilesystem, props: props, birth: s.now()}
 	if volsize != "" {
 		v, err := strconv.ParseUint(volsize, 10, 64)
@@ -283,6 +299,9 @@ func (s *Sim) clone(args []string) error {
 	}
 	if k, bad := misfit(props, typ); bad {
 		return exit("cannot create '%s': '%s' does not apply to datasets of this type", name, k)
+	}
+	if msg, ok := s.canonProps(props); !ok {
+		return exit("cannot create '%s': %s", name, msg)
 	}
 	n := &node{typ: typ, props: props, origin: snap, birth: s.now()}
 	if typ == zfs.TypeVolume {
@@ -428,6 +447,11 @@ func (s *Sim) set(args []string) error {
 		if k, bad := misfit(map[string]string{p[0]: p[1]}, n.typ); bad {
 			return exit("cannot set property for '%s': '%s' does not apply to datasets of this type", name, k)
 		}
+		c, msg, ok := s.canonIndex(p[0], p[1])
+		if !ok {
+			return exit("cannot set property for '%s': %s", name, msg)
+		}
+		p[1] = c
 		if p[0] == "volblocksize" {
 			return exit("cannot set property for '%s': 'volblocksize' is readonly", name)
 		}
@@ -612,10 +636,16 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 	if v, ok := n.props[prop]; ok {
 		return v, "local", true
 	}
+	if v, ok := n.recv[prop]; ok {
+		return v, "received", true
+	}
 	// inherited user properties, and the share properties (PROP_INHERIT)
 	if strings.Contains(prop, ":") || prop == "sharenfs" || prop == "sharesmb" {
 		for p := parent(name); p != ""; p = parent(p) {
 			if v, ok := s.ds[p].props[prop]; ok {
+				return v, "inherited from " + p, true
+			}
+			if v, ok := s.ds[p].recv[prop]; ok {
 				return v, "inherited from " + p, true
 			}
 		}

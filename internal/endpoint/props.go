@@ -103,17 +103,24 @@ var (
 )
 
 var propRules = map[string]propRule{
-	"compression":    {fs: true, zvol: true, canon: index(compression)},
-	"recordsize":     {fs: true, canon: blockSize(512, 16<<20)},
-	"atime":          {fs: true, canon: index(onOff)},
-	"relatime":       {fs: true, canon: index(onOff)},
-	"sync":           {fs: true, zvol: true, canon: index(same("standard", "always", "disabled"))},
-	"logbias":        {fs: true, zvol: true, canon: index(same("latency", "throughput"))},
-	"dedup":          {fs: true, zvol: true, canon: index(same("off", "on", "verify"))},
-	"xattr":          {fs: true, canon: index(map[string]string{"off": "off", "sa": "sa", "on": "sa", "dir": "dir"})},
-	"acltype":        {fs: true, canon: index(map[string]string{"off": "off", "posix": "posix", "nfsv4": "nfsv4", "disabled": "off", "noacl": "off", "posixacl": "posix"})},
-	"snapdir":        {fs: true, canon: index(same("hidden", "visible", "disabled"))},
-	"copies":         {fs: true, zvol: true, canon: index(same("1", "2", "3"))},
+	"compression": {fs: true, zvol: true, canon: index(compression)},
+	"recordsize":  {fs: true, canon: blockSize(512, 16<<20)},
+	"atime":       {fs: true, canon: index(onOff)},
+	"relatime":    {fs: true, canon: index(onOff)},
+	"sync":        {fs: true, zvol: true, canon: index(same("standard", "always", "disabled"))},
+	"logbias":     {fs: true, zvol: true, canon: index(same("latency", "throughput"))},
+	"dedup":       {fs: true, zvol: true, canon: index(same("off", "on", "verify"))},
+	// xattr: only sa and off. "on" is an alias that zfs prints as "sa"
+	// (zfs_prop.c xattr_table, 2.4.0) and meant dir in 2.2.9, so a
+	// StorageClass saying on is ambiguous; dir is the legacy layout.
+	"xattr":   {fs: true, canon: index(same("sa", "off"))},
+	"acltype": {fs: true, canon: index(map[string]string{"off": "off", "posix": "posix", "nfsv4": "nfsv4", "disabled": "off", "noacl": "off", "posixacl": "posix"})},
+	"snapdir": {fs: true, canon: index(same("hidden", "visible", "disabled"))},
+	// copies only on zvols: on a filesystem the extra copies count against
+	// refquota (zfsprops.7, copies), so copies=2 would silently halve the
+	// capacity; a zvol's refreservation=auto already scales by copies
+	// (zvol_volsize_to_reservation)
+	"copies":         {zvol: true, canon: index(same("1", "2", "3"))},
 	volblocksizeProp: {zvol: true, canon: blockSize(512, 128<<10)},
 }
 

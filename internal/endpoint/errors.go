@@ -13,6 +13,7 @@ const (
 	OK                 Code = 0
 	Aborted            Code = 10 // an operation on the same resource is in flight
 	AlreadyExists      Code = 6  // same name, incompatible request
+	DeadlineExceeded   Code = 4  // the caller's deadline killed a zfs command; outcome unknown
 	FailedPrecondition Code = 9  // e.g. volume has snapshots or dependent clones
 	Internal           Code = 13
 	InvalidArgument    Code = 3

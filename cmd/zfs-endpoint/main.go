@@ -21,6 +21,7 @@ import (
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/server"
+	"github.com/wommy/empty/internal/unixsock"
 	"github.com/wommy/empty/internal/zfs"
 )
 
@@ -34,9 +35,10 @@ func main() {
 func run() error {
 	parent := flag.String("parent", "", "parent dataset to manage, e.g. tank/k8s/vols (required)")
 	listen := flag.String("listen", "unix:///run/zfs-endpoint/endpoint.sock", "unix:///path or host:port")
-	prefix := flag.String("property-prefix", "democratic-csi", "user property namespace")
+	prefix := flag.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
 	lockWait := flag.Duration("lock-wait", 30*time.Second, "max wait for a busy resource")
 	drain := flag.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
+	destroyForeign := flag.Bool("destroy-foreign-snapshots", false, "let DeleteVolume destroy snapshots the endpoint did not make along with their volume")
 	lockDir := flag.String("lock-dir", "/run/zfs-endpoint", "directory for the per-parent writer lock")
 	flag.Parse()
 	if *parent == "" {
@@ -66,7 +68,7 @@ func run() error {
 	// as the caller, and only root mounts. Without it the export calls stay
 	// unadvertised and UNIMPLEMENTED.
 	root := os.Geteuid() == 0
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign})
 	if err != nil {
 		return err
 	}
@@ -111,25 +113,11 @@ func listener(addr string) (net.Listener, error) {
 	if !ok {
 		return net.Listen("tcp", addr)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return nil, err
-	}
-	// a live socket means another endpoint serves this path; two daemons
-	// would each hold their own locks over the same datasets
-	if c, err := net.DialTimeout("unix", path, time.Second); err == nil {
-		c.Close()
-		return nil, fmt.Errorf("%s is already being served", path)
-	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-	// owner-only from the moment it exists, until transport auth lands
-	// (docs/research/edges2/transport-auth.md); umask is process-wide, and
-	// nothing else runs yet
-	old := syscall.Umask(0o177)
-	l, err := net.Listen("unix", path)
-	syscall.Umask(old)
-	return l, err
+	// owner-only until transport auth lands
+	// (docs/research/edges2/transport-auth.md); a live socket means another
+	// endpoint serves this path, and two daemons would each hold their own
+	// locks over the same datasets
+	return unixsock.Listen(path)
 }
 
 // lockParent takes an exclusive, non-blocking flock on a file named after

@@ -30,7 +30,7 @@ func FuzzClassify(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, s string) {
 		k := classify(s)
-		if k < KindUnknown || k > KindUnavailable {
+		if k < KindUnknown || k > kindLast {
 			t.Fatalf("kind %d", k)
 		}
 	})

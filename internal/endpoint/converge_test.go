@@ -25,13 +25,21 @@ func FuzzCreateConverges(f *testing.F) {
 	f.Add(false, uint64(5), uint64(0), false, true, "", "", false)
 	f.Add(false, uint64(1<<30), uint64(0), false, false, "recordsize", "16K", true)
 	f.Add(false, uint64(0), uint64(0), false, false, "compression", "gzip-6", false)
-	f.Add(false, uint64(0), uint64(0), false, false, "xattr", "on", true)
+	f.Add(false, uint64(0), uint64(0), false, false, "xattr", "sa", true)
 	f.Add(true, uint64(1<<20+1), uint64(0), false, false, "volblocksize", "4k", true)
 	f.Add(true, uint64(1<<20), uint64(1<<20+512), true, false, "volblocksize", "512", false)
 	f.Add(true, uint64(1<<20), uint64(0), false, false, "recordsize", "16K", false)
 	f.Add(false, uint64(0), uint64(0), false, false, "mountpoint", "/etc", false)
-	f.Add(false, uint64(0), uint64(0), false, false, "democratic-csi:managed_resource", "false", false)
+	f.Add(false, uint64(0), uint64(0), false, false, "zfs-endpoint:managed_resource", "false", false)
 	f.Fuzz(func(t *testing.T, block bool, capacity, limit uint64, sparse, reserve bool, pk, pv string, both bool) {
+		// the simulator prints index properties through OpenZFS 2.4's
+		// tables, so read-backs are checked against what zfs prints
+		createConverges(t, block, capacity, limit, sparse, reserve, pk, pv, both)
+	})
+}
+
+func createConverges(t *testing.T, block bool, capacity, limit uint64, sparse, reserve bool, pk, pv string, both bool) {
+	{
 		ctx := context.Background()
 		sim := zfstest.New("tank")
 		z := zfs.New(sim)
@@ -91,7 +99,7 @@ func FuzzCreateConverges(f *testing.F) {
 		if v1 != v2 {
 			t.Fatalf("retry returned %+v, first %+v", v2, v1)
 		}
-	})
+	}
 }
 
 func mutations(s *zfstest.Sim) int {

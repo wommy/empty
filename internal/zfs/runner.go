@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"syscall"
+	"time"
 )
 
 // Runner executes a zfs (or zpool) command. It is the seam between the
@@ -33,10 +35,22 @@ func (e *ExitError) Unwrap() error { return e.Underlay }
 
 // LocalRunner runs commands on this host. Arguments are passed as argv,
 // never through a shell.
-type LocalRunner struct{}
+//
+// When ctx ends, the child gets SIGTERM, then after WaitDelay SIGKILL, and
+// its pipes are closed, so neither a hung zfs (a suspended pool with
+// failmode=wait) nor a grandchild holding stdout can block Run forever.
+type LocalRunner struct {
+	// WaitDelay is the grace period between SIGTERM and SIGKILL. Default 5s.
+	WaitDelay time.Duration
+}
 
-func (LocalRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+func (r LocalRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.WaitDelay = r.WaitDelay
+	if cmd.WaitDelay == 0 {
+		cmd.WaitDelay = 5 * time.Second
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

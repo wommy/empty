@@ -3,6 +3,7 @@ package endpoint
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
@@ -21,6 +22,18 @@ const (
 	OpSet
 	OpDestroy
 )
+
+var opNames = map[OpKind]string{
+	OpCreateFS: "create-filesystem", OpCreateVol: "create-volume", OpSnapshot: "snapshot",
+	OpClone: "clone", OpSet: "set", OpDestroy: "destroy",
+}
+
+func (k OpKind) String() string {
+	if n, ok := opNames[k]; ok {
+		return n
+	}
+	return fmt.Sprintf("OpKind(%d)", uint8(k))
+}
 
 // Op is a planned mutation, as plain data. Each op states how a replay
 // tolerates finding its work already done, so re-applying a partially
@@ -46,6 +59,8 @@ type Planner struct {
 	Parent       string
 	Names        props
 	VolBlockSize uint64
+	// DestroyForeignSnapshots: Config.DestroyForeignSnapshots.
+	DestroyForeignSnapshots bool
 }
 
 func (p Planner) full(id string) string { return p.Parent + "/" + id }
@@ -124,7 +139,27 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	}
 	want := p.want(r, props)
 	srcType, srcID := sourceOf(r)
+	// absent means "create it" for id and "NotFound" for the source
+	if err := t.mustCover(id, srcID); err != nil {
+		return nil, err
+	}
 	commit := Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{p.Names.success(): "true"}}
+	// size is what a provision drives the volume to. A clone starts at its
+	// source's size and is never shrunk, and a filesystem clone without a
+	// capacity takes its source's quota. It is derived here, before the
+	// resume branch, so a retry after a failure at any op boundary reaches
+	// the end state an uninterrupted run reaches.
+	size, sizeErr := want, error(nil)
+	if n, ok := sourceSize(t, r); ok {
+		if r.Kind == Filesystem && size == 0 {
+			size = n
+		}
+		if r.LimitBytes > 0 && n > r.LimitBytes {
+			sizeErr = errorf(OutOfRange, "source capacity %d exceeds limit %d: a clone is never smaller than its source", n, r.LimitBytes)
+		} else if r.Kind == Filesystem && r.Reserve && size == 0 {
+			sizeErr = errorf(InvalidArgument, "reserve needs a capacity or limit (the source is unlimited)")
+		}
+	}
 
 	if row, ok := t.Get(id); ok {
 		if !row.Managed {
@@ -137,11 +172,14 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			return nil, errorf(AlreadyExists, "volume %s exists as %s from %q %q", id, row.Kind(), row.SourceType, row.SourceID)
 		}
 		if !row.Committed {
+			if sizeErr != nil {
+				return nil, sizeErr
+			}
 			// volblocksize is create-only: a row without it cannot converge
 			if bs, ok := props[volblocksizeProp]; ok && u64(row.BlockSz) != bs {
 				return nil, errorf(AlreadyExists, "volume %s exists with volblocksize %d, requested %s", id, row.BlockSz, bs)
 			}
-			plan := p.sizeOps(id, row, r, want)
+			plan := p.sizeOps(id, row, r, size)
 			if set := propSet(row, props); len(set) > 0 {
 				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: set})
 			}
@@ -178,37 +216,43 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if err != nil {
 			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
 		}
+		// only a CSI snapshot of a committed volume the endpoint owns: an
+		// administrator's snapshot, an internal clone source or anything on
+		// a foreign dataset is not ours to clone (ADR 0003)
 		snap, ok := t.Get(r.SourceSnapshotID)
-		if !ok || snap.Type != zfs.TypeSnapshot || snap.Deferred {
+		src, srcOK := t.Get(vol)
+		if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.OwnedVolume() || !src.Committed {
 			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
 		}
-		if src, ok := t.Get(vol); ok && src.Kind() != r.Kind {
+		if src.Kind() != r.Kind {
 			return nil, errorf(InvalidArgument, "source is %s, requested %s", src.Kind(), r.Kind)
 		}
-		src, _ := t.Get(vol)
+		if sizeErr != nil {
+			return nil, sizeErr
+		}
 		if err := cloneBlockSize(own, src); err != nil {
 			return nil, err
 		}
 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, srcID
-		plan = Plan{{Kind: OpClone, Source: snap.Name, Target: p.full(id), Props: own, OkExists: true}}
-		plan = append(plan, p.sizeOps(id, Row{Type: kindType(r.Kind), Volsize: snap.Volsize}, r, want)...)
-		if r.Kind == Filesystem {
-			// filesystem clones start without refquota; size from the source
-			if src, ok := t.Get(vol); ok && want == 0 && src.Refquota > 0 {
-				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{"refquota": u64(src.Refquota)}})
-			}
-		}
+		plan = Plan{{Kind: OpClone, Source: snap.Name, Target: p.full(id), Props: own}}
+		// filesystem clones start without refquota or refreservation
+		plan = append(plan, p.sizeOps(id, Row{Type: kindType(r.Kind), Volsize: snap.Volsize}, r, size)...)
 	case r.SourceVolumeID != "":
 		srcID, err := volumeID(r.SourceVolumeID)
 		if err != nil {
 			return nil, errorf(NotFound, "source volume %s not found", r.SourceVolumeID)
 		}
+		// only a committed volume the endpoint owns: cloning anything else
+		// would snapshot, and pin, a dataset that is not ours
 		src, ok := t.Get(srcID)
-		if !ok || src.Type == zfs.TypeSnapshot {
+		if !ok || !src.OwnedVolume() || !src.Committed {
 			return nil, errorf(NotFound, "source volume %s not found", srcID)
 		}
 		if src.Kind() != r.Kind {
 			return nil, errorf(InvalidArgument, "source is %s, requested %s", src.Kind(), r.Kind)
+		}
+		if sizeErr != nil {
+			return nil, sizeErr
 		}
 		if err := cloneBlockSize(own, src); err != nil {
 			return nil, err
@@ -220,16 +264,13 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, r.SourceVolumeID
 		plan = Plan{
 			{Kind: OpSnapshot, Target: internal, OkExists: true},
-			{Kind: OpClone, Source: internal, Target: p.full(id), Props: own, OkExists: true},
+			{Kind: OpClone, Source: internal, Target: p.full(id), Props: own},
 		}
 		base := src
-		if r.Kind == Filesystem && want == 0 {
-			want = src.Refquota
-		}
 		// a clone starts with neither the source's refquota nor its
 		// refreservation; size from what the clone really has
 		base.Refquota, base.Refres = 0, 0
-		plan = append(plan, p.sizeOps(id, base, r, want)...)
+		plan = append(plan, p.sizeOps(id, base, r, size)...)
 	case r.Kind == Block:
 		// thick zvols: zfs create -V sets refreservation to zvol_auto_resv
 		// (volsize plus metadata) and keeps it in step with volsize; setting
@@ -245,6 +286,27 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		plan = Plan{{Kind: OpCreateFS, Target: p.full(id), Props: own}}
 	}
 	return append(plan, commit), nil
+}
+
+// sourceSize is the capacity a clone of r's source starts with: a zvol
+// snapshot's or volume's volsize, a filesystem source volume's refquota (0
+// is unlimited; a filesystem snapshot carries none). It reads rows as they
+// are; ownership is checked where a clone is planned.
+func sourceSize(t Table, r CreateVolumeRequest) (uint64, bool) {
+	switch {
+	case r.SourceSnapshotID != "":
+		if r.Kind == Block {
+			s, ok := t.Get(r.SourceSnapshotID)
+			return s.Volsize, ok && s.Type == zfs.TypeSnapshot
+		}
+		vol, _, _ := strings.Cut(r.SourceSnapshotID, "@")
+		src, ok := t.Get(vol)
+		return src.Refquota, ok && vol != "" && src.Type != zfs.TypeSnapshot
+	case r.SourceVolumeID != "":
+		src, ok := t.Get(r.SourceVolumeID)
+		return src.Capacity(), ok && src.Type != zfs.TypeSnapshot
+	}
+	return 0, false
 }
 
 // cloneBlockSize enforces that a clone's requested volblocksize is its
@@ -309,27 +371,41 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // PlanDeleteVolume: missing is done; unmanaged, snapshotted (like the
 // baseline: CSI snapshots must outlive the call or it fails unchanged) or
 // cloned volumes are refused; an internal clone-source origin is released.
+// A volume with snapshots the endpoint did not cut is refused too, unless
+// DestroyForeignSnapshots: `zfs destroy -r` would take them, and they are
+// not the endpoint's (ADR 0003).
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
-	id, err := volumeID(volID)
+	id, err := issuedVolumeID(volID)
 	if err != nil {
+		return nil, err
+	}
+	if err := t.mustCover(id); err != nil {
 		return nil, err
 	}
 	row, ok := t.Get(id)
 	if !ok {
 		return nil, nil
 	}
-	if !row.Managed {
+	if !row.OwnedVolume() {
 		return nil, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
 	}
+	var foreign []string
 	for s := range t.SnapshotsOf(id) {
 		if s.SnapshotName != "" && !s.Deferred {
 			return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
+		}
+		if s.SnapshotName == "" && !s.Deferred && !internalCloneSource(s) {
+			foreign = append(foreign, s.ID)
 		}
 		for c := range t.ClonesOf(s.Name) {
 			if !strings.HasPrefix(c.Name, row.Name+"/") {
 				return nil, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
 			}
 		}
+	}
+	if len(foreign) > 0 && !p.DestroyForeignSnapshots {
+		return nil, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
+			id, strings.Join(foreign, ", "))
 	}
 	plan := Plan{{Kind: OpDestroy, Target: row.Name, Recursive: true, OkMissing: true}}
 	if strings.Contains(row.Origin, "@"+cloneSourceSnapshotPrefix) {
@@ -338,14 +414,25 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	return plan, nil
 }
 
+// internalCloneSource reports whether s is the snapshot a volume-to-volume
+// clone hangs off: cut by the endpoint, unmarked, under a reserved name
+// (PlanCreateSnapshot refuses that prefix for CSI names).
+func internalCloneSource(s Row) bool {
+	_, name, _ := strings.Cut(s.ID, "@")
+	return strings.HasPrefix(name, cloneSourceSnapshotPrefix)
+}
+
 // PlanExpandVolume grows to at least capacity; shrinking is a no-op.
 func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64) (Plan, Row, error) {
-	id, err := volumeID(volID)
+	id, err := issuedVolumeID(volID)
 	if err != nil {
 		return nil, Row{}, err
 	}
+	if err := t.mustCover(id); err != nil {
+		return nil, Row{}, err
+	}
 	row, ok := t.Get(id)
-	if !ok || !row.Managed {
+	if !ok || !row.OwnedVolume() {
 		return nil, Row{}, errorf(NotFound, "volume %s not found", id)
 	}
 	want := capacity
@@ -378,7 +465,7 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 // PlanCreateSnapshot: CSI snapshot names are global; the same name on the
 // same volume is done, on another volume AlreadyExists.
 func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, error) {
-	vol, err := volumeID(volID)
+	vol, err := issuedVolumeID(volID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -394,8 +481,12 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		// carry even a hashed component within CSI's limit
 		return nil, "", errorf(InvalidArgument, "volume id %q too long to address snapshots within 128 bytes", vol)
 	}
+	// snapshot names are global: only the whole parent says one is free
+	if err := t.mustBeWhole("CreateSnapshot"); err != nil {
+		return nil, "", err
+	}
 	for r := range t.All() {
-		if r.Type == zfs.TypeSnapshot && r.SnapshotName == name && !r.Deferred {
+		if r.OwnedSnapshot() && r.SnapshotName == name && !r.Deferred {
 			if r.ID == id {
 				return nil, id, nil
 			}
@@ -403,7 +494,7 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		}
 	}
 	src, ok := t.Get(vol)
-	if !ok || src.Type == zfs.TypeSnapshot || !src.Managed {
+	if !ok || !src.OwnedVolume() {
 		return nil, "", errorf(NotFound, "source volume %s not found", vol)
 	}
 	if r, ok := t.Get(id); ok {
@@ -435,11 +526,14 @@ func (p Planner) PlanDeleteSnapshot(t Table, snapID string) (Plan, error) {
 	if _, _, err := parseSnapshotID(snapID); err != nil {
 		return nil, nil
 	}
+	if err := t.mustCover(snapID); err != nil {
+		return nil, err
+	}
 	row, ok := t.Get(snapID)
 	if !ok || row.Deferred {
 		return nil, nil
 	}
-	if !row.Managed {
+	if !row.OwnedSnapshot() {
 		return nil, errorf(FailedPrecondition, "snapshot %s is not managed", snapID)
 	}
 	return Plan{{Kind: OpDestroy, Target: row.Name, Defer: true, OkMissing: true}}, nil

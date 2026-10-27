@@ -35,6 +35,9 @@ func TestPlanCreatePropertiesDenyList(t *testing.T) {
 		{Block, "recordsize", "16K"}, {Block, "atime", "off"}, {Block, "relatime", "off"},
 		{Block, "xattr", "sa"}, {Block, "acltype", "posix"}, {Block, "snapdir", "visible"},
 		{Filesystem, "volblocksize", "16K"},
+		// copies count against refquota on a filesystem, so 2 or 3 would
+		// silently halve or third its capacity (zfsprops.7, copies)
+		{Filesystem, "copies", "2"},
 	} {
 		r := CreateVolumeRequest{Name: "a", Kind: c.kind, CapacityBytes: 1 << 20, Properties: map[string]string{c.k: c.v}}
 		if _, err := pl.PlanCreateVolume(NewTable(nil), r); code(err) != InvalidArgument {
@@ -83,12 +86,16 @@ func TestValidatePropertyValues(t *testing.T) {
 		{Block, "dedup", "verify", "verify"},
 		{Block, "dedup", "sha256", ""}, // off|on|verify only
 		{Block, "dedup", "sha256,verify", ""},
-		{Filesystem, "xattr", "on", "sa"}, // on and sa are one value
-		{Filesystem, "xattr", "dir", "dir"},
+		// xattr: on is an alias printed as sa; only sa and off are accepted
+		{Filesystem, "xattr", "sa", "sa"},
+		{Filesystem, "xattr", "off", "off"},
+		{Filesystem, "xattr", "on", ""},
+		{Filesystem, "xattr", "dir", ""},
 		{Filesystem, "acltype", "posixacl", "posix"},
 		{Filesystem, "acltype", "noacl", "off"},
 		{Filesystem, "snapdir", "visible", "visible"},
 		{Filesystem, "snapdir", "shown", ""},
+		{Filesystem, "snapdir", "disabled", "disabled"},
 		{Block, "copies", "3", "3"},
 		{Block, "copies", "4", ""},
 		{Block, "copies", "0", ""},
@@ -171,7 +178,7 @@ func TestPlanCreatePropertiesRetry(t *testing.T) {
 		props map[string]string
 		want  Code
 	}{
-		{"fs", Filesystem, map[string]string{"compression": "gzip-6", "recordsize": "16K", "xattr": "on"}, OK},
+		{"fs", Filesystem, map[string]string{"compression": "gzip-6", "recordsize": "16K", "xattr": "sa"}, OK},
 		{"fs", Filesystem, map[string]string{"compression": "gzip"}, OK},
 		{"fs", Filesystem, nil, OK}, // unrequested local properties are not compared
 		{"fs", Filesystem, map[string]string{"compression": "lz4"}, AlreadyExists},

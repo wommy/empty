@@ -25,3 +25,10 @@ vm    endpoint TestCloneResizeFailureConverges         # Sim: fault injection
 vm    endpoint TestMissingParentIsUnavailableNotAbsent # Sim: missing pool
 vm    endpoint TestReconcileLocksTargets               # Sim: parked runner
 vm    endpoint TestFileExportVerifiesKernelTable       # Sim: SetNFSDown
+vm    endpoint TestCloneFailureAfterCloneConvergesToSameState # Sim: fault injection (subtests)
+vm    endpoint TestDeleteVolumeSparesForeignSnapshots     # Sim: raw foreign snapshot
+vm    endpoint TestBusyIsMappedByOperation                # Sim: injected stderr
+vm    endpoint TestUnknownFailureAfterAMutationIsRetryable # Sim: injected stderr
+vm    endpoint TestReceivedCopyIsNotOwned                 # Sim: received property source
+vm    endpoint TestReconcileSparesReceivedAndRenamed      # Sim: received property source
+vm    endpoint TestMissingParentIsUnavailableForWholeScans # Sim: missing pool

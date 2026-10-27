@@ -221,12 +221,13 @@ func TestFileExportVerifiesKernelTable(t *testing.T) {
 	}
 }
 
-// A volume adopted from the baseline inherits sharenfs; a parent shared to
-// everyone exports it to "*". The first publish pins a local value, and a
-// sharenfs someone else set locally is refused, not overwritten.
+// A volume adopted from democratic-csi (adoption mode) inherits sharenfs;
+// a parent shared to everyone exports it to "*". The first publish pins a
+// local value, and a sharenfs someone else set locally is refused, not
+// overwritten.
 func TestFileExportAdoptedVolumes(t *testing.T) {
 	ctx := context.Background()
-	ep, h := setup(t)
+	ep, h := setupPrefix(t, "democratic-csi")
 	h.NFS(t)
 	own := map[string]string{"democratic-csi:managed_resource": "true", "democratic-csi:provision_success": "true"}
 	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "on"}); err != nil {

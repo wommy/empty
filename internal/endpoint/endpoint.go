@@ -7,8 +7,10 @@
 // Plan of mutations or an error (plan.go); apply executes it (apply.go).
 // Idempotency is "the plan is empty"; recovery is "re-scan and re-plan".
 //
-// State lives in ZFS user properties using democratic-csi's names (the
-// behavioral baseline), so volumes it provisioned are adopted as-is.
+// State lives in ZFS user properties under the endpoint's own namespace
+// (DefaultPropertyPrefix). The property names follow democratic-csi's, so
+// with its prefix (adoption mode) the volumes it provisioned are adopted.
+// ADR 0003.
 package endpoint
 
 import (
@@ -38,8 +40,40 @@ func (k VolumeKind) String() string {
 	return "filesystem"
 }
 
-// Property names; the prefix defaults to the baseline's "democratic-csi".
+// DefaultPropertyPrefix is the endpoint's own user-property namespace.
+// "democratic-csi" is the adoption mode: it reads (and writes) that
+// driver's properties, so the volumes it provisioned are adopted.
+const DefaultPropertyPrefix = "zfs-endpoint"
+
+// Property names under a prefix.
 type props struct{ p string }
+
+func (n props) all() []string {
+	return []string{n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients()}
+}
+
+// validPrefix reports why prefix cannot name OpenZFS user properties:
+// zfs_prop.c zfs_prop_user accepts only a-z 0-9 - _ . : (the ':' we
+// append makes it a user property), and zfs_check_userprops refuses a name
+// of ZAP_MAXNAMELEN (256) bytes or more. Checked at startup, so a bad
+// prefix is not first found by zfs refusing every create.
+func validPrefix(prefix string) error {
+	if prefix == "" {
+		return errors.New("empty")
+	}
+	for _, c := range []byte(prefix) {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || strings.IndexByte("-_.:", c) >= 0) {
+			return fmt.Errorf("%q is not allowed in a zfs user property (a-z 0-9 - _ . :)", c)
+		}
+	}
+	for _, n := range (props{prefix}).all() {
+		if len(n) >= 256 {
+			return fmt.Errorf("property %s is %d bytes, zfs allows 255", n[:20]+"...", len(n))
+		}
+	}
+	return nil
+}
 
 func (n props) managed() string        { return n.p + ":managed_resource" }
 func (n props) success() string        { return n.p + ":provision_success" }
@@ -60,7 +94,8 @@ const cloneSourceSnapshotPrefix = "volume-source-for-volume-"
 type Config struct {
 	// Parent dataset volumes are created under, e.g. "tank/k8s/vols".
 	Parent string
-	// PropertyPrefix for user properties. Default "democratic-csi".
+	// PropertyPrefix for user properties. Default DefaultPropertyPrefix;
+	// "democratic-csi" is the adoption mode.
 	PropertyPrefix string
 	// VolBlockSize used to pre-round zvol sizes for limit checks. Default
 	// 16 KiB. zfs may round further; reported sizes are always re-read.
@@ -79,6 +114,13 @@ type Config struct {
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.
 	Etab EtabReader
+	// DestroyForeignSnapshots lets DeleteVolume (and reconcile) destroy a
+	// volume together with snapshots the endpoint did not cut (no locally
+	// set csi_snapshot_name: an administrator's, a backup tool's, a
+	// received one). Default false: such a volume is refused with
+	// FailedPrecondition naming them (ADR 0003: never touch what you
+	// don't own).
+	DestroyForeignSnapshots bool
 }
 
 // Endpoint is the volume service.
@@ -96,7 +138,10 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		return nil, fmt.Errorf("invalid parent dataset %q", cfg.Parent)
 	}
 	if cfg.PropertyPrefix == "" {
-		cfg.PropertyPrefix = "democratic-csi"
+		cfg.PropertyPrefix = DefaultPropertyPrefix
+	}
+	if err := validPrefix(cfg.PropertyPrefix); err != nil {
+		return nil, fmt.Errorf("property prefix %q: %w", cfg.PropertyPrefix, err)
 	}
 	if cfg.VolBlockSize == 0 {
 		cfg.VolBlockSize = 16 * 1024
@@ -115,7 +160,7 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		zfs:   z,
 		cfg:   cfg,
 		names: names,
-		plan:  Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize},
+		plan:  Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize, DestroyForeignSnapshots: cfg.DestroyForeignSnapshots},
 	}, nil
 }
 
@@ -173,6 +218,20 @@ func volumeID(name string) (string, error) {
 	return name, nil
 }
 
+// issuedVolumeID validates a volume id a caller hands back. Ids are opaque
+// to callers, so a non-empty one this endpoint could never have issued
+// names no volume: NotFound (DeleteVolume turns that into OK). A missing
+// id stays InvalidArgument.
+func issuedVolumeID(id string) (string, error) {
+	if _, err := volumeID(id); err != nil {
+		if id == "" {
+			return "", err
+		}
+		return "", errorf(NotFound, "volume %q not found: not an id this endpoint issues", id)
+	}
+	return id, nil
+}
+
 func parseSnapshotID(id string) (vol, snap string, err error) {
 	i := strings.IndexByte(id, '@')
 	if i <= 0 || i == len(id)-1 || strings.Count(id, "@") != 1 {
@@ -221,8 +280,23 @@ func zfsErr(err error, what string) error {
 		code = NotFound
 	case errors.Is(err, zfs.ErrExists):
 		code = AlreadyExists
-	case errors.Is(err, zfs.ErrHasClones), errors.Is(err, zfs.ErrHasChildren), errors.Is(err, zfs.ErrBusy):
+	case errors.Is(err, zfs.ErrHasClones), errors.Is(err, zfs.ErrHasChildren), errors.Is(err, zfs.ErrPrecondition),
+		errors.Is(err, zfs.ErrPermission): // a missing zfs allow grant
+		// states only the caller or an administrator changes: final
 		code = FailedPrecondition
+	case errors.Is(err, zfs.ErrBusy):
+		// an open zvol, a mounted filesystem in use, a user hold: clears
+		// by itself, so retryable here. A destroy is the exception: CSI
+		// wants FAILED_PRECONDITION for a volume or snapshot in use on
+		// DeleteVolume/DeleteSnapshot (apply maps by op).
+		code = Unavailable
+	case errors.Is(err, zfs.ErrInterrupted):
+		// killed by the caller's context: the op may or may not have run,
+		// so never Internal; a retry re-scans and re-plans
+		code = Aborted
+		if errors.Is(err, context.DeadlineExceeded) {
+			code = DeadlineExceeded
+		}
 	case errors.Is(err, zfs.ErrNoSpace):
 		code = ResourceExhausted
 	case errors.Is(err, zfs.ErrInvalidProperty):
@@ -233,6 +307,14 @@ func zfsErr(err error, what string) error {
 		code = Unavailable
 	}
 	return &Error{Code: code, Msg: what, Err: err}
+}
+
+// parentUnavailable reports a parent zfs cannot open. zfs prints the same
+// "dataset does not exist" for an exported pool as for a missing dataset,
+// and the parent is configuration, so it is never "absent": Unavailable is
+// retried, NotFound is final for the CSI sidecars.
+func parentUnavailable(parent string, err error) error {
+	return &Error{Code: Unavailable, Msg: "parent dataset " + parent + " is unavailable", Err: err}
 }
 
 // userValue reads a user property; "-" means unset.
@@ -318,6 +400,7 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 // scanFor reads the volumes an operation touches (one zfs call each).
 func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
 	var rows []Row
+	var covered []string
 	seen := map[string]bool{}
 	for _, id := range ids {
 		vol, _, _ := strings.Cut(id, "@")
@@ -333,8 +416,9 @@ func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
 			return Table{}, err
 		}
 		rows = slices.AppendSeq(rows, t.All())
+		covered = append(covered, vol)
 	}
-	return NewTable(rows), nil
+	return newPartialTable(rows, covered...), nil
 }
 
 func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
@@ -343,8 +427,9 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 		return Volume{}, err
 	}
 	row, ok := t.Get(id)
-	if !ok {
-		return Volume{}, errorf(Internal, "volume %s vanished after provisioning", id)
+	if !ok || !row.OwnedVolume() {
+		// only ours is ever returned: something replaced it after the plan
+		return Volume{}, errorf(Aborted, "volume %s vanished or changed owner after provisioning", id)
 	}
 	return volumeView(row), nil
 }
@@ -353,7 +438,10 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 // baseline, volumes with CSI snapshots or dependent clones fail with
 // FailedPrecondition and are left untouched.
 func (e *Endpoint) DeleteVolume(ctx context.Context, volID string) error {
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
+		if CodeOf(err) == NotFound {
+			return nil // never issued, so never existed: CSI says OK
+		}
 		return err
 	}
 	release, err := e.lock(ctx, "vol:"+volID)
@@ -375,7 +463,7 @@ func (e *Endpoint) DeleteVolume(ctx context.Context, volID string) error {
 
 // ExpandVolume grows a volume to at least capacity. Shrinking is a no-op.
 func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, limit uint64) (Volume, error) {
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
 		return Volume{}, err
 	}
 	release, err := e.lock(ctx, "vol:"+volID)
@@ -394,12 +482,22 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 	if err := e.apply(ctx, plan); err != nil {
 		return Volume{}, err
 	}
-	return e.readVolume(ctx, volID)
+	v, err := e.readVolume(ctx, volID)
+	if err == nil && v.Kind == Filesystem && v.CapacityBytes == 0 {
+		// unlimited (no refquota) already satisfies the request, and a
+		// quota would shrink it; capacity after expansion is reported as
+		// what was asked for, never 0 (CSI: capacity_bytes is required)
+		v.CapacityBytes = capacity
+		if v.CapacityBytes == 0 {
+			v.CapacityBytes = limit
+		}
+	}
+	return v, err
 }
 
 // GetVolume returns a managed volume.
 func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) {
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
 		return Volume{}, err
 	}
 	t, err := e.scan(ctx, volID)
@@ -407,7 +505,7 @@ func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) 
 		return Volume{}, err
 	}
 	row, ok := t.Get(volID)
-	if !ok || !row.Managed {
+	if !ok || !row.OwnedVolume() {
 		return Volume{}, errorf(NotFound, "volume %s not found", volID)
 	}
 	return volumeView(row), nil
@@ -444,7 +542,7 @@ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToke
 	}
 	var vols []Volume
 	for r := range t.Volumes() {
-		if r.Managed && r.Committed {
+		if r.OwnedVolume() && r.Committed {
 			vols = append(vols, volumeView(r))
 		}
 	}
@@ -493,7 +591,7 @@ func (e *Endpoint) ListSnapshots(ctx context.Context, snapshotID, sourceVolumeID
 	}
 	var snaps []Snapshot
 	for r := range t.All() {
-		if r.Type != zfs.TypeSnapshot || !r.Managed || r.Deferred {
+		if !r.OwnedSnapshot() || r.Deferred {
 			continue
 		}
 		s := snapshotView(t, r)
@@ -532,6 +630,9 @@ func (e *Endpoint) DeleteSnapshot(ctx context.Context, snapshotID string) error 
 // GetCapacity reports space available to new volumes under the parent.
 func (e *Endpoint) GetCapacity(ctx context.Context) (uint64, error) {
 	d, err := e.zfs.Get(ctx, e.cfg.Parent, "available")
+	if zfs.IsNotFound(err) {
+		return 0, parentUnavailable(e.cfg.Parent, err)
+	}
 	if err != nil {
 		return 0, zfsErr(err, "inspect parent")
 	}

@@ -2,7 +2,7 @@
 
 A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset and exposes it over gRPC (`api/zfsendpoint/v1`), so that CSI drivers and other front ends can stay thin translators.
 
-**OpenZFS is the source of truth** (`docs/adr/0003-openzfs-is-the-source-of-truth.md`). Behavior follows OpenZFS's own semantics, as verified in its source and on a real 2.4.x pool, never another driver's choices. **OpenZFS 2.4 is the only supported version** (`docs/adr/0004-support-floor-and-node-side.md`). [democratic-csi](https://github.com/democratic-csi/democratic-csi) is an **adoption target**: the endpoint can read its ZFS user properties (`democratic-csi:*`), so volumes it provisioned can be adopted, but it is evidence of practice, not of correctness.
+**OpenZFS is the source of truth** (`docs/adr/0003-openzfs-is-the-source-of-truth.md`). Behavior follows OpenZFS's own semantics, as verified in its source and on a real 2.4.x pool, never another driver's choices. [democratic-csi](https://github.com/democratic-csi/democratic-csi) is an **adoption target**: by default the endpoint keeps its state under its own user-property namespace (`zfs-endpoint:*`), and `-property-prefix democratic-csi` is the **adoption mode**, which reads and writes that driver's properties so volumes it provisioned are adopted. democratic-csi is evidence of practice, not of correctness. **OpenZFS 2.4 is the only supported version** (`docs/adr/0004-support-floor-and-node-side.md`).
 
 ## Status
 
@@ -15,7 +15,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 | File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; hostname, IPv4 or IPv4 CIDR, rw/ro), desired clients in a local `<prefix>:nfs_clients` property with `sharenfs` computed from it, each change verified against `/var/lib/nfs/etab`; root only (`docs/research/gaps/file-export.md` and its two reviews). SMB not started |
 | Block export (iSCSI/NVMe-oF) | design v2 done, not implemented: sole configfs owner, minted `block_id` identity, fail-closed build order (`docs/research/gaps/block-export-v2.md`) |
 | CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS. Node side not started |
-| Transport auth | not started; the socket is mode 0600 until then (`docs/research/edges2/transport-auth.md`) |
+| Transport auth | not started; both daemons' sockets are mode 0600 in a 0700 directory until then (`internal/unixsock`, `docs/research/edges2/transport-auth.md`) |
 
 ## Design
 
@@ -27,7 +27,7 @@ lock(keys) → scan → Table → plan(Table, request) → Plan → apply → re
              get -Hp     immutable  no I/O             plain data own replay tolerance
 ```
 
-- **Scan** (`table.go`): one `zfs get -Hp` per call reads the subtree into a flat columnar buffer. That is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from *locally set* properties, because user properties inherit.
+- **Scan** (`table.go`): one `zfs get -Hp` per call reads the subtree into a flat columnar buffer. That is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
 - **Plan** (`plan.go`): pure functions take a `Table` and a request and return either a `Plan` (a `[]Op` of plain data) or a typed error.
   - Idempotency means the plan is empty.
   - A provision that was interrupted converges, because uncommitted rows are driven toward the request rather than judged for compatibility.
@@ -36,9 +36,11 @@ lock(keys) → scan → Table → plan(Table, request) → Plan → apply → re
 
 Errors use the CSI/gRPC codes directly:
 - `ALREADY_EXISTS` for an incompatible re-create.
-- OK when deleting something that is already missing.
-- `FAILED_PRECONDITION` for deleting a volume that has snapshots or clones.
-- `ABORTED` for a resource that is busy.
+- OK when deleting something that is already missing, including an id the endpoint could never have issued. Other RPCs report such an id as `NOT_FOUND`.
+- `FAILED_PRECONDITION` for deleting a volume that has snapshots or clones, or snapshots the endpoint did not make, and for "in use" (`dataset is busy`) on a destroy.
+- `ABORTED` for a lock that is busy. It is also returned for an unclassified zfs failure after an earlier op of the plan applied, because a retry re-scans and converges. Before any change, that failure stays `INTERNAL`.
+- `UNAVAILABLE` for zfs "busy" outside a destroy, a read-only or missing pool, or a missing parent.
+- `DEADLINE_EXCEEDED` or `ABORTED` for a zfs command killed by the caller's deadline or cancellation. The outcome is unknown and a retry converges.
 
 ## Decisions and their evidence
 
@@ -57,6 +59,15 @@ All research is in `docs/research/`. Delegates produced it from pinned clones an
 | Fat-struct `Op`, not a sealed interface | a homogeneous `[]Op` is printable, diffable data for golden tests |
 | Unexport sets `sharenfs=off` locally, never `zfs inherit` | `sharenfs` inherits: an ancestor shared to `*` would re-export the volume to every host |
 | Exports are verified in the kernel's export table | libzfs discards the `exportfs` status, so `zfs set sharenfs=` exits 0 when the export failed (`docs/research/gaps/adv-file-export-facts.md` B1) |
+| Ownership is a locally set user property; `received` is not ownership | ADR 0003. A `zfs send -p \| zfs recv` copy carries the source's markers as `received`. Counting them adopted copies and let reconcile destroy them |
+| A volume's markers must name it (`csi_volume_name` = its id) | a renamed or received dataset carries another volume's name, so it is not this volume |
+| Clone sources must be committed and owned; a clone is never `OkExists` | an existing dataset at the target is someone else's or a racing create's. Adopting it skipped the ownership check |
+| DeleteVolume refuses snapshots the endpoint did not make, unless `-destroy-foreign-snapshots` | ADR 0003: `zfs destroy -r` took sanoid, replication and administrators' snapshots. The baseline did this |
+| Default `-property-prefix zfs-endpoint`, validated at startup | ADR 0003, and OpenZFS `zfs_prop_user`: only `a-z 0-9 - _ . :`, and shorter than 256 bytes with the suffix. `democratic-csi` is the adoption mode |
+| `xattr` only `sa`/`off`; `snapdir` `hidden`/`visible`/`disabled`; `copies` only on zvols | `xattr=on` is an alias zfs prints as `sa` (2.4 `xattr_table`), and it meant `dir` in 2.2. On a filesystem, extra copies count against `refquota`, which would silently shrink the volume |
+| Busy is mapped by operation | CSI: "in use" on DeleteVolume/DeleteSnapshot is `FAILED_PRECONDITION`. On create, expand and clone it clears by itself, so it is retryable |
+| A killed zfs command is `DEADLINE_EXCEEDED`/`ABORTED`, never `INTERNAL` | its outcome is unknown, and a final code would strand a half-applied plan. Commands get SIGTERM and then a 5 s `WaitDelay` |
+| Never delete a non-socket at the socket path | a misconfigured `-csi-address` removed whatever file it named |
 | No struct-of-arrays layout | measured: about 12 µs per 10k rows against about 1.5 ms per `zfs` exec. The real cost was a map per dataset, now one flat buffer |
 
 ### Corrections from adversarial review
@@ -67,6 +78,10 @@ These claims were made during the work and then disproved. They're kept here so 
 - **The baseline's success marker** is written but never read. Its retries rely on "already exists" being treated as success. The endpoint's resume-from-marker is therefore a real behavioural difference.
 - **"An in-process lock race in the baseline."** The pattern exists in the code but did not reproduce under grpc-js, because handlers don't interleave across microtasks.
 - **"No typed ZFS volume daemon exists."** Only partly true. TrueNAS middleware is a typed ZFS daemon over JSON-RPC, not gRPC.
+- **"`Prop.Local()` is ownership."** It counted `received` as local, so a `zfs send -p` copy looked managed (ADR 0002, ADR 0003). It is now `local` only.
+- **"`xattr=on` and `compression=gzip-6` read back as sent."** zfs prints the first table name for an index, so they read back as `sa` and `gzip`. The simulator now prints through OpenZFS 2.4's index tables, so read-back comparisons are tested against zfs, not an echo.
+- **"A clone that already exists is done."** It skipped the ownership check and adopted a racing or foreign dataset.
+- **"A missing parent makes every volume absent."** Only a whole-parent scan saw this. A missing parent is now `UNAVAILABLE` everywhere.
 
 ## Testing
 
@@ -75,19 +90,22 @@ go test -race ./...                                       # simulator
 ZFS_TEST_POOL=testpool go test ./internal/endpoint/...    # real pool, as root
 go test -run '^$' -fuzz FuzzCreateConverges ./internal/endpoint
 go test -run '^$' -fuzz FuzzReconcileSafe ./internal/endpoint
+go test -run '^$' -fuzz FuzzParseColumns ./internal/zfs
 ```
 
 The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter on a file-backed pool. Planner tests build `Table`s directly from rows, with no I/O.
 
 `FuzzCreateConverges` asserts the core invariant: for any accepted request, a second identical CreateVolume succeeds and changes nothing.
 
-`FuzzReconcileSafe` builds arbitrary parents on the simulator and asserts that reconcile never targets a desired, unowned, snapshotted or young volume or a CSI snapshot, and that a second reconcile plans nothing.
+`FuzzReconcileSafe` builds arbitrary parents on the simulator, including received copies of owned volumes. It asserts that reconcile never targets a desired, unowned, snapshotted or young volume or a CSI snapshot, and that a second reconcile plans nothing.
+
+The simulator injects failures (`Sim.Fail`) and received properties (`Sim.Receive`), and it prints index properties the way zfs 2.4 does.
 
 ## Open gaps
 
 The research found these, and nothing ships for them yet:
 - **Block exports, SMB** and node attach. For per-LUN detach, see Trident's `RemoveLUNFromSessions` and gobrick.
-- **Reconcile/GC.** The on-demand half ships: the `Reconcile` RPC (`reconcile.go`) runs off the request path and collects uncommitted rows from abandoned creates, clone-source snapshots whose clone is gone, and owned volumes outside a desired set the caller supplies. It never touches unowned datasets, desired volumes, CSI snapshots, snapshotted or cloned volumes (reported as skipped), or anything younger than `min_age_seconds` (default one hour). An empty desired set collects no committed volume. `dry_run` returns the plan as data. Still open: a startup report-only pass, keying clone-source snapshots on a property rather than their reserved name prefix, and reporting unrecorded exports once exports exist.
+- **Reconcile/GC.** The on-demand half ships: the `Reconcile` RPC (`reconcile.go`) runs off the request path and collects uncommitted rows from abandoned creates, clone-source snapshots whose clone is gone, and owned volumes outside a desired set the caller supplies. It never touches unowned or received datasets, desired volumes, CSI snapshots, volumes with snapshots (CSI or foreign) or clones (reported as skipped), or anything younger than `min_age_seconds` (default one hour). An empty desired set collects no committed volume. `dry_run` returns the plan as data. Still open: a startup report-only pass, keying clone-source snapshots on a property rather than their reserved name prefix, and reporting unrecorded exports once exports exist.
 - **HA exclusivity.** A channel-program fencing epoch was designed and then **dropped** after adversarial review: the epoch can go backwards, and creates, resizes and clones can't be fenced (`docs/research/gaps/adv-fencing.md`). Exclusivity is per host, with a `flock` per parent dataset, and across hosts it belongs to the HA layer (`zpool multihost` plus pacemaker/STONITH).
 - **Changed-block tracking** (the CSI SnapshotMetadata service). No ZFS implementation exists anywhere, and the zfs send stream is the only exact source.
 - **ControllerModifyVolume.** No ZFS driver implements it.

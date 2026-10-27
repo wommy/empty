@@ -31,6 +31,8 @@ When a behavior question comes up, **OpenZFS decides**: its CLI and libzfs seman
   - the default `-property-prefix`, today `democratic-csi`;
   - DeleteVolume's `destroy -r` over foreign snapshots;
   - received-property ownership. `zfs.Prop.Local()` counts `received` as local.
+
+  All three are done: the default prefix is `zfs-endpoint` (`democratic-csi` is the adoption mode), DeleteVolume refuses foreign snapshots unless `-destroy-foreign-snapshots` is set, and `Local()` is `local` only.
 - Existing decisions grounded in OpenZFS stand, because they were already loyal to it:
   - only a classified not-found counts as absent;
   - zvol reservations are left to ZFS (`refreservation=auto`);

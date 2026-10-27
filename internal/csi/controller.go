@@ -337,10 +337,12 @@ func (c *Controller) GetCapacity(ctx context.Context, _ *csi.GetCapacityRequest)
 }
 
 // ControllerExpandVolume grows the dataset or zvol. Only a zvol that carries
-// a filesystem (mount access) needs the node to grow that filesystem too: a
-// raw block volume is resized by the controller alone, and a ZFS filesystem
-// sees a new refquota at once. (democratic-csi reports node expansion for
-// raw block as well.)
+// a filesystem needs the node to grow that filesystem too: a raw block
+// volume is resized by the controller alone, and a ZFS filesystem sees a new
+// refquota at once. volume_capability is optional, so a zvol is assumed to
+// carry a filesystem unless the capability says raw block: a needless node
+// expansion is a no-op, a missed one leaves the filesystem small.
+// (democratic-csi reports node expansion for raw block as well.)
 func (c *Controller) ControllerExpandVolume(ctx context.Context, r *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	if r.GetVolumeId() == "" {
 		return nil, invalid("volume_id is required")
@@ -362,7 +364,7 @@ func (c *Controller) ControllerExpandVolume(ctx context.Context, r *csi.Controll
 	v := res.GetVolume()
 	return &csi.ControllerExpandVolumeResponse{
 		CapacityBytes:         i64(v.GetCapacityBytes()),
-		NodeExpansionRequired: v.GetKind() == pb.VolumeKind_VOLUME_KIND_BLOCK && r.GetVolumeCapability().GetMount() != nil,
+		NodeExpansionRequired: v.GetKind() == pb.VolumeKind_VOLUME_KIND_BLOCK && r.GetVolumeCapability().GetBlock() == nil,
 	}, nil
 }
 

@@ -8,7 +8,8 @@
 #
 # Fails when
 # - a test skipped that ci/expected-skips.txt does not allow for <leg> <package>
-#   (an entry for TestX also covers its subtests TestX/...);
+#   (an entry for TestX also covers its subtests TestX/..., and is met when
+#   only those subtests skip);
 # - an allowed skip did not skip: on the real leg every entry is a simulator-
 #   only test, so a missing skip means the binary ran on the simulator;
 # - the log shows a failure or panic (the exit code already carries this;
@@ -38,7 +39,10 @@ unexpected=
 for t in $skipped; do
   grep -qxF "$t" <<<"$allowed" || grep -qxF "${t%%/*}" <<<"$allowed" || unexpected+="$t "
 done
-stale=$(comm -13 <(printf '%s\n' "$skipped" | lines) <(printf '%s\n' "$allowed" | lines))
+stale=
+for t in $allowed; do
+  grep -qxF "$t" <<<"$skipped" || grep -qF "$t/" <<<"$skipped" || stale+="$t "
+done
 
 n=$(printf '%s\n' "$skipped" | lines | wc -l)
 m=$(printf '%s\n' "$allowed" | lines | wc -l)

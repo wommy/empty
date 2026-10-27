@@ -54,6 +54,13 @@ var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
 
 func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
 	t.Helper()
+	return setupPrefix(t, "")
+}
+
+// setupPrefix is setup with a property prefix; "democratic-csi" is the
+// adoption mode.
+func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
+	t.Helper()
 	ctx := context.Background()
 	h := &harness{}
 	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
@@ -74,7 +81,7 @@ func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
 	if err := h.Z.CreateFilesystem(ctx, h.Parent, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true}
+	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true, PropertyPrefix: prefix}
 	if h.sim != nil {
 		cfg.Etab = h.sim
 	}
@@ -109,7 +116,7 @@ func TestCreateVolumeIdempotent(t *testing.T) {
 	if err != nil || v2 != v1 {
 		t.Fatalf("retry: %+v %v", v2, err)
 	}
-	if h.Prop(h.Parent+"/pvc-1", "democratic-csi:provision_success") != "true" {
+	if h.Prop(h.Parent+"/pvc-1", "zfs-endpoint:provision_success") != "true" {
 		t.Fatal("commit marker missing")
 	}
 
@@ -134,9 +141,9 @@ func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
 	// a crash after create, before the marker: owned but not committed
 	z := h.Z
 	if err := z.CreateFilesystem(ctx, h.Parent+"/pvc-2", map[string]string{
-		"democratic-csi:managed_resource": "true",
-		"democratic-csi:csi_volume_name":  "pvc-2",
-		"refquota":                        "1073741824",
+		"zfs-endpoint:managed_resource": "true",
+		"zfs-endpoint:csi_volume_name":  "pvc-2",
+		"refquota":                      "1073741824",
 	}, false); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +158,7 @@ func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.CapacityBytes != 1<<30 || h.Prop(h.Parent+"/pvc-2", "democratic-csi:provision_success") != "true" {
+	if v.CapacityBytes != 1<<30 || h.Prop(h.Parent+"/pvc-2", "zfs-endpoint:provision_success") != "true" {
 		t.Fatalf("not resumed: %+v", v)
 	}
 }
@@ -511,8 +518,8 @@ func TestCreateVolumeProperties(t *testing.T) {
 
 	// an interrupted provision (owned, not committed) converges with set
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/half", map[string]string{
-		"democratic-csi:managed_resource": "true",
-		"democratic-csi:csi_volume_name":  "half",
+		"zfs-endpoint:managed_resource": "true",
+		"zfs-endpoint:csi_volume_name":  "half",
 	}, false); err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +528,7 @@ func TestCreateVolumeProperties(t *testing.T) {
 		t.Fatal(err)
 	}
 	if h.Prop(h.Parent+"/half", "compression") != "zle" || h.Prop(h.Parent+"/half", "snapdir") != "visible" ||
-		h.Prop(h.Parent+"/half", "democratic-csi:provision_success") != "true" {
+		h.Prop(h.Parent+"/half", "zfs-endpoint:provision_success") != "true" {
 		t.Fatal("uncommitted volume did not converge")
 	}
 }

@@ -39,8 +39,8 @@ func TestReconcileCollectsAbandonedCreate(t *testing.T) {
 	ep, h := setup(t)
 	// a CreateVolume that crashed before its commit marker, never retried
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/abandoned", map[string]string{
-		"democratic-csi:managed_resource": "true",
-		"democratic-csi:csi_volume_name":  "abandoned",
+		"zfs-endpoint:managed_resource": "true",
+		"zfs-endpoint:csi_volume_name":  "abandoned",
 	}, false); err != nil {
 		t.Fatal(err)
 	}
