@@ -1,8 +1,9 @@
 name: ci
 
 on:
+  # every branch: this repository has no default branch yet, and the
+  # real-ZFS job is the only oracle the simulator is checked against
   push:
-    branches: [main, master]
   pull_request:
 
 permissions:

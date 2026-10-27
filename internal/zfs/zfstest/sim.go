@@ -3,13 +3,17 @@
 // properties, and the stderr text real zfs prints for the failures callers
 // must classify (see internal/zfs/errors.go for the OpenZFS sources).
 //
-// It is an oracle for control flow, not for ZFS itself: space accounting is
-// approximate and only the flags the endpoint uses are implemented.
+// It is an oracle for control flow, not for ZFS itself. Behaviors were
+// audited against OpenZFS source (docs/research/simfidelity/). Not modelled:
+// promote beyond the origin snapshot, holds, busy (open) zvols, -R, -n,
+// native property inheritance, size suffixes; space accounting is
+// approximate. CI runs the same contract tests on a real pool.
 package zfstest
 
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -150,6 +154,9 @@ func (s *Sim) create(args []string) error {
 			name = rest[i]
 		}
 	}
+	if sparse && volsize == "" {
+		return exit("'-s' and '-b' can only be used when creating a volume")
+	}
 	if _, ok := s.ds[name]; ok {
 		if parents {
 			return nil // real zfs: -p on an existing dataset succeeds silently
@@ -158,6 +165,9 @@ func (s *Sim) create(args []string) error {
 	}
 	p := parent(name)
 	if _, ok := s.ds[p]; !ok {
+		if pool := strings.SplitN(name, "/", 2)[0]; s.ds[pool] == nil {
+			return exit("cannot create '%s': no such pool '%s'", name, pool)
+		}
 		if !parents {
 			return exit("cannot create '%s': parent does not exist", name)
 		}
@@ -178,11 +188,22 @@ func (s *Sim) create(args []string) error {
 	}
 	n := &node{typ: zfs.TypeFilesystem, props: props}
 	if volsize != "" {
-		n.typ = zfs.TypeVolume
-		n.props["volsize"] = volsize
-		if !sparse {
-			n.props["refreservation"] = autoResv(volsize)
+		v, err := strconv.ParseUint(volsize, 10, 64)
+		if err != nil || v == 0 {
+			return exit("cannot create '%s': volume size cannot be zero", name)
 		}
+		// zfs_main.c rounds -V up to a multiple of volblocksize
+		bs, _ := strconv.ParseUint(s.volblocksize(n), 10, 64)
+		if r := v % bs; r != 0 {
+			v += bs - r
+		}
+		n.typ = zfs.TypeVolume
+		n.props["volsize"] = strconv.FormatUint(v, 10)
+		if r, set := props["refreservation"]; !set && !sparse || r == "auto" {
+			n.props["refreservation"] = autoResv(n.props["volsize"])
+		}
+	} else if props["refreservation"] == "auto" {
+		return exit("cannot create '%s': 'refreservation=auto' only supported on volumes", name)
 	}
 	s.ds[name] = n
 	return nil
@@ -194,6 +215,11 @@ func (s *Sim) snapshot(args []string) error {
 		return err
 	}
 	name := rest[len(rest)-1]
+	for k := range props {
+		if !strings.Contains(k, ":") {
+			return exit("cannot create snapshot '%s': property '%s' can not be set on snapshots", name, k)
+		}
+	}
 	if _, ok := s.ds[parent(name)]; !ok {
 		return exit("cannot open '%s': dataset does not exist", parent(name))
 	}
@@ -224,6 +250,9 @@ func (s *Sim) clone(args []string) error {
 	n := &node{typ: typ, props: props, origin: snap}
 	if typ == zfs.TypeVolume {
 		n.props["volsize"] = s.ds[parent(snap)].props["volsize"]
+		if bs, ok := s.ds[parent(snap)].props["volblocksize"]; ok {
+			n.props["volblocksize"] = bs
+		}
 	}
 	s.ds[name] = n
 	return nil
@@ -264,8 +293,14 @@ func (s *Sim) destroy(args []string) error {
 			name = a
 		}
 	}
+	if deferred && !strings.Contains(name, "@") {
+		return exit("cannot open '%s': missing '@' delimiter in snapshot name", name)
+	}
 	n, ok := s.ds[name]
 	if !ok {
+		if strings.Contains(name, "@") {
+			return exit("could not find any snapshots to destroy; check snapshot names.")
+		}
 		return exit("cannot open '%s': dataset does not exist", name)
 	}
 	if n.typ == zfs.TypeSnapshot {
@@ -363,7 +398,13 @@ func (s *Sim) set(args []string) error {
 			// like zfs: an auto refreservation tracks volsize
 			n.props["refreservation"] = autoResv(p[1])
 		}
+		if p[0] == "volsize" && p[1] == "0" {
+			return exit("cannot set property for '%s': 'volsize' must be nonzero", name)
+		}
 		if p[0] == "refreservation" && p[1] == "auto" {
+			if n.typ != zfs.TypeVolume {
+				return exit("cannot set property for '%s': 'refreservation=auto' only supported on volumes", name)
+			}
 			p[1] = autoResv(n.props["volsize"])
 		}
 		n.props[p[0]] = p[1]
@@ -373,6 +414,10 @@ func (s *Sim) set(args []string) error {
 
 func (s *Sim) inherit(args []string) error {
 	prop, name := args[0], args[1]
+	switch prop {
+	case "quota", "refquota", "reservation", "refreservation", "volsize", "volblocksize":
+		return exit("'%s' property cannot be inherited", prop)
+	}
 	n, ok := s.ds[name]
 	if !ok {
 		return exit("cannot open '%s': dataset does not exist", name)
@@ -399,14 +444,53 @@ func (s *Sim) volblocksize(n *node) string {
 }
 
 var defaults = map[string]string{
-	"compression": "lz4", "refquota": "0", "quota": "0", "reservation": "0",
+	"compression": "on", "refquota": "0", "quota": "0", "reservation": "0",
 	"refreservation": "0", "volblocksize": "16384", "used": "0",
 	"sharenfs": "off", "sharesmb": "off",
 }
 
+// applies lists which dataset types a native property exists on (zfs_prop.c);
+// for other types zfs get prints "-" with source "-".
+var applies = map[string][]zfs.Type{
+	"volsize":        {zfs.TypeVolume, zfs.TypeSnapshot},
+	"volblocksize":   {zfs.TypeVolume},
+	"quota":          {zfs.TypeFilesystem},
+	"refquota":       {zfs.TypeFilesystem},
+	"reservation":    {zfs.TypeFilesystem, zfs.TypeVolume},
+	"refreservation": {zfs.TypeFilesystem, zfs.TypeVolume},
+	"sharenfs":       {zfs.TypeFilesystem},
+	"sharesmb":       {zfs.TypeFilesystem},
+	"mountpoint":     {zfs.TypeFilesystem},
+	"compression":    {zfs.TypeFilesystem, zfs.TypeVolume},
+	"available":      {zfs.TypeFilesystem, zfs.TypeVolume},
+	"defer_destroy":  {zfs.TypeSnapshot},
+}
+
+func known(prop string) bool {
+	if strings.Contains(prop, ":") {
+		return true
+	}
+	switch prop {
+	case "all", "name", "type", "origin", "creation", "used":
+		return true
+	}
+	_, ok := applies[prop]
+	return ok
+}
+
 func (s *Sim) value(name, prop string) (string, string, bool) {
 	n := s.ds[name]
+	if types, ok := applies[prop]; ok {
+		if !slices.Contains(types, n.typ) {
+			return "-", "-", true
+		}
+		if prop == "volsize" && n.typ == zfs.TypeSnapshot && s.ds[parent(name)].typ != zfs.TypeVolume {
+			return "-", "-", true
+		}
+	}
 	switch prop {
+	case "used":
+		return "0", "-", true
 	case "name":
 		return name, "-", true
 	case "type":
@@ -427,9 +511,6 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 		}
 		return "-", "-", true
 	case "defer_destroy":
-		if n.typ != zfs.TypeSnapshot {
-			return "", "", false
-		}
 		if n.defer_ {
 			return "on", "-", true
 		}
@@ -449,18 +530,9 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 		}
 		return "-", "-", true
 	}
-	if prop == "volsize" {
-		switch {
-		case n.typ == zfs.TypeVolume:
-		case n.typ == zfs.TypeSnapshot && s.ds[parent(name)].typ == zfs.TypeVolume:
-			// a zvol snapshot reports the volume's size at snapshot time
-			if v, ok := n.props["volsize"]; ok {
-				return v, "-", true
-			}
-			return s.ds[parent(name)].props["volsize"], "-", true
-		default:
-			return "", "", false
-		}
+	if prop == "volsize" && n.typ == zfs.TypeSnapshot {
+		// a zvol snapshot reports the volume's size at snapshot time
+		return s.ds[parent(name)].props["volsize"], "-", true
 	}
 	if v, ok := defaults[prop]; ok {
 		return v, "default", true
@@ -491,19 +563,25 @@ func (s *Sim) get(args []string) ([]byte, error) {
 		}
 	}
 	props, root := strings.Split(pos[0], ","), pos[1]
+	for _, p := range props {
+		if !known(p) {
+			return nil, exit("bad property list: invalid property '%s'", p)
+		}
+	}
 	if _, ok := s.ds[root]; !ok {
 		return nil, exit("cannot open '%s': dataset does not exist", root)
 	}
 	names := []string{root}
 	if recursive || depth > 0 {
 		for _, k := range s.children(root) {
-			rel := strings.TrimPrefix(strings.TrimPrefix(k, root), "/")
-			lvl := strings.Count(rel, "/") + 1
-			if strings.Contains(k, "@") {
-				lvl = strings.Count(strings.SplitN(rel, "@", 2)[0], "/") + 1
-				if strings.HasPrefix(rel, "@") {
-					lvl = 1
-				}
+			// zfs_iter.c: a dataset's snapshots sit one level below it
+			ds, _, isSnap := strings.Cut(k, "@")
+			lvl := 0
+			if ds != root {
+				lvl = strings.Count(strings.TrimPrefix(ds, root+"/"), "/") + 1
+			}
+			if isSnap {
+				lvl++
 			}
 			if recursive || lvl <= depth {
 				names = append(names, k)
