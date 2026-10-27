@@ -209,8 +209,11 @@ func (n props) columns() []string {
 }
 
 // decodeColumns turns a columnar scan into rows: each column is located
-// once, then every dataset is a straight read of its cells.
-func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
+// once, then every dataset is a straight read of its cells. It fails the
+// whole scan on a number zfs could not have printed, or a zvol whose size
+// breaks OpenZFS's own rules (volsize > 0, a multiple of volblocksize):
+// read as 0, such a size would let Expand plan a shrink.
+func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 	j := func(p string) int { return c.Col(p) }
 	cType, cVolsize, cBlock, cRefquota, cRefres := j("type"), j("volsize"), j("volblocksize"), j("refquota"), j("refreservation")
 	cOrigin, cCreation, cDefer, cMount := j("origin"), j("creation"), j("defer_destroy"), j("mountpoint")
@@ -223,9 +226,16 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 	cShare, cMounted, cClients := j("sharenfs"), j("mounted"), j(n.nfsClients())
 
 	rows := make([]Row, 0, len(c.Names))
+	var bad error
 	for i, name := range c.Names {
 		cell := func(k int) zfs.Prop { return c.Cell(i, k) }
-		u := func(k int) uint64 { v, _ := cell(k).Uint(); return v }
+		u := func(k int) uint64 {
+			v, err := cell(k).Uint()
+			if err != nil && bad == nil {
+				bad = errorf(Internal, "scan: %s: unparsable number %q: %v", name, cell(k).Value, err)
+			}
+			return v
+		}
 		// ownership must be set on the dataset itself: user properties
 		// inherit, so every snapshot (and child) would otherwise look owned
 		own := func(k int) string {
@@ -266,9 +276,15 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 		if v, err := strconv.ParseInt(cell(cCreation).Value, 10, 64); err == nil {
 			r.Creation = v
 		}
+		if r.Type == zfs.TypeVolume && (r.Volsize == 0 || r.BlockSz == 0 || r.Volsize%r.BlockSz != 0) && bad == nil {
+			bad = errorf(Internal, "scan: %s: zvol volsize %d / volblocksize %d breaks OpenZFS's own invariants", name, r.Volsize, r.BlockSz)
+		}
 		rows = append(rows, r)
 	}
-	return rows
+	if bad != nil {
+		return nil, bad
+	}
+	return rows, nil
 }
 
 // scan reads the parent's volumes and snapshots in one zfs call; with only
@@ -300,7 +316,10 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 		}
 		return Table{}, zfsErr(err, "scan "+root)
 	}
-	rows := e.names.decodeColumns(e.cfg.Parent, cols)
+	rows, err := e.names.decodeColumns(e.cfg.Parent, cols)
+	if err != nil {
+		return Table{}, err
+	}
 	rows = slices.DeleteFunc(rows, func(r Row) bool {
 		if !strings.HasPrefix(r.Name, e.cfg.Parent+"/") {
 			return true // the parent and its own snapshots (pool-root parents)
