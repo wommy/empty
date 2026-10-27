@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"math"
 	"time"
 
@@ -63,9 +64,18 @@ func snapshotOut(s endpoint.Snapshot) *pb.Snapshot {
 	}
 }
 
+// MaxPageSize caps a list page. CSI lets the plugin page even when
+// max_entries is 0 ("no limit"): it may return fewer entries plus a
+// next_token. Without the cap, 100k volumes are a ~21 MB response, past
+// every client's default 4 MiB receive limit.
+const MaxPageSize = 1000
+
 func maxEntries(n int32) (int, error) {
 	if n < 0 {
 		return 0, status.Error(codes.InvalidArgument, "max_entries must be >= 0")
+	}
+	if n == 0 || n > MaxPageSize {
+		return MaxPageSize, nil
 	}
 	return int(n), nil
 }
@@ -118,6 +128,7 @@ func (s *Server) CreateVolume(ctx context.Context, r *pb.CreateVolumeRequest) (*
 }
 
 func (s *Server) DeleteVolume(ctx context.Context, r *pb.DeleteVolumeRequest) (*pb.DeleteVolumeResponse, error) {
+	slog.InfoContext(ctx, "delete volume", "volume_id", r.GetVolumeId())
 	if err := s.EP.DeleteVolume(ctx, r.GetVolumeId()); err != nil {
 		return nil, grpcErr(err)
 	}
@@ -165,6 +176,7 @@ func (s *Server) CreateSnapshot(ctx context.Context, r *pb.CreateSnapshotRequest
 }
 
 func (s *Server) DeleteSnapshot(ctx context.Context, r *pb.DeleteSnapshotRequest) (*pb.DeleteSnapshotResponse, error) {
+	slog.InfoContext(ctx, "delete snapshot", "snapshot_id", r.GetSnapshotId())
 	if err := s.EP.DeleteSnapshot(ctx, r.GetSnapshotId()); err != nil {
 		return nil, grpcErr(err)
 	}
@@ -200,6 +212,7 @@ func (s *Server) Reconcile(ctx context.Context, r *pb.ReconcileRequest) (*pb.Rec
 	if age > math.MaxInt64/uint64(time.Second) {
 		return nil, status.Error(codes.InvalidArgument, "min_age_seconds out of range")
 	}
+	slog.InfoContext(ctx, "reconcile", "desired", len(r.GetDesiredVolumeIds()), "min_age_seconds", age, "dry_run", r.GetDryRun())
 	plan, err := s.EP.Reconcile(ctx, endpoint.ReconcileRequest{
 		DesiredVolumeIDs: r.GetDesiredVolumeIds(),
 		MinAge:           time.Duration(age) * time.Second,
@@ -207,6 +220,13 @@ func (s *Server) Reconcile(ctx context.Context, r *pb.ReconcileRequest) (*pb.Rec
 	})
 	if err != nil {
 		return nil, grpcErr(err)
+	}
+	if !r.GetDryRun() {
+		// what was destroyed and why; each destroy's argv and outcome is
+		// also logged as it ran (zfs.Audit)
+		for _, a := range plan.Actions {
+			slog.InfoContext(ctx, "reconcile destroyed", "target", a.Target, "reason", a.Reason, "deferred", a.Op.Defer)
+		}
 	}
 	out := &pb.ReconcileResponse{}
 	for _, a := range plan.Actions {
