@@ -26,7 +26,23 @@ func capability(block bool) *csi.VolumeCapability {
 
 func TestCapabilitiesAdvertised(t *testing.T) {
 	t.Parallel()
-	c := &zcsi.Controller{EP: endpointClient(t)}
+	assertCapabilities(t, &zcsi.Controller{EP: endpointClient(t)})
+}
+
+// The sidecars read the controller capabilities once, at startup, and exit
+// on an error (klog.Fatalf in csi-provisioner, csi-snapshotter and
+// csi-resizer). The set does not depend on the endpoint, so a sidecar
+// started while the endpoint is down (a restart, a crash backoff) gets it
+// instead of crash-looping.
+func TestControllerCapabilitiesWithoutEndpoint(t *testing.T) {
+	t.Parallel()
+	assertCapabilities(t, &zcsi.Controller{EP: pb.NewEndpointServiceClient(unreachableConn(t))})
+}
+
+// assertCapabilities asserts the controller capabilities: every RPC the
+// endpoint serves.
+func assertCapabilities(t *testing.T, c *zcsi.Controller) {
+	t.Helper()
 	res, err := c.ControllerGetCapabilities(context.Background(), &csi.ControllerGetCapabilitiesRequest{})
 	if err != nil {
 		t.Fatal(err)
@@ -245,8 +261,8 @@ func TestExpandUnlimitedFilesystem(t *testing.T) {
 	}
 }
 
-// A volume_capability on Expand is checked against the volume by the rule
-// Validate uses, before anything is resized: an unsupported one is
+// A volume_capability on Expand is checked for its access type only, before
+// anything is resized: none, or block access on a filesystem, is
 // InvalidArgument and the capacity is unchanged.
 func TestExpandValidatesCapability(t *testing.T) {
 	t.Parallel()
@@ -257,11 +273,8 @@ func TestExpandValidatesCapability(t *testing.T) {
 		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}}); err != nil {
 		t.Fatal(err)
 	}
-	multi := capability(false)
-	multi.AccessMode.Mode = csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER
 	for name, vc := range map[string]*csi.VolumeCapability{
 		"block access on a filesystem volume": capability(true),
-		"unsupported access mode":             multi,
 		"no access type":                      {AccessMode: capability(false).AccessMode},
 	} {
 		res, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
@@ -274,16 +287,45 @@ func TestExpandValidatesCapability(t *testing.T) {
 	if v, err := ep.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "fs"}); err != nil || v.GetVolume().GetCapacityBytes() != 1<<30 {
 		t.Fatalf("resized by a refused expand: %v %v", v, err)
 	}
-	// a supported capability still expands; a missing volume is NotFound
-	if _, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
-		VolumeId: "fs", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(false),
-	}); err != nil {
-		t.Fatal(err)
+	// the access mode is not the expand's business (CSI: the capability
+	// tells block from mount): a mode this mode would not create still
+	// expands, as does a supported one; a missing volume is NotFound
+	multi := capability(false)
+	multi.AccessMode.Mode = csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER
+	for i, vc := range []*csi.VolumeCapability{multi, capability(false)} {
+		want := int64(2+i) << 30
+		res, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+			VolumeId: "fs", CapacityRange: &csi.CapacityRange{RequiredBytes: want}, VolumeCapability: vc,
+		})
+		if err != nil || res.GetCapacityBytes() != want {
+			t.Fatalf("expand with %v: %+v %v", vc.GetAccessMode().GetMode(), res, err)
+		}
 	}
 	if _, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
 		VolumeId: "gone", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(false),
 	}); status.Code(err) != codes.NotFound {
 		t.Fatalf("missing volume: %v", err)
+	}
+}
+
+// A zvol made while block was enabled still grows with block access after
+// -enable-block is turned off: the flag gates new volumes and confirmations,
+// and an expand refused for it is final for csi-resizer.
+func TestExpandBlockAfterBlockDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep := endpointClient(t)
+	on := &zcsi.Controller{EP: ep, EnableBlock: true}
+	if _, err := on.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "zvol", VolumeCapabilities: []*csi.VolumeCapability{capability(true)},
+		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}}); err != nil {
+		t.Fatal(err)
+	}
+	off := &zcsi.Controller{EP: ep}
+	res, err := off.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+		VolumeId: "zvol", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(true),
+	})
+	if err != nil || res.GetCapacityBytes() != 2<<30 || res.GetNodeExpansionRequired() {
+		t.Fatalf("%+v %v", res, err)
 	}
 }
 

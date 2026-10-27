@@ -160,7 +160,7 @@ func TestNFS_N1_ParamsAccepted(t *testing.T) {
 func TestNFS_N2_ClientsValidated(t *testing.T) {
 	t.Parallel()
 	f := nfsFixture(t, srv1)
-	for i, good := range []string{"10.20.0.0/24", "10.20.0.0/24,10.20.1.0/24", "10.20.0.5/32", "10.20.0.0/16"} {
+	for i, good := range []string{"10.20.0.0/24", "10.20.0.0/24,10.20.1.0/24", "10.20.0.5/32", "10.20.0.0/16", " 10.20.0.0/24, 10.20.1.0/24 "} {
 		if _, err := f.ctl.CreateVolume(context.Background(), nfsReq("good"+string(rune('a'+i)), map[string]string{nfsClients: good})); err != nil {
 			t.Errorf("nfs.clients=%q: %v", good, err)
 		}
@@ -183,8 +183,15 @@ func TestNFS_N2_ClientsValidated(t *testing.T) {
 		_, err := f.ctl.CreateVolume(context.Background(), nfsReq("bad"+string(rune('a'+i)), map[string]string{nfsClients: bad}))
 		refusedForValue(t, err, "nfs.clients="+bad)
 	}
-	if got := f.list(t); len(got) != 4 {
+	got := f.list(t)
+	if len(got) != 5 {
 		t.Errorf("a refused create left a volume: %d listed", len(got))
+	}
+	// spaces around the entries, as YAML is naturally written, are trimmed
+	if v := got["goode"]; v == nil {
+		t.Error("nfs.clients with spaces: no volume")
+	} else if s, want := f.sim.Prop(v.GetVolumeContext()[zcsi.CtxDataset], "sharenfs"), "rw=10.20.0.0/24:10.20.1.0/24"; s != want {
+		t.Errorf("nfs.clients with spaces: sharenfs %q, want %q", s, want)
 	}
 }
 
@@ -297,6 +304,35 @@ func TestNFS_N7_BlockRefused(t *testing.T) {
 	f.ctl.EnableBlock = true // NFS mode refuses it whatever the flag
 	_, err := f.ctl.CreateVolume(context.Background(), nfsReq("n7", map[string]string{nfsClients: "10.20.0.0/24"}, blockCap(snw)))
 	refusedForValue(t, err, "block access with nfs.clients")
+}
+
+// Expand checks only the access type, never the mode's rules: a volume
+// created before -nfs-server (no export) grows in NFS mode, and an RWX
+// volume grows after the endpoint restarts without -nfs-server. Both were
+// InvalidArgument, which csi-resizer treats as final (the PVC is marked
+// infeasible) on a volume that is mounted and working.
+func TestNFS_ExpandAcrossModeFlip(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	expand := func(f *nfsFix, id string, vc *csi.VolumeCapability) {
+		t.Helper()
+		res, err := f.ctl.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+			VolumeId: id, CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: vc,
+		})
+		if err != nil || res.GetCapacityBytes() != 2<<30 {
+			t.Errorf("expand %s: %+v %v", id, res, err)
+		}
+	}
+
+	pre := nfsFixture(t) // no servers: not NFS mode
+	pre.create(t, nfsReq("old", nil))
+	pre.restart(t, srv1)
+	expand(pre, "old", mountCap(snw, ""))
+
+	rwx := nfsFixture(t, srv1)
+	rwx.create(t, nfsReq("rwx", map[string]string{nfsClients: "10.20.0.0/24"}, mountCap(mnmw, "")))
+	rwx.restart(t)
+	expand(rwx, "rwx", mountCap(mnmw, ""))
 }
 
 // N8 (§7): a filesystem takes all five access modes over NFS.

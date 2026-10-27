@@ -13,7 +13,9 @@ import (
 	"context"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
@@ -57,10 +59,18 @@ func (s *Identity) GetPluginCapabilities(context.Context, *csi.GetPluginCapabili
 // while its own probe of the parent fails (a suspended or exported pool)
 // and while it drains, so a front end in front of an unusable pool is not
 // reported ready. That is ready=false, not an error: the plugin itself is
-// fine. A failed Check (the endpoint unreachable) passes through.
+// fine. So is an endpoint that cannot be reached (Unavailable: its socket
+// is gone while it restarts) or does not answer in time (DeadlineExceeded):
+// CSI's "still initializing, but otherwise perfectly healthy", which the
+// sidecars' ProbeForever retries, where any error makes csi-provisioner
+// and csi-snapshotter exit. Other Check errors pass through.
 func (s *Identity) Probe(ctx context.Context, _ *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	res, err := s.Health.Check(ctx, &healthpb.HealthCheckRequest{Service: pb.EndpointService_ServiceDesc.ServiceName})
-	if err != nil {
+	switch status.Code(err) {
+	case codes.OK:
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return &csi.ProbeResponse{Ready: wrapperspb.Bool(false)}, nil
+	default:
 		return nil, err
 	}
 	return &csi.ProbeResponse{Ready: wrapperspb.Bool(res.GetStatus() == healthpb.HealthCheckResponse_SERVING)}, nil

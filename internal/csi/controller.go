@@ -25,7 +25,7 @@ type Controller struct {
 	// plugin attaches a zvol to a node yet (ADR 0004, ADR 0006), so a block
 	// PVC would bind and its pod never start. Off, CreateVolume refuses a
 	// block capability with InvalidArgument and ValidateVolumeCapabilities
-	// does not confirm one.
+	// does not confirm one; an existing zvol still expands.
 	EnableBlock bool
 }
 
@@ -86,33 +86,29 @@ func invalid(format string, a ...any) error {
 
 // ---- capabilities ------------------------------------------------------------
 
-// ControllerGetCapabilities translates what the endpoint reports. Cloning
-// from a snapshot is implied by CREATE_DELETE_SNAPSHOT in CSI terms.
-func (c *Controller) ControllerGetCapabilities(ctx context.Context, _ *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
-	got, err := c.EP.GetCapabilities(ctx, &pb.GetCapabilitiesRequest{})
-	if err != nil {
-		return nil, err
-	}
-	has := map[pb.Capability]bool{}
-	for _, cp := range got.GetCapabilities() {
-		has[cp] = true
-	}
-	var types []csi.ControllerServiceCapability_RPC_Type
-	add := func(ok bool, t ...csi.ControllerServiceCapability_RPC_Type) {
-		if ok {
-			types = append(types, t...)
-		}
-	}
-	add(has[pb.Capability_CAPABILITY_VOLUMES], csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME)
-	add(has[pb.Capability_CAPABILITY_SNAPSHOTS], csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT)
-	add(has[pb.Capability_CAPABILITY_LIST], csi.ControllerServiceCapability_RPC_LIST_VOLUMES)
-	add(has[pb.Capability_CAPABILITY_LIST] && has[pb.Capability_CAPABILITY_SNAPSHOTS], csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS)
-	add(has[pb.Capability_CAPABILITY_CAPACITY], csi.ControllerServiceCapability_RPC_GET_CAPACITY)
-	add(has[pb.Capability_CAPABILITY_CLONE_FROM_VOLUME], csi.ControllerServiceCapability_RPC_CLONE_VOLUME)
-	add(has[pb.Capability_CAPABILITY_EXPAND], csi.ControllerServiceCapability_RPC_EXPAND_VOLUME)
+// controllerCapabilities are the CSI RPCs the endpoint serves: volumes,
+// snapshots, list, capacity, clone from a volume and expand, which every
+// endpoint advertises (internal/server GetCapabilities; its only optional
+// capability, FILE_EXPORT, maps to no CSI RPC). Cloning from a snapshot is
+// implied by CREATE_DELETE_SNAPSHOT in CSI terms.
+var controllerCapabilities = []csi.ControllerServiceCapability_RPC_Type{
+	csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+	csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+	csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+	csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
+	csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+	csi.ControllerServiceCapability_RPC_CLONE_VOLUME,
+	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
+}
 
+// ControllerGetCapabilities is fixed and never asks the endpoint. The
+// sidecars read it once, at startup, and exit on an error (klog.Fatalf in
+// csi-provisioner, csi-snapshotter and csi-resizer), so one started while
+// the endpoint restarts would crash-loop; the RPCs themselves report the
+// endpoint's unavailability, which the sidecars retry.
+func (c *Controller) ControllerGetCapabilities(context.Context, *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	out := &csi.ControllerGetCapabilitiesResponse{}
-	for _, t := range types {
+	for _, t := range controllerCapabilities {
 		out.Capabilities = append(out.Capabilities, &csi.ControllerServiceCapability{
 			Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: t}},
 		})
@@ -315,9 +311,14 @@ func parseParams(in map[string]string, m mode) (params, error) {
 			case ParamNFSServer:
 				p.nfsServer = v
 			case ParamNFSClients:
-				// split as written: an empty entry reaches the endpoint,
-				// which refuses it (an empty host exports to everyone)
+				// spaces around an entry are trimmed ("a, b", as YAML is
+				// naturally written); an empty entry still reaches the
+				// endpoint, which refuses it (an empty host exports to
+				// everyone)
 				p.nfsClients = strings.Split(v, ",")
+				for i := range p.nfsClients {
+					p.nfsClients[i] = strings.TrimSpace(p.nfsClients[i])
+				}
 			case ParamNFSUID:
 				p.nfsUID, err = rootParam(k, v)
 			case ParamNFSGID:
@@ -589,18 +590,24 @@ func (c *Controller) ControllerExpandVolume(ctx context.Context, r *csi.Controll
 		return nil, invalid("capacity_range needs required_bytes or limit_bytes")
 	}
 	if vc := r.GetVolumeCapability(); vc != nil {
-		// checked against the volume before anything is resized, by the
-		// rule ValidateVolumeCapabilities confirms with
+		// Checked against the volume before anything is resized, for its
+		// access type only: CSI gives it to tell block from mount, and
+		// csi-resizer treats InvalidArgument as final. The mode's rules
+		// (access modes, NFS exports, -enable-block) gate new volumes and
+		// confirmations, not growth: a volume made under other flags, or
+		// adopted, must still expand.
 		got, err := c.EP.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: r.GetVolumeId()})
 		if err != nil {
 			return nil, err
 		}
-		m, err := c.modeOf(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if msg := capSupported(got.GetVolume(), vc, c.EnableBlock, m); msg != "" {
-			return nil, invalid("volume_capability: %s", msg)
+		switch {
+		case vc.GetBlock() != nil:
+			if got.GetVolume().GetKind() != pb.VolumeKind_VOLUME_KIND_BLOCK {
+				return nil, invalid("volume_capability: a filesystem volume has no block access")
+			}
+		case vc.GetMount() != nil:
+		default:
+			return nil, invalid("volume_capability: volume capability needs an access type")
 		}
 	}
 	res, err := c.EP.ExpandVolume(ctx, &pb.ExpandVolumeRequest{VolumeId: r.GetVolumeId(), CapacityBytes: required, LimitBytes: limit})
