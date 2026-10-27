@@ -4,7 +4,8 @@ name: cache-warm
 # a pull_request run is scoped to that PR's merge ref; a scheduled or
 # workflow_dispatch run saves on the default branch, which every PR reads.
 # Without this, each new PR pays a cold guest (~115s), a cold qemu tree
-# (~13s) and a stale Go build cache. ADR 0005's 60s budget is for warm
+# (~13s) and a stale Go build cache. The guest and the qemu tree share one
+# cache entry, which ci.yml restores in one step. ADR 0005's 60s budget is for warm
 # caches.
 #
 # Hourly, so a new cloud image serial, the ISO-week roll of the guest key or
@@ -122,41 +123,50 @@ jobs:
           persist-credentials: false
       - id: keys
         uses: ./.github/actions/real-zfs-keys
-      - name: look up the provisioned guest
-        id: guestprobe
+      # one entry holds the guest and the qemu tree (ci.yml restores it in
+      # one step). Three cases: the full key exists (nothing to do); only
+      # the guest part matches (a runner image release: restore it, build a
+      # fresh qemu tree, save under the new key, no reprovisioning); nothing
+      # matches (provision)
+      - name: look up the provisioned guest and qemu
+        id: probe
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.keys.outputs.guest }}
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
           lookup-only: true
-      - name: restore qemu
-        id: qemu
+      - name: restore the provisioned guest (another runner image's qemu)
+        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key != ''
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/qemu
-          key: ${{ steps.keys.outputs.qemu }}
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
       - name: set up qemu
         id: qemutree
-        if: steps.qemu.outputs.cache-hit != 'true' || steps.guestprobe.outputs.cache-hit != 'true'
+        if: steps.probe.outputs.cache-hit != 'true'
         run: |
+          # always a fresh tree for this runner image: a restored one came
+          # from another image (ci.yml only verifies it, for speed)
+          rm -rf "$RUNNER_TEMP/qemu"
           if ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then
             echo "$RUNNER_TEMP/qemu/bin" >>"$GITHUB_PATH"
             echo "ok=1" >>"$GITHUB_OUTPUT"
           else
             echo "::warning::qemu tree unusable; installing qemu from apt"
-            rm -rf "$RUNNER_TEMP/qemu"
+            # empty, so the guest is still saved; runs fall back to apt
+            rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"
             sudo apt-get update -qq
             sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils
           fi
           test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
-      - name: save qemu
-        if: steps.qemu.outputs.cache-hit != 'true' && steps.qemutree.outputs.ok == '1'
-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/qemu
-          key: ${{ steps.keys.outputs.qemu }}
       - name: enable kvm
-        if: steps.guestprobe.outputs.cache-hit != 'true'
+        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key == ''
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
@@ -165,7 +175,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
       - name: provision, store and check the guest
-        if: steps.guestprobe.outputs.cache-hit != 'true'
+        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key == ''
         env:
           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
           ZFSVM_SUMS: ${{ steps.keys.outputs.sums }}
@@ -173,21 +183,25 @@ jobs:
         run: ci/real-zfs-vm.sh stonking current 2.4
       - name: check for a stored guest
         id: stored
-        if: steps.guestprobe.outputs.cache-hit != 'true'
+        if: steps.probe.outputs.cache-hit != 'true'
         run: test -f "$RUNNER_TEMP/zfsvm-cache/ok" && echo "ok=1" >>"$GITHUB_OUTPUT" || true
-      - name: save the provisioned guest
+      - name: save the provisioned guest and qemu
         id: saveguest
         if: steps.stored.outputs.ok == '1'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.keys.outputs.guest }}
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
       - name: delete superseded guests on this branch
-        # each is ~0.8 GB of the repository's 10 GB cache budget
+        # each is ~0.9 GB of the repository's 10 GB cache budget; this also
+        # removes the v3 guest entries. The v3-era qemu-tree-* entries
+        # (23 MB) age out unused after 7 days
         if: steps.saveguest.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-          KEEP: ${{ steps.keys.outputs.guest }}
+          KEEP: ${{ steps.keys.outputs.vm }}
         run: |
           gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" --key zfsvm- --limit 100 --json id,key \
             --jq ".[] | select(.key != \"$KEEP\") | .id" |

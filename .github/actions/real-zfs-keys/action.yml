@@ -12,12 +12,16 @@ inputs:
     description: image build directory
     default: current
 outputs:
-  guest:
-    description: provisioned-guest cache key
-    value: ${{ steps.keys.outputs.guest }}
-  qemu:
-    description: qemu-tree cache key
-    value: ${{ steps.keys.outputs.qemu }}
+  vm:
+    description: >-
+      key of the one cache entry holding the provisioned guest
+      (<runner.temp>/zfsvm-cache) and the qemu tree (<runner.temp>/qemu)
+    value: ${{ steps.keys.outputs.vm }}
+  vm-fallback:
+    description: >-
+      restore-keys prefix: the same guest with another runner image's qemu
+      tree, which ci/qemu-tree.sh verifies (and rebuilds if it does not run)
+    value: ${{ steps.keys.outputs.vm-fallback }}
   sums:
     description: directory holding the verified SHA256SUMS and SHA256SUMS.gpg
     value: ${{ steps.keys.outputs.sums }}
@@ -44,11 +48,17 @@ runs:
         sum=$(awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }' "$d/SHA256SUMS")
         test -n "$sum" || { echo "::error::$f is not in $base/SHA256SUMS"; exit 1; }
         h() { sha256sum "$1" | cut -c1-16; }
-        # provisioning inputs only: editing how the tests run must not
-        # reprovision. v3: the cache also holds the kernel, initrd and
-        # cmdline for a direct kernel boot. The ISO week bounds how far the
-        # guest can lag zfsutils updates published after the image
-        echo "guest=zfsvm-v3-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)" >>"$GITHUB_OUTPUT"
-        # the qemu tree is unpacked from this runner image's apt view
-        echo "qemu=qemu-tree-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"
+        # the guest part: provisioning inputs only, so editing how the
+        # tests run must not reprovision. The ISO week bounds how far the
+        # guest can lag zfsutils updates published after the image. v3: the
+        # cache also holds the kernel, initrd and cmdline for a direct
+        # kernel boot. v4: one entry holds the guest and the qemu tree, so
+        # the job pays one cache restore, not two (~2s of per-restore
+        # overhead for 23 MB, run 40494213342)
+        guest=zfsvm-v4-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)
+        # the qemu part: the tree is unpacked from this runner image's apt
+        # view. A runner image release misses the full key but restores the
+        # guest through the fallback prefix, with the old tree
+        echo "vm=$guest-qemu-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"
+        echo "vm-fallback=$guest-qemu-" >>"$GITHUB_OUTPUT"
         echo "sums=$d" >>"$GITHUB_OUTPUT"
