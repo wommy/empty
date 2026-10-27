@@ -69,3 +69,5 @@
 {"id": 700, "file": "internal/endpoint/endpoint.go", "line": 274, "op": "EQ_FLIP", "status": "KILLED", "fails": ["TestAdv4BusyDestroyAbortsRun"], "pkgfail": ["github.com/wommy/empty/internal/endpoint"], "secs": 30.3}
 {"id": 702, "file": "internal/endpoint/endpoint.go", "line": 282, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestCloneNeverAdoptsARacingDataset"], "pkgfail": ["FAIL"], "secs": 34.6}
 {"id": 704, "file": "internal/endpoint/endpoint.go", "line": 292, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestBusyIsMappedByOperation", "TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 28.9}
+{"id": 706, "file": "internal/endpoint/endpoint.go", "line": 297, "op": "IF_NEGATE", "status": "KILLED", "fails": ["TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 41.7}
+{"id": 708, "file": "internal/endpoint/endpoint.go", "line": 301, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 29.3}

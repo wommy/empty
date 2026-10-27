@@ -23,3 +23,6 @@ before         build+link only (no run) #1        wall   8.80s  cpu    5.99s  rc
 before         go vet ./...                       wall   1.49s  cpu    0.85s  rc=0
 after          go test ./... #1                   wall  12.32s  cpu    7.44s  rc=0
 after          go test -race ./... #1             wall  22.73s  cpu   15.58s  rc=0
+after          race subset + plain rest #1        wall  30.36s  cpu   15.67s  rc=0
+after          build+link only (no run) #1        wall   9.17s  cpu    5.73s  rc=0
+after          go vet ./...                       wall   2.94s  cpu    1.10s  rc=0
