@@ -189,6 +189,7 @@ A replacement needs its own decision. The options: drop D9 and rely on D3, `max_
 - These are server-side mount options. NFS clients are unaffected.
 - Unlike `snapdir`, they are stamped rather than inherited. Each guards the storage host itself against what a tenant's client writes, not a tenant-visible behaviour.
 - A StorageClass cannot set them.
+- They stop the host running what a client wrote, not a local user reading or copying it. Startup therefore warns (never refuses) when the parent's mountpoint is searchable by other users (mode `o+x`): `chmod o-x` it (`TestStartupWarnsOfATraversableMountpoint`).
 - They hold only while pods reach filesystems over NFS (ADR 0004). A node plugin that bind-mounts the host's ZFS mount into a pod would inherit `nosuid`, `noexec` and `nodev`, so pods could not run programs from their volume. Such a plugin must revisit this decision before it ships.
 
 ### Systemd hardening (H-16)

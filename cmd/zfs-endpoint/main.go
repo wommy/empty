@@ -195,9 +195,11 @@ func run(ctx context.Context, args []string, d deps) error {
 	if etab == nil {
 		etab = endpoint.DefaultEtab
 	}
-	if err := checkExposure(ctx, z, *parent, etab); err != nil {
+	mount, err := checkExposure(ctx, z, *parent, etab)
+	if err != nil {
 		return startupErr(ctx, err)
 	}
+	warnTraversable(slog.Default(), *parent, mount)
 	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, NFSServers: nfsServers, Settle: d.settle, Etab: etab})
 	if err != nil {
 		return configErr("%v", err)
@@ -291,18 +293,40 @@ func startupErr(ctx context.Context, err error) error {
 // or a crossmnt line in /etc/exports. Restarting cannot fix it; removing
 // the export can. A parent with no mountpoint (none, legacy) mounts no
 // volume through it and is not checked.
-func checkExposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.EtabReader) error {
+func checkExposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.EtabReader) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	mount, x, err := exposure(ctx, z, parent, etab)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if len(x) > 0 {
-		return configErr("parent %s (mounted at %s) is under a crossmnt NFS export, which serves every volume to its clients as soon as it is created: %s; "+
+		return mount, configErr("parent %s (mounted at %s) is under a crossmnt NFS export, which serves every volume to its clients as soon as it is created: %s; "+
 			"unshare it (zfs set sharenfs=off on that dataset, or remove the /etc/exports line) and start again", parent, mount, strings.Join(x, "; "))
 	}
-	return nil
+	return mount, nil
+}
+
+// warnTraversable warns at startup when users other than the owner and
+// group may search the parent's mountpoint (mode o+x): every volume is
+// mounted below it, so any local user can then walk into what NFS
+// clients wrote there. setuid=off, exec=off and devices=off (F12) stop
+// the host running it from the volume, not a user reading or copying it
+// out. Only a warning: the mode is the operator's, and a parent with no
+// mountpoint, or one not mounted yet, is not checked.
+func warnTraversable(log *slog.Logger, parent, mount string) {
+	if !filepath.IsAbs(mount) {
+		return
+	}
+	fi, err := os.Stat(mount)
+	if err != nil {
+		log.Debug("parent mountpoint not checked for traversal", "mountpoint", mount, "error", err)
+		return
+	}
+	if fi.IsDir() && fi.Mode().Perm()&0o001 != 0 {
+		log.Warn("the parent's mountpoint is searchable by every local user, who can then reach the files NFS clients write to the volumes below it; "+
+			"chmod o-x it (F12)", "parent", parent, "mountpoint", mount, "mode", fi.Mode().Perm().String())
+	}
 }
 
 // exposure is the parent's mountpoint and the crossmnt etab lines that
