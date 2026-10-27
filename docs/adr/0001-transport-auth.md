@@ -1,143 +1,233 @@
-# 1. Transport authentication and per-caller authorization
+# 1. Transport, tenancy and per-RPC authorization (v2)
 
-Status: proposed · Date: 2026-10-27 · Supersedes the "socket is 0600 until transport auth lands" stopgap in `cmd/zfs-endpoint/main.go`.
+Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport authentication and per-caller authorization" (proposed, never built; read it at commit `2a4e914` or earlier). Related: ADR 0003, ADR 0004, ADR 0005, ADR 0006.
 
 ## Context
 
-- The daemon manages one parent dataset. It serves `EndpointService` (10 RPCs) over gRPC.
-- **Unix listener**: created under `umask 0177`, so only the daemon's uid can connect. A front end that runs as any other uid cannot reach it.
-- **TCP listener** (`-listen host:port`): plain `net.Listen` with no credentials at all. Anyone who can reach the port can destroy every volume under the parent. This is a live hole, not a missing feature.
-- Front ends: the CSI controller (`cmd/zfs-csi` on branch `csi-frontend`) dials with `insecure.NewCredentials()`. It may run on the same host over the socket, or remote over TCP. Several clusters or drivers may share one parent and must not touch each other's volumes.
-- No surveyed project combines per-caller identity with per-RPC dataset scoping (`docs/research/edges2/transport-auth.md`, GAPS).
-- Agentless SSH mode (mode b in that note) is out of scope here.
+**What v1 decided and why it stalled.** v1 chose `SO_PEERCRED` for unix sockets, mTLS for TCP, and a policy file of principals. Each principal had an RPC allowlist and a `volume_prefix` scope. It stalled for four reasons:
+1. Per-volume scoping must be enforced in every planner entry point. One that forgets fails open (v1's own "known risk").
+2. Root pods all look like `uid=0`, so per-uid policy cannot tell the commonest front ends apart.
+3. "Several clusters share one parent" contradicts Reconcile. Its desired set is complete per parent, so each cluster's GC would collect the other's volumes.
+4. No remote front end exists. zfs-csi needs a hostPath to the socket, so it always runs on the storage host.
+
+**Where "several clusters share one parent" came from (A1).** v1's own Context was its only source. That text was written by an agent in commit `2ed1800`. No owner statement exists in the repository or the working notes. This ADR therefore retires an agent's assumption, not an owner requirement, and that is why the owner was not asked about D1.
+
+**What the wave 11 threat model found.**
+- A pod given the socket directory `/run/zfs-endpoint` reached every instance's socket and lock file. It could block a restart by holding a lock, or replace a socket (F1).
+- Every caller could call every RPC, including Reconcile and PublishFileExport, which zfs-csi never calls (F2).
+- No peer identity was read or logged (F7).
+- A crossmnt export of an ancestor exports every volume from creation onward (F5).
+- journald rate limiting could drop audit lines (F8).
+- An NFS client could plant setuid binaries that host users could run (F12).
 
 ## Decision
 
-**1. One authentication mechanism per listener kind. No unauthenticated mode.**
-
-| Listener | Authenticates by | Principal string |
+| D | Decision | Built |
 |---|---|---|
-| `unix://` | `SO_PEERCRED` read in a custom gRPC `TransportCredentials.ServerHandshake` on the `*net.UnixConn` | `unix:uid=<n>` (`gid` and `pid` are logged, not authorized) |
-| `tcp` | mTLS, TLS 1.3 minimum, `RequireAndVerifyClientCert`. The client cert must carry **exactly one URI SAN**. | that URI, e.g. `spiffe://example.org/csi/cluster-a` |
+| D1 | The tenancy unit is the parent dataset | yes (it is what the daemon already was) |
+| D2 | Per-listener roles, not a policy file | yes |
+| D3 | Reconcile requires `plan_digest` to collect | **no**: decided, not built |
+| D4 | Two-person Reconcile: deferred | n/a |
+| D5 | TCP stays refused; mTLS is future work | yes (refused) |
+| D6 | `SO_PEERCRED`: logged now, authorized later | logged; admin role checks uid |
+| D7 | `-socket-group` for the csi listener | **no**: decided, not built |
+| D8 | NFS stays static-first (ADR 0004); pod-egress deny is F6's primary control | docs and deployment |
+| D9 | Reconcile skips exported volumes | **no**: decided, not built |
+| D10 | A crossmnt ancestor at startup: refuse, exit 78 | yes |
+| D11 | Audit: journald, unrated | yes |
+| D12 | No `snapdir` at create; inherit from the parent | yes (nothing is set) |
 
-- The socket becomes mode `0660`, owned by a configured `-socket-gid`. Filesystem permissions are the first gate and peer credentials are the second, as with containerd's gRPC socket plus its ttrpc `UnixSocketRequireSameUser` check.
-- The daemon refuses to start in either of these cases:
-  - `-listen` is TCP and no TLS source is configured.
-  - The policy file is missing, unreadable or invalid.
-- The CN is never an identity, and DNS SANs are ignored. SPIFFE and plain x509 (for example cert-manager) produce the same principal shape, so one policy covers both.
-- TLS has two sources:
-  - **SPIFFE.** `workloadapi.NewX509Source` with `tlsconfig.MTLSServerConfig`. The trust bundle and SVID come from the SPIRE agent.
-  - **Files.** Cert, key and CA bundle paths. The trust anchors are an explicit CA file, never the system roots.
+### D1. The tenancy unit is the parent dataset
 
-**2. Authorization is a static policy of principals, each with an RPC allowlist and a volume scope.**
+- Each tenant gets its own parent, instance and socket directory. A tenant is a cluster, a driver deployment, or a StorageClass family that must be isolated.
+- Isolation comes from what OpenZFS and the kernel already enforce:
+  - the dataset subtree;
+  - the socket's directory permissions;
+  - which hostPath the kubelet mounts into which pod.
+- Nothing scopes volumes in-process. CSI ids, Reconcile's desired set and GetCapacity are all per parent, so they are correct by construction.
+- One parent has exactly one container orchestrator. Reconcile's desired set is complete for the parent.
+- This is reversible. `volume_prefix` scoping can be added later without changing anything outward, because no id encodes tenancy.
 
-```json
-{"principals": [
-  {"id": "spiffe://example.org/csi/cluster-a", "rpcs": ["*"], "volume_prefix": "a-"},
-  {"id": "unix:uid=0", "rpcs": ["GetCapabilities", "ListVolumes", "GetCapacity"], "volume_prefix": "*"}
-]}
+### D2. Roles per listener
+
+| Role | Listener | Methods |
+|---|---|---|
+| `csi` | `-listen` | GetCapabilities, CreateVolume, DeleteVolume, ExpandVolume, GetVolume, ListVolumes, CreateSnapshot, DeleteSnapshot, ListSnapshots, GetCapacity |
+| `admin` | `-admin-listen` (optional) | all of the above, plus Reconcile, PublishFileExport, UnpublishFileExport |
+
+- The role belongs to the listener (`server.Daemon.Serve(lis, role)`). The handshake carries it into the connection's `server.PeerInfo`.
+- **Unauthenticated:** a connection that came through no listener with a role.
+- **PERMISSION_DENIED:**
+  - a method the role does not hold;
+  - a method missing from the table (`TestEveryMethodHasARole` fails when an RPC is added without a row);
+  - every stream other than health.
+- Health is served on every listener.
+- **Admin callers:** SO_PEERCRED must show uid 0 or the daemon's own uid. This holds whatever mode the socket has been given.
+- **Without `-admin-listen`,** Reconcile and the export RPCs are refused. The unit serves the admin role on `/run/zfs-endpoint/admin/%i/endpoint.sock`.
+- **When CSI ControllerPublish lands,** `csi` gains Publish and Unpublish with a `/32` constraint (ADR 0004: node_id is one host).
+
+### Socket layout (F1, F2; amends ADR 0006)
+
+```
+/run/zfs-endpoint/                  0700 root  per-parent locks; never mounted into a pod
+/run/zfs-endpoint/sock/<escaped>/   0700 root  csi socket endpoint.sock (0600); mounted by the CSI pod
+/run/zfs-endpoint/admin/<escaped>/  0700 root  admin socket endpoint.sock (0600); never mounted
 ```
 
-- The default is deny: an unknown principal, an unlisted RPC or an empty policy is refused.
-- `volume_prefix` is required. Full access is written as `"*"`, never as an empty string.
-- The scope is a prefix on the volume id, which is the dataset component under the parent. A snapshot is in scope when its source volume is.
-  - CreateVolume checks the name and any `source_volume_id` or `source_snapshot_id`.
-  - Cloning from another tenant's snapshot is denied.
-- **Where it is enforced:**
-  - A unary and stream interceptor authenticates the caller and checks the RPC allowlist.
-  - The resolved scope goes into the request context. The endpoint enforces it after the scan, where rows are known. This is required because snapshot ids may not reveal their volume without a lookup (ADR 0002).
-  - Rows out of scope are filtered from `List*`. Get, mutate or delete on one returns `PERMISSION_DENIED`. It never returns "missing, so OK": a DeleteVolume that reported success would make the CO forget a volume it does not own.
-- The policy reloads on SIGHUP. A reload that fails validation keeps the previous policy and logs an error.
+- `<escaped>` is `systemd-escape <parent>`, which is the unit's `%i`.
+- **Who creates what:**
+  - systemd creates `/run/zfs-endpoint` (`RuntimeDirectory=zfs-endpoint`).
+  - The daemon creates each socket directory 0700 itself (`unixsock.Listen`).
+  - `%i` is kept out of `RuntimeDirectory=` on purpose. That keeps the escaped name in one place and avoids a second escaping rule.
+- **The daemon refuses with exit 78:**
+  - a listener whose directory is, or contains, the lock directory;
+  - an admin socket whose directory is the csi socket's directory or under it.
+- **Path budget:** sun_path leaves 70 bytes of escaped parent name for the csi socket and 69 for the admin socket.
 
-**3. Fail closed everywhere.**
+### D3. Reconcile requires a digest to collect (not built)
 
-| Situation | Result |
-|---|---|
-| No `AuthInfo`, or an unknown `AuthInfo` type | `UNAUTHENTICATED` |
-| A non-unix conn reaches the unix handshaker | `UNAUTHENTICATED` |
-| A TLS conn without exactly one URI SAN | `UNAUTHENTICATED` |
-| Not allowed by the policy | `PERMISSION_DENIED` |
+- A run that collects any undesired volume must carry a `plan_digest` from a dry run. Without one it returns FAILED_PRECONDITION.
+- The digest guards against the plan changing between the dry run and the apply. It is not an approval (F4).
 
-- A table maps every method in `EndpointService_ServiceDesc` to its scope extractor. A test fails when a new RPC has no entry, and the interceptor denies any method missing from the table.
+### D4. Two-person Reconcile: deferred
 
-**4. Rotation and revocation.**
+- A two-person rule means nothing until callers have distinct principals. Every admin caller is root on a 0600 socket.
+- Build `ApproveReconcile` when either is true:
+  - Reconcile is called by automation;
+  - two admin principals exist (non-root `-allow-uids`, or mTLS).
+- The rule is additive and was asked for by no one but the threat model.
 
-- SPIFFE: the SVID and trust bundle rotate inside `X509Source`, read per handshake through `GetCertificate`. No restart is needed.
-- Files are reloaded on SIGHUP and on an mtime poll every 30 s:
-  - The cert and key are parsed and paired before an atomic swap. On failure the old pair stays in use.
-  - The CA file may hold old and new roots during a rollover.
-  - Expiry under 7 days is logged at warn.
-- Identity is fixed at handshake, both for TLS and for `SO_PEERCRED`. socket(7) says the credentials are those "in effect at the time of the call to connect(2)". So the server sets `keepalive.ServerParameters{MaxConnectionAge: 1h, MaxConnectionAgeGrace: 1m}`. That bounds how long a revoked cert, a removed policy entry or a dropped uid keeps a live connection. Policy changes apply per call, because the interceptor reads the current policy.
+### D5. TCP
 
-**5. Testing.**
+- TCP stays refused.
+- v1's mTLS design applies to a TCP listener with a role once a remote front end exists:
+  - TLS 1.3 and `RequireAndVerifyClientCert`;
+  - exactly one URI SAN as the principal;
+  - an explicit CA or a SPIFFE `X509Source`;
+  - reload on SIGHUP plus an mtime poll;
+  - `MaxConnectionAge`.
+- Nothing of it is built.
 
-- **Pure authorizer.** A table test of `(principal, method, request) → allow | deny` covering every RPC, prefix edges (`a-` against `a`, `ab-`), clone sources across scopes, and `"*"`.
-- **Interceptor over `bufconn`.** A fake `TransportCredentials` injects each `AuthInfo` variant. bufconn's address network is `"bufconn"`, and it has no fd, so it cannot carry peer credentials. The peer-credential handshaker is therefore not tested here.
-- **Real unix socket in `t.TempDir()`.**
-  - Allowed uid: OK.
-  - Allowlist excluding `os.Getuid()`: `UNAUTHENTICATED`.
-  - In the root CI job (KVM, real ZFS), a child process connects with `SysProcAttr.Credential{Uid: 65534}` and is denied.
-- **Real TCP on `127.0.0.1:0`** with certs minted in the test (`crypto/x509`). Cases:
-  - no client cert, wrong CA, expired cert, a cert with zero or two URI SANs, and an unknown SPIFFE ID;
-  - cert rotation picked up without a restart;
-  - `MaxConnectionAge` forcing a new handshake that then fails after revocation.
-- The `zfs-csi` client gains the matching client config: mTLS with server-ID authorization (`tlsconfig.AuthorizeID`). Its sanity run uses the unix path with peer credentials on.
+### D6. Peer credentials: logged, then authorized
+
+- `server.peerCreds` is the server's TransportCredentials. It reads SO_PEERCRED on each unix connection.
+- Every rpc log line carries `role`, `peer_uid`, `peer_gid` and `peer_pid` (F7).
+- These are the credentials in effect at connect(2), translated into the daemon's user namespace, so every uid-0 container reads as uid 0.
+- **Authorization by uid:**
+  - today only the admin role checks it (uid 0 or the daemon's uid);
+  - an optional per-listener `-allow-uids` comes later;
+  - once uids are authorized, `MaxConnectionAge=1h` bounds how long a revoked uid keeps working.
+
+### D7. `-socket-group` (not built)
+
+- `-socket-group` sets the csi socket to 0660 with that group. The controller pod can then run non-root with `supplementalGroups`.
+- Without the flag, the socket stays 0600 root, as it is today.
+- The admin socket stays 0600 root either way.
+
+### D8. NFS: static-first stays; pod-egress deny is F6's primary control
+
+- ADR 0004's ordering stands: a static StorageClass CIDR at create comes first. The owner has already answered this question.
+- **Per-node `/32` stays later,** behind a mode flag, with these prerequisites:
+  - a stale-`/32` GC against VolumeAttachments. external-attacher resolves node_id from the current CSINode, so after an IP change the old `/32` would stay exported forever;
+  - a documented csi-driver-nfs `--nodeid` IP override (its shipped node id is a hostname);
+  - refusing hostname node ids.
+- **F6 (AUTH_SYS plus a CIDR ACL) is closed by deployment,** in both modes:
+  - a cluster-scoped deny of pod egress to the storage host's 2049/tcp (and 111 and 20048 for NFSv3);
+  - Pod Security baseline or stricter on tenant namespaces;
+  - a host firewall limiting 2049 to the node subnet.
+
+  Mounts use host networking, so they are unaffected.
+- Static mode keeps `nfs.clients` required, with no default CIDR, plus the AUTH_SYS warning.
+- **Revisit when** krb5p lands, or when a deployment cannot enforce pod-egress policy.
+
+### D9. Reconcile skips exported volumes (not built)
+
+An undesired volume whose `sharenfs` is not `off`, or whose client list is not empty, is skipped as "exported: in use" (F3). `sharenfs` is OpenZFS's own in-use signal. A false skip only delays GC.
+
+### D10. A crossmnt ancestor refuses startup
+
+- At startup the daemon reads the parent's mountpoint and etab (`endpoint.ExposedByAncestor`).
+- It exits 78 when a crossmnt line covers the mountpoint or any ancestor, and the message names the lines.
+- Typical causes are `zfs set sharenfs=on` on the pool (libshare writes that as `rw,crossmnt` to `*`) or a crossmnt line in `/etc/exports`.
+- A warning would leave every volume exported.
+- Health does not re-check it yet.
+
+### D11. Audit
+
+- The unit sets `LogRateLimitIntervalSec=0`, so a flood of cheap calls cannot push destroy lines out of journald (F8).
+- Shipping logs off the host is a deployment recommendation, and `Seal=yes` is optional. Callers are root, so tampering is out of scope.
+- **Not built:** the server always minting `request_id`, with the caller's id logged as `client_request_id` (F14).
+
+### D12. No `snapdir` at create
+
+- The endpoint sets nothing, so volumes inherit `snapdir` from the parent. That is OpenZFS's own delegation of the choice to the operator, per tenant parent.
+- Setting it locally at create would override an operator's parent-level choice.
+- **Documented:**
+  - `hidden` is not the same as inaccessible: `.zfs/snapshot/<name>` stays reachable by path over NFS;
+  - set `snapdir=disabled` on the tenant parent where erasure or compliance matters;
+  - `zfs_admin_snapshot` must stay 0.
+- A StorageClass may still set `snapdir` through the existing allowlist.
+
+### Mount options at create (F12)
+
+- Filesystem volumes are created and cloned with `setuid=off`, `exec=off` and `devices=off` set locally, next to `sharenfs=off` and `sharesmb=off`.
+- These are server-side mount options. NFS clients are unaffected.
+- Unlike `snapdir`, they are stamped rather than inherited. Each guards the storage host itself against what a tenant's client writes, not a tenant-visible behaviour.
+- A StorageClass cannot set them.
+- They hold only while pods reach filesystems over NFS (ADR 0004). A node plugin that bind-mounts the host's ZFS mount into a pod would inherit `nosuid`, `noexec` and `nodev`, so pods could not run programs from their volume. Such a plugin must revisit this decision before it ships.
+
+### Systemd hardening (H-16)
+
+- `deploy/systemd/zfs-endpoint@.service.d/hardening.conf` turns on only `RestrictNamespaces`, `KeyringMode=private` and `LimitCORE=0`.
+- These settings ship commented out until the real-ZFS VM leg runs the suite under the unit:
+  - the capability bounding set;
+  - `ProtectClock` with the device allow-list (it implies `DeviceAllow=char-rtc`, which would refuse `/dev/zfs`);
+  - `ProtectHostname`;
+  - the syscall deny-list;
+  - the memory limits.
+- No setting may create a mount namespace or cut the network. `deploy/deploy_test.go` `TestUnitLint` enforces this.
 
 ## Consequences
 
-- TCP is usable only with a PKI, either SPIRE or files plus a CA. The cost is accepted: an unauthenticated TCP listener is the current hole.
-- **Root pods look alike.** The uid seen through `SO_PEERCRED` is translated into the daemon's user namespace, so every uid-0 container on the host is `unix:uid=0`. Tenants that share a host socket must run as distinct uids, or use mTLS over TCP.
-- Scope checks move partly into the endpoint core. The core gains a `Scope` value, and each planner entry point filters by it. This adds code to "server only translates", for a reason.
-- **The snapshot-name oracle.** CSI snapshot names are global per endpoint (`plan.go` PlanCreateSnapshot). A tenant can learn that another tenant's name exists from `ALREADY_EXISTS`, but cannot read or touch that snapshot.
-- Audit logging gains a principal on every call. `observability-audit.md` can key on it.
+- **More instances.** Tenants that would have shared a parent now get one each: more units, sockets and datasets. Capacity is still shared at the pool level, so set `quota` on each tenant parent.
+- **The zfs-csi deployment** mounts `/run/zfs-endpoint/sock/<escaped>` only, and dials `unix:///run/zfs-endpoint/sock/<escaped>/endpoint.sock`.
+- **Operators** call Reconcile and the export RPCs on the admin socket, as root.
+- **A compromised controller pod** is confined to its parent and to the `csi` methods. It loses four things: export to itself, mass Reconcile, lock DoS and socket replacement.
+- **No policy file,** so there is no source of truth outside ZFS to keep in sync across an HA pair.
+- **Shared parents need a new ADR.** Several container orchestrators on one parent need scoped Reconcile, which is deferred.
+- **Startup is stricter.** A host that exports a pool with `sharenfs=on` no longer starts an endpoint under it.
 
 ## Alternatives considered
 
-| Alternative | Why rejected |
+| Alternative | Why not now |
 |---|---|
-| Filesystem permissions only (Kubernetes CSI sidecars, Docker plugins, containerd's gRPC socket) | There is no caller identity, so there is no per-tenant scope or audit. It is fine for one front end per socket, which is the CSI sidecar's situation, but not for a daemon that several clusters share. Kept as the first gate. |
-| grpc-go `credentials/local` | It marks UDS as `PrivacyAndIntegrity` but exposes no uid (`local.go:69-99`), so there is nothing to authorize. |
-| Bearer API keys, as in TrueNAS | They need key storage, hashing and revocation in the daemon. They are replayable if logged, and TrueNAS auto-revokes a plain key sent over insecure transport, which shows the hazard. mTLS binds the key to the channel and needs no daemon-side secret store. |
-| mTLS on the unix socket as well | One mechanism would be uniform. But every local front end would need a cert, which is heavy for the common single-host case. It can be added later as a listener option without changing the policy model. |
-| Authorizing on the TLS CN or a DNS SAN | The CN is deprecated for identity. A DNS SAN names a host, not a workload. A SPIFFE ID is one URI SAN by spec. |
-| SPIFFE-only, with no file-based certs | It would force SPIRE on every deployment. cert-manager users get the same principal shape with a URI SAN. |
-| Workload attestation by PID (as SPIRE's agent does) | PID reuse is a race. SPIRE needs dedicated machinery to make it safe (`peertracker`). uid is enough for our granularity. |
+| v1: a policy file with principals, RPC allowlists and `volume_prefix` | Enforcement is split and fails open. It is incompatible with desired-set Reconcile, and root pods cannot be told apart. It costs the most and adds a source of truth outside ZFS. |
+| One socket, authorized by SO_PEERCRED uid only | Every root pod is uid 0. It does not stop lock or socket tampering through a shared directory. |
+| mTLS on the unix socket as well | Every local front end would need a cert, and it does not fix directory sharing. |
+| A separate privileged helper daemon for destructive operations | Two root daemons, a second protocol, and drift between them. Listener roles give the same separation in one process. |
+| A keyed approval token (HMAC) on the digest | It needs key storage and still does not prove a second person. Deferred with D4. |
+| Per-node `/32` as the NFS default | It leaves stale exports after node IP churn, needs a re-templated third-party node plugin, and no comparable ZFS driver ships it as the default (D8). |
 
-## Evidence (pins as resolved by GitHits on 2026-10-27)
+## Testing (ADR 0005: the lowest level that proves it)
 
-- **This repo.** `cmd/zfs-endpoint/main.go` `listener()`: TCP has no credentials, unix uses `Umask(0o177)`. On branch `csi-frontend`, `cmd/zfs-csi/main.go:40` dials with insecure creds.
-- **TrueNAS** (`truenas/middleware@3ffe599a`):
-  - `utils/origin.py:78` reads `SO_PEERCRED` as `(pid, uid, gid)` on its unix socket.
-  - `plugins/auth.py:1134-1170`: a non-interactive uid 0 becomes a root session, and other uids are mapped to a user through PAM.
-  - `plugins/auth_/login_ex_impl.py:251-261` revokes a plain API key that was sent over insecure transport.
-  - `main.py:2032-2045` creates `middlewared.sock` with mode `0666`; authorization is by peer credentials.
-- **Kubernetes CSI.**
-  - `kubernetes-csi/csi-lib-utils@76e421af connection/connection.go:170` uses `insecure.NewCredentials()` ("usually local Unix domain socket").
-  - The kubelet does the same at `kubernetes/kubernetes@dd410c48 pkg/volume/csi/csi_client.go:553-559`.
-- **containerd** (`containerd/containerd@c0ed7418`):
-  - `pkg/sys/socket_unix.go:46-62` sets the gRPC socket to `0660` with a configured uid and gid.
-  - `pkg/shim/shim_linux.go:25` and `plugins/server/ttrpc/server_linux.go:26` use the handshaker `UnixSocketRequireSameUser()`.
-  - `containerd/ttrpc@d2ddf049 unixcreds_linux.go:47` calls `GetsockoptUcred(..., SO_PEERCRED)`. Lines 70-91 hold the connect-time caveat and the `RequireUidGid` and `RequireRoot` helpers.
-- **Docker** (`moby/moby@4237bc6c`):
-  - `daemon/listeners/listeners_linux.go:39-42` and `group_unix.go:12` give the API socket the group `docker`. No per-caller authorization exists without authz plugins.
-  - `daemon/daemon_linux.go:31` sets the plugin socket directory to `/run/docker/plugins`.
-- **SPIFFE.**
-  - `spiffe/spire@a33d43d3 pkg/common/peertracker/uds_linux.go:10`: the Workload API itself authenticates callers with `SO_PEERCRED`.
-  - `spiffe/go-spiffe@77c6d2e0`:
-    - `spiffetls/tlsconfig/config.go:112-128`: `RequireAnyClientCert`, plus a `GetCertificate` that reads from the source, which is how rotation works.
-    - `authorizer.go:20-38`: `AuthorizeID`, `AuthorizeIDPrefix` and `AuthorizeMemberOf`.
-    - `spiffegrpc/grpccredentials/credentials.go:45`.
-    - `workloadapi/x509source.go:31`.
-- **gRPC** (`grpc/grpc-go@529d6e86`):
-  - `credentials/local/local.go:69-99`: UDS gives a security level only, no uid.
-  - `test/bufconn/bufconn.go:316-317`: the address network is `"bufconn"`.
-- **Prior research.** `docs/research/edges2/transport-auth.md`: zrepl uses TLS with the client CN as identity, Mayastor's `Auto` TLS skips verification, and targetd uses shared basic auth.
-
-## Known risks (self-review)
-
-- **Scope enforcement is split.** The interceptor checks the RPC and the endpoint checks the scope. If a new endpoint entry point forgets the scope filter, it fails open. Mitigation: the scope is a required argument, not optional context. The method-table test also asserts a scope-test case exists per RPC.
-- **Root pods share one identity.** A shared host socket with several uid-0 front ends gives them the same principal. That is a deployment rule the daemon cannot enforce. It can only warn when `unix:uid=0` has a scope other than `"*"`.
-- **Long-lived streams.** `MaxConnectionAge` closes connections gracefully, so an in-flight call finishes under the old identity, up to the grace period.
-- **The policy file is a new source of truth** that is not in ZFS. It drifts if it is edited on one host of an HA pair and not the other. HA failover must carry it.
-- **`GetCapacity` is parent-wide.** It leaks other tenants' usage in aggregate. Accepted.
-- **Unverified here:** the exact `SO_PEERCRED` uid seen across user namespaces with idmapped hostPath mounts. Test it before relying on per-uid tenants in rootless or userns pods.
+- **`internal/server`:**
+  - `TestEveryMethodHasARole`;
+  - `TestRolesPerListener`, over bufconn: role × method;
+  - `TestAdminPeerIsRootOrTheDaemonsUser`;
+  - `TestPeerCredentialsAreLogged`, on a real unix socket.
+- **`cmd/zfs-endpoint`:**
+  - `TestAdminRPCsOnlyOnTheAdminSocket`;
+  - `TestAdminSocketRefusals`;
+  - `TestSocketNeverSharesTheLockDirectory`;
+  - `TestStartupRefusesACrossmntAncestor`.
+- **`internal/endpoint`:**
+  - `TestExposedByAncestor` (pure);
+  - `TestFilesystemsMountWithoutSetuidExecOrDevices`;
+  - the golden create plans.
+- **`deploy`:**
+  - `TestUnitServesTheConventionalSocket` (csi and admin);
+  - `TestManifests` (no pod mounts the admin directory);
+  - `TestUnitLint`.
+- **Still owed to the real-ZFS VM job:**
+  - a child running as uid 65534 cannot open the 0600 admin socket;
+  - the hardening drop-in's commented settings, verified under the unit.

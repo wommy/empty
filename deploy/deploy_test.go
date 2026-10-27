@@ -93,6 +93,17 @@ func TestUnitServesTheConventionalSocket(t *testing.T) {
 			t.Errorf("unit serves %s for %s, binaries use %s", got, parent, want)
 		}
 	}
+	// F2: the admin role (Reconcile, NFS export) on a socket of its own,
+	// in a directory no pod mounts
+	admin, ok := flagValue(args, "-admin-listen")
+	if !ok {
+		t.Fatal("unit sets no -admin-listen")
+	}
+	for _, parent := range []string{"tank/k8s/vols", "tank/my-vols"} {
+		if got, want := strings.ReplaceAll(admin, "%i", unixsock.SystemdEscape(parent)), unixsock.EndpointAdminAddr(parent); got != want {
+			t.Errorf("unit serves admin %s for %s, want %s", got, parent, want)
+		}
+	}
 }
 
 // k8sObjects decodes every document in deploy/k8s.
@@ -198,8 +209,16 @@ func TestManifests(t *testing.T) {
 	if get(vols["socket-dir"], "emptyDir") == nil {
 		t.Error("socket-dir is not an emptyDir")
 	}
-	if get(vols["endpoint-dir"], "hostPath", "path") != unixsock.EndpointDir {
-		t.Errorf("endpoint-dir hostPath %v, want %s", get(vols["endpoint-dir"], "hostPath", "path"), unixsock.EndpointDir)
+	hostDir, _ := get(vols["endpoint-dir"], "hostPath", "path").(string)
+	if hostDir == unixsock.EndpointDir || !strings.HasPrefix(hostDir, unixsock.EndpointDir+"/sock/") {
+		// F1: the endpoint directory holds every instance's locks and sockets
+		t.Errorf("endpoint-dir hostPath %q, want one instance's socket directory under %s/sock/", hostDir, unixsock.EndpointDir)
+	}
+	// F2: no pod gets an admin socket
+	for name, v := range vols {
+		if p, _ := get(v, "hostPath", "path").(string); strings.HasPrefix(p+"/", unixsock.EndpointDir+"/admin/") {
+			t.Errorf("volume %s mounts the admin socket directory %s", name, p)
+		}
 	}
 
 	var names []string
@@ -222,11 +241,14 @@ func TestManifests(t *testing.T) {
 			if v, _ := flagValue(args, "-csi-address"); v != "unix:///csi/csi.sock" {
 				t.Errorf("zfs-csi -csi-address %q", v)
 			}
-			if v, ok := flagValue(args, "-parent"); !ok || v == "" {
+			parent, ok := flagValue(args, "-parent")
+			if !ok || parent == "" {
 				t.Errorf("zfs-csi has no -parent: %v", args)
 			}
-			if mounts["endpoint-dir"] != unixsock.EndpointDir {
-				t.Errorf("zfs-csi: endpoint-dir at %q, want %s", mounts["endpoint-dir"], unixsock.EndpointDir)
+			// the socket -parent dials, in the directory mounted from the
+			// host at the same path
+			if want := unixsock.EndpointSockDir(parent); hostDir != want || mounts["endpoint-dir"] != want {
+				t.Errorf("zfs-csi: endpoint-dir %q at %q, want %s at the same path", hostDir, mounts["endpoint-dir"], want)
 			}
 			if slices.Contains(args, "-enable-block") {
 				t.Error("the example enables block (ADR 0006: opt-in)")
@@ -240,5 +262,96 @@ func TestManifests(t *testing.T) {
 	want := []string{"zfs-csi", "csi-provisioner", "csi-resizer", "csi-snapshotter"}
 	if !slices.Equal(names, want) {
 		t.Errorf("containers %v, want %v", names, want)
+	}
+}
+
+// directives returns the settings of a unit file or drop-in that are in
+// effect, and the names of the settings that are commented out.
+func directives(t *testing.T, path string) (active map[string][]string, commented []string) {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	active = map[string][]string{}
+	cont := false
+	for line := range strings.Lines(string(b)) {
+		line = strings.TrimSpace(line)
+		wasCont := cont
+		cont = strings.HasSuffix(line, `\`)
+		if wasCont {
+			continue // an ExecStart argument line
+		}
+		if c, ok := strings.CutPrefix(line, "#"); ok {
+			if k, _, ok := strings.Cut(c, "="); ok && k != "" && !strings.ContainsAny(k, " \t") {
+				commented = append(commented, k)
+			}
+			continue
+		}
+		if k, v, ok := strings.Cut(line, "="); ok {
+			active[k] = append(active[k], v)
+		}
+	}
+	return active, commented
+}
+
+// noNamespace are settings that create a private mount namespace (zfs
+// mounts and exportfs would never reach the host or nfsd) or cut the
+// network (exportfs resolves every export's hosts). None may appear in
+// the unit or a drop-in, not even commented out as a suggestion.
+var noNamespace = []string{
+	"ProtectSystem", "ProtectHome", "PrivateTmp", "PrivateDevices",
+	"ReadOnlyPaths", "ReadWritePaths", "InaccessiblePaths", "TemporaryFileSystem",
+	"BindPaths", "BindReadOnlyPaths", "ProtectKernelTunables", "ProtectKernelModules",
+	"ProtectKernelLogs", "ProtectControlGroups", "ProtectProc", "ProcSubset",
+	"PrivateMounts", "MountFlags", "PrivateNetwork", "IPAddressDeny", "PrivateUsers",
+}
+
+// The unit and its hardening drop-in: audit lines are never rate-limited
+// (F8), the hardening keeps mounts on the host (H-16), and what needs the
+// real-ZFS VM leg to verify (capabilities, device and syscall filters)
+// ships commented out.
+func TestUnitLint(t *testing.T) {
+	t.Parallel()
+	unit, _ := directives(t, filepath.Join("systemd", "zfs-endpoint@.service"))
+	for k, want := range map[string]string{
+		"LogRateLimitIntervalSec":  "0", // F8
+		"RuntimeDirectory":         "zfs-endpoint",
+		"RuntimeDirectoryMode":     "0700",
+		"UMask":                    "0077",
+		"NoNewPrivileges":          "yes",
+		"RestartPreventExitStatus": "78",
+	} {
+		if got := unit[k]; !slices.Equal(got, []string{want}) {
+			t.Errorf("unit %s=%q, want %q", k, got, want)
+		}
+	}
+	dropIn, commented := directives(t, filepath.Join("systemd", "zfs-endpoint@.service.d", "hardening.conf"))
+	for _, k := range []string{"RestrictNamespaces", "KeyringMode", "LimitCORE"} {
+		if len(dropIn[k]) != 1 {
+			t.Errorf("drop-in %s=%q, want one setting in effect", k, dropIn[k])
+		}
+	}
+	// not verified against real zfs and exportfs yet: TODO in the drop-in
+	for _, k := range []string{"CapabilityBoundingSet", "AmbientCapabilities", "ProtectClock", "DevicePolicy", "DeviceAllow", "SystemCallFilter", "ProtectHostname"} {
+		if dropIn[k] != nil || unit[k] != nil {
+			t.Errorf("%s is in effect, but is not verified on the VM leg", k)
+		}
+		if !slices.Contains(commented, k) {
+			t.Errorf("the drop-in does not carry %s (commented out, with a TODO)", k)
+		}
+	}
+	files, _ := filepath.Glob(filepath.Join("systemd", "*"))
+	more, _ := filepath.Glob(filepath.Join("systemd", "*.d", "*"))
+	for _, f := range append(files, more...) {
+		if fi, err := os.Stat(f); err != nil || fi.IsDir() {
+			continue
+		}
+		active, commented := directives(t, f)
+		for _, k := range noNamespace {
+			if active[k] != nil || slices.Contains(commented, k) {
+				t.Errorf("%s sets %s: it creates a mount namespace or cuts the network", f, k)
+			}
+		}
 	}
 }

@@ -91,11 +91,12 @@ func TestStartupConfigRefusals(t *testing.T) {
 	}
 }
 
-// The unit's arithmetic: /run/zfs-endpoint/ (18 bytes) + %i + .sock (5)
-// leaves 84 bytes of escaped name, and %i keeps \x2d literally.
+// The unit's arithmetic: /run/zfs-endpoint/sock/ (23 bytes) + %i +
+// /endpoint.sock (14) leaves 70 bytes of escaped name, and %i keeps \x2d
+// literally.
 func TestDefaultSocketLimit(t *testing.T) {
 	t.Parallel()
-	fits := "tank/" + strings.Repeat("v", 79) // escaped: 84 bytes
+	fits := "tank/" + strings.Repeat("v", 65) // escaped: 70 bytes
 	if _, err := socketPath(listenAddr("", fits)); err != nil {
 		t.Errorf("%d-byte parent: %v", len(fits), err)
 	}
@@ -106,8 +107,8 @@ func TestDefaultSocketLimit(t *testing.T) {
 	if _, err := socketPath(listenAddr("", over)); exitCode(err) != exitConfig {
 		t.Errorf("%d-byte parent: exit %d %v", len(over), exitCode(err), err)
 	}
-	// one '-' is 4 bytes: 78 raw bytes with one dash also overflow
-	dash := "tank/" + strings.Repeat("v", 77) + "-v"
+	// one '-' is 4 bytes: 70 raw bytes with one dash overflow
+	dash := "tank/" + strings.Repeat("v", 63) + "-v"
 	if _, err := socketPath(listenAddr("", dash)); exitCode(err) != exitConfig {
 		t.Errorf("%q: exit %d %v", dash, exitCode(err), err)
 	}

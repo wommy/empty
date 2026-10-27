@@ -164,6 +164,13 @@ func (r ReconcilePlan) Plan() Plan {
 	return plan
 }
 
+// maxMissingSkips bounds the SkipDesiredMissing entries one answer
+// carries; one more entry counts the rest.
+const maxMissingSkips = 1000
+
+// MaxDesiredVolumeIDs bounds a Reconcile desired set.
+const MaxDesiredVolumeIDs = 250_000
+
 // PlanReconcile decides what to collect. Pure. It never targets:
 //   - a row the endpoint does not own (ownership is locally set, table.go)
 //   - a volume in the desired set
@@ -192,12 +199,19 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 	// a page of another list, another cluster's or another parent's set.
 	// Like the empty set, it collects no committed volume (adv4 F2).
 	stated := false
+	missing := 0
 	for _, id := range slices.Sorted(maps.Keys(want)) {
 		r, ok := t.Get(id)
 		if !ok || r.Type == zfs.TypeSnapshot {
-			skip(id, SkipDesiredMissing)
+			// bounded, so the answer fits the message limit
+			if missing++; missing <= maxMissingSkips {
+				skip(clamp(id, maxMsg), SkipDesiredMissing)
+			}
 		}
 		stated = stated || ok && r.OwnedVolume()
+	}
+	if missing > maxMissingSkips {
+		skip(fmt.Sprintf("(%d more)", missing-maxMissingSkips), SkipDesiredMissing)
 	}
 
 	type candidate struct {
@@ -543,6 +557,9 @@ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (Reconcile
 	// SkipDesiredMissing and the run goes on. One foreign-format id in a
 	// set (another driver's "ns/pv") must not stop the collection, nor can
 	// it protect or doom a volume. An empty id is a malformed request.
+	if len(r.DesiredVolumeIDs) > MaxDesiredVolumeIDs {
+		return ReconcilePlan{}, errorf(InvalidArgument, "%d desired volume ids, more than %d", len(r.DesiredVolumeIDs), MaxDesiredVolumeIDs)
+	}
 	for _, id := range r.DesiredVolumeIDs {
 		if id == "" {
 			return ReconcilePlan{}, errorf(InvalidArgument, "empty desired volume id")

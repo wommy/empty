@@ -1257,6 +1257,7 @@ var defaults = map[string]string{
 	"recordsize": "131072", "atime": "on", "relatime": "on", "sync": "standard",
 	"logbias": "latency", "dedup": "off", "xattr": "sa", "acltype": "off",
 	"snapdir": "hidden", "copies": "1",
+	"exec": "on", "setuid": "on", "devices": "on",
 }
 
 // applies lists which dataset types a native property exists on (zfs_prop.c);
@@ -1284,6 +1285,9 @@ var applies = map[string][]zfs.Type{
 	"xattr":          {zfs.TypeFilesystem, zfs.TypeSnapshot},
 	"acltype":        {zfs.TypeFilesystem, zfs.TypeSnapshot},
 	"snapdir":        {zfs.TypeFilesystem},
+	"exec":           {zfs.TypeFilesystem, zfs.TypeSnapshot},
+	"setuid":         {zfs.TypeFilesystem, zfs.TypeSnapshot},
+	"devices":        {zfs.TypeFilesystem, zfs.TypeSnapshot},
 	"available":      {zfs.TypeFilesystem, zfs.TypeVolume},
 	"defer_destroy":  {zfs.TypeSnapshot},
 }
@@ -1305,6 +1309,7 @@ var inheritable = map[string]bool{
 	"sharenfs": true, "sharesmb": true, "compression": true, "recordsize": true,
 	"atime": true, "relatime": true, "sync": true, "logbias": true, "dedup": true,
 	"xattr": true, "acltype": true, "snapdir": true, "copies": true,
+	"exec": true, "setuid": true, "devices": true,
 }
 
 func known(prop string) bool {

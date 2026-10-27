@@ -53,7 +53,7 @@ func TestListenInAKubeletEmptyDir(t *testing.T) {
 // one of them is required, never both.
 func TestEndpointAddress(t *testing.T) {
 	t.Parallel()
-	if got, err := endpointAddress("tank/k8s/vols", ""); err != nil || got != "unix:///run/zfs-endpoint/tank-k8s-vols.sock" {
+	if got, err := endpointAddress("tank/k8s/vols", ""); err != nil || got != "unix:///run/zfs-endpoint/sock/tank-k8s-vols/endpoint.sock" {
 		t.Errorf("-parent: %q %v", got, err)
 	}
 	if got, err := endpointAddress("", "unix:///x/y.sock"); err != nil || got != "unix:///x/y.sock" {

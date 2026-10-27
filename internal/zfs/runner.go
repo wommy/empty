@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -83,11 +85,15 @@ func (r LocalRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	// just the leader: a grandchild holding a pipe otherwise outlives Run
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 	cmd.SysProcAttr = childAttr()
+	// classify matches libzfs's English messages: the child never runs in
+	// the daemon's locale (exec keeps the last of duplicate keys)
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANGUAGE=C")
 	cmd.WaitDelay = r.WaitDelay
 	if cmd.WaitDelay == 0 {
 		cmd.WaitDelay = 5 * time.Second
 	}
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
+	stderr := headWriter{max: MaxStderr}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
@@ -113,4 +119,34 @@ func (r LocalRunner) Run(ctx context.Context, name string, args ...string) ([]by
 		}
 	}
 	return stdout.Bytes(), nil
+}
+
+// MaxStderr bounds the stderr a failed command keeps. It goes into the
+// error returned to the caller and logged, and a destroy refused for its
+// clones lists every one of them. zfs prints the message classify reads
+// first, so the head is kept.
+const MaxStderr = 8 << 10
+
+// headWriter keeps the first max bytes written to it and counts the rest.
+type headWriter struct {
+	buf     bytes.Buffer
+	max     int
+	dropped int
+}
+
+func (w *headWriter) Write(p []byte) (int, error) {
+	if room := w.max - w.buf.Len(); room > 0 {
+		w.buf.Write(p[:min(room, len(p))])
+		w.dropped += max(len(p)-room, 0)
+	} else {
+		w.dropped += len(p)
+	}
+	return len(p), nil
+}
+
+func (w *headWriter) String() string {
+	if w.dropped == 0 {
+		return w.buf.String()
+	}
+	return fmt.Sprintf("%s...[%d bytes of stderr truncated]", strings.ToValidUTF8(w.buf.String(), ""), w.dropped)
 }

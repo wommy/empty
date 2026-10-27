@@ -5,9 +5,11 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,12 +27,33 @@ type Server struct {
 }
 
 // grpcErr maps endpoint errors to gRPC status. endpoint.Code values are the
-// gRPC codes by construction.
+// gRPC codes by construction. The message is clamped (maxErrMsg) as a last
+// bound on what a caller's input can grow into; the endpoint clamps its
+// own messages and zfs stderr well below it.
 func grpcErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	return status.Error(codes.Code(endpoint.CodeOf(err)), err.Error())
+	return status.Error(codes.Code(endpoint.CodeOf(err)), clip(err.Error(), maxErrMsg))
+}
+
+// maxErrMsg bounds a returned error message; maxLogField a caller-supplied
+// value logged before it is validated (a volume or snapshot id).
+const (
+	maxErrMsg   = 16 << 10
+	maxLogField = 256
+)
+
+// clip cuts s to at most n bytes on a rune boundary and marks the cut.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	i := n
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return fmt.Sprintf("%s...[%d bytes cut]", s[:i], len(s)-i)
 }
 
 func kindIn(k pb.VolumeKind) endpoint.VolumeKind {
@@ -126,7 +149,7 @@ func (s *Server) CreateVolume(ctx context.Context, r *pb.CreateVolumeRequest) (*
 }
 
 func (s *Server) DeleteVolume(ctx context.Context, r *pb.DeleteVolumeRequest) (*pb.DeleteVolumeResponse, error) {
-	slog.InfoContext(ctx, "delete volume", "volume_id", r.GetVolumeId())
+	slog.InfoContext(ctx, "delete volume", "volume_id", clip(r.GetVolumeId(), maxLogField))
 	if err := s.EP.DeleteVolume(ctx, r.GetVolumeId()); err != nil {
 		return nil, grpcErr(err)
 	}
@@ -174,7 +197,7 @@ func (s *Server) CreateSnapshot(ctx context.Context, r *pb.CreateSnapshotRequest
 }
 
 func (s *Server) DeleteSnapshot(ctx context.Context, r *pb.DeleteSnapshotRequest) (*pb.DeleteSnapshotResponse, error) {
-	slog.InfoContext(ctx, "delete snapshot", "snapshot_id", r.GetSnapshotId())
+	slog.InfoContext(ctx, "delete snapshot", "snapshot_id", clip(r.GetSnapshotId(), maxLogField))
 	if err := s.EP.DeleteSnapshot(ctx, r.GetSnapshotId()); err != nil {
 		return nil, grpcErr(err)
 	}

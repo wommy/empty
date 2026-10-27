@@ -69,14 +69,43 @@ var (
 	// space and leading '-' so nothing can be read as a flag.
 	datasetRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:\-]*(/[A-Za-z0-9_.:\-]+)*$`)
 	snapRE    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:\-]*(/[A-Za-z0-9_.:\-]+)*@[A-Za-z0-9_.:\-]+$`)
-	propRE    = regexp.MustCompile(`^[a-z0-9_.:\-]+$`)
+	// a property name never starts with '-': Set passes k=v without -o,
+	// and Get, List and Inherit pass names as their own argv words
+	propRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_.:\-]*$`)
 )
 
 // ValidDataset reports whether name is a filesystem/volume name we accept.
-func ValidDataset(name string) bool { return len(name) < 256 && datasetRE.MatchString(name) }
+func ValidDataset(name string) bool {
+	return len(name) < 256 && datasetRE.MatchString(name) && !dotComponent(name)
+}
 
 // ValidSnapshot reports whether name is a snapshot name we accept.
-func ValidSnapshot(name string) bool { return len(name) < 256 && snapRE.MatchString(name) }
+func ValidSnapshot(name string) bool {
+	return len(name) < 256 && snapRE.MatchString(name) && !dotComponent(name)
+}
+
+// dotComponent reports a "." or ".." component (or snapshot name), which
+// zfs refuses (entity_namecheck: NAME_ERR_SELF_REF, NAME_ERR_PARENT_REF).
+func dotComponent(name string) bool {
+	for _, c := range strings.FieldsFunc(name, func(r rune) bool { return r == '/' || r == '@' }) {
+		if c == "." || c == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+// checkPropNames refuses a property name that could be read as an option
+// or split into two ("a,b"): Get, List and ListColumns join the names into
+// one argv word. "all" is zfs get's own.
+func checkPropNames(op string, props []string) error {
+	for _, p := range props {
+		if p != "all" && !propRE.MatchString(p) {
+			return &Error{Kind: KindInvalidProperty, Op: op, Stderr: "invalid property name " + strconv.Quote(p)}
+		}
+	}
+	return nil
+}
 
 func checkProps(props map[string]string) error {
 	for k, v := range props {
@@ -138,6 +167,9 @@ func (c *Client) Get(ctx context.Context, name string, props ...string) (Dataset
 	}
 	if len(props) == 0 {
 		props = []string{"all"}
+	}
+	if err := checkPropNames("get", props); err != nil {
+		return Dataset{}, err
 	}
 	out, err := c.run(ctx, "get", name, "get", "-Hp", "-o", "name,property,value,source", strings.Join(props, ","), name)
 	if err != nil {
@@ -373,6 +405,9 @@ func (c *Client) List(ctx context.Context, parent string, o ListOptions) ([]Data
 	if len(props) == 0 {
 		props = []string{"type"}
 	}
+	if err := checkPropNames("list", props); err != nil {
+		return nil, err
+	}
 	args := []string{"get", "-Hp", "-o", "name,property,value,source", "-t", strings.Join(ts, ",")}
 	switch {
 	case o.Depth < 0:
@@ -434,6 +469,9 @@ func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*
 	ts := make([]string, len(types))
 	for i, t := range types {
 		ts[i] = string(t)
+	}
+	if err := checkPropNames("list", o.Props); err != nil {
+		return nil, err
 	}
 	args := []string{"get", "-Hp", "-o", "name,property,value,source", "-t", strings.Join(ts, ",")}
 	if o.Depth < 0 {

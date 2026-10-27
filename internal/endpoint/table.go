@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"slices"
 	"strconv"
@@ -335,8 +336,27 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 // scan reads the parent's volumes and snapshots in one zfs call; with only
 // set, that one volume and its snapshots. The parent itself and anything
 // deeper than a volume are dropped.
+// maxWholeScans bounds the whole-parent scans in flight. Each holds zfs's
+// output and its parsed copy, both O(volumes) (about 3.6 KB per dataset),
+// and locks are per volume while zfs.Limit bounds processes, not buffers:
+// without it, a namespace deletion of N volumes held N copies at once.
+// Waiting callers queue in arrival order and give up with their context.
+const maxWholeScans = 2
+
 func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 	root, depth := e.cfg.Parent, 1 // parent/vol and parent/vol@snap
+	if only == "" {
+		select {
+		case e.scans <- struct{}{}:
+			defer func() { <-e.scans }()
+		case <-ctx.Done():
+			code := Aborted
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				code = DeadlineExceeded
+			}
+			return Table{}, &Error{Code: code, Msg: "waiting for a whole-parent scan slot", Err: ctx.Err()}
+		}
+	}
 	if only != "" {
 		root, depth = e.dataset(only), 0 // vol and vol@snap
 	}

@@ -1,21 +1,21 @@
 ## create/fs
-create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1073741824 sharenfs=off sharesmb=off
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off refquota=1073741824 setuid=off sharenfs=off sharesmb=off
 set tank/v/a democratic-csi:provision_success=true
 
 ## create/fs-unlimited
-create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
 set tank/v/a democratic-csi:provision_success=true
 
 ## create/fs-limit-only
-create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1048576 sharenfs=off sharesmb=off
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off refquota=1048576 setuid=off sharenfs=off sharesmb=off
 set tank/v/a democratic-csi:provision_success=true
 
 ## create/fs-reserve
-create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1073741824 refreservation=1073741824 sharenfs=off sharesmb=off
+create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off refquota=1073741824 refreservation=1073741824 setuid=off sharenfs=off sharesmb=off
 set tank/v/a democratic-csi:provision_success=true
 
 ## create/fs-props
-create-filesystem tank/v/a atime=off compression=gzip democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true recordsize=16384 sharenfs=off sharesmb=off
+create-filesystem tank/v/a atime=off compression=gzip democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off recordsize=16384 setuid=off sharenfs=off sharesmb=off
 set tank/v/a democratic-csi:provision_success=true
 
 ## create/fs-props-xattr-on
@@ -63,7 +63,7 @@ set tank/v/dst refreservation=auto volsize=2147483648
 set tank/v/dst democratic-csi:provision_success=true
 
 ## restore/fs-grow
-clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
 set tank/v/r refquota=2097152
 set tank/v/r democratic-csi:provision_success=true
 
@@ -86,7 +86,7 @@ error: NotFound
 
 ## clone/from-volume-reserve
 snapshot tank/v/src@volume-source-for-volume-c +ok-exists democratic-csi:clone_source_for=c democratic-csi:managed_resource=true
-clone tank/v/c from=tank/v/src@volume-source-for-volume-c democratic-csi:csi_volume_content_source_id=src democratic-csi:csi_volume_content_source_type=volume democratic-csi:csi_volume_name=c democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+clone tank/v/c from=tank/v/src@volume-source-for-volume-c democratic-csi:csi_volume_content_source_id=src democratic-csi:csi_volume_content_source_type=volume democratic-csi:csi_volume_name=c democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
 set tank/v/c refquota=1048576 refreservation=1048576
 set tank/v/c democratic-csi:provision_success=true
 

@@ -256,7 +256,7 @@ func TestSystemdEscape(t *testing.T) {
 			t.Errorf("SystemdEscape(%q) = %q, want %q", in, got, want)
 		}
 	}
-	if got := unixsock.EndpointAddr("tank/k8s/vols"); got != "unix:///run/zfs-endpoint/tank-k8s-vols.sock" {
+	if got := unixsock.EndpointAddr("tank/k8s/vols"); got != "unix:///run/zfs-endpoint/sock/tank-k8s-vols/endpoint.sock" {
 		t.Errorf("EndpointAddr = %q", got)
 	}
 }

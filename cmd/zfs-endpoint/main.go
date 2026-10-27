@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -56,6 +58,9 @@ type deps struct {
 	// after is the startup backoff timer; nil: time.After. Tests inject
 	// it so a parent wait costs no wall time.
 	after func(time.Duration) <-chan time.Time
+	// etab is the NFS export table (endpoint.Config.Etab); nil:
+	// endpoint.DefaultEtab. Tests pass the simulator.
+	etab endpoint.EtabReader
 	// stdout receives -version; nil: os.Stdout.
 	stdout io.Writer
 }
@@ -71,6 +76,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	fs := flag.NewFlagSet("zfs-endpoint", flag.ContinueOnError)
 	parent := fs.String("parent", "", "parent dataset to manage, e.g. tank/k8s/vols (required)")
 	listen := fs.String("listen", "", "unix:///absolute/path to serve on (TCP is refused until transport auth, ADR 0001); default "+unixsock.EndpointAddr("<parent>")+", systemd-escaped, as zfs-endpoint@.service serves it")
+	adminListen := fs.String("admin-listen", "", "unix:///absolute/path to serve the admin role on (Reconcile, PublishFileExport, UnpublishFileExport; root or the daemon's uid only), in a directory of its own; default none: -listen serves the CSI role only, and those calls are refused. zfs-endpoint@.service serves "+unixsock.EndpointAdminAddr("<parent>"))
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	prefix := fs.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
 	lockWait := fs.Duration("lock-wait", 30*time.Second, "max wait for a busy resource; 0: try once and never wait (negative is refused)")
@@ -111,6 +117,13 @@ func run(ctx context.Context, args []string, d deps) error {
 			// [A-Za-z0-9:_.], '-' included, is \xNN there, 4 bytes
 			return configErr("%v (the default socket, named after the systemd-escaped -parent); pass a shorter -listen", err)
 		}
+		return err
+	}
+	if err := sockOutsideLocks(sock, d.lockDir); err != nil {
+		return err
+	}
+	adminSock, err := adminSocketPath(*adminListen, sock, d.lockDir)
+	if err != nil {
 		return err
 	}
 	if *maxZFS < 1 {
@@ -158,7 +171,14 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err := waitParent(ctx, z, *parent, *parentWait, after); err != nil {
 		return startupErr(ctx, err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})
+	etab := d.etab
+	if etab == nil {
+		etab = endpoint.DefaultEtab
+	}
+	if err := checkExposure(ctx, z, *parent, etab); err != nil {
+		return startupErr(ctx, err)
+	}
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle, Etab: etab})
 	if err != nil {
 		return configErr("%v", err)
 	}
@@ -181,6 +201,13 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err != nil {
 		return err
 	}
+	var adminLis net.Listener
+	if adminSock != "" {
+		if adminLis, err = unixsock.Listen(adminSock); err != nil {
+			lis.Close()
+			return err
+		}
+	}
 	dmn := server.NewDaemon(&server.Server{EP: ep, Parent: *parent}, nil)
 	dmn.SetServing(true)
 	probeCtx, stopProbe := context.WithCancel(ctx)
@@ -192,10 +219,19 @@ func run(ctx context.Context, args []string, d deps) error {
 		return err
 	})
 
-	served := make(chan error, 1)
-	go func() { served <- dmn.GRPC.Serve(lis) }()
+	// the -listen socket serves the CSI role (what zfs-csi calls); the
+	// admin role (Reconcile, NFS export) only on -admin-listen (F2)
+	served := make(chan error, 2)
+	listeners := 1
+	go func() { served <- dmn.Serve(lis, server.RoleCSI) }()
+	adminAddr := ""
+	if adminLis != nil {
+		listeners++
+		adminAddr = "unix://" + adminSock
+		go func() { served <- dmn.Serve(adminLis, server.RoleAdmin) }()
+	}
 	notify("READY=1\nSTATUS=serving " + *parent)
-	slog.Info("serving", "listen", "unix://"+sock, "parent", *parent, "max_zfs", *maxZFS, "version", version.Version)
+	slog.Info("serving", "listen", "unix://"+sock, "admin_listen", adminAddr, "parent", *parent, "max_zfs", *maxZFS, "version", version.Version)
 	select {
 	case err := <-served:
 		return fmt.Errorf("serve: %w", err)
@@ -214,7 +250,9 @@ func run(ctx context.Context, args []string, d deps) error {
 		again = d.interrupt()
 	}
 	dmn.Shutdown(*drain, *stopWait, again)
-	<-served
+	for range listeners {
+		<-served
+	}
 	slog.Info("stopped")
 	return nil
 }
@@ -229,6 +267,35 @@ func startupErr(ctx context.Context, err error) error {
 		return nil
 	}
 	return err
+}
+
+// checkExposure refuses (78) a parent whose mountpoint is under a crossmnt
+// NFS export: that line would serve every volume to its clients from
+// creation on, whatever the volume's sharenfs (endpoint.ExposedByAncestor,
+// F5). Typically `zfs set sharenfs=on` on the pool or an ancestor dataset,
+// or a crossmnt line in /etc/exports. Restarting cannot fix it; removing
+// the export can. A parent with no mountpoint (none, legacy) mounts no
+// volume through it and is not checked.
+func checkExposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.EtabReader) error {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	ds, err := z.Get(ctx, parent, "mountpoint")
+	if err != nil {
+		return fmt.Errorf("parent %s: reading its mountpoint: %w", parent, err)
+	}
+	mount := ds.Props["mountpoint"].Value
+	if !filepath.IsAbs(mount) {
+		return nil
+	}
+	b, err := etab.ReadEtab(ctx)
+	if err != nil {
+		return fmt.Errorf("reading the NFS export table: %w", err)
+	}
+	if x := endpoint.ExposedByAncestor(b, mount); len(x) > 0 {
+		return configErr("parent %s (mounted at %s) is under a crossmnt NFS export, which serves every volume to its clients as soon as it is created: %s; "+
+			"unshare it (zfs set sharenfs=off on that dataset, or remove the /etc/exports line) and start again", parent, mount, strings.Join(x, "; "))
+	}
+	return nil
 }
 
 // configLockWait maps -lock-wait (validated: not negative) to
@@ -269,6 +336,47 @@ func listenAddr(listen, parent string) string {
 		return unixsock.EndpointAddr(parent)
 	}
 	return listen
+}
+
+// sockOutsideLocks refuses a socket whose directory is the lock directory
+// or contains it. A pod reaches the socket through a hostPath of that
+// directory: it would also get every instance's lock files (flock one and
+// that endpoint cannot restart) and every other instance's socket (unlink
+// it and serve a fake). A directory of its own, under the lock directory
+// or anywhere else, is fine (F1).
+func sockOutsideLocks(sock, lockDir string) error {
+	dir := filepath.Dir(sock)
+	rel, err := filepath.Rel(dir, lockDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		return nil
+	}
+	return configErr("-listen %s: the socket's directory %s is or contains the lock directory %s, and a pod given the socket would get every endpoint's locks and sockets; "+
+		"use a directory of its own, as the default does (%s)", sock, dir, lockDir, strings.TrimPrefix(unixsock.EndpointAddr("<parent>"), "unix://"))
+}
+
+// adminSocketPath checks -admin-listen ("" for none, the default): a unix
+// socket, outside the lock directory, and in a directory other than the
+// -listen socket's, which is mounted into the CSI controller pod; a pod
+// given that directory would otherwise get the admin socket too (F2).
+func adminSocketPath(addr, sock, lockDir string) (string, error) {
+	if addr == "" {
+		return "", nil
+	}
+	path, ok := strings.CutPrefix(addr, "unix://")
+	if !ok {
+		return "", configErr("-admin-listen %q: only unix:///absolute/path is served", addr)
+	}
+	if err := unixsock.CheckPath(path); err != nil {
+		return "", configErr("-admin-listen: %v", err)
+	}
+	if err := sockOutsideLocks(path, lockDir); err != nil {
+		return "", err
+	}
+	if rel, err := filepath.Rel(filepath.Dir(sock), filepath.Dir(path)); err == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
+		return "", configErr("-admin-listen %s: its directory is or is under the -listen socket's directory %s, which a CSI pod mounts; "+
+			"use a directory of its own, as the unit does (%s)", path, filepath.Dir(sock), strings.TrimPrefix(unixsock.EndpointAdminAddr("<parent>"), "unix://"))
+	}
+	return path, nil
 }
 
 // socketPath accepts only unix:///absolute/path. TCP served the

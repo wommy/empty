@@ -26,7 +26,7 @@ func TestVersionFlag(t *testing.T) {
 // (%i.sock, deploy/deploy_test.go) and zfs-csi -parent dials.
 func TestDefaultListenIsTheUnitSocket(t *testing.T) {
 	t.Parallel()
-	if got := listenAddr("", "tank/k8s/vols"); got != "unix:///run/zfs-endpoint/tank-k8s-vols.sock" {
+	if got := listenAddr("", "tank/k8s/vols"); got != "unix:///run/zfs-endpoint/sock/tank-k8s-vols/endpoint.sock" {
 		t.Errorf("default: %q", got)
 	}
 	if got := listenAddr("unix:///x/y.sock", "tank/k8s/vols"); got != "unix:///x/y.sock" {
