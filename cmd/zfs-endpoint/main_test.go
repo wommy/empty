@@ -61,6 +61,12 @@ func TestStartupRefusals(t *testing.T) {
 			d.version = func(context.Context, *zfs.Client) error { return configErr("OpenZFS 2.4.x is required") }
 		}, exitConfig, "2.4"},
 		{"bad max-zfs", []string{"-parent", "tank/k8s", "-listen", sock, "-max-zfs", "0"}, nil, exitConfig, "-max-zfs"},
+		// wave13 Q1: an address csi-driver-nfs would mount, or nothing
+		{"nfs-server path", []string{"-parent", "tank/k8s", "-listen", sock, "-nfs-server", "nfs:/x"}, nil, exitConfig, "-nfs-server"},
+		{"nfs-server octal", []string{"-parent", "tank/k8s", "-listen", sock, "-nfs-server", "192.0.2.010"}, nil, exitConfig, "-nfs-server"},
+		{"nfs-server twice", []string{"-parent", "tank/k8s", "-listen", sock, "-nfs-server", "192.0.2.10", "-nfs-server", "192.0.2.10"}, nil, exitConfig, "twice"},
+		{"nfs-server non-root", []string{"-parent", "tank/k8s", "-listen", sock, "-allow-non-root", "-nfs-server", "192.0.2.10"},
+			func(d *deps) { d.euid = 1000 }, exitConfig, "-nfs-server needs root"},
 	} {
 		d, _ := simDeps(t)
 		if tc.edit != nil {

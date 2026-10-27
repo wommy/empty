@@ -48,11 +48,22 @@ func kindOut(k endpoint.VolumeKind) pb.VolumeKind {
 }
 
 func volumeOut(v endpoint.Volume) *pb.Volume {
-	return &pb.Volume{
+	out := &pb.Volume{
 		Id: v.ID, Name: v.Name, Dataset: v.Dataset, Kind: kindOut(v.Kind),
 		CapacityBytes: v.CapacityBytes, SourceType: v.SourceType, SourceId: v.SourceID,
 		DevicePath: v.DevicePath, Mountpoint: v.Mountpoint,
 	}
+	if n := v.NFS; n != nil {
+		out.Nfs = &pb.NFSExport{Clients: n.Clients, ReadOnly: n.ReadOnly, Server: n.Server}
+	}
+	return out
+}
+
+func nfsIn(n *pb.NFSExport) *endpoint.NFSExport {
+	if n == nil {
+		return nil
+	}
+	return &endpoint.NFSExport{Clients: n.GetClients(), ReadOnly: n.GetReadOnly(), Server: n.GetServer()}
 }
 
 func snapshotOut(s endpoint.Snapshot) *pb.Snapshot {
@@ -93,7 +104,7 @@ func (s *Server) GetCapabilities(ctx context.Context, _ *pb.GetCapabilitiesReque
 	if s.EP.FileExportEnabled() {
 		caps = append(caps, pb.Capability_CAPABILITY_FILE_EXPORT)
 	}
-	return &pb.GetCapabilitiesResponse{Parent: s.Parent, Version: version.Version, Capabilities: caps}, nil
+	return &pb.GetCapabilitiesResponse{Parent: s.Parent, Version: version.Version, Capabilities: caps, NfsServers: s.EP.NFSServers()}, nil
 }
 
 func (s *Server) PublishFileExport(ctx context.Context, r *pb.PublishFileExportRequest) (*pb.PublishFileExportResponse, error) {
@@ -118,6 +129,7 @@ func (s *Server) CreateVolume(ctx context.Context, r *pb.CreateVolumeRequest) (*
 		Sparse: r.GetSparse(), Reserve: r.GetReserve(),
 		SourceSnapshotID: r.GetSourceSnapshotId(), SourceVolumeID: r.GetSourceVolumeId(),
 		Properties: r.GetProperties(),
+		NFS:        nfsIn(r.GetNfsExport()),
 	})
 	if err != nil {
 		return nil, grpcErr(err)

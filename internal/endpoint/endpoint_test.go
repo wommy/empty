@@ -87,6 +87,18 @@ func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
 // adoption mode.
 func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
 	t.Helper()
+	return setupConfig(t, prefix, nil)
+}
+
+// setupNFS is setup for an endpoint advertising NFS servers.
+func setupNFS(t *testing.T, servers ...string) (*endpoint.Endpoint, *harness) {
+	t.Helper()
+	return setupConfig(t, "", func(c *endpoint.Config) { c.NFSServers = servers })
+}
+
+// setupConfig is setupPrefix with mod applied to the endpoint's Config.
+func setupConfig(t *testing.T, prefix string, mod func(*endpoint.Config)) (*endpoint.Endpoint, *harness) {
+	t.Helper()
 	ctx := context.Background()
 	h := &harness{}
 	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
@@ -133,6 +145,12 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
 	if err := h.Z.CreateFilesystem(ctx, h.Parent, nil, true); err != nil {
 		t.Fatal(err)
 	}
+	return h.endpoint(t, prefix, mod), h
+}
+
+// endpoint starts another endpoint on h's parent, as a restart does.
+func (h *harness) endpoint(t *testing.T, prefix string, mod func(*endpoint.Config)) *endpoint.Endpoint {
+	t.Helper()
 	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true, PropertyPrefix: prefix}
 	if h.sim != nil {
 		cfg.Etab = h.sim
@@ -140,11 +158,14 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
 		// as cmd/zfs-endpoint: a zvol udev is still probing is not in use
 		cfg.Settle = endpoint.UdevSettle
 	}
+	if mod != nil {
+		mod(&cfg)
+	}
 	ep, err := endpoint.New(h.Z, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ep, h
+	return ep
 }
 
 func wantCode(t *testing.T, err error, code endpoint.Code) {
