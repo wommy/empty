@@ -29,7 +29,7 @@ func (r replay) Run(context.Context, string, ...string) ([]byte, error) { return
 
 // BenchmarkScan is the Go-side cost of one whole-parent scan of n rows
 // (half owned, committed filesystems, half a CSI snapshot of each): parse
-// the `zfs get -Hp` output the simulator printed for it, decode the rows
+// the `zfs get -j -p` output the simulator printed for it, decode the rows
 // and build the Table. The zfs exec itself is not measured.
 func BenchmarkScan(b *testing.B) {
 	for _, n := range []int{1000, 10000} {

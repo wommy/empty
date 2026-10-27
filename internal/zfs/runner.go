@@ -86,8 +86,12 @@ func (r LocalRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 	cmd.SysProcAttr = childAttr()
 	// classify matches libzfs's English messages: the child never runs in
-	// the daemon's locale (exec keeps the last of duplicate keys)
-	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANGUAGE=C")
+	// the daemon's locale (exec keeps the last of duplicate keys). C.UTF-8,
+	// not C: zfs -j's printer stops at the first byte >= 0x80 under C and
+	// still exits 0, so one non-ASCII value under the parent would fail
+	// every scan; OpenZFS ships no translations, so messages stay English.
+	// A libc without C.UTF-8 falls back to C.
+	cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8", "LANGUAGE=C")
 	cmd.WaitDelay = r.WaitDelay
 	if cmd.WaitDelay == 0 {
 		cmd.WaitDelay = 5 * time.Second

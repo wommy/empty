@@ -3,7 +3,6 @@ package zfs_test
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -312,9 +311,7 @@ func TestKilledCommandIsInterrupted(t *testing.T) {
 	// sh dies on SIGTERM, but its child keeps stdout open: only WaitDelay
 	// stops Wait from blocking until the child exits
 	bin := filepath.Join(t.TempDir(), "zfs")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeScript(t, bin, "#!/bin/sh\nsleep 30\n")
 	c := &zfs.Client{Runner: zfs.LocalRunner{WaitDelay: 50 * time.Millisecond}, Binary: bin}
 	start := time.Now()
 	_, err := c.Get(ctx, "10", "x")

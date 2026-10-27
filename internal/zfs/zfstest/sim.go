@@ -4,6 +4,10 @@
 // state, and the stderr text real zfs prints for the failures callers must
 // classify (see internal/zfs/errors.go for the OpenZFS sources).
 //
+// `zfs get -j -p` prints the JSON OpenZFS 2.4 prints (json.go: the same
+// bytes, escapes and dataset order; TestRealGetJSONMatchesSim compares
+// them with a real pool), modelling a UTF-8 locale.
+//
 // It is an oracle for control flow, not for ZFS itself. Behaviors were
 // audited against OpenZFS 2.4.4 source (docs/research/simfidelity/) and
 // are differential-tested against an independent reference model
@@ -36,6 +40,7 @@
 package zfstest
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -60,7 +65,7 @@ type node struct {
 	defer_ bool              // deferred destroy pending
 	holds  map[string]bool   // user holds (snapshots): tag -> held
 	birth  int64             // creation, unix seconds
-	txg    uint64            // snapshots: creation order
+	txg    uint64            // createtxg: snapshots at creation (promote orders by it), others on first JSON read
 	// mounted: filesystems only. zfs create/clone/recv mount a
 	// canmount=on filesystem; later only the changelist rules move it
 	// (see mount).
@@ -1441,9 +1446,12 @@ func (s *Sim) get(args []string) ([]byte, error) {
 	depth := 0
 	recursive := false
 	var pos []string
+	asJSON := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "-Hp":
+		case "-j":
+			asJSON = true
+		case "-Hp", "-H", "-p":
 		case "-o":
 			i++ // columns are fixed to name,property,value,source
 		case "-t":
@@ -1484,7 +1492,28 @@ func (s *Sim) get(args []string) ([]byte, error) {
 			}
 		}
 	}
+	// zfs_for_each walks an AVL tree ordered by zfs_compare (zfs_iter.c):
+	// by dataset name, a dataset before its snapshots, and snapshots of
+	// one dataset by createtxg. So tank/a@s comes before tank/a/b, where
+	// plain string order puts '/' before '@'.
+	slices.SortFunc(names, func(a, b string) int {
+		ads, asnap, aok := strings.Cut(a, "@")
+		bds, bsnap, bok := strings.Cut(b, "@")
+		if c := strings.Compare(ads, bds); c != 0 || aok == bok {
+			if c == 0 && aok {
+				if c = cmp.Compare(s.ds[a].txg, s.ds[b].txg); c == 0 {
+					c = strings.Compare(asnap, bsnap)
+				}
+			}
+			return c
+		}
+		if !aok {
+			return -1
+		}
+		return 1
+	})
 	var b strings.Builder
+	var js []JSONDataset
 	for _, nm := range names {
 		if types != nil && nm != root {
 			ok := false
@@ -1502,6 +1531,23 @@ func (s *Sim) get(args []string) ([]byte, error) {
 				list = append(list, k)
 			}
 		}
+		if asJSON {
+			n := s.ds[nm]
+			if n.txg == 0 {
+				// createtxg: only snapshots need an order (promote);
+				// anything else gets the next txg the first time it is read
+				s.txg++
+				n.txg = s.txg
+			}
+			jd := JSONDataset{Name: nm, Type: string(n.typ), Createtxg: n.txg}
+			for _, p := range list {
+				if v, src, ok := s.value(nm, p); ok {
+					jd.Props = append(jd.Props, JSONProp{Name: p, Value: v, Source: src})
+				}
+			}
+			js = append(js, jd)
+			continue
+		}
 		for _, p := range list {
 			v, src, ok := s.value(nm, p)
 			if !ok {
@@ -1509,6 +1555,9 @@ func (s *Sim) get(args []string) ([]byte, error) {
 			}
 			fmt.Fprintf(&b, "%s\t%s\t%s\t%s\n", nm, p, v, src)
 		}
+	}
+	if asJSON {
+		return AppendGetJSON(nil, js), nil
 	}
 	return []byte(b.String()), nil
 }

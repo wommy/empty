@@ -14,7 +14,7 @@ import (
 // encryption keys or the endpoint's capacity model
 // (docs/research/gaps/adv-csi-frontend.md, B3).
 //
-// Values are canonicalised to what `zfs get -Hp` prints back, so a
+// Values are canonicalised to what `zfs get -p` prints back, so a
 // retry's compatibility check is a plain string compare against the row.
 
 // propKey indexes the allowlisted properties that live in a Row's Local
@@ -181,7 +181,7 @@ func parseSize(v string) (uint64, bool) {
 
 // ValidateProperties checks caller-supplied ZFS properties for a volume of
 // kind against the allowlist and returns them canonicalised (keyed by zfs
-// property name, valued as `zfs get -Hp` prints them), or InvalidArgument.
+// property name, valued as `zfs get -p` prints them), or InvalidArgument.
 // An empty input yields nil.
 func ValidateProperties(kind VolumeKind, in map[string]string) (map[string]string, error) {
 	if len(in) == 0 {

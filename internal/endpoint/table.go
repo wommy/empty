@@ -12,7 +12,7 @@ import (
 )
 
 // Row is one dataset or snapshot under the parent, decoded once from
-// `zfs get -Hp` into typed columns. Everything the planners decide on is
+// `zfs get -j -p` into typed columns. Everything the planners decide on is
 // here; nothing downstream reads property strings.
 type Row struct {
 	Name     string // full zfs name
@@ -135,10 +135,10 @@ func (r Row) OwnedCloneSource() (string, bool) {
 // check coverage (mustCover) instead of reading "not scanned" as "gone".
 type Table struct {
 	rows        []Row
-	snapsOfVol  map[string][]int // volume id -> snapshot rows
-	clonesOfSrc map[string][]int // origin snapshot full name -> clone rows
-	whole       bool             // every volume under the parent was read
-	covered     map[string]bool  // else: the volumes that were read
+	snapsOfVol  map[string][2]int // volume id -> its snapshots, rows[lo:hi]
+	clonesOfSrc map[string][]int  // origin snapshot full name -> clone rows
+	whole       bool              // every volume under the parent was read
+	covered     map[string]bool   // else: the volumes that were read
 }
 
 // NewTable sorts rows by ID and indexes them; they are everything under
@@ -152,19 +152,50 @@ func NewTable(rows []Row) Table {
 // newPartialTable is a table read for vols only (with their snapshots).
 func newPartialTable(rows []Row, vols ...string) Table {
 	slices.SortFunc(rows, func(a, b Row) int { return strings.Compare(a.ID, b.ID) })
-	t := Table{rows: rows, snapsOfVol: map[string][]int{}, clonesOfSrc: map[string][]int{}, covered: map[string]bool{}}
+	t := Table{rows: rows, clonesOfSrc: map[string][]int{}, covered: map[string]bool{}}
 	for _, v := range vols {
 		t.covered[v] = true
 	}
-	for i, r := range rows {
-		if vol, _, ok := strings.Cut(r.ID, "@"); ok {
-			t.snapsOfVol[vol] = append(t.snapsOfVol[vol], i)
+	// In ID order every id starting with "<vol>@" sits in one run, so a
+	// volume's snapshots are a range of rows: no slice per volume.
+	runs := 0
+	for i := 0; i < len(rows); i = snapRun(rows, i) {
+		if strings.Contains(rows[i].ID, "@") {
+			runs++
 		}
+	}
+	t.snapsOfVol = make(map[string][2]int, runs)
+	for i := 0; i < len(rows); {
+		j := snapRun(rows, i)
+		if vol, _, ok := strings.Cut(rows[i].ID, "@"); ok {
+			t.snapsOfVol[vol] = [2]int{i, j}
+		}
+		i = j
+	}
+	for i, r := range rows {
 		if r.Origin != "" {
 			t.clonesOfSrc[r.Origin] = append(t.clonesOfSrc[r.Origin], i)
 		}
 	}
 	return t
+}
+
+// snapRun returns the end of the run of snapshots of one volume starting
+// at rows[i], or i+1 if rows[i] is not a snapshot.
+func snapRun(rows []Row, i int) int {
+	vol, _, ok := strings.Cut(rows[i].ID, "@")
+	j := i + 1
+	if !ok {
+		return j
+	}
+	for j < len(rows) {
+		id := rows[j].ID
+		if len(id) <= len(vol) || id[len(vol)] != '@' || id[:len(vol)] != vol {
+			break
+		}
+		j++
+	}
+	return j
 }
 
 // Whole reports whether the table covers every volume under the parent.
@@ -238,7 +269,10 @@ func (t Table) pick(idx []int) iter.Seq[Row] {
 }
 
 // SnapshotsOf yields the snapshots of volume id.
-func (t Table) SnapshotsOf(id string) iter.Seq[Row] { return t.pick(t.snapsOfVol[id]) }
+func (t Table) SnapshotsOf(id string) iter.Seq[Row] {
+	r := t.snapsOfVol[id] // absent: {0, 0}, no rows
+	return slices.Values(t.rows[r[0]:r[1]])
+}
 
 // ClonesOf yields rows whose origin is the snapshot with full name snap.
 func (t Table) ClonesOf(snap string) iter.Seq[Row] { return t.pick(t.clonesOfSrc[snap]) }
@@ -331,8 +365,11 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 		if r.Type == zfs.TypeVolume && (r.Volsize == 0 || r.BlockSz == 0 || r.Volsize%r.BlockSz != 0) && bad == nil {
 			bad = errorf(Internal, "scan: %s: zvol volsize %d / volblocksize %d breaks OpenZFS's own invariants", name, r.Volsize, r.BlockSz)
 		}
-		if v, err := strconv.ParseInt(own(cCommittedAt), 10, 64); err == nil && v > 0 {
-			r.CommittedAt = v
+		// most rows have none: skip ParseInt's error allocation for ""
+		if at := own(cCommittedAt); at != "" {
+			if v, err := strconv.ParseInt(at, 10, 64); err == nil && v > 0 {
+				r.CommittedAt = v
+			}
 		}
 		rows = append(rows, r)
 	}

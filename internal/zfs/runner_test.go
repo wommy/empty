@@ -111,9 +111,7 @@ func (b blockRunner) Run(ctx context.Context, name string, args ...string) ([]by
 func TestChildRunsInItsOwnProcessGroup(t *testing.T) {
 	t.Parallel()
 	bin := filepath.Join(t.TempDir(), "zfs")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho $$ $(cut -d' ' -f5 /proc/$$/stat)\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeScript(t, bin, "#!/bin/sh\necho $$ $(cut -d' ' -f5 /proc/$$/stat)\n")
 	if _, err := os.Stat("/proc/self/stat"); err != nil {
 		t.Skip("no /proc")
 	}

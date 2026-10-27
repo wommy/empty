@@ -8,7 +8,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 
 | Edge | State |
 |---|---|
-| ZFS execution (`internal/zfs`) | done: typed `zfs(8)` client, `-Hp` columnar parsing, error classification from OpenZFS's own CLI strings |
+| ZFS execution (`internal/zfs`) | done: typed `zfs(8)` client, strict `zfs get -j -p` scan decoding, error classification from OpenZFS's own CLI strings |
 | Volume/snapshot lifecycle (`internal/endpoint`) | done: create (plain, from snapshot, from volume), delete, expand, get, list, snapshot create/delete/list, capacity |
 | ZFS property passthrough (`internal/endpoint/props.go`) | done: default-deny per-kind allowlist with value checks; requested properties must be set locally for a retry to be compatible (`docs/research/gaps/adv-csi-frontend.md` B3) |
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
@@ -25,10 +25,10 @@ The core is data-oriented:
 ```
 lock(keys) → scan → Table → plan(Table, request) → Plan → apply → re-read
              one zfs     typed,     pure function,     ops as     each op carries its
-             get -Hp     immutable  no I/O             plain data own replay tolerance
+             get -j -p   immutable  no I/O             plain data own replay tolerance
 ```
 
-- **Scan** (`table.go`): one `zfs get -Hp -d` per scan reads the parent's volumes and their snapshots (or one volume and its snapshots) into a flat columnar buffer. The parent itself and anything deeper, such as a dataset someone made below a volume, are dropped, so planners never see them. An RPC may scan more than once: once per volume it touches, and again to re-read after applying. Each scan is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
+- **Scan** (`table.go`): one `zfs get -j -p -d` per scan reads the parent's volumes and their snapshots (or one volume and its snapshots) into a flat columnar buffer. The parent itself and anything deeper, such as a dataset someone made below a volume, are dropped, so planners never see them. An RPC may scan more than once: once per volume it touches, and again to re-read after applying. Each scan is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
 - **Plan** (`plan.go`): pure functions take a `Table` and a request and return either a `Plan` (a `[]Op` of plain data) or a typed error.
   - Idempotency means the plan is empty.
   - A provision that was interrupted converges, because uncommitted rows are driven toward the request rather than judged for compatibility.
@@ -81,7 +81,7 @@ All research is in `docs/research/`. Delegates produced it from pinned clones an
 | Busy is mapped by operation | CSI: "in use" on DeleteVolume/DeleteSnapshot is `FAILED_PRECONDITION`. On create, expand and clone it clears by itself, so it is retryable |
 | A killed zfs command is `DEADLINE_EXCEEDED`/`ABORTED`, never `INTERNAL` | its outcome is unknown, and a final code would strand a half-applied plan. Commands get SIGTERM and then a 5 s `WaitDelay` |
 | Never delete a non-socket at the socket path | a misconfigured `-csi-address` removed whatever file it named |
-| No struct-of-arrays layout | measured: struct-of-arrays saves about 12 µs on a filter over 10k rows (`docs/research/dod-go/memory-layout.md`), while a whole-parent scan of 10k rows costs about 140 ms and 100 MB of allocations Go-side (`BenchmarkScan`: parse, decode and index, zfs exec excluded). The cost is in parsing and decoding, not in the row layout |
+| No struct-of-arrays layout | measured: struct-of-arrays saves about 12 µs on a filter over 10k rows (`docs/research/dod-go/memory-layout.md`), while a whole-parent scan of 10k rows costs about 180-190 ms and 19 MB in about 100 allocations Go-side (`BenchmarkScan`: JSON decode, row decode and index, zfs exec excluded; the text parser it replaced took about 150-170 ms and 102 MB in 355k allocations). The cost is in parsing and decoding, not in the row layout |
 
 ### Corrections from adversarial review
 
@@ -103,7 +103,7 @@ go test -race ./...                                       # simulator
 ZFS_TEST_POOL=testpool go test ./internal/endpoint/...    # real pool, as root
 go test -run '^$' -fuzz FuzzCreateConverges ./internal/endpoint
 go test -run '^$' -fuzz FuzzReconcileSafe ./internal/endpoint
-go test -run '^$' -fuzz FuzzParseColumns ./internal/zfs
+go test -run '^$' -fuzz FuzzDecodeGetJSON ./internal/zfs
 ```
 
 The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter in an Ubuntu VM running OpenZFS 2.4 (`ci/real-zfs-vm.sh`): six concurrent shards, each on its own pool backed by a sparse file on a guest tmpfs (`ci/real-zfs-guest.sh`). Planner tests build `Table`s directly from rows, with no I/O.

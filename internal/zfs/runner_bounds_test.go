@@ -45,7 +45,8 @@ func TestStderrIsBounded(t *testing.T) {
 // H-12: classify matches libzfs's English messages, but a child inherited
 // the daemon's locale (systemd passes /etc/locale.conf to services). A
 // translated zfs would turn every classified failure into Internal, so the
-// runner pins the C locale for its children, whatever the daemon has.
+// runner pins C.UTF-8 for its children, whatever the daemon has: English
+// messages, and zfs -j prints non-ASCII values (C would cut them off).
 func TestChildRunsInTheCLocale(t *testing.T) {
 	t.Setenv("LC_ALL", "de_DE.UTF-8")
 	t.Setenv("LC_MESSAGES", "de_DE.UTF-8")
@@ -56,8 +57,8 @@ func TestChildRunsInTheCLocale(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := strings.Split(string(out), "|")
-	if len(f) != 3 || f[0] != "C" || f[1] != "C" {
-		t.Errorf("child saw LC_ALL|LANGUAGE|PATH = %q, want C|C|...", out)
+	if len(f) != 3 || f[0] != "C.UTF-8" || f[1] != "C" {
+		t.Errorf("child saw LC_ALL|LANGUAGE|PATH = %q, want C.UTF-8|C|...", out)
 	}
 	if len(f) == 3 && f[2] != os.Getenv("PATH") {
 		t.Errorf("child PATH %q, want the daemon's %q", f[2], os.Getenv("PATH"))
