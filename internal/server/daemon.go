@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
+	"github.com/wommy/empty/internal/lock"
 )
 
 // MaxMsgSize bounds a message either way. A Reconcile desired set of 100k
@@ -314,9 +315,11 @@ const requestIDKey = "x-request-id"
 
 type requestIDCtx struct{}
 
-// WithRequestID returns ctx carrying the request id.
+// WithRequestID returns ctx carrying the request id, also as the owner of
+// the locks the call takes (lock.WithOwner), which a call refused on them
+// names.
 func WithRequestID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, requestIDCtx{}, id)
+	return lock.WithOwner(context.WithValue(ctx, requestIDCtx{}, id), id)
 }
 
 // RequestID returns the request id in ctx, or "".

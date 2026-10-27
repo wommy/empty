@@ -722,7 +722,7 @@ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (Reconcile
 	for _, a := range plan.Actions {
 		for _, v := range a.Volumes {
 			if _, tried := held[v]; !tried {
-				release, ok := e.locks.TryAcquire("vol:" + v)
+				release, ok := e.locks.TryAcquireContext(ctx, "vol:"+v)
 				held[v] = ok
 				if ok {
 					releases[v] = release
