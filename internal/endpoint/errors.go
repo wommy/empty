@@ -135,6 +135,17 @@ var errRules = []errRule{
 	// never Internal; a retry re-scans and re-plans
 	{kinds: []errKind{kindDeadline}, code: DeadlineExceeded},
 	{kinds: kinds(zfs.KindInterrupted), code: Aborted},
+	// no space after a change (a fresh clone's reservation, set after its
+	// snapshot and clone ran): ResourceExhausted is final for
+	// external-provisioner under Immediate binding, and would strand the
+	// uncommitted clone (and its source's DeleteVolume, "has dependent
+	// clone"); a retry converges once there is space. The better fix,
+	// not built: roll a fresh create back (destroy it by the guid just
+	// read) and return the classified code, Aborted only if the rollback
+	// fails; that would cover the deterministic codes mid-plan too
+	// (AlreadyExists or NotFound on a clone after its snapshot,
+	// InvalidArgument from a size set).
+	{ops: mutatingOps, kinds: kinds(zfs.KindNoSpace), after: true, code: Aborted},
 	{kinds: kinds(zfs.KindNoSpace), code: ResourceExhausted},
 	{kinds: kinds(zfs.KindInvalidProperty), code: InvalidArgument},
 	{kinds: kinds(zfs.KindUnknown), after: true, code: Aborted},

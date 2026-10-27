@@ -40,6 +40,9 @@ func TestZfsErrCodes(t *testing.T) {
 		{OpDestroy, &zfs.Error{Kind: zfs.KindUnavailable}, true, Unavailable},
 		{opRead, &zfs.Error{Kind: zfs.KindInvalidProperty}, false, InvalidArgument},
 		{opRead, &zfs.Error{Kind: zfs.KindNoSpace}, false, ResourceExhausted},
+		{OpCreateVol, &zfs.Error{Kind: zfs.KindNoSpace}, false, ResourceExhausted},
+		// no space after a change: the clone a reservation failed on
+		{OpSet, &zfs.Error{Kind: zfs.KindNoSpace}, true, Aborted},
 		{opRead, &zfs.Error{Kind: zfs.KindInterrupted, Err: fmt.Errorf("run: %w", context.DeadlineExceeded)}, false, DeadlineExceeded},
 		{opRead, &zfs.Error{Kind: zfs.KindInterrupted, Err: fmt.Errorf("run: %w", context.Canceled)}, false, Aborted},
 		{OpClone, &zfs.Error{Kind: zfs.KindNotFound}, true, NotFound},
@@ -95,10 +98,11 @@ func TestErrTableMatchesHead(t *testing.T) {
 				}
 			default:
 				plan, i := planAt(c)
-				got, want = opErr(err, i, plan), headApplyErr(err, i, plan)
+				got, want = opErr(err, i, plan), sinceHead(c, headApplyErr(err, i, plan), " (earlier ops applied; a retry converges)")
 				// a resumed provision: an earlier attempt changed the pool
 				first, _ := planAt(errCell{op: c.op})
-				g, w := resumeErr(opErr(err, 0, first)), headResumeErr(headApplyErr(err, 0, first))
+				resumed := errCell{op: c.op, kind: c.kind, mutated: true}
+				g, w := resumeErr(opErr(err, 0, first)), sinceHead(resumed, headResumeErr(headApplyErr(err, 0, first)), " (resuming an earlier attempt; a retry converges)")
 				if CodeOf(g) != CodeOf(w) || g.Error() != w.Error() {
 					t.Errorf("%+v %v resumed: got %d %q, head %d %q", c, err, CodeOf(g), g, CodeOf(w), w)
 				}
@@ -228,9 +232,20 @@ var headTable = sync.OnceValue(func() (t [nErrOps][nErrKinds][2]Code) {
 // changedSinceHead are the cells changed on purpose since 7f5637f. The
 // rule is "an unclassified failure after a change is Aborted"; wave 25
 // widened it to reads (a scan or get after a change: what a retry must
-// finish is the change, whatever op failed).
+// finish is the change, whatever op failed), and made no space after a
+// change Aborted (ResourceExhausted is final for external-provisioner
+// under Immediate binding, and strands the half-made volume).
 func changedSinceHead(c errCell) bool {
-	return c.mutated && c.kind == errKind(zfs.KindUnknown) && (c.op == opRead || c.op == opReadParent)
+	if !c.mutated {
+		return false
+	}
+	switch c.kind {
+	case errKind(zfs.KindUnknown):
+		return c.op == opRead || c.op == opReadParent
+	case errKind(zfs.KindNoSpace):
+		return slicesContains(mutatingOps, c.op)
+	}
+	return false
 }
 
 // sinceHead is the head mapping err of the cell c, amended where c changed

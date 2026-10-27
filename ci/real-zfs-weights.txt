@@ -107,12 +107,14 @@ TestBusyIsMappedByOperation 0.00
 TestCheckFloor 0.00
 TestClassify 0.00
 TestCloneFailureAfterCloneConvergesToSameState 0.00
+TestCloneNoSpaceAfterChangeIsRetryable 0.00
 TestCloneOfLargeBlockZvolProvisions 0.00
 TestCloneRefusesUnstampedReservedSnapshot 0.00
 TestCloneResizeFailureConverges 0.00
 TestCodeOfNeverReportsAFailureAsOK 0.00
 TestConcurrentCreatesSerialize 0.00
 TestCreateNeverStampsRowWithoutName 0.00
+TestCreateNoSpaceBeforeChangeStaysExhausted 0.00
 TestCreateResumeFailureStaysAborted 0.00
 TestCreateSnapshotAfterCutIsRetryable 0.00
 TestCreateUnmountedFilesystemMountsThenCommits 0.00
