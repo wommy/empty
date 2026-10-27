@@ -36,53 +36,77 @@ func main() {
 	}
 }
 
-func run(args []string, stdout io.Writer) error {
+// options are zfs-csi's flags.
+type options struct {
+	parent, endpointAddr, csiAddr, name string
+	drain                               time.Duration
+	enableBlock, enableLocalFilesystem  bool
+	showVersion                         bool
+}
+
+// parseFlags parses the command line; flag.ErrHelp after -help.
+func parseFlags(args []string) (options, error) {
+	var o options
 	fs := flag.NewFlagSet("zfs-csi", flag.ContinueOnError)
-	parent := fs.String("parent", "", "parent dataset the endpoint serves, e.g. tank/k8s/vols: dials "+unixsock.EndpointAddr("<parent>")+" (systemd-escaped, as zfs-endpoint@.service serves it)")
-	endpointAddr := fs.String("endpoint", "", "zfs-endpoint socket (unix:///absolute/path), instead of -parent")
-	csiAddr := fs.String("csi-address", "unix:///csi/csi.sock", "CSI socket to serve (unix:///path), in the pod's emptyDir")
-	name := fs.String("driver-name", zcsi.DefaultDriverName, "CSI driver name reported by GetPluginInfo")
+	fs.StringVar(&o.parent, "parent", "", "parent dataset the endpoint serves, e.g. tank/k8s/vols: dials "+unixsock.EndpointAddr("<parent>")+" (systemd-escaped, as zfs-endpoint@.service serves it)")
+	fs.StringVar(&o.endpointAddr, "endpoint", "", "zfs-endpoint socket (unix:///absolute/path), instead of -parent")
+	fs.StringVar(&o.csiAddr, "csi-address", "unix:///csi/csi.sock", "CSI socket to serve (unix:///path), in the pod's emptyDir")
+	fs.StringVar(&o.name, "driver-name", zcsi.DefaultDriverName, "CSI driver name reported by GetPluginInfo")
 	drain := fs.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
-	enableBlock := fs.Bool("enable-block", false, "provision raw block volumes (zvols); off until a node plugin can attach them (ADR 0006)")
-	showVersion := fs.Bool("version", false, "print the version and exit")
+	fs.BoolVar(&o.enableBlock, "enable-block", false, "provision raw block volumes (zvols); off until a node plugin can attach them (ADR 0006)")
+	fs.BoolVar(&o.enableLocalFilesystem, "enable-local-filesystem", false, "provision filesystem volumes when the endpoint advertises no NFS server (zfs-endpoint -nfs-server); off because no node plugin mounts them (ADR 0009)")
+	fs.BoolVar(&o.showVersion, "version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
-		return err
+		return o, err
 	}
-	if *showVersion {
+	o.drain = *drain
+	if fs.NArg() > 0 {
+		return o, fmt.Errorf("unexpected arguments %q", fs.Args())
+	}
+	return o, nil
+}
+
+// controller is the CSI controller the flags configure, on ep.
+func (o options) controller(ep pb.EndpointServiceClient) *zcsi.Controller {
+	return &zcsi.Controller{EP: ep, EnableBlock: o.enableBlock, EnableLocalFilesystem: o.enableLocalFilesystem}
+}
+
+func run(args []string, stdout io.Writer) error {
+	o, err := parseFlags(args)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
+	if o.showVersion {
 		_, err := fmt.Fprintln(stdout, version.Version)
 		return err
 	}
-	if fs.NArg() > 0 {
-		return fmt.Errorf("unexpected arguments %q", fs.Args())
-	}
-	addr, err := endpointAddress(*parent, *endpointAddr)
 	if err != nil {
 		return err
 	}
-	*endpointAddr = addr
+	endpointAddr, err := endpointAddress(o.parent, o.endpointAddr)
+	if err != nil {
+		return err
+	}
 
 	// the endpoint serves only a unix socket until transport auth (ADR
 	// 0001); an "@name" abstract socket would have no permissions at all
-	if err := endpointTarget(*endpointAddr); err != nil {
+	if err := endpointTarget(endpointAddr); err != nil {
 		return err
 	}
-	conn, err := grpc.NewClient(*endpointAddr, dialOptions()...)
+	conn, err := grpc.NewClient(endpointAddr, dialOptions()...)
 	if err != nil {
-		return fmt.Errorf("endpoint %s: %w", *endpointAddr, err)
+		return fmt.Errorf("endpoint %s: %w", endpointAddr, err)
 	}
 	defer conn.Close()
 	ep := pb.NewEndpointServiceClient(conn)
 
-	lis, err := listen(*csiAddr)
+	lis, err := listen(o.csiAddr)
 	if err != nil {
 		return err
 	}
 	srv := grpc.NewServer()
-	csi.RegisterIdentityServer(srv, &zcsi.Identity{Health: healthpb.NewHealthClient(conn), Name: *name})
-	csi.RegisterControllerServer(srv, &zcsi.Controller{EP: ep, EnableBlock: *enableBlock})
+	csi.RegisterIdentityServer(srv, &zcsi.Identity{Health: healthpb.NewHealthClient(conn), Name: o.name})
+	csi.RegisterControllerServer(srv, o.controller(ep))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -100,12 +124,12 @@ func run(args []string, stdout io.Writer) error {
 		case <-again:
 			slog.Warn("second signal: stopping without drain")
 			srv.Stop()
-		case <-time.After(*drain):
-			slog.Warn("drain timed out: stopping", "after", *drain)
+		case <-time.After(o.drain):
+			slog.Warn("drain timed out: stopping", "after", o.drain)
 			srv.Stop()
 		}
 	}()
-	slog.Info("serving", "csi", *csiAddr, "endpoint", *endpointAddr, "driver", *name, "enable_block", *enableBlock, "version", version.Version)
+	slog.Info("serving", "csi", o.csiAddr, "endpoint", endpointAddr, "driver", o.name, "enable_block", o.enableBlock, "enable_local_filesystem", o.enableLocalFilesystem, "version", version.Version)
 	return srv.Serve(lis)
 }
 

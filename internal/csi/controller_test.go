@@ -70,7 +70,7 @@ func assertCapabilities(t *testing.T, c *zcsi.Controller) {
 func TestExpandNodeExpansionRequired(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	c := &zcsi.Controller{EP: endpointClient(t), EnableBlock: true}
+	c := &zcsi.Controller{EP: endpointClient(t), EnableBlock: true, EnableLocalFilesystem: true}
 	for _, block := range []bool{true, false} {
 		name := "fs"
 		if block {
@@ -118,7 +118,7 @@ func TestParametersAndAccessChecks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep := endpointClient(t)
-	c := &zcsi.Controller{EP: ep, EnableBlock: true}
+	c := &zcsi.Controller{EP: ep, EnableBlock: true, EnableLocalFilesystem: true}
 	create := func(name string, block bool, params map[string]string) error {
 		_, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{
 			Name: name, VolumeCapabilities: []*csi.VolumeCapability{capability(block)},
@@ -176,8 +176,8 @@ func TestBlockIsOptIn(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep := endpointClient(t)
-	off := &zcsi.Controller{EP: ep}
-	on := &zcsi.Controller{EP: ep, EnableBlock: true}
+	off := &zcsi.Controller{EP: ep, EnableLocalFilesystem: true}
+	on := &zcsi.Controller{EP: ep, EnableBlock: true, EnableLocalFilesystem: true}
 	create := func(c *zcsi.Controller, name string, caps ...*csi.VolumeCapability) error {
 		_, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{
 			Name: name, VolumeCapabilities: caps, CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30},
@@ -249,7 +249,7 @@ func TestNeverIssuedIDs(t *testing.T) {
 func TestExpandUnlimitedFilesystem(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	c := &zcsi.Controller{EP: endpointClient(t)}
+	c := &zcsi.Controller{EP: endpointClient(t), EnableLocalFilesystem: true}
 	if _, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "free", VolumeCapabilities: []*csi.VolumeCapability{capability(false)}}); err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestExpandValidatesCapability(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep := endpointClient(t)
-	c := &zcsi.Controller{EP: ep, EnableBlock: true}
+	c := &zcsi.Controller{EP: ep, EnableBlock: true, EnableLocalFilesystem: true}
 	if _, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "fs", VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
 		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}}); err != nil {
 		t.Fatal(err)
@@ -336,7 +336,7 @@ func TestCreateEmptyContentSourceID(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep := endpointClient(t)
-	c := &zcsi.Controller{EP: ep}
+	c := &zcsi.Controller{EP: ep, EnableLocalFilesystem: true}
 	for name, src := range map[string]*csi.VolumeContentSource{
 		"snapshot": {Type: &csi.VolumeContentSource_Snapshot{Snapshot: &csi.VolumeContentSource_SnapshotSource{}}},
 		"volume":   {Type: &csi.VolumeContentSource_Volume{Volume: &csi.VolumeContentSource_VolumeSource{}}},
@@ -362,7 +362,7 @@ func TestCreateEmptyContentSourceID(t *testing.T) {
 func TestValidateComparesIssuedContext(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	c := &zcsi.Controller{EP: endpointClient(t)}
+	c := &zcsi.Controller{EP: endpointClient(t), EnableLocalFilesystem: true}
 	res, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "v", VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
 		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}})
 	if err != nil {
@@ -399,5 +399,66 @@ func TestValidateComparesIssuedContext(t *testing.T) {
 		if (got.GetConfirmed() != nil) != tc.confirm {
 			t.Errorf("%s: confirmed=%v (%q), want %v", tc.name, got.GetConfirmed() != nil, got.GetMessage(), tc.confirm)
 		}
+	}
+}
+
+// Without NFS no node plugin can mount a filesystem volume (ADR 0009):
+// off (the default), CreateVolume refuses mount access with
+// InvalidArgument naming both ways out and creates nothing, and
+// ValidateVolumeCapabilities never confirms mount access, not even on a
+// volume made with the flag on (nor on a zvol). An existing volume still
+// expands and deletes. On, mount access is admitted as before.
+func TestMountRefusedWithoutNFS(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep := endpointClient(t)
+	off := &zcsi.Controller{EP: ep, EnableBlock: true}
+	on := &zcsi.Controller{EP: ep, EnableBlock: true, EnableLocalFilesystem: true}
+	create := func(c *zcsi.Controller, name string, vc *csi.VolumeCapability) error {
+		_, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{
+			Name: name, VolumeCapabilities: []*csi.VolumeCapability{vc}, CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30},
+		})
+		return err
+	}
+	validate := func(c *zcsi.Controller, vol string) (bool, string) {
+		res, err := c.ValidateVolumeCapabilities(ctx, &csi.ValidateVolumeCapabilitiesRequest{VolumeId: vol, VolumeCapabilities: []*csi.VolumeCapability{capability(false)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.GetConfirmed() != nil, res.GetMessage()
+	}
+
+	err := create(off, "fs", capability(false))
+	if msg := status.Convert(err).Message(); status.Code(err) != codes.InvalidArgument ||
+		!strings.Contains(msg, "-nfs-server") || !strings.Contains(msg, "-enable-local-filesystem") {
+		t.Fatalf("mount without NFS, local filesystems off: %v", err)
+	}
+	if _, err := ep.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "fs"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("refused mount volume exists: %v", err)
+	}
+	// block access is not mount access
+	if err := create(off, "zvol", capability(true)); err != nil {
+		t.Fatalf("block with local filesystems off: %v", err)
+	}
+	if err := create(on, "fs", capability(false)); err != nil {
+		t.Fatalf("mount with local filesystems on: %v", err)
+	}
+	for _, vol := range []string{"fs", "zvol"} {
+		if ok, msg := validate(off, vol); ok || !strings.Contains(msg, "-enable-local-filesystem") {
+			t.Errorf("%s: mount confirmed with local filesystems off: %q", vol, msg)
+		}
+		if ok, msg := validate(on, vol); !ok {
+			t.Errorf("%s: mount not confirmed with local filesystems on: %q", vol, msg)
+		}
+	}
+	// the flag gates new volumes and confirmations, not an existing one
+	res, err := off.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+		VolumeId: "fs", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(false),
+	})
+	if err != nil || res.GetCapacityBytes() != 2<<30 {
+		t.Fatalf("expand with local filesystems off: %+v %v", res, err)
+	}
+	if _, err := off.DeleteVolume(ctx, &csi.DeleteVolumeRequest{VolumeId: "fs"}); err != nil {
+		t.Fatalf("delete with local filesystems off: %v", err)
 	}
 }
