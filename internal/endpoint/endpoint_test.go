@@ -103,7 +103,7 @@ func setupConfig(t *testing.T, prefix string, mod func(*endpoint.Config)) (*endp
 	ctx := context.Background()
 	h := &harness{}
 	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
-		h.Z = zfs.New(zfs.LocalRunner{})
+		h.Z = zfs.New(endpoint.CountCalls(t, zfs.LocalRunner{}))
 		// the name part is capped so the parent stays within
 		// endpoint.MaxParentLen whatever a subtest is called
 		name := unsafeChars.ReplaceAllString(t.Name(), "_")
@@ -134,6 +134,7 @@ func setupConfig(t *testing.T, prefix string, mod func(*endpoint.Config)) (*endp
 			fmt.Sscanf(lat, "%d,%d", &get, &mut)
 			h.Z = zfs.New(slowRunner{h.sim, get * time.Microsecond, mut * time.Microsecond})
 		}
+		h.Z = zfs.New(endpoint.CountCalls(t, h.Z.Runner))
 		if os.Getenv("ZFS_TEST_CALLS") != "" {
 			sim := h.sim
 			t.Cleanup(func() {

@@ -484,6 +484,9 @@ func newRigOn(tb testing.TB, worker, pool string) *rig {
 		base = g.sim
 		g.parent = "tank/m"
 	}
+	if worker != "sim" {
+		base = endpoint.CountCalls(tb, base) // a sim rig never forks
+	}
 	g.fr = &mFaultRunner{inner: base}
 	g.z, g.admin = zfs.New(g.fr), zfs.New(base)
 	if err := g.admin.CreateFilesystem(ctx, g.parent, nil, true); err != nil {
@@ -836,6 +839,19 @@ type runner struct {
 	m         *Model
 	protected map[string]bool // identities (ident) of datasets the endpoint must never change
 	masks     map[string]int
+	// last is the world a step read last, kept while nothing has run since
+	// (runTrace only, which runs nothing between steps): the next RPC step
+	// starts from it instead of reading it again, a fork on a real pool
+	// (ADR 0005). Only a step that passed keeps it.
+	reuse bool
+	last  map[string]wrow
+}
+
+// keep records world as the last read, for the next step to start from.
+func (r *runner) keep(world map[string]wrow) {
+	if r.reuse {
+		r.last = world
+	}
 }
 
 func (r *runner) protect(world map[string]wrow, names ...string) {
@@ -872,7 +888,7 @@ func (r *runner) foreignSnapshot(world map[string]wrow) map[string]string {
 
 func runTrace(tb testing.TB, g *rig, trace []Step) *failure {
 	ctx := context.Background()
-	r := &runner{g: g, m: newModel(), protected: map[string]bool{}, masks: map[string]int{}}
+	r := &runner{g: g, m: newModel(), protected: map[string]bool{}, masks: map[string]int{}, reuse: true}
 	for i, st := range trace {
 		if f := r.step(ctx, i, st); f != nil {
 			return f
@@ -909,10 +925,9 @@ func (r *runner) step(ctx context.Context, i int, st Step) *failure {
 		runStats.add("masked: " + why)
 		st.Fault = Fault{}
 	}
-	pre, err := g.read(ctx)
-	if err != nil {
-		return fail("read", "%v", err)
-	}
+	// a masked step above ran nothing: the world last read still holds
+	last := r.last
+	r.last = nil
 
 	if st.admin() {
 		want := applyModel(m, st).Code == endpoint.OK
@@ -941,10 +956,18 @@ func (r *runner) step(ctx context.Context, i int, st Step) *failure {
 			if d := diffWorld(post, m.Project()); d != "" {
 				return fail("world", "after admin action:\n%s", d)
 			}
+			r.keep(post)
 		}
 		return nil
 	}
 
+	pre := last
+	if pre == nil {
+		var err error
+		if pre, err = g.read(ctx); err != nil {
+			return fail("read", "%v", err)
+		}
+	}
 	g.clock.Add(1)
 	foreignBefore := r.foreignSnapshot(pre)
 	pm := m.clone()
@@ -1068,6 +1091,9 @@ func (r *runner) step(ctx context.Context, i int, st Step) *failure {
 			if err != nil || len(p.Actions) > 0 {
 				return fail("reconcile-twice", "second reconcile: %+v %v", p.Actions, err)
 			}
+		} else {
+			// not after the dry run: the next step reads what it left
+			r.keep(world)
 		}
 		return nil
 	}

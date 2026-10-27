@@ -3,13 +3,16 @@ package endpoint_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/wommy/empty/internal/endpoint"
+	"github.com/wommy/empty/internal/zfs"
 )
 
 // Property round trip, as a table generated from the allowlist itself:
@@ -111,6 +114,15 @@ func TestPropertyRoundTrip(t *testing.T) {
 		t.Fatalf("allowlistRows() gives %d rows, propRTRows pins %d: set propRTRows to %d", len(rows), propRTRows, len(rows))
 	}
 	ep, h := setup(t)
+	// The read-back is one `zfs get` of every row created, not one per row:
+	// on a real pool each call is a fork, and forks are the suite's CPU
+	// (ADR 0005). It reads what a get per row read (`get -j -p`: the value
+	// and its source), after the identical retry. The parallel subtests
+	// end before the parent's cleanups run, and this one, registered after
+	// setup's, runs before the parent is destroyed.
+	var mu sync.Mutex
+	created := map[string]propRow{} // dataset -> its row
+	t.Cleanup(func() { checkReadBack(t, h, created) })
 	for i, r := range rows {
 		if i%n != shard {
 			continue
@@ -123,16 +135,51 @@ func TestPropertyRoundTrip(t *testing.T) {
 			if _, err := ep.CreateVolume(ctx, req); err != nil {
 				t.Fatalf("create: %v", err)
 			}
-			ds := h.Parent + "/" + req.Name
-			// volblocksize is fixed at create: zfs prints its source as "-"
-			// ("default" at the default size), never "local"
-			if got, src := h.propSource(t, ds, r.key); got != r.canon || src != "local" && r.key != "volblocksize" {
-				t.Errorf("reads back %q (%s), the endpoint expects %q (local)", got, src, r.canon)
-			}
+			mu.Lock()
+			created[h.Parent+"/"+req.Name] = r
+			mu.Unlock()
 			if _, err := ep.CreateVolume(ctx, req); err != nil {
 				t.Errorf("identical retry: %v", err)
 			}
 		})
+	}
+}
+
+// checkReadBack reads the property of every created row in one call: each
+// must hold the endpoint's canonical value, set locally.
+func checkReadBack(t *testing.T, h *harness, created map[string]propRow) {
+	t.Helper()
+	if len(created) == 0 {
+		return
+	}
+	var keys []string
+	for _, r := range created {
+		if !slices.Contains(keys, r.key) {
+			keys = append(keys, r.key)
+		}
+	}
+	slices.Sort(keys)
+	ds, err := h.Z.List(context.Background(), h.Parent, zfs.ListOptions{Props: keys})
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	read := map[string]zfs.Dataset{}
+	for _, d := range ds {
+		read[d.Name] = d
+	}
+	for _, name := range slices.Sorted(maps.Keys(created)) {
+		r := created[name]
+		row := fmt.Sprintf("%s/%s=%s", r.kind, r.key, r.value)
+		d, ok := read[name]
+		if !ok {
+			t.Errorf("%s: %s is not listed", row, name)
+			continue
+		}
+		// volblocksize is fixed at create: zfs prints its source as "-"
+		// ("default" at the default size), never "local"
+		if p := d.Props[r.key]; p.Value != r.canon || p.Source != "local" && r.key != "volblocksize" {
+			t.Errorf("%s: reads back %q (%s), the endpoint expects %q (local)", row, p.Value, p.Source, r.canon)
+		}
 	}
 }
 

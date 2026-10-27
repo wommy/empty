@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/zfs"
 	"github.com/wommy/empty/internal/zfs/zfstest"
 )
@@ -454,6 +455,7 @@ func TestRealFacts(t *testing.T) {
 				f.runner = f.sim
 				f.p = "tank/f"
 			}
+			f.runner = endpoint.CountCalls(t, f.runner)
 			f.z = zfs.New(f.runner)
 			if err := f.z.CreateFilesystem(context.Background(), f.p, nil, true); err != nil {
 				t.Fatal(err)
