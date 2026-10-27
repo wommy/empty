@@ -37,6 +37,7 @@ TestCloneFromVolumeReleasesInternalSnapshot 0.42
 TestInheritedOwnershipIsNotOwnership 0.33
 TestExpand 0.32
 TestCreateVolumeIdempotent 0.29
+TestH_ScanRejectsRowsZFSNeverListed 0.30
 TestVolumeNameMustMatchID 0.27
 TestReconcileCollectsAbandonedCreate 0.26
 TestCreateVolumeResumesInterruptedProvision 0.24
