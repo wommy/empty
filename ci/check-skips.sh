@@ -59,12 +59,15 @@ for t in $stale; do
 done
 if grep -nE -- '--- FAIL: |^panic: |^FAIL' "$log"; then
   err "failure or panic in the log"
-  # the failing tests' own output (indented under their --- FAIL line) and
-  # any panic, in the job log itself: the uploaded logs may be unreachable
+  # the failing tests' own output in the job log itself, since the uploaded
+  # logs may be unreachable: -v streams a test's log lines under its
+  # "=== RUN/NAME/CONT" header as they happen, not under its --- FAIL line
   echo "::group::$leg/$pkg: failing test output"
-  awk '/--- FAIL: |^panic: /{p=1; n=0; print; next}
-       p && /^[ \t]/ && n++ < 200 {print; next}
-       {p=0}' "$log"
+  awk 'NR == FNR { if (match($0, /--- FAIL: [^ ]+/)) bad[substr($0, RSTART + 10, RLENGTH - 10)] = 1; next }
+       /^panic: / { p = 1; n = 0 }
+       /^=== (RUN|NAME|CONT|PAUSE) / { t = $3; p = 0; for (b in bad) if (t == b) p = 1; n = 0; if (p) print; next }
+       /--- (PASS|SKIP|FAIL): / { p = 0 }
+       p && n++ < 200' "$log" "$log"
   echo "::endgroup::"
 fi
 if [ -n "$tests" ]; then
