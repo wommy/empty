@@ -1,4 +1,3 @@
-internal/endpoint/zfscalls_test.go
 ci/unitprobe/main.go
 ci/unitprobe/main_test.go
 cmd/zfs-csi/main.go
@@ -16,6 +15,7 @@ cmd/zfs-endpoint/sockdir_test.go
 cmd/zfs-endpoint/startup.go
 cmd/zfs-endpoint/startup_seams_test.go
 deploy/deploy_test.go
+deploy/k8s_test.go
 deploy/reconcile_timer_test.go
 deploy/unitcheck_test.go
 gen/zfsendpoint/v1/endpoint.pb.go
@@ -52,6 +52,7 @@ internal/endpoint/export.go
 internal/endpoint/export_contract_test.go
 internal/endpoint/export_create_contract_test.go
 internal/endpoint/export_root_contract_test.go
+internal/endpoint/export_stale_test.go
 internal/endpoint/export_test.go
 internal/endpoint/exposure.go
 internal/endpoint/exposure_test.go
@@ -108,6 +109,7 @@ internal/endpoint/settle_test.go
 internal/endpoint/simulate_test.go
 internal/endpoint/table.go
 internal/endpoint/table_test.go
+internal/endpoint/zfscalls_test.go
 internal/endpoint/zfsdiff_replay_test.go
 internal/leakcheck/leakcheck.go
 internal/lock/lock.go

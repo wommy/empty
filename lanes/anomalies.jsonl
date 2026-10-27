@@ -21,3 +21,4 @@
 {"t": "2026-10-27T16:23:41Z", "id": "A-resizer-never-expands", "state": "closed", "fix": "af1d71c"}
 {"t": "2026-10-27T16:23:41Z", "id": "A-zfs-version-revision-gate", "sev": "high", "state": "open", "note": "weekly rebuild can go red on -1ubuntuN skew; ci-harden"}
 {"t": "2026-10-27T16:23:41Z", "id": "A-maxdel-gate-untested", "sev": "med", "state": "open", "note": "max-deletions check deletable without test failure; cov-tests"}
+{"t": "2026-10-27T16:32:43Z", "id": "A-expand-refused-infeasible", "sev": "high", "state": "open", "note": "now that resizer works, capSupported in ControllerExpandVolume permanently fails expands -> PVC infeasible; q-csi-quick"}

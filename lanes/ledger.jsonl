@@ -80,3 +80,4 @@
 {"lane": "reader", "id": "ci-flake", "tokens": 176841, "tools": 23, "ms": 650716, "findings": 9, "high": 2, "outcome": "-> ci-harden", "t": "2026-10-27T16:23:41Z"}
 {"lane": "reader", "id": "coverage", "tokens": 169085, "tools": 39, "ms": 362278, "findings": 10, "outcome": "queued cov-tests", "t": "2026-10-27T16:23:41Z"}
 {"lane":"writer","id":"docs-fix","tokens":141871,"tools":71,"ms":306373,"items_fixed":10,"skipped":3,"outcome":"merged"}
+{"t": "2026-10-27T16:32:43Z", "lane": "reader", "id": "csi-recheck", "agent": "ac1787ce6d014e384", "items_fixed_already": 1, "surviving": 8, "outcome": "requeued as 4 writers; C2 anomaly"}

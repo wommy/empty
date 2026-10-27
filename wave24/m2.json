@@ -1,0 +1,14 @@
+[
+{"label": "2a: authorize no longer calls adminPeer", "file": "internal/server/roles.go",
+ "old": "if pi.Role == RoleAdmin && !adminPeer(pi, os.Geteuid()) {", "new": "if false && pi.Role == RoleAdmin && !adminPeer(pi, os.Geteuid()) {",
+ "pkg": "./internal/server", "run": "TestAuthorizeRefusesAdminPeerOfAnotherUID"},
+{"label": "2b: no peer is allowed", "file": "internal/server/roles.go",
+ "old": "\t\treturn status.Error(codes.Unauthenticated, \"no peer\")", "new": "\t\treturn nil",
+ "pkg": "./internal/server", "run": "TestAuthorizeRefusesAdminPeerOfAnotherUID"},
+{"label": "2c: stream interceptor serves every stream", "file": "internal/server/roles.go",
+ "old": "\tif !isHealth(info.FullMethod) {\n\t\treturn status.Errorf(codes.PermissionDenied, \"%s: streams have no role\", info.FullMethod)", "new": "\tif false && !isHealth(info.FullMethod) {\n\t\treturn status.Errorf(codes.PermissionDenied, \"%s: streams have no role\", info.FullMethod)",
+ "pkg": "./internal/server", "run": "TestStreamInterceptorServesHealthOnly"},
+{"label": "2d: stream interceptor denies health too (inverted)", "file": "internal/server/roles.go",
+ "old": "\tif !isHealth(info.FullMethod) {\n\t\treturn status.Errorf(codes.PermissionDenied, \"%s: streams have no role\", info.FullMethod)", "new": "\tif true {\n\t\treturn status.Errorf(codes.PermissionDenied, \"%s: streams have no role\", info.FullMethod)",
+ "pkg": "./internal/server", "run": "TestStreamInterceptorServesHealthOnly"}
+]

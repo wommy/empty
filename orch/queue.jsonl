@@ -1,2 +1,4 @@
-{"id": "q-csi-code", "name": "csi-code", "lane": "writer", "wave": 22, "branch": "csi-code", "report": "wave20/csi-seams.md", "note": "#2 probe Unavailable->not ready, #3 expand checks access type only, #5 snapshot size at creation, #6 trim nfs.clients, #1 refuse mount access without NFS unless -enable-local-filesystem (ADR), drain vs grace"}
-{"id": "q-csi-deploy", "name": "csi-deploy", "lane": "writer", "wave": 22, "branch": "csi-deploy", "report": "wave20/csi-seams.md", "note": "#1 ship csi-driver-nfs node DaemonSet + -nfs-server drop-in + nfs.clients placeholder; #4 csi-sanity in NFS mode"}
+{"id": "q-csi-quick", "name": "csi-quick", "lane": "writer", "wave": 25, "branch": "csi-quick", "src": "wave24/csi-recheck.md", "items": "C1 C2 C3", "prio": 0, "anomaly": true}
+{"id": "q-csi-local", "name": "csi-local", "lane": "writer", "wave": 25, "branch": "csi-local", "src": "wave24/csi-recheck.md", "items": "C5 D1 D2 D3 (ADR 0009)", "prio": 2}
+{"id": "q-csi-sanity-nfs", "name": "csi-sanity-nfs", "lane": "writer", "wave": 25, "branch": "csi-sanity-nfs", "src": "wave24/csi-recheck.md", "items": "D4: sim NFS sanity in PR test job, real-pool nightly", "prio": 3}
+{"id": "q-csi-snapsize", "name": "csi-snapsize", "lane": "writer", "wave": 25, "branch": "csi-snapsize", "src": "wave24/csi-recheck.md", "items": "C4", "prio": 4}

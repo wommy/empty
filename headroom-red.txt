@@ -1,0 +1,21 @@
+--- FAIL: TestChildAvail (0.00s)
+    headroom_test.go:250: a partly used refreservation: usedbyrefreservation is exact: 3221225472 exact true, want 5368709120 exact true
+    headroom_test.go:250: a refreservation covering the parent's own data: 0 exact true, want 53687091200 exact true
+    headroom_test.go:250: no used breakdown: the refreservation bound: 6442450944 exact true, want 6442450944 exact false
+    headroom_test.go:250: no used breakdown, partly used: a lower bound: 3221225472 exact true, want 3221225472 exact false
+    headroom_test.go:250: refreservation above available: no wrap: 0 exact true, want 0 exact false
+    headroom_test.go:250: a refquota on the pool root: a lower bound: 536870912 exact true, want 536870912 exact false
+    headroom_test.go:250: a refquota whose level up was not read: a lower bound: 1073741824 exact true, want 1073741824 exact false
+    headroom_test.go:250: a lower bound above the walk is kept: 3221225472 exact true, want 3221225472 exact false
+--- FAIL: TestMinFreeBytesGuardLevelUpUnreadable (0.00s)
+    headroom_test.go:277: thin create with the level up unreadable: inspect parent: zfs get tank: permission denied: cannot open 'tank': permission denied
+--- FAIL: TestMinFreeBytesGuardPoolRootRefquota (0.00s)
+    headroom_test.go:303: thin create under a 1G refquota on the pool root: create volume a: a new child of the parent gets 1073741824 bytes and this reserves 0, which would leave less than the 2147483648-byte floor (-min-free-bytes), want ResourceExhausted explaining the lower bound
+--- FAIL: TestGetCapacityIsChildSpace (0.00s)
+    headroom_test.go:336: the parent's unused refreservation: GetCapacity 10737418240 <nil>, want 5368709120
+    headroom_test.go:336: the parent's refquota: GetCapacity 1073741824 <nil>, want 10737418240
+    headroom_test.go:336: the floor: GetCapacity 10737418240 <nil>, want 4294967296
+    headroom_test.go:336: below the floor: GetCapacity 10737418240 <nil>, want 0
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.015s
+FAIL
