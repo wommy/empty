@@ -295,6 +295,15 @@ func (e *Endpoint) lock(ctx context.Context, keys ...string) (func(), error) {
 			wait = max(left, 0)
 		}
 	}
+	if wait <= 0 && ctx.Err() == nil {
+		// no time left to wait (the deadline is inside lockMargin, or
+		// LockWait is not positive), but a free lock is still taken: a
+		// WithTimeout(0) would refuse even an uncontended one
+		if release, ok := e.locks.TryAcquire(keys...); ok {
+			return release, nil
+		}
+		return nil, errorf(Aborted, "operation pending on %v", keys)
+	}
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	release, err := e.locks.Acquire(ctx, keys...)

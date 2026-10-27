@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wommy/empty/internal/zfs"
+	"github.com/wommy/empty/internal/zfs/zfstest"
 )
 
 const rParent = "tank/v"
@@ -130,4 +131,20 @@ func tableFromRaw(t testing.TB, raw []byte) (Table, *Endpoint) {
 		t.Fatal(err)
 	}
 	return tbl, ep
+}
+
+// simEndpoint is an endpoint on a fresh simulator, parent rParent.
+func simEndpoint(t *testing.T, cfg Config) (*Endpoint, *zfstest.Sim) {
+	t.Helper()
+	sim := zfstest.New("tank")
+	z := zfs.New(sim)
+	if err := z.CreateFilesystem(context.Background(), rParent, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Parent = rParent
+	ep, err := New(z, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ep, sim
 }
