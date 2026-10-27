@@ -143,6 +143,7 @@ TestFileExportCreateNeedsServers 0.00
 TestFileExportCreateNotServed 0.00
 TestFileExportCreateRootFailureIsRetryable 0.00
 TestFileExportCreateServedBeyondByAncestor 0.00
+TestFileExportCreateUnderUnmountedParentIsRefused 0.00
 TestFileExportDroppedHost 0.00
 TestFileExportReceivedShareNFS 0.00
 TestFileExportRefusedPublishRestoresLocalList 0.00

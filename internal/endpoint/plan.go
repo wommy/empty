@@ -427,6 +427,12 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			own["mountpoint"] = path.Join(p.parentMount, id)
 		}
 	}
+	if nfs != nil && r.Kind == Filesystem && p.parentMount != "" && !path.IsAbs(p.parentMount) {
+		// it would inherit the parent's none or legacy, never mount, and
+		// never be served: refused before anything is made, rather than
+		// created and then refused (or Unavailable on every retry)
+		return nil, errorf(FailedPrecondition, "volume %s: the parent %s has mountpoint=%s, so an NFS volume under it would never be mounted or served; give the parent a mountpoint path", id, p.Parent, p.parentMount)
+	}
 	if nfs != nil {
 		// set in the create (or clone) itself: no committed volume can
 		// exist without its export or its server (csi-nfs-design §4); a
