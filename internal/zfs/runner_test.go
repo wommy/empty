@@ -119,3 +119,43 @@ func TestChildRunsInItsOwnProcessGroup(t *testing.T) {
 		t.Fatalf("child pid %d pgid %d, daemon pgid %d: want a group of its own", pid, pgid, syscall.Getpgrp())
 	}
 }
+
+// A cancelled call takes the child's whole process group with it: a
+// grandchild (here a backgrounded sleep) must not outlive Run.
+func TestCancelKillsTheChildsGrandchildren(t *testing.T) {
+	t.Parallel()
+	pidfile := filepath.Join(t.TempDir(), "pid")
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := zfs.LocalRunner{WaitDelay: 100 * time.Millisecond}.Run(ctx, "sh", "-c",
+			`sleep 30 & echo $! >"$0"; wait`, pidfile)
+		done <- err
+	}()
+	var pid int
+	for deadline := time.Now().Add(5 * time.Second); pid == 0; {
+		if b, err := os.ReadFile(pidfile); err == nil && strings.HasSuffix(string(b), "\n") {
+			pid, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("grandchild never started")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	if err := <-done; err == nil {
+		t.Fatal("cancelled call reported success")
+	}
+	// gone, or a zombie waiting for init to reap it
+	for deadline := time.Now().Add(5 * time.Second); ; {
+		b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+		if err != nil || strings.Contains(string(b), ") Z ") {
+			return
+		}
+		if time.Now().After(deadline) {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+			t.Fatalf("grandchild %d outlived the cancelled call", pid)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
