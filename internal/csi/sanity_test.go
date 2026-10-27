@@ -22,8 +22,9 @@ import (
 // registers the Node Service group unconditionally and fails every Node spec
 // in its BeforeEach on a controller-only driver (adv-csi-frontend.md B2), so
 // it is focused out, along with the GroupController groups this driver does
-// not serve.
-const sanityFocus = `^Identity Service|\[Controller Server\]`
+// not serve. Ginkgo matches focus against "<suite description> <spec
+// text>", so the pattern must not be anchored with ^.
+const sanityFocus = `Identity Service|\[Controller Server\]`
 
 // cleanupNode answers the two Node calls csi-sanity's resource cleanup makes
 // on every controller test's volumes (NodeUnpublishVolume, then
