@@ -52,7 +52,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
     - the simulator and VM keep only what needs zfs or races;
     - redundant tests become tables.
   - **Parallel on the VM (adopted):**
-    - Process shards come first. The guest runs six concurrent shards, each on its own pool: three endpoint shards, csi, csi-sanity on filesystems and csi-sanity on zvols. This needs no test-code change.
+    - Process shards come first. Each guest runs three concurrent shards, each on its own pool: the endpoint job three endpoint shards, the csi job csi, csi-sanity on filesystems and csi-sanity on zvols (see the two VM jobs below). This needs no test-code change.
     - `t.Parallel` inside a shard is the follow-up. Each test owns its datasets (one child per test).
   - **Time cost as data (adopted):**
     - `ci/real-zfs-weights.txt` is the time cost of each real-pool test, next to `ci/expected-skips.txt`, and it drives the sharding.
@@ -73,7 +73,30 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
     - Go is the sha256-pinned release tarball. It is downloaded, verified and extracted in the background during the cache restore.
     - The Go build cache stays warm.
   - **No real waiting in the race build:** `GORACE=atexit_sleep_ms=0` drops the race runtime's 1s exit sleep in each test binary. A race still fails the binary.
-  - **Few jobs, sized to the critical path:** the static checks share one job, and the real-ZFS VM job sets the pace.
+  - **Few jobs, sized to the critical path:** the static checks share one job, and the real-ZFS VM jobs set the pace.
+  - **Two real-ZFS VM jobs, one per suite (adopted, wave 15):** see below.
+
+### Two VM jobs: endpoint and csi on separate runners
+
+- **Data.** With all six shards in one guest on one runner (4 vCPUs), the guest was CPU-bound in kernel work. Run 40502060857 (7f5637f, job 122181926805, the first warm run with the wave 14 levers), over the 31.6s test phase:
+  - CPU busy 92%: user 22%, sys+irq 69%, steal 1%, iowait 4%;
+  - pressure: cpu some 78%, io some 62%, io full 3%, memory 0%;
+  - vmstat: run queue 10–41 and idle 1–2% while five or six shards ran; still about 88% busy with only one or two endpoint shards left.
+  - shard walls: endpoint 24.3 / 27.0 / 31.3s, csi-sanity mount 23.1s and block 23.2s, csi other 4.7s. csi-sanity took 13.5–13.9s on the 54s run 40497090324, so it is slowed by the other shards, not by itself.
+  - Steal at 1% rules out a contended host, so a bigger guest on the same runner would not help. In-guest tuning was tried: the wave 14 levers were estimated at 45–49s and measured 70s push-to-green.
+- **Decision.** The VM job is a matrix over the suites in `ci/real-zfs-suites.txt`: `endpoint` (the three endpoint shards, TestPropertyRoundTrip's rows split across them by `PROPRT_SHARD`) and `csi` (csi tests, csi-sanity on filesystems and on zvols). Each job restores the same cache entry (`zfsvm-v4`, guest and qemu), boots its own VM and builds only its own test binaries (`ZFSVM_SUITE`). Its checks run in that job: `ci/check-skips.sh` for its binaries, and in the endpoint job `ci/check-split.sh`. `fail-fast` is off, so one suite's failure does not cancel the other's measurement. `nightly.yml`'s `real-zfs-full` runs the same matrix. `cache-warm.yml` provisions the one guest both jobs restore, and warms one Go namespace per suite (`real-zfs-endpoint`, `real-zfs-csi`).
+- **Completeness is proved, not assumed:**
+  - `ci/check-suites.sh` (static job) fails unless every package whose tests read `ZFS_TEST_POOL` is in exactly one suite, and `ci.yml`'s and `nightly.yml`'s `suite` matrices and `cache-warm.yml`'s namespaces name every suite exactly once.
+  - In each job, `ci/check-skips.sh` fails unless every test its binaries list passed or skipped.
+  - In the endpoint job, `ci/check-split.sh` fails unless every top-level test reported in exactly one shard log (TestPropertyRoundTrip in each) and every TestPropertyRoundTrip row ran in exactly one shard.
+  - Together: every listed test runs in exactly one job, and once within it.
+- **Prediction (from run 40502060857, a 70s-class runner).** The guest's busy CPU over the phase was 31.6s × 4 × 0.92 = 116 CPU-seconds. Sharing each second's busy CPU equally among the shards running then (0.97 busy with three or more, 0.88 with one or two, as vmstat shows) attributes 81.6 CPU-s to the endpoint shards (19.0 / 23.7 / 39.0) and 37.9 to csi (17.3 / 17.5 / 3.1). The sum, 119.5, is within 3% of the measured 116.
+  - **endpoint job:** the same model with only the three endpoint shards gives a 21.7s phase. Everything outside the phase took 69 − 31.7 = 37.3s (queue, restore 9.9s, boot to ssh 13.7s, checks, upload) and does not change. Predicted job: 37.3 + 21.7 = **59s**, from 69s.
+  - **csi job:** CPU alone allows a 10.5s phase; the measured contended wall, 23.1s, is the upper bound. Predicted job: **48–60s**.
+  - Push-to-green is the slower job plus about 1s: about **60s on a 70s-class runner**. Scaled by the phase ratio to a 54s-class runner (40497090324: 21.8s phase), the endpoint job is about 47s. The split alone does not reach the 45s operating margin on a slow runner; the fixed 37s is now the larger share.
+- **Cost.** Two VMs boot instead of one. Runner time per push goes from 66s (one job, start to end, without the queue) to about 2 × 34.3s fixed (66 − 31.7) + 21.7s + 10.5–23.1s = 101–113s, so **+35 to +47 runner-seconds (+53% to +72%)**. Billed per job rounded up to the minute, that is 2 minutes before and 2–4 after. Each job also downloads the 899 MB guest entry, so cache egress doubles. A cold guest (no entry for the current key) is provisioned by both jobs, about 115s each; the first save wins and the other only warns. `nightly.yml` gains one VM job a night.
+- **Next lever: the boot.** The guest's boot is on the critical path: in run 40502060857 the test binaries were built at +8.9s after qemu started and ssh came up at +13.7s, so the job waited 4.8s for the guest. `systemd-analyze` in the same log: `Startup finished in 1.672s (kernel) + 5.521s (initrd) + 5.198s (userspace) = 12.391s`. The directly booted initrd is 67,176 KiB. The initrd stage, 5.5s, is the largest single part of the boot.
+- **The first runs must confirm:** both jobs pass their checks, with `check-split: … top-level tests over 3 shard logs, each in exactly one`; the endpoint job's `guest load` line shows the phase near 22s; the csi job's phase is under the endpoint job's.
 
 ## Consequences
 

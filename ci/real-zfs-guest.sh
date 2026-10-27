@@ -10,6 +10,10 @@
 # decided on the host by ci/check-skips.sh on the merged logs; the exit code
 # here only says whether every shard exited 0.
 #
+# ZFSVM_PKGS (ci/real-zfs-vm.sh, from the job's suite in
+# ci/real-zfs-suites.txt) names the binaries this guest runs: endpoint, csi
+# or both. Each CI job runs one suite on its own runner (ADR 0005).
+#
 # Shards: the endpoint binary split three ways by ci/real-zfs-weights.txt,
 # with TestPropertyRoundTrip in all three, each running a third of its rows
 # (PROPRT_SHARD; ci/check-split.sh checks that every row ran exactly once)
@@ -19,8 +23,8 @@
 # ZFSDIFF_FULL=1, TestZFSDiffReplay joins them: its whole corpus turns
 # shares on, which runs exportfs -ra on the same table), the csi
 # tests other than csi-sanity, csi-sanity on filesystems, csi-sanity on
-# zvols. Six processes on six pools, so no shard's datasets, space
-# accounting or txg syncs meet another's.
+# zvols. One process per shard, each on its own pool, so no shard's
+# datasets, space accounting or txg syncs meet another's.
 #
 # usage: sudo bash real-zfs-guest.sh
 set -uo pipefail
@@ -39,8 +43,12 @@ mkdir -p "$vd"
 mountpoint -q "$vd" || mount -t tmpfs -o size=60% zfsci "$vd"
 mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -O compression=lz4 "$1" "$vd/$1.vdev"; }
 
-./endpoint.test -test.list '.*' >"$out/endpoint.list"
-./csi.test -test.list '.*' >"$out/csi.list"
+pkgs=${ZFSVM_PKGS:-endpoint csi}
+has() { case " $pkgs " in *" $1 "*) return 0 ;; esac; return 1; }
+for p in $pkgs; do
+  case $p in endpoint | csi) ;; *) echo "unknown package $p in ZFSVM_PKGS"; exit 2 ;; esac
+  "./$p.test" -test.list '.*' >"$out/$p.list"
+done
 
 # shard <list> <weights> <n>: "<shard> <test>" per top-level test, fuzz
 # target (its seed corpus) and example, as check-skips counts them; longest
@@ -67,7 +75,7 @@ shard() {
                            load[b] += f[1]; for (j = 2; j <= c; j++) print b, f[j] } }'
 }
 ep_shards=3
-shard "$out/endpoint.list" real-zfs-weights.txt "$ep_shards" >"$out/endpoint.plan"
+! has endpoint || shard "$out/endpoint.list" real-zfs-weights.txt "$ep_shards" >"$out/endpoint.plan"
 
 rc=0
 t=(-test.count=1 -test.v -test.timeout=4m)
@@ -113,9 +121,13 @@ fi
 # shards on a pool of its own: zfs-endpoint under systemd, a volume made
 # and deleted, the admin socket's refusal of uid 65534. Its last log line
 # is the verdict; it touches no shard's pool and turns no share on
-unit_s=$(up)
-bash real-zfs-unit.sh "$PWD" >"$out/unit-hardening.log" 2>&1 &
-unit_pid=$!
+# (ZFSVM_UNIT: one suite's job runs it, ci/real-zfs-vm.sh)
+unit_pid=
+if [ -n "${ZFSVM_UNIT:-}" ]; then
+  unit_s=$(up)
+  bash real-zfs-unit.sh "$PWD" >"$out/unit-hardening.log" 2>&1 &
+  unit_pid=$!
+fi
 pids=() names=()
 # run <name> <pool> <command...>: one shard on its own pool, in the background
 run() {
@@ -135,23 +147,29 @@ run() {
 # -test.parallel=8 for the endpoint shards: their parallel tests wait on
 # zfs(8) and the kernel more than on CPU, and a shard's solo tail ran 4 at a
 # time on 4 vCPUs (run 40494213342); the csi shards are mostly sequential
-for i in $(seq 0 $((ep_shards - 1))); do
-  re=$(awk -v s="$i" '$1 == s { printf "%s%s", sep, $2; sep = "|" }' "$out/endpoint.plan")
-  [ -n "$re" ] || continue
-  run "endpoint.$i" "zep$i" env PROPRT_SHARD="$i/$ep_shards" \
-    ./endpoint.test "${t[@]}" -test.parallel=8 -test.run "^($re)\$"
-done
+if has endpoint; then
+  for i in $(seq 0 $((ep_shards - 1))); do
+    re=$(awk -v s="$i" '$1 == s { printf "%s%s", sep, $2; sep = "|" }' "$out/endpoint.plan")
+    [ -n "$re" ] || continue
+    run "endpoint.$i" "zep$i" env PROPRT_SHARD="$i/$ep_shards" \
+      ./endpoint.test "${t[@]}" -test.parallel=8 -test.run "^($re)\$"
+  done
+fi
 # csi: the non-sanity tests do not depend on the access type and run once,
 # with mount as before; csi-sanity runs for filesystems and for zvols
-run csi-other zcsi0 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.skip '^TestSanity$'
-run csi-mount zcsi1 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.run '^TestSanity$'
-run csi-block zcsi2 env CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run '^TestSanity$'
+if has csi; then
+  run csi-other zcsi0 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.skip '^TestSanity$'
+  run csi-mount zcsi1 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.run '^TestSanity$'
+  run csi-block zcsi2 env CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run '^TestSanity$'
+fi
 
 for k in "${!pids[@]}"; do
   wait "${pids[$k]}" || { echo "${names[$k]} failed"; rc=1; }
 done
-wait "$unit_pid" || rc=1
-echo "unit check (started at ${unit_s}s): $(tail -n 1 "$out/unit-hardening.log")"
+if [ -n "$unit_pid" ]; then
+  wait "$unit_pid" || rc=1
+  echo "unit check (started at ${unit_s}s): $(tail -n 1 "$out/unit-hardening.log")"
+fi
 snap >"$out/load.after" 2>/dev/null || true
 [ -z "$vmstat_pid" ] || { kill "$vmstat_pid" 2>/dev/null; wait "$vmstat_pid" 2>/dev/null; } || true
 # busy = all but idle and iowait; steal = a vCPU runnable while the host ran

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate ci/real-zfs-weights.txt from the per-test times of real-ZFS VM
 # runs: the test-times.tsv the guest writes (ci/test-times.awk), uploaded
-# by ci.yml's real-zfs job in the artifact zfsdiff-report.
+# by ci.yml's real-zfs endpoint job in the artifact zfsdiff-report.
 #
 # usage: ci/real-zfs-weights.sh [-s <source note>] [-l <endpoint.list>] <test-times.tsv>...
 #   gh run download <run> -n zfsdiff-report -D /tmp/tt

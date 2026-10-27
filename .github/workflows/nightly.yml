@@ -104,20 +104,31 @@ jobs:
   #   on every PR.
   # A harness, cleanup or suite failure (a crash case that does not
   # converge, say) files an issue; its fix lands with a test that fails
-  # without it.
+  # without it. One job per suite, as in ci.yml (ci/real-zfs-suites.txt):
+  # the two sweeps are endpoint tests, the csi job runs the csi suite
+  # against the same guest.
   real-zfs-full:
+    name: real-zfs-full (${{ matrix.suite }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
       issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # every suite of ci/real-zfs-suites.txt exactly once
+        # (ci/check-suites.sh)
+        suite: [endpoint, csi]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-go
         with:
-          cache-name: nightly-real-zfs
+          # restore only (no save here): ci.yml's namespace, which
+          # cache-warm.yml keeps warm on the default branch
+          cache-name: real-zfs-${{ matrix.suite }}
       - name: enable kvm
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -154,11 +165,12 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
-      - name: VM suite with the full zfsdiff replay and the full crash sweep
+      - name: VM suite ${{ matrix.suite }} with the full zfsdiff replay and the full crash sweep
         id: replay
         env:
           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
           ZFSVM_SUMS: ${{ steps.keys.outputs.sums }}
+          ZFSVM_SUITE: ${{ matrix.suite }}
           ZFSDIFF_FULL: "1"
           ZFS_CRASH_FULL: "1"
         run: ci/real-zfs-vm.sh stonking current 2.4
@@ -166,7 +178,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: zfsdiff-report-full
+          name: zfsdiff-report-full-${{ matrix.suite }}
           path: |
             ${{ runner.temp }}/zfsvm/out/*.log
             ${{ runner.temp }}/zfsvm/out/test-times.tsv
@@ -178,19 +190,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SUITE: ${{ matrix.suite }}
         run: |
           o=$RUNNER_TEMP/zfsvm/out
           {
-            echo "Nightly real-ZFS VM suite (full zfsdiff replay, full crash sweep) failed: $RUN_URL"
+            echo "Nightly real-ZFS VM suite $SUITE (full zfsdiff replay, full crash sweep) failed: $RUN_URL"
             echo
-            echo "The zfsdiff-report-full artifact has the replay report and the shard logs."
+            echo "The zfsdiff-report-full-$SUITE artifact has the replay report and the shard logs."
             echo "A crash case that did not converge names its case and crash point below; commit the fix with a test that fails without it."
             echo; echo '```'
-            grep -hE -- '--- FAIL|panic:' "$o"/endpoint.*.log 2>/dev/null | head -n 40 || true
+            cat "$o"/*.log 2>/dev/null | grep -hE -- '--- FAIL|panic:' | awk 'NR <= 40' || true
             tail -n 1 "$o/zfsdiff.log" 2>/dev/null || echo "no zfsdiff.log"
             echo '```'
           } > "$RUNNER_TEMP/issue.md"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly real-ZFS failure" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly real-ZFS failure ($SUITE)" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
 
   # The scale tests and the recovery FSM explorer
   # (internal/endpoint/fsm_explore_test.go: TestExploreLifecycle). Contract

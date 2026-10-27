@@ -51,7 +51,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ns: [static, test, real-zfs]
+        # real-zfs-<suite>: one per real-ZFS VM job (ci/real-zfs-suites.txt;
+        # ci/check-suites.sh checks this list)
+        ns: [static, test, real-zfs-endpoint, real-zfs-csi]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -80,9 +82,12 @@ jobs:
               # ci.yml test: the -race build of every package (no tests run)
               go test -race -count=1 -run '^$' ./...
               ;;
-            real-zfs)
-              # ci/real-zfs-vm.sh: the static test binaries for the guest
-              CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/" ./internal/endpoint ./internal/csi
+            real-zfs-*)
+              # ci/real-zfs-vm.sh with ZFSVM_SUITE: the static test binaries
+              # of this suite's packages, as that job builds them
+              mapfile -t pkgs < <(awk -v s="${NS#real-zfs-}" '!/^#/ && $1 == s { for (i = 2; i <= NF; i++) print "./internal/" $i }' ci/real-zfs-suites.txt)
+              test ${#pkgs[@]} -gt 0 || { echo "::error::$NS: no suite ${NS#real-zfs-} in ci/real-zfs-suites.txt"; exit 1; }
+              CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/" "${pkgs[@]}"
               ;;
           esac
       - name: save Go caches
@@ -108,7 +113,8 @@ jobs:
             while read -r id; do gh cache delete --repo "$GITHUB_REPOSITORY" "$id" || true; done
 
   real-zfs:
-    # the provisioned guest and the qemu tree under ci.yml's keys; a guest
+    # the provisioned guest and the qemu tree under ci.yml's keys, one entry
+    # that both suites' VM jobs (endpoint, csi) restore and boot; a guest
     # is provisioned and stored only after a boot from the stored disk
     # passes the version, module and nfsd checks (ZFSVM_PROVISION_ONLY: no
     # tests, which ci.yml runs)

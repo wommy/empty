@@ -31,6 +31,10 @@
 #   all   both, in one process (the default)
 # ZFSVM_SUMS=<dir> holds SHA256SUMS and SHA256SUMS.gpg already fetched by
 # .github/actions/real-zfs-keys; they are verified again here.
+# ZFSVM_SUITE=<suite> runs one suite of ci/real-zfs-suites.txt (endpoint or
+# csi): only its test binaries are built, run and checked. ci.yml and
+# nightly.yml run one job per suite, each with its own VM; the default,
+# all, runs every suite in one guest.
 # ZFSVM_PROVISION_ONLY=1 stops after the checks: no build, no tests
 # (cache-warm.yml stores a guest with it).
 # ZFSDIFF_FULL=1 and ZFS_CRASH_FULL=1 (nightly.yml) reach the guest's tests.
@@ -42,14 +46,22 @@ want=${3:-2.4}
 work=${RUNNER_TEMP:-/tmp}/zfsvm
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
 keyring=/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
-# only packages whose tests reach a real pool through ZFS_TEST_POOL;
-# internal/server and internal/zfs run on the simulator in the unit job
-pkgs=(endpoint csi)
 cache=${ZFSVM_CACHE:-}
 phase=${ZFSVM_PHASE:-all}
 case $phase in boot | run | all) ;; *) echo "ZFSVM_PHASE must be boot, run or all" >&2; exit 2 ;; esac
+suite=${ZFSVM_SUITE:-all}
 mkdir -p "$work"
 cd "$(git rev-parse --show-toplevel)"
+# only packages whose tests reach a real pool through ZFS_TEST_POOL
+# (ci/check-suites.sh); internal/server and internal/zfs run on the
+# simulator in the unit job
+mapfile -t pkgs < <(awk -v s="$suite" '!/^#/ && NF && (s == "all" || $1 == s) { for (i = 2; i <= NF; i++) print $i }' ci/real-zfs-suites.txt)
+[ ${#pkgs[@]} -gt 0 ] || { echo "ZFSVM_SUITE=$suite is not a suite in ci/real-zfs-suites.txt" >&2; exit 2; }
+# the unit check (ci/real-zfs-unit.sh) runs once per push: in the csi job,
+# whose guest has the CPU to spare, not on the endpoint job's critical path
+unit=
+case $suite in csi | all) unit=1 ;; esac
+has() { case " ${pkgs[*]} " in *" $1 "*) return 0 ;; esac; return 1; }
 base="https://cloud-images.ubuntu.com/$series/$build"
 img="$work/$series.img"
 
@@ -84,8 +96,8 @@ cleanup() {
 
 # -display none, not -nographic: QEMU refuses -nographic with -daemonize.
 # A warm boot reuses the cold boot's seed, though the provisioned disk has
-# cloud-init disabled. All the runner's vCPUs and 6G: the tests run as six
-# concurrent shards with their pools on a guest tmpfs.
+# cloud-init disabled. All the runner's vCPUs and 6G: the tests run as
+# concurrent shards (three per suite) with their pools on a guest tmpfs.
 # boot <disk> [<dir with vmlinuz, initrd, cmdline>]
 boot() {
   local direct=()
@@ -164,10 +176,13 @@ if [ -z "${ZFSVM_PROVISION_ONLY:-}" ]; then
   # beside them, the daemon and the probe for the unit check
   # (ci/real-zfs-unit.sh): 2.5s cold, 0.4s from a warm cache, measured
   # locally; in parallel, so it adds what the test link does not cover
-  CGO_ENABLED=0 go build -o "$work/" ./cmd/zfs-endpoint ./ci/unitprobe &
-  unitbuild=$!
+  unitbuild=
+  if [ -n "$unit" ]; then
+    CGO_ENABLED=0 go build -o "$work/" ./cmd/zfs-endpoint ./ci/unitprobe &
+    unitbuild=$!
+  fi
   CGO_ENABLED=0 go test -c -o "$work/" "${pkgs[@]/#/./internal/}"
-  wait "$unitbuild"
+  [ -z "$unitbuild" ] || wait "$unitbuild"
   mark "test binaries built"
 fi
 
@@ -239,7 +254,7 @@ echo "$ver"
 serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
 running=$(vm 'uname -r')
 {
-  echo "### real ZFS VM: $series/$build"
+  echo "### real ZFS VM: $series/$build, suite $suite (${pkgs[*]})"
   echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
   echo "- kernel: \`$running\`${kernel:+ (direct kernel boot)}"
   echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
@@ -283,15 +298,15 @@ vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analy
 analyze=$!
 bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
-scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci/test-times.awk \
-  "$work/zfs-endpoint" "$work/unitprobe" ci/real-zfs-unit.sh deploy/systemd/zfs-endpoint@.service \
-  deploy/systemd/zfs-endpoint@.service.d/hardening.conf ci@127.0.0.1:
+[ -z "$unit" ] || bins+=("$work/zfs-endpoint" "$work/unitprobe" ci/real-zfs-unit.sh deploy/systemd/zfs-endpoint@.service \
+  deploy/systemd/zfs-endpoint@.service.d/hardening.conf)
+scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci/test-times.awk ci@127.0.0.1:
 rc=0
-# six concurrent shards on six tmpfs-backed pools (ci/real-zfs-guest.sh);
+# concurrent shards on tmpfs-backed pools, three per suite (ci/real-zfs-guest.sh);
 # the logs come back per shard and are merged per check below.
 # ZFSDIFF_FULL=1 replays the whole zfsdiff corpus, ZFS_CRASH_FULL=1 runs
 # every crash point on the real pool (both nightly.yml)
-vm "sudo env ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
+vm "sudo env ZFSVM_PKGS='${pkgs[*]}' ZFSVM_UNIT=$unit ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
 mkdir -p "$work/out"
 scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
 o=$work/out
@@ -317,14 +332,21 @@ echo "::endgroup::"
 # what check-skips reads: endpoint = the union of its shards (it must
 # cover endpoint.list); csi-mount = the non-sanity tests plus csi-sanity on
 # filesystems (it must cover csi.list); csi-block = csi-sanity on zvols
-cat "$o"/endpoint.[0-9].log >"$work/endpoint.log" || rc=1
-cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" || rc=1
-cp "$o/csi-block.log" "$o/endpoint.list" "$o/csi.list" "$work/" || rc=1
-# TestNFSReplay (internal/endpoint) replays a sharenfs corpus through the
+if has endpoint; then
+  cat "$o"/endpoint.[0-9].log >"$work/endpoint.log" || rc=1
+  cp "$o/endpoint.list" "$work/" || rc=1
+fi
+if has csi; then
+  cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" || rc=1
+  cp "$o/csi-block.log" "$o/csi.list" "$work/" || rc=1
+fi
+# the endpoint suite's reports. TestNFSReplay (internal/endpoint) replays a sharenfs corpus through the
 # real libshare, exportfs and etab and diffs it against the reference
 # models (internal/nfsref) and the simulator; the guest points its report
 # at out/nfs-replay.log. Its last line is the tally.
-if [ -f "$o/nfs-replay.log" ]; then
+if ! has endpoint; then
+  :
+elif [ -f "$o/nfs-replay.log" ]; then
   { echo "<details><summary>NFS replay: $(tail -n 1 "$o/nfs-replay.log")</summary>"
     echo; echo '```'; cat "$o/nfs-replay.log"; echo '```'; echo "</details>"; echo; } >>"$summary"
 else
@@ -335,7 +357,9 @@ fi
 # not failed (ZFSDIFF_STRICT=1 would); the summary gets the verdict per
 # sequence, the workflow uploads the whole report. Its last line is the
 # tally with the replay's wall time.
-if [ -f "$o/zfsdiff.log" ]; then
+if ! has endpoint; then
+  :
+elif [ -f "$o/zfsdiff.log" ]; then
   { echo "<details><summary>zfsdiff replay: $(tail -n 1 "$o/zfsdiff.log")</summary>"
     echo; echo '```'; sed -n '3,/^$/p' "$o/zfsdiff.log"; echo '```'; echo "</details>"; echo; } >>"$summary"
 else
@@ -343,7 +367,9 @@ else
 fi
 # the unit and its hardening drop-in under systemd (ci/real-zfs-unit.sh):
 # its last line is the verdict, naming any drop-in setting that broke it
-if [ -s "$o/unit-hardening.log" ]; then
+if [ -z "$unit" ]; then
+  :
+elif [ -s "$o/unit-hardening.log" ]; then
   verdict=$(tail -n 1 "$o/unit-hardening.log")
   echo "- $verdict" >>"$summary"
   case $verdict in "unit hardening: PASS"*) ;; *) echo "::error::vm: $verdict"; rc=1 ;; esac
@@ -379,10 +405,17 @@ fi
 } >>"$summary"
 # csi-sanity spec floor: Identity + Controller specs run on the simulator
 # (44 of 103 with csi-test v5.6); a regex or skip regression drops below it
-ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
-# TestPropertyRoundTrip runs in every endpoint shard, a part of its rows
-# each (PROPRT_SHARD): every row must have run in exactly one of them
-ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$o"/endpoint.[0-9].log || rc=1
-ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
-ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
+# each suite's checks, in the job that runs it: the jobs together cover
+# every real-pool package once (ci/check-suites.sh, in the static job)
+if has endpoint; then
+  ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
+  # every endpoint test in exactly one shard; TestPropertyRoundTrip in
+  # every shard, a part of its rows each (PROPRT_SHARD), every row in
+  # exactly one of them
+  ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$o"/endpoint.[0-9].log || rc=1
+fi
+if has csi; then
+  ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
+  ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
+fi
 exit $rc

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Check that a test split across shards (ci/real-zfs-guest.sh: split=) ran
-# every one of its subtests in exactly one shard. ci/check-skips.sh already
-# checks that the test itself passed; this checks that the parts add up.
+# Check that one binary's shards (ci/real-zfs-guest.sh) together ran each
+# test exactly once: every top-level test reports in exactly one shard log,
+# and a test split across shards (split=) ran every one of its subtests in
+# exactly one shard. ci/check-skips.sh already checks that every listed
+# test passed or skipped; this checks that the parts add up, with nothing
+# run twice.
 #
 # usage: ci/check-split.sh <test> <test list> <shard log>...
 #   ci/check-split.sh TestPropertyRoundTrip "$o/endpoint.list" "$o"/endpoint.[0-9].log
@@ -13,8 +16,12 @@
 #   total across them, and the k sum to the total;
 # - the subtests reporting a result (PASS, FAIL or SKIP) number the total,
 #   and none reports in two shards (or twice in one).
-# A test missing from the list is not checked (it was renamed or removed;
-# check-skips covers the list).
+# - every other top-level test (Test, Fuzz, Example) that reports a result
+#   does so in exactly one shard log, once; the split test reports once in
+#   every shard.
+# A split test missing from the list is not checked for its rows (it was
+# renamed or removed; check-skips covers the list); the once-per-test check
+# still runs.
 set -euo pipefail
 
 test=${1:?test, e.g. TestPropertyRoundTrip}
@@ -23,13 +30,10 @@ shift 2
 [ $# -gt 0 ] || { echo "::error::check-split: no shard logs" >&2; exit 1; }
 
 listed=$(awk -v t="$test" '$1 == t { n++ } END { print n + 0 }' "$list")
-if [ "$listed" = 0 ]; then
-  echo "check-split: $test is not in $list; nothing to check"
-  exit 0
-fi
+[ "$listed" != 0 ] || echo "check-split: $test is not in $list; checking only that each test ran in one shard"
 
 # awk reads every line of every log: no early-closing reader in a pipe
-awk -v t="$test" '
+awk -v t="$test" -v listed="$listed" -v shards=$# '
   # the partition line, wherever t.Logf put it on the line
   match($0, /PROPRT_SHARD [0-9]+\/[0-9]+: [0-9]+ of [0-9]+ rows/) {
     split(substr($0, RSTART, RLENGTH), f, /[ \/:]+/)
@@ -48,12 +52,26 @@ awk -v t="$test" '
     name = substr($0, RSTART, RLENGTH)
     sub(/^--- [A-Z]+: /, "", name)
     sub(/ \($/, "", name)
+    if (index(name, "/") == 0) {
+      # a top-level test: once per shard log, in one log (the split test:
+      # in every log)
+      if ((name, FILENAME) in top) again = again sprintf("%s twice in %s\n", name, FILENAME)
+      else { top[name, FILENAME] = 1; nlogs[name]++; logs[name] = logs[name] " " FILENAME }
+      next
+    }
     if (index(name, t "/") != 1) next
     if (name in where) dup = dup sprintf("%s in %s and %s\n", name, where[name], FILENAME)
     else { where[name] = FILENAME; subs++ }
   }
   END {
-    rc = 0
+    tops = 0
+    for (x in nlogs) {
+      tops++
+      if (x == t) { if (nlogs[x] != shards) again = again sprintf("%s reported in %d of %d shard logs:%s\n", x, nlogs[x], shards, logs[x]) }
+      else if (nlogs[x] != 1) again = again sprintf("%s in %d shard logs:%s\n", x, nlogs[x], logs[x])
+    }
+    if (again != "") { printf "::error::check-split: a test ran in more than one shard, or twice\n%s", again; exit 1 }
+    if (!listed) { printf "check-split: %d top-level tests over %d shard logs, each in exactly one\n", tops, shards; exit 0 }
     if (parts == 0) { printf "::error::check-split: no PROPRT_SHARD line for %s in any shard log\n", t; exit 1 }
     for (i = 0; i < n0; i++) if (!(i in seen)) { bad = bad sprintf("shard %d/%d never ran %s\n", i, n0, t) }
     if (parts != n0) bad = bad sprintf("%d partition lines for %d shards\n", parts, n0)
@@ -64,5 +82,6 @@ awk -v t="$test" '
       if (dup != "") printf "ran twice:\n%s", dup
       exit 1
     }
-    printf "check-split: %s: %d subtests over %d shards, each exactly once\n", t, subs, n0
+    if (n0 != shards) { printf "::error::check-split: %s split %d ways, %d shard logs given\n", t, n0, shards; exit 1 }
+    printf "check-split: %d top-level tests over %d shard logs, each in exactly one (%s in all); %s: %d subtests over %d shards, each exactly once\n", tops, shards, t, t, subs, n0
   }' "$@"
