@@ -208,6 +208,17 @@ jobs:
         env:
           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
         run: ci/real-zfs-vm.sh stonking current 2.4
+      - name: upload zfsdiff replay report
+        # every run: TestZFSDiffReplay reports real pool vs simulator vs
+        # reference model divergences without failing the job (the job
+        # summary has the verdicts; the full replay is in nightly.yml)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zfsdiff-report
+          path: ${{ runner.temp }}/zfsvm/out/zfsdiff.log
+          if-no-files-found: warn
+          retention-days: 30
       - name: check for a stored guest
         id: stored
         if: always() && steps.guest.outputs.cache-hit != 'true'

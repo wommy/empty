@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testPool = "zfsep-test"
@@ -195,7 +196,7 @@ func TestReplayHarnessOnSim(t *testing.T) {
 	if _, err := shared.Run(ctx, "zfs", "create", testPool+"/zd"); err != nil {
 		t.Fatal(err)
 	}
-	rs := ReplayAll(ctx, target, testPool, testPool+"/zd", seqs, 4)
+	rs := ReplayAll(ctx, target, testPool, testPool+"/zd", seqs, 4, time.Time{})
 	for _, r := range rs {
 		switch r.Verdict() {
 		case "agree":

@@ -15,6 +15,13 @@
 # runs ~46 `zfs set sharenfs`, each an exportfs -ra; it stops itself at
 # 25s and fails past 30s.
 TestNFSReplay 5.00
+# TestZFSDiffReplay replays zfsdiff.PRSample, 20 of the 100 corpus
+# sequences (242 of 1,228 zfs invocations; the whole corpus was estimated
+# at 15-30s with 4 workers, so ~3-6s). It stops starting sequences at 12s
+# and fails past 15s. The whole corpus replays nightly (ZFSDIFF_FULL=1),
+# sharded with the NFS tests then, since its share sequences rewrite
+# zfs.exports; the PR sample turns no share on.
+TestZFSDiffReplay 5.00
 TestFileExportUnpublishStillServed 0.30
 TestFileExportServedBeyondRequest 0.20
 #

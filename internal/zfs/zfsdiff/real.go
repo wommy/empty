@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wommy/empty/internal/zfs"
 )
@@ -120,11 +121,15 @@ type Replay struct {
 	ModSim           *Divergence
 	JSON             []string
 	Err              error
+	// NotRun: the replay's start budget ran out before this sequence.
+	NotRun bool
 }
 
 // Verdict names what the replay found.
 func (r *Replay) Verdict() string {
 	switch {
+	case r.NotRun:
+		return "not-run"
 	case r.Err != nil:
 		return "harness-error"
 	case r.RealSim == nil && r.RealMod == nil:
@@ -146,12 +151,19 @@ type Target struct {
 	Cleanup func(ctx context.Context, root string) error
 }
 
+// CleanupTimeout bounds one cleanup, which runs even after the replay's
+// own context has expired.
+const CleanupTimeout = 60 * time.Second
+
 // RealTarget is the real zfs(8) on this host.
 var RealTarget = Target{Runner: RealRunner{}, Cleanup: CleanupReal}
 
 // ReplayAll runs seqs on target under base/s<i> (workers at a time) and
-// on a fresh simulator and model for each, with pool as their pool.
-func ReplayAll(ctx context.Context, target Target, pool, base string, seqs []Seq, workers int) []*Replay {
+// on a fresh simulator and model for each, with pool as their pool. A
+// sequence not started by startBy (zero: no limit) is NotRun. Each
+// sequence's cleanup runs on a context of its own, not on ctx: a replay
+// cut short by ctx must still leave nothing behind on the pool.
+func ReplayAll(ctx context.Context, target Target, pool, base string, seqs []Seq, workers int, startBy time.Time) []*Replay {
 	out := make([]*Replay, len(seqs))
 	idx := make(chan int)
 	var wg sync.WaitGroup
@@ -162,6 +174,11 @@ func ReplayAll(ctx context.Context, target Target, pool, base string, seqs []Seq
 			for i := range idx {
 				root := base + "/s" + strconv.Itoa(i)
 				rp := &Replay{Seq: seqs[i]}
+				if ctx.Err() != nil || !startBy.IsZero() && time.Now().After(startBy) {
+					rp.NotRun = true
+					out[i] = rp
+					continue
+				}
 				rp.Real = Exec(ctx, target.Runner, root, seqs[i])
 				if _, isReal := target.Runner.(RealRunner); isReal {
 					rp.JSON = JSONCheck(ctx, target.Runner, root, rp.Real[len(rp.Real)-1].Proj)
@@ -169,9 +186,11 @@ func ReplayAll(ctx context.Context, target Target, pool, base string, seqs []Seq
 				rp.Sim = Exec(ctx, NewSimRunner(pool), root, seqs[i])
 				rp.Model = Exec(ctx, NewModelRunner(pool), root, seqs[i])
 				rp.RealSim, rp.RealMod, rp.ModSim = Compare(rp.Real, rp.Sim), Compare(rp.Real, rp.Model), Compare(rp.Model, rp.Sim)
-				if err := target.Cleanup(ctx, root); err != nil {
+				cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), CleanupTimeout)
+				if err := target.Cleanup(cctx, root); err != nil {
 					rp.Err = fmt.Errorf("cleanup %s: %w", root, err)
 				}
+				cancel()
 				out[i] = rp
 			}
 		}()
@@ -206,7 +225,7 @@ func Report(rs []*Replay) string {
 		fmt.Fprintf(&b, "%-40s %s\n", r.Seq.Name, r.Verdict())
 	}
 	for _, r := range rs {
-		if r.Verdict() == "agree" && len(r.JSON) == 0 {
+		if v := r.Verdict(); (v == "agree" || v == "not-run") && len(r.JSON) == 0 {
 			continue
 		}
 		fmt.Fprintf(&b, "\n==== %s: %s\n%s", r.Seq.Name, r.Verdict(), r.Seq.Format())

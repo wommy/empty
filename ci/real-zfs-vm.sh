@@ -177,8 +177,9 @@ for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
 scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci@127.0.0.1:
 rc=0
 # six concurrent shards on six tmpfs-backed pools (ci/real-zfs-guest.sh);
-# the logs come back per shard and are merged per check below
-vm 'sudo bash real-zfs-guest.sh' || rc=$?
+# the logs come back per shard and are merged per check below.
+# ZFSDIFF_FULL=1 (nightly.yml) replays the whole zfsdiff corpus
+vm "sudo env ZFSDIFF_FULL=${ZFSDIFF_FULL:-} bash real-zfs-guest.sh" || rc=$?
 mkdir -p "$work/out"
 scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
 o=$work/out
@@ -202,6 +203,17 @@ if [ -f "$o/nfs-replay.log" ]; then
     echo; echo '```'; cat "$o/nfs-replay.log"; echo '```'; echo "</details>"; echo; } >>"$summary"
 else
   echo "::error::vm/endpoint: TestNFSReplay wrote no nfs-replay.log"; rc=1
+fi
+# TestZFSDiffReplay replays zfs(8) sequences (internal/zfs/zfsdiff) on the
+# pool, the simulator and the reference model. Divergences are reported,
+# not failed (ZFSDIFF_STRICT=1 would); the summary gets the verdict per
+# sequence, the workflow uploads the whole report. Its last line is the
+# tally with the replay's wall time.
+if [ -f "$o/zfsdiff.log" ]; then
+  { echo "<details><summary>zfsdiff replay: $(tail -n 1 "$o/zfsdiff.log")</summary>"
+    echo; echo '```'; sed -n '3,/^$/p' "$o/zfsdiff.log"; echo '```'; echo "</details>"; echo; } >>"$summary"
+else
+  echo "::error::vm/endpoint: TestZFSDiffReplay wrote no zfsdiff.log"; rc=1
 fi
 {
   echo "| leg | package | skips | skipped tests |"

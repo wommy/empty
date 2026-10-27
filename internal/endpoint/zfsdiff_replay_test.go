@@ -14,18 +14,21 @@ import (
 
 // TestZFSDiffReplay replays the zfsdiff corpus (internal/zfs/zfsdiff/
 // testdata/zfsdiff, embedded) on a real pool, the simulator and the
-// reference model, and writes what diverged to $ZFSDIFF_REPORT (the CI VM
-// copies *.log back). It runs here, in endpoint.test, because that is the
-// binary ci/real-zfs-vm.sh already runs as root against ZFS_TEST_POOL.
+// reference model, and writes what diverged to $ZFSDIFF_REPORT (the CI
+// guest copies it back). It runs here, in endpoint.test, because that is
+// the binary ci/real-zfs-guest.sh already runs as root against
+// ZFS_TEST_POOL.
 //
-// Without a pool it replays the corpus on the model and the simulator
-// only (the same check as zfsdiff's TestCorpusModelVsSim), so it never
-// skips. Divergences are reported, not failed, unless ZFSDIFF_STRICT=1:
-// a divergence is a triage item (sim bug, model bug, ambiguity), not an
-// endpoint regression.
+// On a pool it replays zfsdiff.PRSample (about a fifth of the corpus:
+// ADR 0005's one-minute PR budget), or the whole corpus when
+// ZFSDIFF_FULL=1 (nightly.yml). It stops starting sequences at its
+// budget and fails past it. Without a pool it replays the whole corpus
+// on the model and the simulator only, so it never skips.
+//
+// Divergences are reported, not failed, unless ZFSDIFF_STRICT=1: a
+// divergence is a triage item (sim bug, model bug, ambiguity), not an
+// endpoint regression. A harness or cleanup error always fails.
 func TestZFSDiffReplay(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
 	seqs, err := zfsdiff.Corpus()
 	if err != nil {
 		t.Fatal(err)
@@ -35,6 +38,7 @@ func TestZFSDiffReplay(t *testing.T) {
 		if os.Getenv("ZFS_REQUIRE_REAL") != "" {
 			t.Fatal("ZFS_REQUIRE_REAL is set but ZFS_TEST_POOL is not")
 		}
+		ctx := context.Background()
 		n := 0
 		for _, s := range seqs {
 			m := zfsdiff.Exec(ctx, zfsdiff.NewModelRunner("tank"), "tank/zd", s)
@@ -47,36 +51,53 @@ func TestZFSDiffReplay(t *testing.T) {
 		t.Logf("%d corpus sequences on model and simulator, %d diverge (see zfsdiff.Known)", len(seqs), n)
 		return
 	}
+	// PR: ~5s expected (ci/real-zfs-weights.txt); nightly: the corpus
+	startBudget, budget := 12*time.Second, 15*time.Second
+	if os.Getenv("ZFSDIFF_FULL") == "1" {
+		startBudget, budget = 150*time.Second, 180*time.Second
+	} else {
+		seqs = zfsdiff.Sample(seqs, zfsdiff.PRSample)
+	}
 	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), budget+30*time.Second)
+	// registered first, so it runs last: no cleanup below runs on a
+	// cancelled ctx (and none uses ctx: an expired replay still cleans up)
+	t.Cleanup(cancel)
 	base := fmt.Sprintf("%s/zfsdiff-%d-%d", pool, os.Getpid(), time.Now().UnixNano())
 	c := zfs.New(zfs.LocalRunner{})
 	if err := c.CreateFilesystem(ctx, base, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := zfsdiff.CleanupReal(context.Background(), base); err != nil {
+		cctx, ccancel := context.WithTimeout(context.WithoutCancel(ctx), zfsdiff.CleanupTimeout)
+		defer ccancel()
+		if err := zfsdiff.CleanupReal(cctx, base); err != nil {
 			t.Errorf("cleanup %s: %v", base, err)
 		}
 	})
-	rs := zfsdiff.ReplayAll(ctx, zfsdiff.RealTarget, pool, base, seqs, 4)
+	rs := zfsdiff.ReplayAll(ctx, zfsdiff.RealTarget, pool, base, seqs, 4, start.Add(startBudget))
+	elapsed := time.Since(start)
 	report := zfsdiff.Report(rs)
-	t.Logf("%s (%s)", strings.SplitN(report, "\n", 2)[0], time.Since(start).Round(time.Millisecond))
+	t.Logf("%s (%s)", strings.SplitN(report, "\n", 2)[0], elapsed.Round(time.Millisecond))
 	if path := os.Getenv("ZFSDIFF_REPORT"); path != "" {
-		if err := os.WriteFile(path, []byte(report), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(report+fmt.Sprintf("\n%s in %s\n", strings.SplitN(report, "\n", 2)[0], elapsed.Round(time.Millisecond))), 0o644); err != nil {
 			t.Errorf("report: %v", err)
 		}
 	} else {
 		t.Log(report)
 	}
+	strict := os.Getenv("ZFSDIFF_STRICT") == "1"
 	for _, r := range rs {
 		switch v := r.Verdict(); {
 		case v == "harness-error":
 			t.Errorf("%s: %v", r.Seq.Name, r.Err)
-		case v != "agree" && os.Getenv("ZFSDIFF_STRICT") == "1":
+		case v == "not-run":
+			t.Errorf("%s: not started within the %v budget", r.Seq.Name, startBudget)
+		case v != "agree" && strict:
 			t.Errorf("%s: %s", r.Seq.Name, v)
 		}
 	}
-	if ctx.Err() != nil {
-		t.Errorf("replay ran out of time: %v", ctx.Err())
+	if elapsed > budget {
+		t.Errorf("replay of %d sequences took %v, budget %v", len(seqs), elapsed, budget)
 	}
 }
