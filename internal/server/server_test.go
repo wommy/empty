@@ -136,8 +136,13 @@ func TestReconcile(t *testing.T) {
 	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{MinAgeSeconds: 60}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("min age below the floor: %v", err)
 	}
-	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"a/b"}}); status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("invalid id: %v", err)
+	// an id the endpoint never issues names nothing and is skipped; an
+	// empty one is malformed
+	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"a/b"}, DryRun: true}); err != nil {
+		t.Fatalf("never-issued id: %v", err)
+	}
+	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{""}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("empty id: %v", err)
 	}
 	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{MinAgeSeconds: 1 << 62}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("huge age: %v", err)

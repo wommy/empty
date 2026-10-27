@@ -165,7 +165,14 @@ func TestReconcileAgainstDesiredSet(t *testing.T) {
 		t.Fatalf("second reconcile: %+v %v", again, err)
 	}
 
-	_, err = old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"bad/id"}})
+	// an id the endpoint could never issue names nothing (S8): skipped,
+	// not a failed run; an empty id is malformed
+	plan, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: append([]string{"bad/id"}, want...)})
+	if err != nil || len(plan.Actions) != 0 ||
+		!slices.Contains(plan.Skipped, endpoint.ReconcileSkip{Target: "bad/id", Reason: endpoint.SkipDesiredMissing}) {
+		t.Fatalf("non-issuable desired id: %+v %v", plan, err)
+	}
+	_, err = old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{""}})
 	wantCode(t, err, endpoint.InvalidArgument)
 }
 

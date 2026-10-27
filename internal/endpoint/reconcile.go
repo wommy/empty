@@ -466,6 +466,10 @@ func simulateDestroyAll(rows []Row, plans []Plan) []Row {
 
 // ReconcileRequest is what a caller asks a reconcile to keep.
 type ReconcileRequest struct {
+	// DesiredVolumeIDs is the complete set to keep (Desired.VolumeIDs).
+	// An id that names nothing, including one the endpoint could never
+	// issue, is reported as SkipDesiredMissing; an empty id is
+	// InvalidArgument.
 	DesiredVolumeIDs []string
 	// MinAge; 0 means DefaultReconcileMinAge, below MinReconcileMinAge is
 	// refused.
@@ -533,9 +537,14 @@ const MinReconcileMinAge = 10 * time.Minute
 // locks: only actions covered by the held locks run, so a CreateVolume that
 // finished in between is seen, and anything new waits for the next run.
 func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (ReconcilePlan, error) {
+	// A non-empty id the endpoint could never issue names no volume, as
+	// everywhere else (issuedVolumeID: NotFound): the planner skips it as
+	// SkipDesiredMissing and the run goes on. One foreign-format id in a
+	// set (another driver's "ns/pv") must not stop the collection, nor can
+	// it protect or doom a volume. An empty id is a malformed request.
 	for _, id := range r.DesiredVolumeIDs {
-		if _, err := volumeID(id); err != nil {
-			return ReconcilePlan{}, err
+		if id == "" {
+			return ReconcilePlan{}, errorf(InvalidArgument, "empty desired volume id")
 		}
 	}
 	if r.MaxDeletions < 0 || r.MaxDeletions > 0 && r.UnlimitedDeletions {
