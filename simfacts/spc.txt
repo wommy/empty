@@ -1,0 +1,47 @@
+	// space accounting (dsl_dir_space_available, dsl_dataset_space): sizes
+	// in bytes, since the Sim does not parse suffixes; under a quota on
+	// f.p so the other tests sharing the pool cannot move the numbers
+	{row: "SPC-01", what: "a reservation leaves its own dataset's available unchanged; a child's refreservation inside it is charged once; a refreservation adds to its own dataset's available; refquota caps available",
+		check: func(f *factEnv) error {
+			g, p, c := f.p, f.p+"/p", f.p+"/p/c"
+			if err := f.zfs("set", "quota=268435456", g); err != nil {
+				return err
+			}
+			if err := f.zfs("create", "-o", "reservation=67108864", p); err != nil {
+				return err
+			}
+			if err := availNear(f, p, 256<<20); err != nil {
+				return fmt.Errorf("after the reservation: %w", err)
+			}
+			if err := f.zfs("create", "-o", "refreservation=33554432", c); err != nil {
+				return err
+			}
+			if err := availNear(f, p, 224<<20); err != nil {
+				return fmt.Errorf("after the child's refreservation: %w", err)
+			}
+			if err := availNear(f, c, 256<<20); err != nil {
+				return fmt.Errorf("the child: %w", err)
+			}
+			if err := f.zfs("create", "-o", "refquota=16777216", g+"/d"); err != nil {
+				return err
+			}
+			return availNear(f, g+"/d", 16<<20)
+		}},
+}
+
+// availNear: name's available is want within 1 MiB (the real pool's
+// metadata: referenced, unique; the Sim takes both as 0).
+func availNear(f *factEnv, name string, want uint64) error {
+	v, err := f.get(name, "available")
+	if err != nil {
+		return err
+	}
+	got, err := strconv.ParseUint(v, 10, 64)
+	if err != nil {
+		return err
+	}
+	if d := int64(got) - int64(want); d > 1<<20 || d < -(1<<20) {
+		return fmt.Errorf("%s available %d, want %d (within 1 MiB)", name, got, want)
+	}
+	return nil
+}

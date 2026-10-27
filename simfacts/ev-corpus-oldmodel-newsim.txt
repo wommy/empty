@@ -1,0 +1,13 @@
+--- FAIL: TestCorpusModelVsSim (0.11s)
+    diff_test.go:166: create-vol-resv-auto: known ambiguity create-vol-resv-auto
+    diff_test.go:169: quota-over-child-resv-and-refresv: model and simulator diverge
+        step 3 `zfs set quota=15728640 $R/g`: code differs
+          A: 1 cannot set property for 'zfsep-test/zd/s0/g': size is less than current used or reserved space
+          B: 0 
+    diff_test.go:169: resv-grow-into-parent-resv: model and simulator diverge
+        step 4 `zfs set refreservation=83886080 $R/g/p/c`: code differs
+          A: 1 cannot set property for 'zfsep-test/zd/s0/g/p/c': size is greater than available space
+          B: 0 
+FAIL
+FAIL	github.com/wommy/empty/internal/zfs/zfsdiff	0.116s
+FAIL

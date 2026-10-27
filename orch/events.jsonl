@@ -319,3 +319,4 @@
 {"ts": "2026-10-27T16:04:05Z", "id": "a28eef26cea011034", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-27T16:04:05Z", "id": "a28eef26cea011034", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T16:04:05Z", "id": "a28eef26cea011034", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T16:04:14Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
