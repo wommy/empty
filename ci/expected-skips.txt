@@ -1,4 +1,9 @@
 # Tests allowed to SKIP on the real-ZFS legs (the skip budget).
+# Rule: a new simulator-only test (it calls requireSim, h.Sim or a helper
+# that does) gets its `vm <package> <test>` line here in the same change.
+# ci/check-suites.sh (ci/skiplint, static job; run it locally) fails a
+# skipping test with no entry and an entry whose test is gone, so the VM
+# leg's check-skips.sh never has to catch it. One line per entry.
 # ci/check-skips.sh fails a leg when a test binary's -test.v output has a
 # `--- SKIP:` line whose test is not listed here for that leg and package, or
 # when the binary ran no test at all. A skip is not a pass: every entry is
