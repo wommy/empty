@@ -1,0 +1,6 @@
+=== RUN   TestStartupWarnsOfATraversableMountpoint
+=== PAUSE TestStartupWarnsOfATraversableMountpoint
+=== CONT  TestStartupWarnsOfATraversableMountpoint
+--- PASS: TestStartupWarnsOfATraversableMountpoint (0.01s)
+PASS
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	1.044s

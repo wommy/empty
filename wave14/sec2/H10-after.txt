@@ -1,0 +1,6 @@
+=== RUN   TestProtoDocumentsTheMissingIDBound
+=== PAUSE TestProtoDocumentsTheMissingIDBound
+=== CONT  TestProtoDocumentsTheMissingIDBound
+--- PASS: TestProtoDocumentsTheMissingIDBound (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.005s

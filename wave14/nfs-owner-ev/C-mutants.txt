@@ -1,0 +1,41 @@
+=== C1 no below-floor report (feature absent): KILLED
+-- mutation in internal/endpoint/reconcile.go:
+- 		if below := p.belowFloor(r); len(below) > 0 {
++ 		if below := p.belowFloor(r); false && len(below) > 0 {
+--- FAIL: TestPlanReconcileNFSBelowFloor (0.00s)
+    belowfloor_test.go:45: below it: actions [] (plan ), skipped []; want no change and ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw"]
+    belowfloor_test.go:45: below it, default floor: actions [] (plan ), skipped []; want no change and ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw"]
+    belowfloor_test.go:45: several, each with its mode: actions [] (plan ), skipped []; want no change and ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw, 172.16.0.0/12 ro"]
+FAIL	github.com/wommy/empty/internal/endpoint	0.005s
+
+=== C2 the configured floor ignored: KILLED
+-- mutation in internal/endpoint/reconcile.go:
+- 	floor := cmp.Or(p.NFSMinPrefix, DefaultNFSMinPrefix)
+	var out []string
++ 	floor := DefaultNFSMinPrefix
+	var out []string
+--- FAIL: TestPlanReconcileNFSBelowFloor (0.00s)
+    belowfloor_test.go:45: the floor lowered to /8: actions [] (plan ), skipped ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw"]; want no change and []
+FAIL	github.com/wommy/empty/internal/endpoint	0.005s
+
+=== C3 an inherited value read as ours: KILLED
+-- mutation in internal/endpoint/reconcile.go:
+- 	for _, c := range clientsOf(row) {
+		if checkFloor(c, floor) != nil {
++ 	cs, _ := ParseShareNFS(row.ShareNFS)
+	for _, c := range cs {
+		if checkFloor(c, floor) != nil {
+--- FAIL: TestPlanReconcileNFSBelowFloor (0.00s)
+    belowfloor_test.go:45: inherited: actions [] (plan ), skipped ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw"]; want no change and []
+FAIL	github.com/wommy/empty/internal/endpoint	0.005s
+
+=== C4 the report names no mode: KILLED
+-- mutation in internal/endpoint/reconcile.go:
+- out = append(out, c.Host+" "+c.mode())
++ out = append(out, c.Host)
+--- FAIL: TestPlanReconcileNFSBelowFloor (0.00s)
+    belowfloor_test.go:45: below it: actions [] (plan ), skipped ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8"]; want no change and ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw"]
+    belowfloor_test.go:45: below it, default floor: actions [] (plan ), skipped ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8"]; want no change and ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw"]
+    belowfloor_test.go:45: several, each with its mode: actions [] (plan ), skipped ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8, 172.16.0.0/12"]; want no change and ["a:sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten): 10.0.0.0/8 rw, 172.16.0.0/12 ro"]
+FAIL	github.com/wommy/empty/internal/endpoint	0.011s
+

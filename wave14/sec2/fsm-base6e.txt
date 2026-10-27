@@ -1,0 +1,64 @@
+--- FAIL: TestExploreLifecycle (61.44s)
+    --- FAIL: TestExploreLifecycle/filesystem/zfs-endpoint (16.45s)
+        fsm_explore_test.go:895: depth 0: expanded 1 worlds, 6 new, 7 distinct, edges=14 runs=44 (62ms)
+        fsm_explore_test.go:895: depth 1: expanded 6 worlds, 27 new, 34 distinct, edges=98 runs=308 (340ms)
+        fsm_explore_test.go:895: depth 2: expanded 27 worlds, 89 new, 123 distinct, edges=476 runs=1480 (2.553s)
+        fsm_explore_test.go:895: depth 3: expanded 89 worlds, 215 new, 338 distinct, edges=1722 runs=5300 (15.205s)
+        fsm_explore_test.go:935: distinct worlds=338 edges=1722 runs=5300, 1 findings
+        fsm_explore_test.go:945: [retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Committed]
+              trace: CV(a) ; CV(b<-a,reserve) CRASH@1/4 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+                uncrashed: a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+                retried:   a:Committed resp=0
+                diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v0|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+                then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v0|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+    --- FAIL: TestExploreLifecycle/filesystem/democratic-csi (27.96s)
+        fsm_explore_test.go:895: depth 0: expanded 1 worlds, 6 new, 7 distinct, edges=14 runs=44 (69ms)
+        fsm_explore_test.go:895: depth 1: expanded 6 worlds, 35 new, 42 distinct, edges=98 runs=330 (703ms)
+        fsm_explore_test.go:895: depth 2: expanded 35 worlds, 148 new, 190 distinct, edges=588 runs=1982 (6.358s)
+        fsm_explore_test.go:895: depth 3: expanded 148 worlds, 406 new, 596 distinct, edges=2660 runs=8602 (26.344s)
+        fsm_explore_test.go:935: distinct worlds=596 edges=2660 runs=8602, 2 findings
+        fsm_explore_test.go:945: [retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Adopted-dcsi a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Adopted-dcsi]
+              trace: X:dcsi-create(a) ; CV(b<-a,reserve) CRASH@1/4 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+                uncrashed: a:Adopted-dcsi a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+                retried:   a:Adopted-dcsi resp=0
+                diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v0|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+                then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v0|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+        fsm_explore_test.go:945: [retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Committed]
+              trace: CV(a) ; CV(b<-a,reserve) CRASH@1/4 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+                uncrashed: a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+                retried:   a:Committed resp=0
+                diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v0|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+                then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v0|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+    --- FAIL: TestExploreLifecycle/block/zfs-endpoint (5.50s)
+        fsm_explore_test.go:895: depth 0: expanded 1 worlds, 6 new, 7 distinct, edges=14 runs=44 (40ms)
+        fsm_explore_test.go:895: depth 1: expanded 6 worlds, 21 new, 28 distinct, edges=98 runs=302 (256ms)
+        fsm_explore_test.go:895: depth 2: expanded 21 worlds, 57 new, 85 distinct, edges=392 runs=1174 (1.129s)
+        fsm_explore_test.go:895: depth 3: expanded 57 worlds, 143 new, 228 distinct, edges=1190 runs=3562 (5.042s)
+        fsm_explore_test.go:935: distinct worlds=228 edges=1190 runs=3562, 1 findings
+        fsm_explore_test.go:945: [retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Committed]
+              trace: CV(a) ; CV(b<-a,reserve) CRASH@1/3 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+                uncrashed: a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+                retried:   a:Committed resp=0
+                diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+                then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+    --- FAIL: TestExploreLifecycle/block/democratic-csi (11.53s)
+        fsm_explore_test.go:895: depth 0: expanded 1 worlds, 6 new, 7 distinct, edges=14 runs=44 (37ms)
+        fsm_explore_test.go:895: depth 1: expanded 6 worlds, 26 new, 33 distinct, edges=98 runs=318 (293ms)
+        fsm_explore_test.go:895: depth 2: expanded 26 worlds, 97 new, 130 distinct, edges=462 runs=1486 (1.873s)
+        fsm_explore_test.go:895: depth 3: expanded 97 worlds, 279 new, 409 distinct, edges=1820 runs=5680 (9.793s)
+        fsm_explore_test.go:935: distinct worlds=409 edges=1820 runs=5680, 2 findings
+        fsm_explore_test.go:945: [retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Adopted-dcsi a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Adopted-dcsi]
+              trace: X:dcsi-create(a) ; CV(b<-a,reserve) CRASH@1/3 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+                uncrashed: a:Adopted-dcsi a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+                retried:   a:Adopted-dcsi resp=0
+                diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+                then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+        fsm_explore_test.go:945: [retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Committed]
+              trace: CV(a) ; CV(b<-a,reserve) CRASH@1/3 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+                uncrashed: a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+                retried:   a:Committed resp=0
+                diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+                then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	61.449s
+FAIL

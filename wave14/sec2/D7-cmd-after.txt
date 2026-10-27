@@ -1,0 +1,6 @@
+=== RUN   TestSocketGroup
+=== PAUSE TestSocketGroup
+=== CONT  TestSocketGroup
+--- PASS: TestSocketGroup (0.00s)
+PASS
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	1.032s

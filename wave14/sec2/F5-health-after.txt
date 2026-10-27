@@ -1,0 +1,6 @@
+=== RUN   TestHealthWarnsOfALaterCrossmntAncestor
+=== PAUSE TestHealthWarnsOfALaterCrossmntAncestor
+=== CONT  TestHealthWarnsOfALaterCrossmntAncestor
+--- PASS: TestHealthWarnsOfALaterCrossmntAncestor (0.00s)
+PASS
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	1.040s

@@ -1,0 +1,4 @@
+{"name": "H10-server", "pkg": "./internal/server", "run": "TestProtoDocumentsTheMissingIDBound",
+ "edits": [{"file": "api/zfsendpoint/v1/endpoint.proto",
+            "old": "  // \"ns/pv\"), neither protects nor dooms any volume, and the run goes on.\n  // skipped reports such ids (\"desired volume does not exist\") so that the\n  // answer stays bounded: the first 1000 in sorted order (a long id\n  // shortened), then, if more are missing, one entry whose target is\n  // \"(N more)\". An id absent from skipped is therefore not proof that it\n  // names a volume. An empty id, or more than 250000 ids, is\n  // INVALID_ARGUMENT.",
+            "new": "  // \"ns/pv\"), is reported in skipped (\"desired volume does not exist\") and\n  // the run goes on; it neither protects nor dooms any volume. An empty id\n  // is INVALID_ARGUMENT."}]}

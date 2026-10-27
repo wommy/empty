@@ -1,0 +1,23 @@
+[
+ {"name": "B1 no pin (feature absent)", "file": "internal/endpoint/plan.go",
+  "old": "\t\tif path.IsAbs(p.parentMount) {", "new": "\t\tif false && path.IsAbs(p.parentMount) {",
+  "run": "PinsMountpoint|TestNFS_N5|TestCrashAtEveryMutationConverges", "pkgs": ["./internal/endpoint/", "./internal/csi/"]},
+ {"name": "B2 parent mountpoint never read", "file": "internal/endpoint/endpoint.go",
+  "old": "\t\tif _, exists := t.Get(id); !exists && r.Kind == Filesystem {", "new": "\t\tif _, exists := t.Get(id); false && !exists && r.Kind == Filesystem {",
+  "run": "PinsMountpoint|TestNFS_N5", "pkgs": ["./internal/endpoint/", "./internal/csi/"]},
+ {"name": "B3 pin to none/legacy too", "file": "internal/endpoint/plan.go",
+  "old": "\t\tif path.IsAbs(p.parentMount) {", "new": "\t\tif p.parentMount != \"\" {",
+  "run": "PinsMountpoint", "pkgs": ["./internal/endpoint/"]},
+ {"name": "B4 no reconcile report", "file": "internal/endpoint/reconcile.go",
+  "old": "if r.Committed && r.Kind() == Filesystem && !r.MountLocal && strings.HasPrefix(r.Mount, \"/\") {", "new": "if false {",
+  "run": "MountpointNotPinned|PinsMountpoint", "pkgs": ["./internal/endpoint/"]},
+ {"name": "B5 report none/legacy and in-flight too", "file": "internal/endpoint/reconcile.go",
+  "old": "if r.Committed && r.Kind() == Filesystem && !r.MountLocal && strings.HasPrefix(r.Mount, \"/\") {", "new": "if r.Kind() == Filesystem && !r.MountLocal {",
+  "run": "MountpointNotPinned", "pkgs": ["./internal/endpoint/"]},
+ {"name": "B6 MountLocal never read", "file": "internal/endpoint/table.go",
+  "old": "r.MountLocal = cell(cMount).Local()", "new": "r.MountLocal = false",
+  "run": "PinsMountpoint", "pkgs": ["./internal/endpoint/"]},
+ {"name": "B7 F12 dropped by the extension", "file": "internal/endpoint/plan.go",
+  "old": "own[\"setuid\"], own[\"exec\"], own[\"devices\"] = \"off\", \"off\", \"off\"", "new": "_ = 0",
+  "run": "PinsMountpoint|TestFilesystemsMountWithoutSetuidExecOrDevices", "pkgs": ["./internal/endpoint/"]}
+]

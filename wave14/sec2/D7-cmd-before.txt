@@ -1,0 +1,14 @@
+# fix disabled: ["cmd/zfs-endpoint/main.go"]
+=== RUN   TestSocketGroup
+=== PAUSE TestSocketGroup
+=== CONT  TestSocketGroup
+    admin_test.go:102: socketGID("0") = -1, <nil> (exit 1)
+    admin_test.go:102: socketGID("4242") = -1, <nil> (exit 1)
+    admin_test.go:102: socketGID("-1") = -1, <nil> (exit 1)
+    admin_test.go:102: socketGID("no-such-group.d7") = -1, <nil> (exit 1)
+2026/10/27 12:16:00 INFO stopped during startup error="context canceled"
+    admin_test.go:147: unknown group: exit 1 <nil>, want 78
+--- FAIL: TestSocketGroup (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.036s
+FAIL

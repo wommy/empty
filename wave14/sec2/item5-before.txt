@@ -1,0 +1,66 @@
+# HEAD drop-in, no ci/real-zfs-unit.sh
+=== RUN   TestUnitLint
+=== PAUSE TestUnitLint
+=== RUN   TestUnitCheckReadsTheDropIn
+=== PAUSE TestUnitCheckReadsTheDropIn
+=== RUN   TestUnitCheckNamesTheFailingSetting
+=== PAUSE TestUnitCheckNamesTheFailingSetting
+=== CONT  TestUnitCheckReadsTheDropIn
+=== CONT  TestUnitLint
+=== CONT  TestUnitCheckNamesTheFailingSetting
+=== NAME  TestUnitLint
+    deploy_test.go:334: drop-in ProtectHostname=[], want one setting in effect
+    deploy_test.go:334: drop-in SystemCallFilter=[], want one setting in effect
+    deploy_test.go:334: drop-in SystemCallErrorNumber=[], want one setting in effect
+=== RUN   TestUnitCheckNamesTheFailingSetting/serves
+=== PAUSE TestUnitCheckNamesTheFailingSetting/serves
+--- FAIL: TestUnitLint (0.00s)
+=== RUN   TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+=== PAUSE TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+=== RUN   TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+=== PAUSE TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+=== RUN   TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+=== PAUSE TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+=== RUN   TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+=== PAUSE TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+=== CONT  TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+=== CONT  TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+=== CONT  TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+=== NAME  TestUnitCheckReadsTheDropIn
+    unitcheck_test.go:23: exit status 127
+--- FAIL: TestUnitCheckReadsTheDropIn (0.01s)
+=== CONT  TestUnitCheckNamesTheFailingSetting/serves
+=== NAME  TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+    unitcheck_test.go:138: bash: ../ci/real-zfs-unit.sh: No such file or directory
+    unitcheck_test.go:140: exit 127, last line "bash: ../ci/real-zfs-unit.sh: No such file or directory"; want 1, "unit hardening: FAIL: drop-in settings that stop the endpoint serving: ProtectHostname=yes ("
+        bash: ../ci/real-zfs-unit.sh: No such file or directory
+=== NAME  TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+    unitcheck_test.go:138: bash: ../ci/real-zfs-unit.sh: No such file or directory
+    unitcheck_test.go:140: exit 127, last line "bash: ../ci/real-zfs-unit.sh: No such file or directory"; want 1, "unit hardening: FAIL: the unit fails without the drop-in too"
+        bash: ../ci/real-zfs-unit.sh: No such file or directory
+=== NAME  TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+    unitcheck_test.go:138: bash: ../ci/real-zfs-unit.sh: No such file or directory
+    unitcheck_test.go:140: exit 127, last line "bash: ../ci/real-zfs-unit.sh: No such file or directory"; want 1, "unit hardening: FAIL: served, but the checks above failed"
+        bash: ../ci/real-zfs-unit.sh: No such file or directory
+    unitcheck_test.go:144: the reason is not in the output:
+        bash: ../ci/real-zfs-unit.sh: No such file or directory
+=== CONT  TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+=== NAME  TestUnitCheckNamesTheFailingSetting/serves
+    unitcheck_test.go:138: bash: ../ci/real-zfs-unit.sh: No such file or directory
+    unitcheck_test.go:140: exit 127, last line "bash: ../ci/real-zfs-unit.sh: No such file or directory"; want 0, "unit hardening: PASS: served under the unit and the drop-in"
+        bash: ../ci/real-zfs-unit.sh: No such file or directory
+=== NAME  TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+    unitcheck_test.go:138: bash: ../ci/real-zfs-unit.sh: No such file or directory
+    unitcheck_test.go:140: exit 127, last line "bash: ../ci/real-zfs-unit.sh: No such file or directory"; want 1, "unit hardening: FAIL: served, but the checks above failed"
+        bash: ../ci/real-zfs-unit.sh: No such file or directory
+    unitcheck_test.go:144: the reason is not in the output:
+        bash: ../ci/real-zfs-unit.sh: No such file or directory
+--- FAIL: TestUnitCheckNamesTheFailingSetting (0.00s)
+    --- FAIL: TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it (0.02s)
+    --- FAIL: TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails (0.03s)
+    --- FAIL: TestUnitCheckNamesTheFailingSetting/uid_65534_is_served (0.03s)
+    --- FAIL: TestUnitCheckNamesTheFailingSetting/serves (0.02s)
+    --- FAIL: TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal (0.01s)
+FAIL
+FAIL	github.com/wommy/empty/deploy	0.082s
+FAIL

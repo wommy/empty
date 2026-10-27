@@ -1,0 +1,6 @@
+=== RUN   TestD9Probe
+    zz_d9probe_test.go:12: op create-filesystem tank/v/a props sharenfs="rw=10.20.0.0/24"
+    zz_d9probe_test.go:17: HEAD reconcile actions=1 err=<nil>; D9 as written would skip it: true
+--- PASS: TestD9Probe (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.005s

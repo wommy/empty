@@ -1,0 +1,17 @@
+# fix disabled: ["api/zfsendpoint/v1/endpoint.proto"]
+=== RUN   TestProtoDocumentsTheMissingIDBound
+=== PAUSE TestProtoDocumentsTheMissingIDBound
+=== CONT  TestProtoDocumentsTheMissingIDBound
+2026/10/27 12:33:44 INFO reconcile desired=5000 min_age_seconds=0 dry_run=true
+    server_test.go:155: desired_volume_ids comment lacks "first 1000":
+        The complete set of volume ids the caller wants kept. Every other owned, committed volume is collected. Empty collects no committed volume: it cannot be told apart from a caller that sent nothing. A set naming none of the endpoint's volumes counts as empty. An id that names no volume, including one the endpoint could never issue (another driver's "ns/pv"), is reported in skipped ("desired volume does not exist") and the run goes on; it neither protects nor dooms any volume. An empty id is INVALID_ARGUMENT.
+    server_test.go:155: desired_volume_ids comment lacks "sorted":
+        The complete set of volume ids the caller wants kept. Every other owned, committed volume is collected. Empty collects no committed volume: it cannot be told apart from a caller that sent nothing. A set naming none of the endpoint's volumes counts as empty. An id that names no volume, including one the endpoint could never issue (another driver's "ns/pv"), is reported in skipped ("desired volume does not exist") and the run goes on; it neither protects nor dooms any volume. An empty id is INVALID_ARGUMENT.
+    server_test.go:155: desired_volume_ids comment lacks "\"(N more)\"":
+        The complete set of volume ids the caller wants kept. Every other owned, committed volume is collected. Empty collects no committed volume: it cannot be told apart from a caller that sent nothing. A set naming none of the endpoint's volumes counts as empty. An id that names no volume, including one the endpoint could never issue (another driver's "ns/pv"), is reported in skipped ("desired volume does not exist") and the run goes on; it neither protects nor dooms any volume. An empty id is INVALID_ARGUMENT.
+    server_test.go:155: desired_volume_ids comment lacks "more than 250000 ids":
+        The complete set of volume ids the caller wants kept. Every other owned, committed volume is collected. Empty collects no committed volume: it cannot be told apart from a caller that sent nothing. A set naming none of the endpoint's volumes counts as empty. An id that names no volume, including one the endpoint could never issue (another driver's "ns/pv"), is reported in skipped ("desired volume does not exist") and the run goes on; it neither protects nor dooms any volume. An empty id is INVALID_ARGUMENT.
+--- FAIL: TestProtoDocumentsTheMissingIDBound (0.07s)
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.095s
+FAIL

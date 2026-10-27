@@ -1,0 +1,6 @@
+ok  	github.com/wommy/empty/ci/unitprobe	0.093s
+ok  	github.com/wommy/empty/cmd/zfs-csi	0.035s
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	0.175s
+ok  	github.com/wommy/empty/deploy	0.720s
+?   	github.com/wommy/empty/gen/zfsendpoint/v1	[no test files]
+ok  	github.com/wommy/empty/internal/csi	1.519s

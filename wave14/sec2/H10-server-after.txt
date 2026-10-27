@@ -1,0 +1,7 @@
+=== RUN   TestProtoDocumentsTheMissingIDBound
+=== PAUSE TestProtoDocumentsTheMissingIDBound
+=== CONT  TestProtoDocumentsTheMissingIDBound
+2026/10/27 12:33:45 INFO reconcile desired=5000 min_age_seconds=0 dry_run=true
+--- PASS: TestProtoDocumentsTheMissingIDBound (0.05s)
+PASS
+ok  	github.com/wommy/empty/internal/server	1.083s

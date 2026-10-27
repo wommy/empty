@@ -1,0 +1,11 @@
+# fix disabled: ["cmd/zfs-endpoint/main.go"]
+=== RUN   TestHealthWarnsOfALaterCrossmntAncestor
+=== PAUSE TestHealthWarnsOfALaterCrossmntAncestor
+=== CONT  TestHealthWarnsOfALaterCrossmntAncestor
+    exposure_test.go:48: sharenfs=on: 0 warnings, 0 infos, want 1, 0:
+    exposure_test.go:50: sharenfs=off: 0 warnings, 0 infos, want 0, 1:
+    exposure_test.go:51: sharenfs=crossmnt,ro=@10.9.0.0/16: 0 warnings, 0 infos, want 1, 0:
+--- FAIL: TestHealthWarnsOfALaterCrossmntAncestor (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.036s
+FAIL

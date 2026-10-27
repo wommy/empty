@@ -1,0 +1,14 @@
+[
+ {"name": "C1 no below-floor report (feature absent)", "file": "internal/endpoint/reconcile.go",
+  "old": "\t\tif below := p.belowFloor(r); len(below) > 0 {", "new": "\t\tif below := p.belowFloor(r); false && len(below) > 0 {",
+  "run": "BelowFloor", "pkgs": ["./internal/endpoint/"]},
+ {"name": "C2 the configured floor ignored", "file": "internal/endpoint/reconcile.go",
+  "old": "\tfloor := cmp.Or(p.NFSMinPrefix, DefaultNFSMinPrefix)\n\tvar out []string", "new": "\tfloor := DefaultNFSMinPrefix\n\tvar out []string",
+  "run": "BelowFloor", "pkgs": ["./internal/endpoint/"]},
+ {"name": "C3 an inherited value read as ours", "file": "internal/endpoint/reconcile.go",
+  "old": "\tfor _, c := range clientsOf(row) {\n\t\tif checkFloor(c, floor) != nil {", "new": "\tcs, _ := ParseShareNFS(row.ShareNFS)\n\tfor _, c := range cs {\n\t\tif checkFloor(c, floor) != nil {",
+  "run": "BelowFloor", "pkgs": ["./internal/endpoint/"]},
+ {"name": "C4 the report names no mode", "file": "internal/endpoint/reconcile.go",
+  "old": "out = append(out, c.Host+\" \"+c.mode())", "new": "out = append(out, c.Host)",
+  "run": "BelowFloor", "pkgs": ["./internal/endpoint/"]}
+]

@@ -1,0 +1,4 @@
+{"name": "F5-health", "pkg": "./cmd/zfs-endpoint", "run": "TestHealthWarnsOfALaterCrossmntAncestor",
+ "edits": [{"file": "cmd/zfs-endpoint/main.go",
+            "old": "\t\tmount, x, err := exposure(ctx, z, parent, etab)\n\t\tif err != nil {\n\t\t\tlog.Debug",
+            "new": "\t\tif true {\n\t\t\treturn nil\n\t\t}\n\t\tmount, x, err := exposure(ctx, z, parent, etab)\n\t\tif err != nil {\n\t\t\tlog.Debug"}]}

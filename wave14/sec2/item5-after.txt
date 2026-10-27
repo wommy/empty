@@ -1,0 +1,109 @@
+=== RUN   TestUnitLint
+=== PAUSE TestUnitLint
+=== RUN   TestUnitCheckReadsTheDropIn
+=== PAUSE TestUnitCheckReadsTheDropIn
+=== RUN   TestUnitCheckNamesTheFailingSetting
+=== PAUSE TestUnitCheckNamesTheFailingSetting
+=== CONT  TestUnitLint
+=== CONT  TestUnitCheckNamesTheFailingSetting
+=== CONT  TestUnitCheckReadsTheDropIn
+=== RUN   TestUnitCheckNamesTheFailingSetting/serves
+=== PAUSE TestUnitCheckNamesTheFailingSetting/serves
+=== RUN   TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+=== PAUSE TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+=== RUN   TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+=== PAUSE TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+=== RUN   TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+=== PAUSE TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+=== RUN   TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+=== PAUSE TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+=== CONT  TestUnitCheckNamesTheFailingSetting/serves
+=== CONT  TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+--- PASS: TestUnitLint (0.01s)
+=== CONT  TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+--- PASS: TestUnitCheckReadsTheDropIn (0.02s)
+=== CONT  TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+=== NAME  TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails
+    unitcheck_test.go:138: drop-in settings in effect: RestrictNamespaces=yes KeyringMode=private LimitCORE=0 ProtectHostname=yes SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap SystemCallErrorNumber=EPERM
+        == unit + drop-in
+        unit + drop-in: the instance did not start
+        
+        == unit alone
+        unit alone: the instance did not start
+        
+        unit hardening: FAIL: the unit fails without the drop-in too: not a hardening setting (0.20s)
+=== NAME  TestUnitCheckNamesTheFailingSetting/uid_65534_is_served
+    unitcheck_test.go:138: drop-in settings in effect: RestrictNamespaces=yes KeyringMode=private LimitCORE=0 ProtectHostname=yes SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap SystemCallErrorNumber=EPERM
+        == unit + drop-in
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        reconcile: OK
+        reconcile: CONNECT
+        reconcile: OK
+        admin: uid 65534 was not refused PERMISSION_DENIED with the modes opened
+        unit hardening: FAIL: served, but the checks above failed (0.22s)
+=== CONT  TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+=== NAME  TestUnitCheckNamesTheFailingSetting/serves
+    unitcheck_test.go:138: drop-in settings in effect: RestrictNamespaces=yes KeyringMode=private LimitCORE=0 ProtectHostname=yes SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap SystemCallErrorNumber=EPERM
+        == unit + drop-in
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        reconcile: OK
+        reconcile: CONNECT
+        reconcile: PermissionDenied
+        unit hardening: PASS: served under the unit and the drop-in (RestrictNamespaces=yes KeyringMode=private LimitCORE=0 ProtectHostname=yes SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap SystemCallErrorNumber=EPERM); admin refused uid 65534 (0.28s)
+=== NAME  TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal
+    unitcheck_test.go:138: drop-in settings in effect: RestrictNamespaces=yes KeyringMode=private LimitCORE=0 ProtectHostname=yes SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap SystemCallErrorNumber=EPERM
+        == unit + drop-in
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        reconcile: OK
+        reconcile: CONNECT
+        reconcile: PermissionDenied
+        journal: cannot mount: Operation not permitted
+        the journal shows EPERM under the drop-in
+        unit hardening: FAIL: served, but the checks above failed (0.26s)
+=== NAME  TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it
+    unitcheck_test.go:138: drop-in settings in effect: RestrictNamespaces=yes KeyringMode=private LimitCORE=0 ProtectHostname=yes SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap SystemCallErrorNumber=EPERM
+        == unit + drop-in
+        unit + drop-in: the instance did not start
+        
+        == unit alone
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        == unit + RestrictNamespaces=yes
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        == unit + KeyringMode=private
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        == unit + LimitCORE=0
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        == unit + ProtectHostname=yes
+        unit + ProtectHostname=yes: the instance did not start
+        
+        == unit + SystemCallFilter=~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        == unit + SystemCallErrorNumber=EPERM
+        health: OK
+        create: OK: unit-check
+        delete: OK
+        unit hardening: FAIL: drop-in settings that stop the endpoint serving: ProtectHostname=yes (0.51s)
+--- PASS: TestUnitCheckNamesTheFailingSetting (0.00s)
+    --- PASS: TestUnitCheckNamesTheFailingSetting/the_unit_itself_fails (0.26s)
+    --- PASS: TestUnitCheckNamesTheFailingSetting/uid_65534_is_served (0.29s)
+    --- PASS: TestUnitCheckNamesTheFailingSetting/serves (0.34s)
+    --- PASS: TestUnitCheckNamesTheFailingSetting/EPERM_in_the_journal (0.33s)
+    --- PASS: TestUnitCheckNamesTheFailingSetting/one_setting_breaks_it (0.55s)
+PASS
+ok  	github.com/wommy/empty/deploy	1.883s

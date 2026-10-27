@@ -1,0 +1,105 @@
+=== B1 no pin (feature absent): KILLED
+-- mutation in internal/endpoint/plan.go:
+- 		if path.IsAbs(p.parentMount) {
++ 		if false && path.IsAbs(p.parentMount) {
+--- FAIL: TestPlanCreateVolumePinsMountpoint (0.00s)
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/create (0.00s)
+        mountpin_test.go:46: mountpoint "", want "/tank/v/a": create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/a_parent_at_the_root (0.00s)
+        mountpin_test.go:46: mountpoint "", want "/a": create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/restore (0.00s)
+        mountpin_test.go:46: mountpoint "", want "/tank/v/a": clone tank/v/a from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/clone (0.00s)
+        mountpin_test.go:46: mountpoint "", want "/tank/v/a": snapshot tank/v/src@volume-source-for-volume-a +ok-exists democratic-csi:clone_source_for=a democratic-csi:managed_resource=true
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/NFS_export (0.00s)
+        mountpin_test.go:46: mountpoint "", want "/mnt/k8s/a": create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true democratic-csi:nfs_server=192.0.2.10 devices=off exec=off refquota=1073741824 setuid=off sharenfs=rw=10.20.0.0/24 sharesmb=off
+--- FAIL: TestCreateVolumePinsMountpoint (0.00s)
+    mountpin_contract_test.go:25: mountpoint "/tank/k8s/vols/pinned" (default), volume reports "/tank/k8s/vols/pinned"; want /tank/k8s/vols/pinned set locally
+FAIL	github.com/wommy/empty/internal/endpoint	0.156s
+--- FAIL: TestNFS_N5_ShareNFSCanonicalAndServed (0.01s)
+    nfs_test.go:253: mountpoint "/tank/vols/n5" (default), share "/tank/vols/n5": want the share pinned locally
+    nfs_test.go:259: share after the parent moved: "/elsewhere/n5", want "/tank/vols/n5"
+FAIL	github.com/wommy/empty/internal/csi	0.028s
+
+=== B2 parent mountpoint never read: KILLED
+-- mutation in internal/endpoint/endpoint.go:
+- 		if _, exists := t.Get(id); !exists && r.Kind == Filesystem {
++ 		if _, exists := t.Get(id); false && !exists && r.Kind == Filesystem {
+--- FAIL: TestCreateVolumePinsMountpoint (0.00s)
+    mountpin_contract_test.go:25: mountpoint "/tank/k8s/vols/pinned" (default), volume reports "/tank/k8s/vols/pinned"; want /tank/k8s/vols/pinned set locally
+FAIL	github.com/wommy/empty/internal/endpoint	0.008s
+--- FAIL: TestNFS_N5_ShareNFSCanonicalAndServed (0.01s)
+    nfs_test.go:253: mountpoint "/tank/vols/n5" (default), share "/tank/vols/n5": want the share pinned locally
+    nfs_test.go:259: share after the parent moved: "/elsewhere/n5", want "/tank/vols/n5"
+FAIL	github.com/wommy/empty/internal/csi	0.024s
+
+=== B3 pin to none/legacy too: KILLED
+-- mutation in internal/endpoint/plan.go:
+- 		if path.IsAbs(p.parentMount) {
++ 		if p.parentMount != "" {
+--- FAIL: TestPlanCreateVolumePinsMountpoint (0.00s)
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/parent_mountpoint_none (0.00s)
+        mountpin_test.go:46: mountpoint "none/a", want "": create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off mountpoint=none/a setuid=off sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/parent_mountpoint_legacy (0.00s)
+        mountpin_test.go:46: mountpoint "legacy/a", want "": create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true devices=off exec=off mountpoint=legacy/a setuid=off sharenfs=off sharesmb=off
+FAIL	github.com/wommy/empty/internal/endpoint	0.008s
+
+=== B4 no reconcile report: KILLED
+-- mutation in internal/endpoint/reconcile.go:
+- if r.Committed && r.Kind() == Filesystem && !r.MountLocal && strings.HasPrefix(r.Mount, "/") {
++ if false {
+--- FAIL: TestPlanReconcileMountpointNotPinned (0.00s)
+    mountpin_test.go:106: inherited: actions [], skipped [], want none and ["a:mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; pin it with zfs set mountpoint=<its current path> (zfs remounts it)"]
+    mountpin_test.go:106: inherited, unmounted: actions [], skipped [], want none and ["a:mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; pin it with zfs set mountpoint=<its current path> (zfs remounts it)"]
+--- FAIL: TestCreateVolumePinsMountpoint (0.00s)
+    mountpin_contract_test.go:41: reconcile {Actions:[] Skipped:[] Digest:e3b0c44298fc1c149afbf4c8996fb924 groups:[]}, want only legacy reported
+FAIL	github.com/wommy/empty/internal/endpoint	0.010s
+
+=== B5 report none/legacy and in-flight too: KILLED
+-- mutation in internal/endpoint/reconcile.go:
+- if r.Committed && r.Kind() == Filesystem && !r.MountLocal && strings.HasPrefix(r.Mount, "/") {
++ if r.Kind() == Filesystem && !r.MountLocal {
+--- FAIL: TestPlanReconcileMountpointNotPinned (0.00s)
+    mountpin_test.go:106: inherited none: actions [], skipped ["a:mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; pin it with zfs set mountpoint=<its current path> (zfs remounts it)"], want none and []
+    mountpin_test.go:106: inherited legacy: actions [], skipped ["a:mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; pin it with zfs set mountpoint=<its current path> (zfs remounts it)"], want none and []
+    mountpin_test.go:106: uncommitted (in flight): actions [], skipped ["a:mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; pin it with zfs set mountpoint=<its current path> (zfs remounts it)"], want none and []
+FAIL	github.com/wommy/empty/internal/endpoint	0.005s
+
+=== B6 MountLocal never read: KILLED
+-- mutation in internal/endpoint/table.go:
+- r.MountLocal = cell(cMount).Local()
++ r.MountLocal = false
+--- FAIL: TestCreateVolumePinsMountpoint (0.00s)
+    mountpin_contract_test.go:41: reconcile {Actions:[] Skipped:[{Target:legacy Reason:mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; pin it with zfs set mountpoint=<its current path> (zfs remounts it)} {Target:pinned Reason:mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; pin it with zfs set mountpoint=<its current path> (zfs remounts it)}] Digest:e3b0c44298fc1c149afbf4c8996fb924 groups:[]}, want only legacy reported
+FAIL	github.com/wommy/empty/internal/endpoint	0.008s
+
+=== B7 F12 dropped by the extension: KILLED
+-- mutation in internal/endpoint/plan.go:
+- own["setuid"], own["exec"], own["devices"] = "off", "off", "off"
++ _ = 0
+--- FAIL: TestFilesystemsMountWithoutSetuidExecOrDevices (0.00s)
+    mountopts_test.go:37: src: setuid=on (inherited from tank/v), want off set locally
+    mountopts_test.go:37: src: exec=on (inherited from tank/v), want off set locally
+    mountopts_test.go:37: src: devices=on (inherited from tank/v), want off set locally
+    mountopts_test.go:37: cl: setuid=on (inherited from tank/v), want off set locally
+    mountopts_test.go:37: cl: exec=on (inherited from tank/v), want off set locally
+    mountopts_test.go:37: cl: devices=on (inherited from tank/v), want off set locally
+--- FAIL: TestPlanCreateVolumePinsMountpoint (0.00s)
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/create (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true mountpoint=/tank/v/a sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/a_parent_at_the_root (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true mountpoint=/a sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/restore (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): clone tank/v/a from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true mountpoint=/tank/v/a sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/clone (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): snapshot tank/v/src@volume-source-for-volume-a +ok-exists democratic-csi:clone_source_for=a democratic-csi:managed_resource=true
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/NFS_export (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true democratic-csi:nfs_server=192.0.2.10 mountpoint=/mnt/k8s/a refquota=1073741824 sharenfs=rw=10.20.0.0/24 sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/parent_mountpoint_none (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/parent_mountpoint_legacy (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+    --- FAIL: TestPlanCreateVolumePinsMountpoint/not_read_(a_bare_planner) (0.00s)
+        mountpin_test.go:52: setuid="", want off (F12): create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true sharenfs=off sharesmb=off
+FAIL	github.com/wommy/empty/internal/endpoint	0.013s
+

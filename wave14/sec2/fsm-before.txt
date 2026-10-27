@@ -1,0 +1,1 @@
+ok  	github.com/wommy/empty/internal/endpoint	2.449s

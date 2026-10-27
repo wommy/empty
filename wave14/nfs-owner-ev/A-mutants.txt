@@ -1,0 +1,135 @@
+=== M1 no set-root in the resume (feature absent): KILLED
+-- mutation in internal/endpoint/plan.go:
+- 			if nfs.ownsRoot() {
+
++ 			if false && nfs.ownsRoot() {
+
+--- FAIL: TestFileExportCreateRootOwner (0.00s)
+    export_root_contract_test.go:52: root {UID:0 GID:0 Mode:493}, want {UID:1000 GID:2000 Mode:1533}
+--- FAIL: TestPlanCreateVolumeNFSRoot (0.00s)
+    --- FAIL: TestPlanCreateVolumeNFSRoot/resume_sets_the_root,_then_commits (0.00s)
+        nfs_root_test.go:121: plan
+    --- FAIL: TestPlanCreateVolumeNFSRoot/only_what_is_asked (0.00s)
+        nfs_root_test.go:121: plan
+    --- FAIL: TestPlanCreateVolumeNFSRoot/unmounted:_mount,_then_the_root,_then_commit (0.00s)
+        nfs_root_test.go:121: plan
+FAIL	github.com/wommy/empty/internal/endpoint	0.120s
+--- FAIL: TestNFS_N11_RootOwnership (0.01s)
+    nfs_root_test.go:24: root {UID:0 GID:0 Mode:493}
+FAIL	github.com/wommy/empty/internal/csi	0.037s
+--- FAIL: TestNFSRootOwnerPresence (0.01s)
+    root_test.go:46: root changes [], want ["tank/vols/v0 0 -1 -1" "tank/vols/v1 -1 -1 770"]
+FAIL	github.com/wommy/empty/internal/server	0.029s
+
+=== M2 set-root after the commit: KILLED
+-- mutation in internal/endpoint/plan.go:
+- 				plan = append(plan, Op{Kind: OpSetRoot, Target: p.full(id), Path: row.Mount, Props: nfs.root.props()})
+			}
+			return append(plan, commit), nil
++ 				return append(plan, commit, Op{Kind: OpSetRoot, Target: p.full(id), Path: row.Mount, Props: nfs.root.props()}), nil
+			}
+			return append(plan, commit), nil
+--- FAIL: TestCrashAtEveryMutationConverges (0.00s)
+    --- FAIL: TestCrashAtEveryMutationConverges/create-nfs-root (0.00s)
+        --- FAIL: TestCrashAtEveryMutationConverges/create-nfs-root/k1-after (0.00s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+        --- FAIL: TestCrashAtEveryMutationConverges/create-nfs-root/k2-before (0.01s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+    --- FAIL: TestCrashAtEveryMutationConverges/restore-nfs-root-mode (0.01s)
+        --- FAIL: TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k2-before (0.01s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+        --- FAIL: TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k1-after (0.01s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+--- FAIL: TestPlanCreateVolumeNFSRoot (0.00s)
+    --- FAIL: TestPlanCreateVolumeNFSRoot/resume_sets_the_root,_then_commits (0.00s)
+        nfs_root_test.go:121: plan
+    --- FAIL: TestPlanCreateVolumeNFSRoot/only_what_is_asked (0.00s)
+        nfs_root_test.go:121: plan
+    --- FAIL: TestPlanCreateVolumeNFSRoot/unmounted:_mount,_then_the_root,_then_commit (0.00s)
+        nfs_root_test.go:121: plan
+FAIL	github.com/wommy/empty/internal/endpoint	0.164s
+
+=== M3 first pass commits (resume not forced): KILLED
+-- mutation in internal/endpoint/plan.go:
+- if (p.RequireMounted || nfs.ownsRoot()) && r.Kind == Filesystem {
++ if p.RequireMounted && r.Kind == Filesystem && false {
+--- FAIL: TestCrashAtEveryMutationConverges (0.00s)
+    --- FAIL: TestCrashAtEveryMutationConverges/create-nfs-root (0.01s)
+        --- FAIL: TestCrashAtEveryMutationConverges/create-nfs-root/k1-before (0.00s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+        --- FAIL: TestCrashAtEveryMutationConverges/create-nfs-root/k0-after (0.00s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+    --- FAIL: TestCrashAtEveryMutationConverges/restore-nfs-root-mode (0.01s)
+        --- FAIL: TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k1-before (0.01s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+        --- FAIL: TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k0-after (0.01s)
+            crash_test.go:365: end state after a crash differs from the uninterrupted run:
+--- FAIL: TestFileExportCreateRootOwner (0.00s)
+    export_root_contract_test.go:52: root {UID:0 GID:0 Mode:493}, want {UID:1000 GID:2000 Mode:1533}
+--- FAIL: TestPlanCreateVolumeNFSRoot (0.00s)
+    --- FAIL: TestPlanCreateVolumeNFSRoot/create (0.00s)
+        nfs_root_test.go:121: plan
+    --- FAIL: TestPlanCreateVolumeNFSRoot/create,_without_mounting_rights,_still_leaves_the_commit_to_the_resume (0.00s)
+        nfs_root_test.go:121: plan
+FAIL	github.com/wommy/empty/internal/endpoint	0.122s
+
+=== M4 symlinks followed: KILLED
+-- mutation in internal/endpoint/root_linux.go:
+- Resolve: unix.RESOLVE_NO_SYMLINKS | unix.RESOLVE_NO_MAGICLINKS,
++ Resolve: 0,
+--- FAIL: TestLocalRoot (0.02s)
+    --- FAIL: TestLocalRoot/symlink_on_the_path (0.00s)
+        root_linux_test.go:102: <nil>, want code 9
+FAIL	github.com/wommy/empty/internal/endpoint	0.030s
+
+=== M5 any dataset's mount accepted: KILLED
+-- mutation in internal/endpoint/root_linux.go:
+- m.fstype != "zfs" || m.source != dataset || 
++ m.fstype != "zfs" || 
+--- FAIL: TestLocalRoot (0.01s)
+    --- FAIL: TestLocalRoot/another_dataset (0.00s)
+        root_linux_test.go:102: <nil>, want code 9
+FAIL	github.com/wommy/empty/internal/endpoint	0.018s
+
+=== M6 device not checked: KILLED
+-- mutation in internal/endpoint/root_linux.go:
+- m.root != "/" ||
+		unix.Major(st.Dev) != m.major || unix.Minor(st.Dev) != m.minor {
++ m.root != "/" {
+--- FAIL: TestLocalRoot (0.03s)
+    --- FAIL: TestLocalRoot/another_device (0.00s)
+        root_linux_test.go:102: <nil>, want code 9
+FAIL	github.com/wommy/empty/internal/endpoint	0.034s
+
+=== M7 presence lost on the wire (unset reads as 0): KILLED
+-- mutation in internal/server/server.go:
+- UID: n.Uid, GID: n.Gid, Mode: n.Mode}
++ UID: &[]uint32{n.GetUid()}[0], GID: &[]uint32{n.GetGid()}[0], Mode: &[]uint32{n.GetMode()}[0]}
+--- FAIL: TestNFSRootOwnerPresence (0.01s)
+    root_test.go:46: root changes ["tank/vols/v0 0 0 0" "tank/vols/v1 0 0 770" "tank/vols/v2 0 0 0"], want ["tank/vols/v0 0 -1 -1" "tank/vols/v1 -1 -1 770"]
+FAIL	github.com/wommy/empty/internal/server	0.023s
+--- FAIL: TestNFS_N11_RootOwnership (0.02s)
+    nfs_root_test.go:39: gid: root {UID:0 GID:0 Mode:0}, want {UID:0 GID:0 Mode:493}
+    nfs_root_test.go:39: none: root {UID:0 GID:0 Mode:0}, want {UID:0 GID:0 Mode:493}
+FAIL	github.com/wommy/empty/internal/csi	0.039s
+
+=== M8 csi range unchecked: KILLED
+-- mutation in internal/csi/controller.go:
+- if err != nil || n > limit {
++ if err != nil {
+FAIL	github.com/wommy/empty/internal/csi [build failed]
+
+=== M9 endpoint range unchecked: KILLED
+-- mutation in internal/endpoint/root.go:
+- 		if *f.v > f.max {
++ 		if false {
+--- FAIL: TestFileExportCreateRootOwner (0.00s)
+    export_root_contract_test.go:82: code = 13 (op 1/1 set-root tank/k8s/vols/bad: planner bug: root attribute uid="2147483648": out of range), want 3
+--- FAIL: TestValidateNFSRoot (0.00s)
+    nfs_root_test.go:48: &{Clients:[10.20.0.0/24] ReadOnly:false Server: UID:0x4ee208a9f4c GID:<nil> Mode:<nil>}: <nil>, want InvalidArgument
+    nfs_root_test.go:48: &{Clients:[10.20.0.0/24] ReadOnly:false Server: UID:0x4ee20a34080 GID:<nil> Mode:<nil>}: <nil>, want InvalidArgument
+    nfs_root_test.go:48: &{Clients:[10.20.0.0/24] ReadOnly:false Server: UID:<nil> GID:0x4ee20a34084 Mode:<nil>}: <nil>, want InvalidArgument
+    nfs_root_test.go:48: &{Clients:[10.20.0.0/24] ReadOnly:false Server: UID:<nil> GID:<nil> Mode:0x4ee20a34088}: <nil>, want InvalidArgument
+    nfs_root_test.go:48: &{Clients:[10.20.0.0/24] ReadOnly:false Server: UID:<nil> GID:<nil> Mode:0x4ee20a3408c}: <nil>, want InvalidArgument
+FAIL	github.com/wommy/empty/internal/endpoint	0.011s
+

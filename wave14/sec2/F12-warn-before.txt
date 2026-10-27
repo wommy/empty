@@ -1,0 +1,10 @@
+# fix disabled: ["cmd/zfs-endpoint/main.go"]
+=== RUN   TestStartupWarnsOfATraversableMountpoint
+=== PAUSE TestStartupWarnsOfATraversableMountpoint
+=== CONT  TestStartupWarnsOfATraversableMountpoint
+    exposure_test.go:84: mode -rwxr-xr-x: warned false, want true: 
+    exposure_test.go:84: mode -rwx-----x: warned false, want true: 
+--- FAIL: TestStartupWarnsOfATraversableMountpoint (0.00s)
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.032s
+FAIL
