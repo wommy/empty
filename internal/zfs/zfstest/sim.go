@@ -1130,24 +1130,22 @@ func (s *Sim) set(args []string) error {
 		}
 	}
 	// zfs_prop_set_list_flags: a changelist per property, gathered and
-	// prefixed in order; only mountpoint and the share properties gather
-	// nodes (changelist_gather: any other list is empty, and its postfix
-	// does nothing, not even exportfs), and -u (CL_GATHER_DONT_UNMOUNT)
-	// does neither prefix nor postfix
+	// prefixed in order; only mountpoint, the share properties and
+	// canmount=off on a mounted filesystem gather nodes
+	// (changelist_gather: any other list is empty, and its postfix does
+	// nothing, not even exportfs), and -u (CL_GATHER_DONT_UNMOUNT) does
+	// neither prefix nor postfix
 	var cls []*clist
 	for _, p := range list {
 		switch {
 		case noMount || n.typ != zfs.TypeFilesystem:
-		case p.k == "mountpoint" || p.k == "sharenfs" || p.k == "sharesmb":
+		case p.k == "mountpoint" || p.k == "sharenfs" || p.k == "sharesmb",
+			p.k == "canmount" && p.v == "off" && n.mounted:
 			cl := s.gather(name, p.k)
 			if err := s.prefix(cl); err != nil {
 				return err
 			}
 			cls = append(cls, cl)
-		case p.k == "canmount" && p.v == "off":
-			// only canmount=off goes through the changelist, and it
-			// unmounts (zfs_prop_set_list_flags)
-			n.mounted = false
 		}
 	}
 	// zfs_set_prop_nvlist: the space properties are set one by one in
@@ -1681,7 +1679,8 @@ func (s *Sim) changelist(name, prop string) []string {
 }
 
 // clist is a gathered changelist (libzfs_changelist.c prop_changelist_t):
-// prop is cl_prop, real cl_realprop. Not modelled: cl_waslegacy (it
+// prop is cl_prop (canmount gathers as mountpoint), real cl_realprop.
+// Not modelled: cl_waslegacy (it
 // changes only the unshare branch of a filesystem whose mountpoint was
 // legacy or none, and its name ordering), the SMB unshare in prefix, and
 // zoned.
@@ -1696,6 +1695,9 @@ type clist struct {
 // gather is changelist_gather for real at name.
 func (s *Sim) gather(name, real string) *clist {
 	prop := real
+	if real == "canmount" {
+		prop = "mountpoint" // canmount=off unmounts as a mountpoint change does
+	}
 	cl := &clist{prop: prop, real: real, mounted: map[string]bool{}, shared: map[string]bool{}, needpost: map[string]bool{}}
 	cl.nodes = s.changelist(name, prop)
 	for _, k := range cl.nodes {
