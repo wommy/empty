@@ -66,7 +66,7 @@ cd "$vd/bin" || exit 1
 # they share the one nfsd and its export table
 shard() {
   awk 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
-       /^Test/ { g = ($1 ~ /^TestFileExport/) ? "TestFileExport*" : $1
+       /^(Test|Fuzz|Example)/ { g = ($1 ~ /^TestFileExport/) ? "TestFileExport*" : $1
                  wt[g] += ($1 in w) ? w[$1] : 0.1; m[g] = m[g] " " $1 }
        END { for (g in wt) printf "%.3f%s\n", wt[g], m[g] }' "$2" "$1" |
     sort -k1,1gr -k2,2 |
