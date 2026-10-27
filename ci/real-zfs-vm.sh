@@ -41,10 +41,14 @@ runcmd:
 EOF
 cloud-localds "$work/seed.img" "$work/user-data"
 
-qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -nographic \
+# -display none, not -nographic: QEMU refuses -nographic with -daemonize
+qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -display none \
   -drive file="$img",if=virtio -drive file="$work/seed.img",if=virtio,format=raw \
   -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
   -serial file:"$work/console.log" -daemonize -pidfile "$work/qemu.pid"
+
+# on failure, show what the guest printed: cloud-init and boot errors land there
+trap 'rc=$?; [ $rc -eq 0 ] || { echo "--- guest console (tail) ---"; tail -n 80 "$work/console.log" 2>/dev/null; }; [ -f "$work/qemu.pid" ] && kill "$(cat "$work/qemu.pid")" 2>/dev/null; exit $rc' EXIT
 
 common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
 vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
