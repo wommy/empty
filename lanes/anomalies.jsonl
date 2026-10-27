@@ -55,3 +55,4 @@
 {"t": "2026-10-27T18:04:06Z", "id": "A-admin-uid-check-untested", "state": "revised", "sev": "med", "note": "unit test does catch removal (synthetic peer); real gap is fail-open on !HasCred (latent on Linux) -> q-authz-close"}
 {"t": "2026-10-27T18:04:06Z", "id": "A-csi-role-can-export", "sev": "med", "state": "open", "note": "CreateVolume nfs_export lets CSI role export clones to any /16; contradicts ADR 0001"}
 {"t":"2026-10-27T18:05:19Z","id":"A-merge-semantic-rollback-vs-ops","sev":"low","state":"closed","note":"TestDependentCloneSaysUncommitted assumed failed clone persists; rollback removes it. Fixed test (fail rollback too). Lesson: parallel writers on CreateVolume error paths conflict semantically, not textually"}
+{"t":"2026-10-27T18:17:17Z","id":"A-publish-export-no-lock","state":"closed","note":"HEAD locks; mutant only. concurrent-publish test pins it"}

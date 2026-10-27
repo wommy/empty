@@ -1,0 +1,25 @@
+ci: normalize real-ZFS weights per part by its fork count
+
+A test measured in the loaded endpoint part read 2-4x higher than the
+same test in the light one, so the weights carried each part's
+contention, and the plan swung tests between parts at inflated weights.
+
+ci/real-zfs-weights.sh now scales each part's rows (one run, one part)
+to sum to that part's fork count, from the "forks N" line of the
+guest's load report (in the job log, or load.txt beside an artifact's
+TSV). Without one it falls back to the root cgroup's CPU-seconds, and
+with neither for every part it keeps raw seconds and says so. It then
+averages runs and rescales to the raw seconds' total. A parallel test,
+or one with parallel subtests, now weighs cost / nproc from both a TSV
+and an older log: the TSV gave the crash test its wall instead.
+
+Regenerated from runs 40550837228, 40551637783, 40551837712 and
+40552465632. Predicted part 0 share of the forks: 44.8% before, 50.1%
+after. The probation note on part 0's 1.3-1.5x inflation is superseded
+and dropped. The +0.10 for TestDestroyNeverHitsAReplacedDataset is
+re-derived on the new scale in its own note, and the sim-only rows stay
+0.00. ci/weightstest checks the script on two-part fixtures whose
+weights are known.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

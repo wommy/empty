@@ -1,3 +1,5 @@
+deploy/image_test.go
+deploy/readme_test.go
 ci/skiplint/main.go
 ci/skiplint/main_test.go
 ci/unitprobe/main.go
@@ -108,6 +110,8 @@ internal/endpoint/reconcile_contract_test.go
 internal/endpoint/reconcile_fuzz_test.go
 internal/endpoint/reconcile_test.go
 internal/endpoint/retry25_test.go
+internal/endpoint/rollback_plan_test.go
+internal/endpoint/rollback_test.go
 internal/endpoint/root.go
 internal/endpoint/root_linux.go
 internal/endpoint/root_linux_test.go
