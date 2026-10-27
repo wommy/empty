@@ -3,3 +3,7 @@ before         go test -race ./... #1             wall  48.51s  cpu   20.28s  rc
 before         race subset + plain rest #1        wall  45.01s  cpu   19.34s  rc=0
 before         build+link only (no run) #1        wall  15.01s  cpu    6.30s  rc=0
 before         go test ./... #2                   wall  18.51s  cpu    8.85s  rc=0
+before         go test -race ./... #2             wall  35.96s  cpu   20.16s  rc=0
+before         race subset + plain rest #2        wall  39.93s  cpu   18.93s  rc=0
+before         build+link only (no run) #2        wall  10.42s  cpu    6.11s  rc=0
+before         go vet ./...                       wall   2.58s  cpu    0.89s  rc=0

@@ -49,3 +49,10 @@
 {"ts": "2026-10-27T06:55:21Z", "id": "a06eea62fed2fe3ee", "from": "reported", "to": "triaged", "note": "10/10 probes reproduce at a02c5b0 (I ran them). 13 seams, 3 anomalies (S1,S2,S3). Planner items -> b-seam-plan; startup -> b-startup; S1 -> b-json-scan; S12 -> b-csi-bugs; S7 -> b-nfs-csi."}
 {"ts": "2026-10-27T06:55:21Z", "id": "a06eea62fed2fe3ee", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T06:55:31Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:56:31Z", "id": "a5b209d5d474fd39e", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:56:31Z", "id": "aa8e15be0fa34fc1a", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:56:32Z", "id": "a5b209d5d474fd39e", "from": "reported", "to": "triaged", "note": "Copy tests pass (I ran them). 31 sim bugs (30 fixed in sim.diff), 6 model bugs, 3 ambiguities; real replay never run. Anomaly: 2 existing tests locked in non-real behaviour. Expand 'shrink half-applies' is unreachable (Expand only grows), but grow can half-apply on ENOSPC refreservation and the retry no-ops -> queued as plausible. -> b-zfsdiff writer."}
+{"ts": "2026-10-27T06:56:32Z", "id": "a5b209d5d474fd39e", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:56:33Z", "id": "aa8e15be0fa34fc1a", "from": "reported", "to": "triaged", "note": "All 4 (D1,D4,D8,D12) DECISIVE+REVERSIBLE with pinned upstream evidence; zero owner questions. D8 keeps ADR 0004 static-first + pod-egress deny as F6 control. -> record in ADR 0001 v2 via b-security."}
+{"ts": "2026-10-27T06:56:33Z", "id": "aa8e15be0fa34fc1a", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:56:40Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

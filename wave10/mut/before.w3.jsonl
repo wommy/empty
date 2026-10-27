@@ -41,3 +41,4 @@
 {"id": 899, "file": "internal/zfs/errors.go", "line": 148, "op": "PATTERN_DROP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 44.9}
 {"id": 896, "file": "internal/zfs/errors.go", "line": 147, "op": "PATTERN_KIND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 62.8}
 {"id": 889, "file": "internal/zfs/errors.go", "line": 141, "op": "PATTERN_DROP", "status": "KILLED", "fails": ["TestBusyIsMappedByOperation", "TestClassify"], "pkgfail": ["FAIL"], "secs": 49.2}
+{"id": 887, "file": "internal/zfs/errors.go", "line": 137, "op": "PATTERN_DROP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 56.6}
