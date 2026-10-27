@@ -529,6 +529,10 @@ vm 'ok=; for _ in $(seq 1 1200); do if systemctl is-active -q nfs-server; then o
 mark "nfs-server active"
 vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
+# the shipped StorageClass mounts nfsvers=4.2 only (deploy/k8s/classes.yaml):
+# the nfsd it is tested against must serve it ("+4.2" in the list)
+vm 'v=$(sudo cat /proc/fs/nfsd/versions 2>/dev/null || true); echo "nfsd versions: $v"; case " $v " in *" +4.2 "*) ;; *) exit 1 ;; esac' \
+  || { echo "nfsd in the VM does not serve NFSv4.2, which the shipped StorageClass mounts" >&2; exit 1; }
 if [ -n "${stored:-}" ]; then
   touch "$cache/ok"
   echo "the stored guest booted and passed the version, module and nfsd checks: cacheable"

@@ -272,7 +272,10 @@ var upstreamNodeRBAC = map[string]func(grant){
 // Bidirectional propagation into the pods directory), and the others drop
 // every capability, keep a read-only root and mount the plugin socket
 // read-only; no container gets a service account token, and the node
-// account is granted no more than upstream grants its own.
+// account is granted no more than upstream grants its own. The pod
+// resolves with the node's resolver (dnsPolicy Default), never cluster DNS,
+// and tolerates no taint: no blanket toleration puts it on a tainted
+// control plane, and no affinity keeps it off the ZFS host (ADR 0009).
 func TestNodeDaemonSet(t *testing.T) {
 	t.Parallel()
 	objs := k8sObjects(t)
@@ -289,9 +292,26 @@ func TestNodeDaemonSet(t *testing.T) {
 		t.Error("automountServiceAccountToken is not false: the node containers call no Kubernetes API")
 	}
 	// csi-driver-nfs: "original nfs connection would be broken without
-	// hostNetwork"; ADR 0001 v2 D8 relies on mounts using host networking
-	if get(pod, "hostNetwork") != true || get(pod, "dnsPolicy") != "ClusterFirstWithHostNet" {
-		t.Errorf("hostNetwork %v, dnsPolicy %v: want true, ClusterFirstWithHostNet", get(pod, "hostNetwork"), get(pod, "dnsPolicy"))
+	// hostNetwork"; ADR 0001 v2 D8 relies on mounts using host networking.
+	// Default, not upstream's ClusterFirstWithHostNet: under cluster DNS
+	// (ndots:5, the cluster search list) a tenant Service could answer for
+	// the NFS server's name, and every node would mount its server
+	if get(pod, "hostNetwork") != true || get(pod, "dnsPolicy") != "Default" {
+		t.Errorf("hostNetwork %v, dnsPolicy %v: want true, Default", get(pod, "hostNetwork"), get(pod, "dnsPolicy"))
+	}
+	// no toleration at all: a blanket one (operator Exists, no key) also
+	// tolerates NoExecute and the control plane's NoSchedule; an operator
+	// adds the taints of nodes that need the plugin (the commented example)
+	if tol := get(pod, "tolerations"); tol != nil {
+		t.Errorf("tolerations %v: want none (ADR 0009); node.yaml carries a commented example", tol)
+	}
+	// the ZFS host stays eligible (ADR 0009, hyperconverged): nothing
+	// steers the DaemonSet by node but the OS
+	if a := get(pod, "affinity"); a != nil {
+		t.Errorf("affinity %v: the ZFS host stays eligible for the node plugin (ADR 0009)", a)
+	}
+	if sel, _ := get(pod, "nodeSelector").(map[string]any); len(sel) != 1 || sel["kubernetes.io/os"] != "linux" {
+		t.Errorf("nodeSelector %v: want kubernetes.io/os=linux only", sel)
 	}
 	if l := get(object(t, objs, "Namespace", namespace), "metadata", "labels", "pod-security.kubernetes.io/enforce"); l != "privileged" {
 		t.Errorf("namespace Pod Security enforce %v: baseline and restricted refuse a privileged node plugin", l)
@@ -452,6 +472,88 @@ func TestNodeDaemonSet(t *testing.T) {
 	for _, s := range []string{"2049", "AUTH_SYS", "ADR 0001"} {
 		if !strings.Contains(string(b), s) {
 			t.Errorf("node.yaml does not tell the operator about F6 (%q)", s)
+		}
+	}
+	if !strings.Contains(string(b), "      # tolerations:\n") {
+		t.Error("node.yaml has no commented example toleration for operators who need one")
+	}
+}
+
+// ownImage is this repository's own image: no release build publishes it
+// yet, so it alone is pinned by tag only (the TODO(digest) in
+// controller.yaml). Every other image in deploy/k8s is pinned by tag and
+// digest.
+const ownImage = "ghcr.io/wommy/zfs-csi"
+
+// images appends every container image named anywhere in v to out.
+func images(v any, out *[]string) {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			if s, ok := e.(string); ok && k == "image" {
+				*out = append(*out, s)
+				continue
+			}
+			images(e, out)
+		}
+	case []any:
+		for _, e := range x {
+			images(e, out)
+		}
+	}
+}
+
+// Every image in deploy/k8s is pinned by tag and digest, but this
+// repository's own; a tag has one digest everywhere it is used; and the
+// README's table lists exactly those tags and digests, so an operator
+// checking them reads what the manifests run.
+func TestImagePins(t *testing.T) {
+	t.Parallel()
+	var all []string
+	for _, o := range k8sObjects(t) {
+		images(o, &all)
+	}
+	if len(all) == 0 {
+		t.Fatal("no images in deploy/k8s")
+	}
+	pins := map[string]string{} // image:tag -> sha256:...
+	for _, image := range all {
+		ref, digest, _ := strings.Cut(image, "@")
+		if strings.HasPrefix(ref, ownImage+":") && digest == "" && versionTag.MatchString(image) {
+			continue
+		}
+		if !pinnedDigest.MatchString(image) {
+			t.Errorf("image %q not pinned by tag and digest", image)
+			continue
+		}
+		if d, ok := pins[ref]; ok && d != digest {
+			t.Errorf("%s pinned to two digests: %s and %s", ref, d, digest)
+		}
+		pins[ref] = digest
+	}
+
+	b, err := os.ReadFile(filepath.Join("..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := regexp.MustCompile("^\\| `([^`@]+:v[^`@]+)` \\| `(sha256:[0-9a-f]{64})` \\|")
+	table := map[string]string{}
+	for _, l := range strings.Split(string(b), "\n") {
+		if m := row.FindStringSubmatch(l); m != nil {
+			if _, dup := table[m[1]]; dup {
+				t.Errorf("README lists %s twice", m[1])
+			}
+			table[m[1]] = m[2]
+		}
+	}
+	for ref, d := range pins {
+		if table[ref] != d {
+			t.Errorf("README image table: %s at %q, the manifests pin %s", ref, table[ref], d)
+		}
+	}
+	for ref := range table {
+		if _, ok := pins[ref]; !ok {
+			t.Errorf("README image table lists %s, which no manifest uses", ref)
 		}
 	}
 }

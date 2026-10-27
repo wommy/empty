@@ -152,6 +152,11 @@ func TestUnitNFSDropIn(t *testing.T) {
 			t.Errorf("%s: %q is a valid address; ship a placeholder the endpoint refuses", example, a)
 		}
 	}
+	// the node plugin resolves the server with the node's resolver: a name
+	// without the trailing dot goes through a search list first
+	if !strings.Contains(string(b), "trailing dot") {
+		t.Errorf("%s does not tell the operator to write an address or an FQDN with a trailing dot", example)
+	}
 	// a template, not loaded as is: systemd reads only *.conf drop-ins
 	if strings.HasSuffix(example, ".conf") {
 		t.Errorf("%s would be loaded unedited", example)
@@ -284,6 +289,12 @@ func TestManifests(t *testing.T) {
 	drv := object(t, objs, "CSIDriver", zcsi.DefaultDriverName)
 	if get(drv, "spec", "attachRequired") != false || get(drv, "spec", "podInfoOnMount") != false {
 		t.Errorf("CSIDriver spec %v: want attachRequired and podInfoOnMount false", get(drv, "spec"))
+	}
+	// ownership is the endpoint's, server-side (nfs.uid/gid/mode, ADR
+	// 0004): kubelet's fsGroup chown would fail under root_squash, and the
+	// default policy turns it on for a class that sets an fstype
+	if p := get(drv, "spec", "fsGroupPolicy"); p != "None" {
+		t.Errorf("CSIDriver fsGroupPolicy %v, want None", p)
 	}
 	if get(object(t, objs, "StorageClass", className), "provisioner") != zcsi.DefaultDriverName ||
 		get(object(t, objs, "VolumeSnapshotClass", className), "driver") != zcsi.DefaultDriverName {

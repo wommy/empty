@@ -97,6 +97,25 @@ These claims were made during the work and then disproved. They're kept here so 
 - **"A clone that already exists is done."** It skipped the ownership check and adopted a racing or foreign dataset.
 - **"A missing parent makes every volume absent."** Only a whole-parent scan saw this. A missing parent is now `UNAVAILABLE` everywhere.
 
+## Deploying the node side
+
+`deploy/k8s/node.yaml` runs csi-driver-nfs's node plugin on every untainted node (ADR 0009); it mounts what the StorageClass's export allows. Before serving tenants:
+
+- **Name the NFS server by an IPv4 address or an FQDN with a trailing dot** (`-nfs-server=nas.example.com.`, `nfs.conf.example`). The node plugin resolves it with the node's resolver (`dnsPolicy: Default`), never cluster DNS, where a tenant-created Service could answer for a short name. The trailing dot keeps the node's own search list out too. The name is recorded in every PV and never changes (ADR 0004 Q1).
+- **Firewall NFS on the ZFS host to the node addresses.** Every host, node and hostNetwork pod inside an export's networks can mount every exported volume as any uid but 0 (AUTH_SYS; ADR 0004 Consequences). Keep `nfs.clients` as narrow as the nodes allow, and accept 2049/tcp on the ZFS host only from the node addresses, for example an nftables set of /32s: `nft add rule inet filter input tcp dport 2049 ip saddr != @k8s_nodes drop`. The class mounts with `nfsvers=4.2`, so 111 and 20048 (NFSv3) can stay closed. Deny pod egress to 2049 as well (ADR 0001 v2 D8).
+- **Tainted nodes get no node plugin.** Add the taint to the commented `tolerations` in `node.yaml` for nodes whose pods use these volumes; the ZFS host stays eligible unless you taint it (ADR 0009).
+
+Images are pinned by tag and by image index digest, the digests kubernetes/k8s.io promotes for these tags (`registry.k8s.io/images/k8s-staging-sig-storage/images.yaml` at the commit in the last column; check one with `crane digest <image>:<tag>`). `deploy/k8s_test.go` `TestImagePins` checks this table against every manifest: each image pinned by digest, one digest per tag. `ghcr.io/wommy/zfs-csi` has no published image yet, so it alone is tag-only (a TODO in `controller.yaml`).
+
+| Image | Digest | Used in | images.yaml at |
+|---|---|---|---|
+| `registry.k8s.io/sig-storage/nfsplugin:v4.13.6` | `sha256:40663419bac36836b8e4ef6929199e35920e28f6a74a46892e1c125ea5f0ce0b` | node.yaml | 56620372 |
+| `registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0` | `sha256:f9de845b170155199f2a2a3f9531cf13d78e31235e9db6b6582a8b0db0a50dad` | node.yaml | 56620372 |
+| `registry.k8s.io/sig-storage/livenessprobe:v2.19.0` | `sha256:06da0d5b8908072f2e4522692aee8dc119fba7247a9658497e1153992cd777e9` | node.yaml, controller.yaml | 56620372 |
+| `registry.k8s.io/sig-storage/csi-provisioner:v5.2.0` | `sha256:d5e46da8aff7d73d6f00c761dae94472bcda6e78f4f17b3802dc89d44de0111b` | controller.yaml | 28a29bed |
+| `registry.k8s.io/sig-storage/csi-resizer:v1.13.1` | `sha256:2a0b297cc7c4cd376ac7413df339ff2fdaa1ec9d099aed92b5ea1f031ef7f639` | controller.yaml | 28a29bed |
+| `registry.k8s.io/sig-storage/csi-snapshotter:v8.2.0` | `sha256:dd788d79cf4c1b8edee6d9b80b8a1ebfc51a38a365c5be656986b129be9ac784` | controller.yaml | 28a29bed |
+
 ## Testing
 
 ```

@@ -11,14 +11,32 @@
 #     Shipped as a placeholder that does not parse, so every PVC fails
 #     with ProvisioningFailed naming it until you replace <node-subnet>/24
 #     with your node network. Never a plausible stand-in such as a TEST-NET
-#     CIDR: it would export to nobody, and pods would hang at mount.
+#     CIDR: it would export to nobody, and pods would hang at mount. Keep it
+#     as narrow as your nodes allow: every host, node and hostNetwork pod in
+#     these networks can mount every volume exported to them, as any uid
+#     but 0 (AUTH_SYS; ADR 0004). Firewall 2049 on the ZFS host to the node
+#     addresses (README, "Deploying the node side").
 #   - nfs.server: one of the endpoint's -nfs-server addresses (default the
-#     first);
+#     first). Advertise an IPv4 address or an FQDN with a trailing dot
+#     ("nas.example.com."): the node plugin resolves it with the node's
+#     resolver (node.yaml, dnsPolicy Default), and a trailing dot keeps any
+#     search list from turning it into another host's name;
 #   - nfs.uid, nfs.gid (decimal) and nfs.mode (octal, e.g. "2775"): the
 #     volume root's owner and mode, set before export (root_squash keeps
-#     anyone from changing them later);
+#     anyone from changing them later). A pod's fsGroup has no effect
+#     (csidriver.yaml, fsGroupPolicy None): a non-root pod needs nfs.gid
+#     set to one of its groups and a setgid nfs.mode such as 2775;
 #   - reserve (filesystems: refreservation = capacity);
 #   - sparse (zvols, only with -enable-block; never in NFS mode).
+#
+# mountOptions: NFSv4.2 only, so no client falls back to v3 (which also
+# needs rpcbind 111 and mountd 20048 reachable; with 4.2 pinned the server
+# may turn v3 off and the firewall needs 2049 alone); hard, so I/O waits out
+# a server restart instead of returning EIO; nosuid and nodev, so a setuid
+# binary or device node on a volume grants nothing in the pods that mount
+# it. Not noexec: volumes may hold programs. The ZFS host's nfsd must serve
+# 4.2 (/proc/fs/nfsd/versions shows +4.2: the default of the kernel and
+# nfs-utils CI tests with).
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -27,6 +45,11 @@ provisioner: zfs-endpoint.wommy.github.io
 parameters:
   nfs.clients: "<node-subnet>/24"
   reserve: "false"
+mountOptions:
+  - nfsvers=4.2
+  - hard
+  - nosuid
+  - nodev
 reclaimPolicy: Delete
 allowVolumeExpansion: true
 volumeBindingMode: Immediate

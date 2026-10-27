@@ -13,7 +13,21 @@
 #     mount, ADR 0008); only nfs is privileged, as upstream;
 #   - the liveness probe on localhost:29663, not upstream's 29653: both
 #     use the host network, so a node also running upstream csi-driver-nfs
-#     would see the two collide.
+#     would see the two collide;
+#   - dnsPolicy Default, not upstream's ClusterFirstWithHostNet: mount.nfs
+#     resolves the NFS server name with the node's resolver, never cluster
+#     DNS. Under ClusterFirstWithHostNet (ndots:5, the cluster search list)
+#     a short name such as nas.lan is tried as nas.lan.svc.cluster.local
+#     first: Service nas in namespace lan, which a tenant can create, and
+#     every node would then mount that tenant's server for every volume.
+#     Nothing here needs cluster DNS: nfsplugin, the registrar and the
+#     liveness probe talk to kubelet and to each other over the plugin
+#     socket and localhost, and call no Kubernetes API. Even so, advertise
+#     the NFS server as an IPv4 address or an FQDN with a trailing dot
+#     (nfs.conf.example), so no search list ever applies;
+#   - no blanket toleration (upstream tolerates every taint with
+#     operator: Exists): this privileged pod runs only on nodes without
+#     taints, never on a tainted control plane by default (ADR 0009).
 #
 # Images are pinned by tag and digest (the image index digest), the digests
 # kubernetes/k8s.io promotes for these tags
@@ -31,7 +45,10 @@
 #     mounts below use the host network, so they are unaffected;
 #   - Pod Security baseline or stricter on tenant namespaces (no hostPath,
 #     no host network, no privileged pods there);
-#   - a host firewall on the storage host limiting 2049 to the node subnet.
+#   - a host firewall on the storage host limiting 2049 to the node
+#     addresses (a set of /32s), not the node subnet, and nfs.clients as
+#     narrow as the nodes allow: every host, node and hostNetwork pod inside
+#     an export's networks can mount every exported volume (ADR 0004).
 #
 # The namespace is Pod Security privileged (rbac.yaml): this pod is
 # privileged, uses the host network and mounts hostPaths.
@@ -63,7 +80,9 @@ spec:
       # upstream: "original nfs connection would be broken without
       # hostNetwork setting"
       hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      # the node's resolv.conf, not cluster DNS: a tenant Service must never
+      # answer for the NFS server's name (see the header)
+      dnsPolicy: Default
       serviceAccountName: zfs-csi-node
       automountServiceAccountToken: false
       priorityClassName: system-node-critical
@@ -72,9 +91,14 @@ spec:
           type: RuntimeDefault
       nodeSelector:
         kubernetes.io/os: linux
-      # on every node a pod may use a volume from
-      tolerations:
-        - operator: Exists
+      # Every untainted node, the ZFS host included (it is a node too, ADR
+      # 0006; ADR 0009 keeps it eligible). No blanket toleration: a tainted
+      # node (the control plane, a dedicated pool) gets no privileged NFS
+      # mounter unless you add its taint here, for example:
+      # tolerations:
+      #   - key: node-role.kubernetes.io/control-plane
+      #     operator: Exists
+      #     effect: NoSchedule
       containers:
         - name: nfs
           image: registry.k8s.io/sig-storage/nfsplugin:v4.13.6@sha256:40663419bac36836b8e4ef6929199e35920e28f6a74a46892e1c125ea5f0ce0b
