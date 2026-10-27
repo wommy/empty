@@ -791,7 +791,11 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	if err != nil || len(plan) == 0 {
 		return err
 	}
-	if err := e.apply(ctx, plan); err != nil {
+	apply := e.apply
+	if !row.Mounted {
+		apply = e.applyNoMount
+	}
+	if err := apply(ctx, plan); err != nil {
 		return err
 	}
 	if live, err = e.exportTable(ctx, t, volID); err != nil {
@@ -799,7 +803,27 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	}
 	if _, ok := live.Lookup(row.Mount, h); ok {
 		return errorf(Unavailable, "sharenfs on %s is updated, but the NFS export table still serves %s to %s: "+
-			"zfs does not report exportfs failures; check that the NFS server is running", row.Name, row.Mount, h)
+			"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, h)
+	}
+	return nil
+}
+
+// applyNoMount applies an export plan to an unmounted filesystem with
+// `zfs set -u`. A plain set of sharenfs runs the changelist postfix, which
+// mounts a canmount=on filesystem and shares it: an Unpublish would undo
+// an operator's deliberate unmount and start serving the volume. -u still
+// changes the property, so a later `zfs mount` shares the revoked list,
+// never the old one. (Refusing instead would block every detach for as
+// long as the volume stays unmounted; skipping the sharenfs change would
+// re-grant the revoked client on the next mount.)
+func (e *Endpoint) applyNoMount(ctx context.Context, plan Plan) error {
+	for i, op := range plan {
+		if op.Kind != OpSet {
+			return &Error{Code: Internal, Msg: fmt.Sprintf("op %d/%d: %v on %s is not a property change", i+1, len(plan), op.Kind, op.Target)}
+		}
+		if err := e.zfs.SetNoMount(ctx, op.Target, op.Props); err != nil {
+			return opErr(err, i, plan)
+		}
 	}
 	return nil
 }

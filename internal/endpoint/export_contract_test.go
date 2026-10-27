@@ -349,6 +349,51 @@ func TestFileExportResolvesSymlinks(t *testing.T) {
 	}
 }
 
+// An operator unmounted the volume (canmount stays on). A plain
+// `zfs set sharenfs` would mount and serve it again (adv4 F8); Unpublish
+// uses `zfs set -u`, so it stays unmounted, and the next mount shares the
+// revoked list. Publish asks for the volume to be served, so it lets zfs
+// mount it.
+func TestFileExportUnmountedVolume(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []string{"10.0.0.1", "10.0.0.2"} {
+		if _, err := ep.PublishFileExport(ctx, "pvc", c, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sim.Unmount(v.Dataset)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if m := h.Prop(v.Dataset, "mounted"); m != "no" {
+		t.Fatalf("unpublish mounted the volume: mounted=%s", m)
+	}
+	if val := h.Prop(v.Dataset, "sharenfs"); val != "rw=10.0.0.2/32" {
+		t.Fatalf("sharenfs %q", val)
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.2"); ok {
+		t.Fatal("unmounted volume is served")
+	}
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.3", true); err != nil {
+		t.Fatalf("publish of an unmounted canmount=on volume: %v", err)
+	}
+	if m := h.Prop(v.Dataset, "mounted"); m != "yes" {
+		t.Fatalf("publish did not mount: mounted=%s", m)
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); ok {
+		t.Fatal("revoked client served after the mount")
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.2"); !ok {
+		t.Fatal("remaining client not served after the mount")
+	}
+}
+
 // A volume adopted from democratic-csi (adoption mode) inherits sharenfs;
 // a parent shared to everyone exports it to "*". The first publish pins a
 // local value, and a sharenfs someone else set locally is refused, not
