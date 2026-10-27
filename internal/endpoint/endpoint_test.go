@@ -256,18 +256,23 @@ func TestDeleteVolume(t *testing.T) {
 	}
 }
 
+// mib64 sizes thick zvols: small enough that the real leg's parallel tests
+// fit the 10G pool (thick zvols reserve their full size), large enough to
+// be many volblocks.
+const mib64 = 64 << 20
+
 func TestSnapshotLifecycleWithClones(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
 		t.Fatal(err)
 	}
 	s, err := ep.CreateSnapshot(ctx, "snap-1", "src")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.ID != "src@snap-1" || s.SizeBytes != 1<<30 || !s.ReadyToUse {
+	if s.ID != "src@snap-1" || s.SizeBytes != mib64 || !s.ReadyToUse {
 		t.Fatalf("snapshot %+v", s)
 	}
 	if again, err := ep.CreateSnapshot(ctx, "snap-1", "src"); err != nil || again != s {
@@ -275,18 +280,18 @@ func TestSnapshotLifecycleWithClones(t *testing.T) {
 	}
 
 	// names are global
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "other", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "other", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = ep.CreateSnapshot(ctx, "snap-1", "other")
 	wantCode(t, err, endpoint.AlreadyExists)
 
 	// restore with growth
-	c, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "restored", Kind: endpoint.Block, CapacityBytes: 2 << 30, SourceSnapshotID: "src@snap-1"})
+	c, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "restored", Kind: endpoint.Block, CapacityBytes: 2 * mib64, SourceSnapshotID: "src@snap-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.CapacityBytes != 2<<30 || c.SourceType != "snapshot" || c.SourceID != "src@snap-1" {
+	if c.CapacityBytes != 2*mib64 || c.SourceType != "snapshot" || c.SourceID != "src@snap-1" {
 		t.Fatalf("clone %+v", c)
 	}
 
@@ -348,15 +353,15 @@ func TestExpand(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep, _ := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "e", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "e", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
 		t.Fatal(err)
 	}
-	v, err := ep.ExpandVolume(ctx, "e", 3<<30+1, 0)
-	if err != nil || v.CapacityBytes != 3<<30+16384 {
+	v, err := ep.ExpandVolume(ctx, "e", 3*mib64+1, 0)
+	if err != nil || v.CapacityBytes != 3*mib64+16384 {
 		t.Fatalf("expand %+v %v", v, err)
 	}
-	v, err = ep.ExpandVolume(ctx, "e", 1<<30, 0)
-	if err != nil || v.CapacityBytes != 3<<30+16384 {
+	v, err = ep.ExpandVolume(ctx, "e", mib64, 0)
+	if err != nil || v.CapacityBytes != 3*mib64+16384 {
 		t.Fatalf("shrink must be a no-op: %+v %v", v, err)
 	}
 	_, err = ep.ExpandVolume(ctx, "missing", 1, 0)
@@ -455,10 +460,10 @@ func TestThickCloneRetryIsIdempotent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep, _ := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
 		t.Fatal(err)
 	}
-	req := endpoint.CreateVolumeRequest{Name: "c", Kind: endpoint.Block, CapacityBytes: 1 << 30, SourceVolumeID: "s"}
+	req := endpoint.CreateVolumeRequest{Name: "c", Kind: endpoint.Block, CapacityBytes: mib64, SourceVolumeID: "s"}
 	for i := 0; i < 2; i++ {
 		if _, err := ep.CreateVolume(ctx, req); err != nil {
 			t.Fatalf("attempt %d: %v", i, err)
