@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs inside the real-ZFS guest, as root, from the directory ci/real-zfs-vm.sh
-# copied the test binaries, this script and ci/real-zfs-weights.txt into.
+# copied the test binaries, this script and (endpoint) endpoint.plan into.
 # Runs the real-pool tests as concurrent shards, each on its own pool, and
 # leaves their -test.v logs and -test.list output in out/, plus
 # out/test-times.tsv: per top-level test its own time, its time with
@@ -14,9 +14,13 @@
 # ci/real-zfs-suites.txt) names the binaries this guest runs: endpoint, csi
 # or both. Each CI job runs one suite on its own runner (ADR 0005).
 #
-# Shards: the endpoint binary split three ways by ci/real-zfs-weights.txt,
-# with TestPropertyRoundTrip in all three, each running a third of its rows
-# (PROPRT_SHARD; ci/check-split.sh checks that every row ran exactly once)
+# Shards: the endpoint binary's shards of this job's part, from
+# endpoint.plan (ci/real-zfs-plan.sh, made on the host from
+# ci/real-zfs-weights.txt): ZFSVM_EP_PART=<p>/<P> runs shards p*S..p*S+S-1
+# of P*S, S=ZFSVM_EP_PER (3), so a suite split over P jobs (ci.yml) runs
+# each shard in one of them. TestPropertyRoundTrip is in every shard, each
+# running the rows i mod P*S == shard (PROPRT_SHARD; ci/check-split.sh
+# checks that every row ran exactly once)
 # (the NFS tests, TestFileExport* and TestNFSReplay, kept together: one
 # nfsd, one export table; the replay writes malformed zfs.exports lines,
 # which end exportfs's read of the file for every dataset; nightly, with
@@ -50,32 +54,15 @@ for p in $pkgs; do
   "./$p.test" -test.list '.*' >"$out/$p.list"
 done
 
-# shard <list> <weights> <n>: "<shard> <test>" per top-level test, fuzz
-# target (its seed corpus) and example, as check-skips counts them; longest
-# first onto the lightest shard. A split test (split=) runs in every shard,
-# each on its own part of its subtests (TestPropertyRoundTrip reads
-# PROPRT_SHARD=<i>/<n>, set below), so its weight goes 1/n to each shard
-# before the rest are placed
-nfs='^(TestFileExport|TestNFSReplay$)'
-[ "${ZFSDIFF_FULL:-}" = 1 ] && nfs='^(TestFileExport|TestNFSReplay$|TestZFSDiffReplay$)'
-split='^TestPropertyRoundTrip$'
-shard() {
-  awk -v nfs="$nfs" -v sp="$split" 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
-       /^(Test|Fuzz|Example)/ { x = ($1 in w) ? w[$1] : 0.1
-                 if ($1 ~ sp) { printf "S %.3f %s\n", x, $1; next }
-                 g = ($1 ~ nfs) ? "nfs" : $1
-                 wt[g] += x; m[g] = m[g] " " $1 }
-       END { for (g in wt) printf "%.3f%s\n", wt[g], m[g] }' "$2" "$1" |
-    sort -k1,1gr -k2,2 |
-    awk -v n="$3" '$1 == "S" { for (i = 0; i < n; i++) { load[i] += $2 / n; print i, $3 }; next }
-                   { g[++k] = $0 }
-                   END { for (x = 1; x <= k; x++) {
-                           c = split(g[x], f, " "); b = 0
-                           for (i = 1; i < n; i++) if (load[i] + 0 < load[b] + 0) b = i
-                           load[b] += f[1]; for (j = 2; j <= c; j++) print b, f[j] } }'
-}
-ep_shards=3
-! has endpoint || shard "$out/endpoint.list" real-zfs-weights.txt "$ep_shards" >"$out/endpoint.plan"
+# the endpoint plan (ci/real-zfs-plan.sh): "<shard> <test>" over all P*S
+# shards; this job runs shards p*S .. p*S+S-1
+ep_part=${ZFSVM_EP_PART:-0/1} ep_per=${ZFSVM_EP_PER:-3}
+ep_p=${ep_part%/*} ep_parts=${ep_part#*/}
+ep_shards=$((ep_parts * ep_per))
+if has endpoint; then
+  [ -s endpoint.plan ] || { echo "no endpoint.plan beside the binaries"; exit 2; }
+  cp endpoint.plan "$out/endpoint.plan"
+fi
 
 rc=0
 t=(-test.count=1 -test.v -test.timeout=4m)
@@ -150,7 +137,7 @@ run() {
 # zfs(8) and the kernel more than on CPU, and a shard's solo tail ran 4 at a
 # time on 4 vCPUs (run 40494213342); the csi shards are mostly sequential
 if has endpoint; then
-  for i in $(seq 0 $((ep_shards - 1))); do
+  for i in $(seq $((ep_p * ep_per)) $((ep_p * ep_per + ep_per - 1))); do
     re=$(awk -v s="$i" '$1 == s { printf "%s%s", sep, $2; sep = "|" }' "$out/endpoint.plan")
     [ -n "$re" ] || continue
     run "endpoint.$i" "zep$i" env PROPRT_SHARD="$i/$ep_shards" \
@@ -209,7 +196,9 @@ mode=pr
 [ -z "$ZFSDIFF_FULL$ZFS_CRASH_FULL" ] || mode=full
 {
   echo "# shard test status parallel own_s cost_s wall_s subtests (ci/test-times.awk)"
-  echo "# nproc=$(nproc) mode=$mode"
+  # run: the run (and attempt) whose parts sum into one measurement
+  # (ci/real-zfs-weights.sh); part: which part of the endpoint plan
+  echo "# nproc=$(nproc) mode=$mode run=${ZFSVM_RUN:-local} part=$ep_part"
   for f in "$out"/*.marks; do
     awk -v shard="$(basename "$f" .marks)" -f test-times.awk "$f"
   done

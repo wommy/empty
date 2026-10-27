@@ -61,6 +61,13 @@
 # csi): only its test binaries are built, run and checked. ci.yml and
 # nightly.yml run one job per suite, each with its own VM; the default,
 # all, runs every suite in one guest.
+# ZFSVM_PART=<p>/<P> (default 0/1) runs part p of the endpoint suite split
+# over P jobs: the host lists the endpoint binary and plans P*3 shards
+# (ci/real-zfs-plan.sh, a pure function of the list and
+# ci/real-zfs-weights.txt), the guest runs shards 3p..3p+2, and
+# ci/check-split.sh proves the plan a partition of the list over all P parts
+# and this part's logs exactly its shards. ci.yml runs endpoint as 0/2 and
+# 1/2 (ADR 0005); only the endpoint suite splits.
 # ZFSVM_PROVISION_ONLY=1 stops after the checks: no build, no tests
 # (cache-warm.yml stores a guest with it).
 # ZFSDIFF_FULL=1 and ZFS_CRASH_FULL=1 (nightly.yml) reach the guest's tests.
@@ -88,6 +95,14 @@ mapfile -t pkgs < <(awk -v s="$suite" '!/^#/ && NF && (s == "all" || $1 == s) { 
 unit=
 case $suite in csi | all) unit=1 ;; esac
 has() { case " ${pkgs[*]} " in *" $1 "*) return 0 ;; esac; return 1; }
+# the endpoint suite's part (ci/real-zfs-plan.sh): 3 shards per part
+part=${ZFSVM_PART:-0/1}
+per=3
+[[ $part =~ ^([0-9]+)/([1-9][0-9]*)$ ]] && [ "${BASH_REMATCH[1]}" -lt "${BASH_REMATCH[2]}" ] ||
+  { echo "ZFSVM_PART=$part: want <p>/<P> with 0 <= p < P" >&2; exit 2; }
+parts=${BASH_REMATCH[2]}
+[ "$parts" = 1 ] || [ "$suite" = endpoint ] ||
+  { echo "ZFSVM_PART=$part: only the endpoint suite splits, not $suite" >&2; exit 2; }
 base="https://cloud-images.ubuntu.com/$series/$build"
 img="$work/$series.img"
 
@@ -230,6 +245,14 @@ if [ -z "${ZFSVM_PROVISION_ONLY:-}" ]; then
       unitbuild=$!
     fi
     CGO_ENABLED=0 go test -c -o "$work/" "${pkgs[@]/#/./internal/}"
+    # the endpoint plan, from the binary's list (static; -test.list runs no
+    # test) and the weights: every part of the suite computes the same plan
+    # from the same commit (ci/real-zfs-plan.sh), the guest runs this
+    # part's shards of it
+    if has endpoint; then
+      "$work/endpoint.test" -test.list '.*' >"$work/endpoint.list"
+      ci/real-zfs-plan.sh "$work/endpoint.list" ci/real-zfs-weights.txt "$parts" "$per" >"$work/endpoint.plan"
+    fi
     [ -z "$unitbuild" ] || wait "$unitbuild"
     mark "test binaries built"
   ) &
@@ -319,7 +342,7 @@ echo "$ver"
 serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
 running=$(vm 'uname -r')
 {
-  echo "### real ZFS VM: $series/$build, suite $suite (${pkgs[*]})"
+  echo "### real ZFS VM: $series/$build, suite $suite (${pkgs[*]})$([ "$parts" = 1 ] || echo ", part $part")"
   echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
   echo "- kernel: \`$running\` ($([ -n "$noinitrd" ] && echo "direct kernel boot, no initrd" || echo "BIOS, GRUB and the disk's initrd"))"
   echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
@@ -378,15 +401,16 @@ wait "$build" || { echo "building the test binaries failed" >&2; exit 1; }
 build=
 bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
+has endpoint && bins+=("$work/endpoint.plan")
 [ -z "$unit" ] || bins+=("$work/zfs-endpoint" "$work/unitprobe" ci/real-zfs-unit.sh deploy/systemd/zfs-endpoint@.service \
   deploy/systemd/zfs-endpoint@.service.d/hardening.conf)
-scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci/test-times.awk ci@127.0.0.1:
+scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/test-times.awk ci@127.0.0.1:
 rc=0
 # concurrent shards on tmpfs-backed pools, three per suite (ci/real-zfs-guest.sh);
 # the logs come back per shard and are merged per check below.
 # ZFSDIFF_FULL=1 replays the whole zfsdiff corpus, ZFS_CRASH_FULL=1 runs
 # every crash point on the real pool (both nightly.yml)
-vm "sudo env ZFSVM_PKGS='${pkgs[*]}' ZFSVM_UNIT=$unit ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
+vm "sudo env ZFSVM_PKGS='${pkgs[*]}' ZFSVM_UNIT=$unit ZFSVM_EP_PART=$part ZFSVM_EP_PER=$per ZFSVM_RUN=${GITHUB_RUN_ID:-local}.${GITHUB_RUN_ATTEMPT:-1} ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
 mkdir -p "$work/out"
 scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
 o=$work/out
@@ -409,12 +433,25 @@ echo "::group::systemd-analyze"
 wait "$analyze" || true
 cat "$work/systemd-analyze.txt" 2>/dev/null || true
 echo "::endgroup::"
-# what check-skips reads: endpoint = the union of its shards (it must
-# cover endpoint.list); csi-mount = the non-sanity tests plus csi-sanity on
+# what check-skips reads: endpoint = the union of this part's shards (it
+# must cover endpoint.part.list); csi-mount = the non-sanity tests plus csi-sanity on
 # filesystems (it must cover csi.list); csi-block = csi-sanity on zvols
+# endpoint, split over parts: this part's tests (endpoint.part.list) and
+# the other parts' (endpoint.other.list), from the plan; the guest's own
+# list must be the host's, which the plan was made from
+eplogs=()
 if has endpoint; then
-  cat "$o"/endpoint.[0-9].log >"$work/endpoint.log" || rc=1
-  cp "$o/endpoint.list" "$work/" || rc=1
+  lo=$((${part%/*} * per)) hi=$((${part%/*} * per + per))
+  for i in $(seq "$lo" $((hi - 1))); do eplogs+=("$o/endpoint.$i.log"); done
+  cat "${eplogs[@]}" >"$work/endpoint.log" || rc=1
+  cmp -s "$o/endpoint.list" "$work/endpoint.list" ||
+    { echo "::error::vm/endpoint: the guest's endpoint.list differs from the host's, which the plan was made from"; rc=1; }
+  cp "$work/endpoint.plan" "$o/" || rc=1
+  : >"$work/endpoint.part.list"
+  : >"$work/endpoint.other.list"
+  awk -v lo="$lo" -v hi="$hi" '$1 >= lo && $1 < hi { mine[$2] = 1 } { all[++n] = $2 }
+    END { for (i = 1; i <= n; i++) { t = all[i]; if (seen[t]++) continue
+            print t >(t in mine ? part : other) } }' part="$work/endpoint.part.list" other="$work/endpoint.other.list" "$work/endpoint.plan"
 fi
 if has csi; then
   cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" || rc=1
@@ -424,7 +461,8 @@ fi
 # real libshare, exportfs and etab and diffs it against the reference
 # models (internal/nfsref) and the simulator; the guest points its report
 # at out/nfs-replay.log. Its last line is the tally.
-if ! has endpoint; then
+inpart() { has endpoint && grep -qxF "$1" "$work/endpoint.part.list"; }
+if ! inpart TestNFSReplay; then
   :
 elif [ -f "$o/nfs-replay.log" ]; then
   { echo "<details><summary>NFS replay: $(tail -n 1 "$o/nfs-replay.log")</summary>"
@@ -437,7 +475,7 @@ fi
 # not failed (ZFSDIFF_STRICT=1 would); the summary gets the verdict per
 # sequence, the workflow uploads the whole report. Its last line is the
 # tally with the replay's wall time.
-if ! has endpoint; then
+if ! inpart TestZFSDiffReplay; then
   :
 elif [ -f "$o/zfsdiff.log" ]; then
   { echo "<details><summary>zfsdiff replay: $(tail -n 1 "$o/zfsdiff.log")</summary>"
@@ -488,11 +526,14 @@ fi
 # each suite's checks, in the job that runs it: the jobs together cover
 # every real-pool package once (ci/check-suites.sh, in the static job)
 if has endpoint; then
-  ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
-  # every endpoint test in exactly one shard; TestPropertyRoundTrip in
-  # every shard, a part of its rows each (PROPRT_SHARD), every row in
-  # exactly one of them
-  ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$o"/endpoint.[0-9].log || rc=1
+  # this part's tests and skips; an allowed skip planned for another part
+  # is that part's to skip (SKIPS_ELSEWHERE)
+  SKIPS_ELSEWHERE=$work/endpoint.other.list ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.part.list" || rc=1
+  # the plan a partition of endpoint.list over every part, each test in one
+  # shard; this part's shard logs exactly its shards' tests, each once;
+  # TestPropertyRoundTrip in every shard, a part of its rows each
+  # (PROPRT_SHARD), every row in exactly one shard of all parts
+  ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$work/endpoint.plan" "$part" "${eplogs[@]}" || rc=1
 fi
 if has csi; then
   ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1

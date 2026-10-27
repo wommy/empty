@@ -17,6 +17,12 @@
 # - given a list (`<bin> -test.list '.*'`), a top-level test in it neither
 #   passed nor skipped, i.e. did not run;
 # - given a minimum, Ginkgo ran fewer specs ("Ran N of M Specs").
+#
+# SKIPS_ELSEWHERE=<file>, one top-level test per line: the tests another
+# job runs (the endpoint suite split over parts, ci/real-zfs-plan.sh). An
+# allowed skip among them is that job's to meet, not this log's; one that
+# shows up here at all is an unexpected skip. The jobs' budgets add up to
+# the whole entry list, and ci/check-split.sh proves the parts disjoint.
 set -euo pipefail
 
 leg=${1:?leg, e.g. vm}
@@ -28,6 +34,15 @@ list=$(dirname "$0")/expected-skips.txt
 
 lines() { sed '/^$/d' | sort -u; }
 allowed=$(sed 's/#.*//' "$list" | awk -v l="$leg" -v p="$pkg" '$1 == l && $2 == p { print $3 }' | lines)
+elsewhere=0
+if [ -n "${SKIPS_ELSEWHERE:-}" ]; then
+  [ -f "$SKIPS_ELSEWHERE" ] || { echo "::error::$leg/$pkg: SKIPS_ELSEWHERE=$SKIPS_ELSEWHERE does not exist"; exit 1; }
+  # awk reads both inputs whole: no early-closing reader in a pipe
+  all=$allowed
+  allowed=$(awk 'FILENAME == ARGV[1] { other[$1] = 1; next } { t = $0; sub(/\/.*/, "", t); if (!(t in other)) print }' \
+    "$SKIPS_ELSEWHERE" - <<<"$all" | lines)
+  elsewhere=$(($(printf '%s\n' "$all" | lines | wc -l) - $(printf '%s\n' "$allowed" | lines | wc -l)))
+fi
 # no leading anchor: a result line can be glued to unterminated output
 skipped=$(sed -nE 's/.*--- SKIP: ([^ ]+) \(.*/\1/p' "$log" | lines)
 passed=$(sed -nE 's/.*--- PASS: ([^ ]+) \(.*/\1/p' "$log" | lines)
@@ -46,7 +61,7 @@ done
 
 n=$(printf '%s\n' "$skipped" | lines | wc -l)
 m=$(printf '%s\n' "$allowed" | lines | wc -l)
-echo "skip budget $leg/$pkg: $n skipped, $m allowed"
+echo "skip budget $leg/$pkg: $n skipped, $m allowed$([ "$elsewhere" = 0 ] || echo " (and $elsewhere allowed in the tests another job runs)")"
 echo "| $leg | $pkg | $n skipped / $m allowed | ${skipped//$'\n'/ } |" >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
 
 [ -n "$passed" ] || err "no test passed (empty or failed run?)"
