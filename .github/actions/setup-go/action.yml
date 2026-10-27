@@ -4,11 +4,19 @@ description: >-
   plus the Go build and module caches. Replaces actions/setup-go, which spends
   about 7s of every job copying the SDK into the runner tool cache and
   re-saving a 465 MB cache blob. The download overlaps with the cache restore.
-  Restore only: the workflow saves the cache from main (see ci.yml).
+  Restore only: a job saves the cache itself when this restore missed its
+  exact key (outputs cache-hit and cache-key).
 inputs:
   cache-name:
     description: Cache namespace, one per job shape (vet-heavy and -race builds share little).
     required: true
+outputs:
+  cache-hit:
+    description: "'true' when the exact key was restored"
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-key:
+    description: the key a job saves under after a miss
+    value: go1.27.3-${{ inputs.cache-name }}-${{ hashFiles('go.sum') }}
 runs:
   using: composite
   steps:
@@ -23,17 +31,16 @@ runs:
         rm -f "$RUNNER_TEMP/go.tgz.done"
         setsid nohup bash -c 'curl -fsSL --retry 3 -o "$1/go.tgz" "$2" && touch "$1/go.tgz.done"' _ "$RUNNER_TEMP" "$GO_URL" >/dev/null 2>&1 &
     - name: restore Go caches
-      # the key includes the commit so main can save a fresh entry per push;
-      # a restore falls back to the newest entry with the same go.sum, then
-      # to the newest of the namespace (PRs read main's caches)
+      # keyed by go.sum: one entry per dependency set, saved by the first
+      # run that misses it; a new go.sum falls back to the namespace's newest
+      id: restore
       uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: go1.27.3-${{ inputs.cache-name }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+        key: go1.27.3-${{ inputs.cache-name }}-${{ hashFiles('go.sum') }}
         restore-keys: |
-          go1.27.3-${{ inputs.cache-name }}-${{ hashFiles('go.sum') }}-
           go1.27.3-${{ inputs.cache-name }}-
     - name: install Go 1.27.3
       shell: bash
