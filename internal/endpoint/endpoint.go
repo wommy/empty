@@ -51,7 +51,7 @@ type props struct{ p string }
 
 func (n props) all() []string {
 	return []string{n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(), n.nfsServer()}
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(), n.nfsServer(), n.snapshotSize()}
 }
 
 // validPrefix reports why prefix cannot name OpenZFS user properties:
@@ -112,6 +112,16 @@ func (n props) nfsClients() string { return n.p + ":nfs_clients" }
 // Read only when set locally: an inherited or received one is not this
 // volume's (Reconcile reports it).
 func (n props) nfsServer() string { return n.p + ":nfs_server" }
+
+// snapshotSize is the endpoint's own property: a filesystem snapshot's
+// size in bytes when it was taken (its source's refquota then, 0 for an
+// unlimited one), set in the same `zfs snapshot -o` as its CSI markers, so
+// it adds no crash point. OpenZFS keeps no such size: refquota is not a
+// snapshot property, and the source's own grows with an expand. A zvol
+// snapshot needs none, it keeps the volsize it was cut at (SNP-11). Read
+// only when set locally, like the markers: an inherited one is the
+// parent's.
+func (n props) snapshotSize() string { return n.p + ":snapshot_size" }
 
 // baseline's name for the internal snapshot a volume-to-volume clone hangs off
 const cloneSourceSnapshotPrefix = "volume-source-for-volume-"
@@ -512,19 +522,34 @@ func volumeView(r Row) Volume {
 
 func snapshotView(t Table, r Row) Snapshot {
 	vol, _, _ := strings.Cut(r.ID, "@")
-	s := Snapshot{
+	size, _ := snapshotSize(t, r)
+	return Snapshot{
 		ID: r.ID, Name: r.SnapshotName, SourceVolumeID: vol,
 		CreationUnix: r.Creation,
 		ReadyToUse:   true, // zfs snapshots are atomic and immediately usable
-		SizeBytes:    r.Volsize,
+		SizeBytes:    size,
 	}
-	// filesystem snapshots carry no refquota: restore size is the source's
-	if s.SizeBytes == 0 {
-		if src, ok := t.Get(vol); ok {
-			s.SizeBytes = src.Capacity()
-		}
+}
+
+// snapshotSize is snapshot s's size when it was taken, the minimum a
+// restore needs (CSI size_bytes) and what a clone of it starts at: a zvol
+// snapshot's own volsize (SNP-11), else its recorded snapshot_size. ok is
+// false when neither is there and its source volume is not in t.
+//
+// A filesystem snapshot taken before snapshot_size was recorded falls back
+// to its source's current refquota, the behaviour before it: right until
+// the source is expanded, then the grown size. OpenZFS keeps nothing
+// better to read for those.
+func snapshotSize(t Table, s Row) (uint64, bool) {
+	if s.Volsize > 0 {
+		return s.Volsize, true
 	}
-	return s
+	if s.SnapshotSizeSet {
+		return s.SnapshotSize, true
+	}
+	vol, _, _ := strings.Cut(s.ID, "@")
+	src, ok := t.Get(vol)
+	return src.Capacity(), ok && vol != "" && src.Type != zfs.TypeSnapshot
 }
 
 // ---- operations: lock, scan, plan, apply, re-read ---------------------------

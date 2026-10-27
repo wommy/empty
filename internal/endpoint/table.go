@@ -78,6 +78,11 @@ type Row struct {
 	SnapshotSource string
 	CloneSourceFor string // internal clone-source snapshots: the clone's id
 	CommittedAt    int64  // committed_at, 0 if unset or unreadable
+	// SnapshotSize: a filesystem snapshot's recorded snapshot_size;
+	// SnapshotSizeSet: one is set locally and parses (0 is an unlimited
+	// source's)
+	SnapshotSize    uint64
+	SnapshotSizeSet bool
 }
 
 // Capacity is the volume's size: volsize for zvols (and their snapshots),
@@ -331,7 +336,7 @@ func (n props) columns() []string {
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
 		"defer_destroy", "userrefs", "clones", "guid", "mountpoint", "sharenfs", "mounted", "canmount",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(), n.nfsServer(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(), n.nfsServer(), n.snapshotSize(),
 	}, propNames[:]...)
 }
 
@@ -353,6 +358,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 	}
 	cShare, cMounted, cCanMount, cClients := j("sharenfs"), j("mounted"), j("canmount"), j(n.nfsClients())
 	cCloneFor, cCommittedAt, cNFSServer := j(n.cloneSourceFor()), j(n.committedAt()), j(n.nfsServer())
+	cSnapSize := j(n.snapshotSize())
 
 	rows := make([]Row, 0, len(c.Names))
 	var bad error
@@ -423,6 +429,13 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 		if at := own(cCommittedAt); at != "" {
 			if v, err := strconv.ParseInt(at, 10, 64); err == nil && v > 0 {
 				r.CommittedAt = v
+			}
+		}
+		// a user property anyone can set: an unparsable one is absent (the
+		// legacy fallback), not a failed scan
+		if v := own(cSnapSize); v != "" && r.Type == zfs.TypeSnapshot {
+			if n, err := strconv.ParseUint(v, 10, 64); err == nil {
+				r.SnapshotSize, r.SnapshotSizeSet = n, true
 			}
 		}
 		rows = append(rows, r)

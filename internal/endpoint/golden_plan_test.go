@@ -125,6 +125,13 @@ var goldenRows = []goldenRow{
 		create(CreateVolumeRequest{Name: "r", Kind: Block, CapacityBytes: 2 << 20, SourceSnapshotID: "src@s"})},
 	{"restore/larger-than-limit", []Row{vol("src", zvol(10<<20)), snap("src@s", func(r *Row) { r.Volsize = 10 << 20 })},
 		create(CreateVolumeRequest{Name: "r", Kind: Block, CapacityBytes: 4 << 20, LimitBytes: 5 << 20, SourceSnapshotID: "src@s"})},
+	// a filesystem snapshot's recorded size, not its source's grown one;
+	// one taken before snapshot_size falls back to the source's
+	{"restore/fs-expanded-since", []Row{vol("src", func(r *Row) { r.Refquota = 4 << 20 }),
+		snap("src@s", func(r *Row) { r.SnapshotSize, r.SnapshotSizeSet = 1<<20, true })},
+		create(CreateVolumeRequest{Name: "r", CapacityBytes: 2 << 20, SourceSnapshotID: "src@s"})},
+	{"restore/fs-legacy-snapshot", []Row{vol("src", func(r *Row) { r.Refquota = 4 << 20 }), snap("src@s", nil)},
+		create(CreateVolumeRequest{Name: "r", CapacityBytes: 2 << 20, SourceSnapshotID: "src@s"})},
 	{"restore/unknown-source", []Row{vol("src", nil)}, create(CreateVolumeRequest{Name: "r", SourceSnapshotID: "src@nope"})},
 	{"restore/malformed-source", nil, create(CreateVolumeRequest{Name: "r", SourceSnapshotID: "non-existing-snapshot-id"})},
 	{"clone/malformed-source", nil, create(CreateVolumeRequest{Name: "c", CapacityBytes: 1, SourceVolumeID: "no/such@volume"})},
@@ -152,6 +159,8 @@ var goldenRows = []goldenRow{
 	{"snapshot/name-taken-elsewhere", []Row{vol("a", nil), vol("b", nil), snap("b@s", nil)}, snapshot("s", "a")},
 	{"snapshot/reserved-prefix", []Row{vol("a", nil)}, snapshot("volume-source-for-volume-x", "a")},
 	{"snapshot/long-name", []Row{vol("a", nil)}, snapshot(strings.Repeat("n", 128), "a")},
+	{"snapshot/fs-sized", []Row{vol("a", func(r *Row) { r.Refquota = 1 << 30 })}, snapshot("s", "a")},
+	{"snapshot/zvol", []Row{vol("z", zvol(1<<30))}, snapshot("s", "z")},
 	{"delete-snapshot/plain", []Row{vol("a", nil), snap("a@s", nil)}, delSnap("a@s")},
 	{"delete-snapshot/foreign", []Row{vol("a", nil), snap("a@admin", internal)}, delSnap("a@admin")},
 	// file export

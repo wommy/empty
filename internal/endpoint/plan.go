@@ -573,8 +573,9 @@ func sourceBlockSize(t Table, r CreateVolumeRequest) (uint64, bool) {
 
 // sourceSize is the capacity a clone of r's source starts with: a zvol
 // snapshot's or volume's volsize, a filesystem source volume's refquota (0
-// is unlimited; a filesystem snapshot carries none). It reads rows as they
-// are; ownership is checked where a clone is planned.
+// is unlimited), a filesystem snapshot's size when it was taken
+// (snapshotSize). It reads rows as they are; ownership is checked where a
+// clone is planned.
 func sourceSize(t Table, r CreateVolumeRequest) (uint64, bool) {
 	switch {
 	case r.SourceSnapshotID != "":
@@ -582,9 +583,14 @@ func sourceSize(t Table, r CreateVolumeRequest) (uint64, bool) {
 			s, ok := t.Get(r.SourceSnapshotID)
 			return s.Volsize, ok && s.Type == zfs.TypeSnapshot
 		}
-		vol, _, _ := strings.Cut(r.SourceSnapshotID, "@")
-		src, ok := t.Get(vol)
-		return src.Refquota, ok && vol != "" && src.Type != zfs.TypeSnapshot
+		// the snapshot's size when taken, not its source's now (an
+		// expand since must not grow a restore); an absent snapshot is
+		// NotFound where the clone is planned
+		s, ok := t.Get(r.SourceSnapshotID)
+		if !ok {
+			return 0, false
+		}
+		return snapshotSize(t, s)
 	case r.SourceVolumeID != "":
 		src, ok := t.Get(r.SourceVolumeID)
 		return src.Capacity(), ok && src.Type != zfs.TypeSnapshot
@@ -993,11 +999,17 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		// a snapshot of that name we do not own, or one pending deletion
 		return nil, "", errorf(AlreadyExists, "snapshot %s exists (managed=%v deferred=%v)", id, r.Managed, r.Deferred)
 	}
-	return Plan{{Kind: OpSnapshot, Target: p.full(id), Props: map[string]string{
+	props := map[string]string{
 		p.Names.managed():        "true",
 		p.Names.snapshotName():   name,
 		p.Names.snapshotSource(): vol,
-	}}}, id, nil
+	}
+	if src.Type != zfs.TypeVolume {
+		// refquota is not a snapshot property and the source's grows with
+		// an expand: record the size now (a zvol snapshot keeps volsize)
+		props[p.Names.snapshotSize()] = u64(src.Refquota)
+	}
+	return Plan{{Kind: OpSnapshot, Target: p.full(id), Props: props}}, id, nil
 }
 
 // snapComponent is the zfs snapshot name for CSI snapshot name: the name
