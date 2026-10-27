@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/metadata"
+
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	"github.com/wommy/empty/internal/server"
 	"github.com/wommy/empty/internal/zfs"
@@ -70,6 +72,37 @@ func TestRPCLineLevelAndIDs(t *testing.T) {
 	}
 	if t.Failed() {
 		t.Log(logs)
+	}
+}
+
+// A zfs command, a read included, that runs past the slow threshold is
+// logged once while it still runs, with the request id of its call.
+func TestZFSSlowLine(t *testing.T) {
+	var buf syncBuffer
+	log := slog.New(server.LogHandler(slog.NewJSONHandler(&buf, nil)))
+	r := &gateRunner{gate: make(chan struct{})}
+	c := daemon(t, zfs.AuditSlow(r, log, 20*time.Millisecond), log)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		close(r.gate)
+	}()
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "x-request-id", "req-slow")
+	if _, err := c.GetCapacity(ctx, &pb.GetCapacityRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	var slow []string
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if strings.Contains(line, `"msg":"zfs slow"`) {
+			slow = append(slow, line)
+		}
+	}
+	if len(slow) != 1 {
+		t.Fatalf("%d zfs slow lines, want 1:\n%s", len(slow), buf.String())
+	}
+	for _, want := range []string{`"level":"WARN"`, `"argv":["zfs","get","-j"]`, `"target":"tank/vols"`, `"elapsed":`, `"request_id":"req-slow"`} {
+		if !strings.Contains(slow[0], want) {
+			t.Errorf("zfs slow line lacks %s: %s", want, slow[0])
+		}
 	}
 }
 
