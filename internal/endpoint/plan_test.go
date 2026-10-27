@@ -380,6 +380,30 @@ func TestPlanResumeThickness(t *testing.T) {
 	}
 }
 
+// An unlimited filesystem satisfies a sized re-create, as Expand holds it
+// satisfies any capacity; a limit stays violated by unlimited, and a limited
+// filesystem below the request stays incompatible.
+func TestPlanUnlimitedFilesystemIdempotency(t *testing.T) {
+	t.Parallel()
+	tab := NewTable([]Row{vol("free", nil), vol("small", func(r *Row) { r.Refquota = 1 << 20 })})
+	for _, tc := range []struct {
+		r    CreateVolumeRequest
+		want Code
+	}{
+		{CreateVolumeRequest{Name: "free", CapacityBytes: 1 << 30}, OK},
+		{CreateVolumeRequest{Name: "free"}, OK},
+		{CreateVolumeRequest{Name: "free", LimitBytes: 1 << 30}, AlreadyExists},
+		{CreateVolumeRequest{Name: "free", CapacityBytes: 1 << 20, LimitBytes: 1 << 30}, AlreadyExists},
+		{CreateVolumeRequest{Name: "small", CapacityBytes: 1 << 30}, AlreadyExists},
+		{CreateVolumeRequest{Name: "small", CapacityBytes: 1 << 20}, OK},
+	} {
+		plan, err := pl.PlanCreateVolume(tab, tc.r)
+		if code(err) != tc.want || plan != nil {
+			t.Errorf("%+v: %+v %v, want code %d and no plan", tc.r, plan, err, tc.want)
+		}
+	}
+}
+
 // setProp is the value plan sets for prop with an OpSet ("" if none).
 func setProp(plan Plan, prop string) string {
 	v := ""

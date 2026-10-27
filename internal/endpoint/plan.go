@@ -480,7 +480,9 @@ func (p Planner) sizeOps(id string, row Row, r CreateVolumeRequest, want uint64)
 // compatible applies CSI's CreateVolume idempotency rule to a committed row.
 func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 	id, have := row.ID, row.Capacity()
-	if want > 0 && (have == 0 || have < want) {
+	// an unlimited filesystem (have 0) satisfies any capacity, as
+	// PlanExpandVolume holds; it does violate a limit ("at most limit")
+	if want > 0 && have != 0 && have < want {
 		return errorf(AlreadyExists, "volume %s exists with capacity %d < %d", id, have, want)
 	}
 	if r.LimitBytes > 0 && (have == 0 || have > r.LimitBytes) {
