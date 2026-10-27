@@ -122,6 +122,19 @@ The recovery FSM explorer (`fsm_explore_test.go`, nightly) walks every world two
 
 The simulator injects failures (`Sim.Fail`) and received properties (`Sim.Receive`), and it prints index properties the way zfs 2.4 does.
 
+## Runbook: exit codes
+
+`zfs-endpoint` logs one JSON line before it exits with an error, `{"level":"ERROR","msg":"exit","exit_code":N,"error":"..."}`, the last line of `journalctl -u 'zfs-endpoint@*' -o cat`; `systemctl status` shows the same code (`cmd/zfs-endpoint/startup.go`).
+
+| Code | Meaning | systemd | What to do |
+|---|---|---|---|
+| 78 (`EX_CONFIG`) | Configuration: bad or conflicting flags, a socket path bind cannot take or inside the lock directory, an unknown `-socket-group`, not root without `-allow-non-root`, another endpoint holding this parent, an ancestor or a descendant, a symlinked lock, zfs missing (`cannot run zfs`), OpenZFS other than 2.4 (ADR 0004), a parent that is not a filesystem, a parent under a crossmnt NFS export, only `democratic-csi:` volumes under the default prefix | not restarted (`RestartPreventExitStatus=78`) | the `error` names the fix; fix it and `systemctl start` again |
+| 75 (`EX_TEMPFAIL`) | Not ready: the OpenZFS version is unreadable (module not loaded), the parent is not there after `-parent-wait` (pool not imported, key not loaded), the startup prefix scan failed | restarted forever with backoff (`NRestarts` climbs) | `zpool import`, `zfs load-key`, `modprobe zfs`; `zpool status -x` |
+| 1 | Anything else: `serve: ...`, a lock error other than "held", a failed exposure read | restarted (`Restart=on-failure`) | read the `error` |
+| 0 | Normal stop, including a SIGTERM during startup (`stopped during startup`, INFO) | | |
+
+`zfs-endpoint reconcile` exits 78 for bad flags, 1 when the call fails or an apply is partial, and 3 for a report with findings under `-fail-on-findings` (the timer's unit passes it; "Runbook: Reconcile").
+
 ## Runbook: Reconcile
 
 `zfs-endpoint reconcile` is the operator's client of a running endpoint's Reconcile RPC. It dials the admin socket (`/run/zfs-endpoint/admin/<systemd-escape parent>/endpoint.sock` for `-parent`, or `-admin-socket`), so it runs as root on the storage host (`cmd/zfs-endpoint/reconcile.go`).

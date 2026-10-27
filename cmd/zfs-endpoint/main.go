@@ -40,9 +40,22 @@ func main() {
 	})
 	cancel()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "zfs-endpoint:", err)
-		os.Exit(exitCode(err))
+		if len(os.Args) > 1 && os.Args[1] == "reconcile" {
+			// an operator's command: a plain line for the terminal too
+			fmt.Fprintln(os.Stderr, "zfs-endpoint:", err)
+		}
+		os.Exit(exitLine(slog.Default(), err))
 	}
+}
+
+// exitLine logs the error the process exits with as one JSON line, at
+// Error, with its exit code (78 configuration, no restart; 75 pool or
+// module not ready, restarted; 3 reconcile findings; 1 anything else:
+// startup.go), and returns the code. A journal read as JSON keeps it.
+func exitLine(log *slog.Logger, err error) int {
+	code := exitCode(err)
+	log.Error("exit", "exit_code", code, "error", err.Error())
+	return code
 }
 
 // deps are what tests replace.
