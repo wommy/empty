@@ -1,0 +1,18 @@
+zfstest: space checks read received space properties
+
+num() and spaceCheck's get() read only the local value, so a received
+refreservation (a thick zvol from `zfs send -p | zfs recv`) charged
+nothing: the sim accepted a quota below it and a second thick volume
+over the parent's quota, both of which OpenZFS refuses with ENOSPC (the
+kernel reads the effective value: local, else received). Read the
+effective value through node.effective, the rule the property printer
+already applies.
+
+Failing first: TestSimReceivedRefreservationIsCharged (second 64M thick
+zvol under quota=100M accepted) and the new corpus case
+recv-vol-resv-space (TestCorpusModelVsSim: the zfsdiff model refuses
+quota=10M, the sim accepted it). Both pass with the fix.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
+

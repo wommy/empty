@@ -1,0 +1,22 @@
+endpoint: DeleteVolume of an absent volume proves the parent by its listing
+
+A single-volume scan that finds nothing checked the parent with a zfs
+Exists (an exported pool says "does not exist" too). DeleteVolume's very
+next call lists the parent's snapshots, which is Unavailable when the
+parent is missing, so that check was a second proof of the same thing.
+
+scan is split: scanUnproven returns a missing volume absent with zfs's
+not-found as the unproven cause, and scan proves it as before
+(proveParent, which keeps that cause in the Unavailable error).
+scanDelete uses scanUnproven. The order is the old one: the volume's
+scan, then the parent's proof, both under vol:<id>.
+
+DeleteVolume absent (the common CSI retry) 3 -> 2 calls
+(TestRPCCallBudget updated). Guarded by
+TestMissingParentFailsCreateAndDeleteUnavailable and
+TestMissingParentIsUnavailableForWholeScans: mapping the listing's
+not-found to anything but Unavailable fails both.
+Endpoint calls over the simulator suite: 11998 -> 11894.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

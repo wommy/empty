@@ -1,0 +1,18 @@
+[
+{"label": "10a: deleteLocked treats a lock failure as another pass", "file": "internal/endpoint/endpoint.go",
+ "old": "\trelease, err := e.lock(ctx, volKeys(*vols)...)\n\tif err != nil {\n\t\treturn false, err\n\t}",
+ "new": "\trelease, err := e.lock(ctx, volKeys(*vols)...)\n\tif err != nil {\n\t\treturn true, nil\n\t}",
+ "pkg": "./internal/endpoint", "run": "TestDeleteVolumeLockPassesAreBounded"},
+{"label": "10b: DeleteVolume's pass bound raised from 3 to 100", "file": "internal/endpoint/endpoint.go",
+ "old": "\tfor range 3 {\n\t\tagain, err := e.deleteLocked(ctx, volID, &vols)",
+ "new": "\tfor range 100 {\n\t\tagain, err := e.deleteLocked(ctx, volID, &vols)",
+ "pkg": "./internal/endpoint", "run": "TestDeleteVolumeLockPassesAreBounded"},
+{"label": "10c: a scan-slot wait past its deadline is Aborted", "file": "internal/endpoint/table.go",
+ "old": "\t\t\tif errors.Is(ctx.Err(), context.DeadlineExceeded) {\n\t\t\t\tcode = DeadlineExceeded",
+ "new": "\t\t\tif false && errors.Is(ctx.Err(), context.DeadlineExceeded) {\n\t\t\t\tcode = DeadlineExceeded",
+ "pkg": "./internal/endpoint", "run": "TestWholeScanSlotWaitEndsWithTheContext"},
+{"label": "10d: a cancelled scan-slot wait is DeadlineExceeded", "file": "internal/endpoint/table.go",
+ "old": "\t\t\tcode := Aborted\n\t\t\tif errors.Is(ctx.Err(), context.DeadlineExceeded) {",
+ "new": "\t\t\tcode := DeadlineExceeded\n\t\t\tif errors.Is(ctx.Err(), context.DeadlineExceeded) {",
+ "pkg": "./internal/endpoint", "run": "TestWholeScanSlotWaitEndsWithTheContext"}
+]

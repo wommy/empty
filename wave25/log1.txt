@@ -1,0 +1,19 @@
+own-vol-managed killed TestGoldenPlans (internal/endpoint)
+own-snap-managed killed TestRowOwnedSnapshot (internal/endpoint)
+own-local-only killed TestNFS_N16_InheritedServerIgnored (internal/csi)
+rec-owned-managed survived 
+rec-stated killed TestAdv4PartialDesiredSetMassDeletes (internal/endpoint)
+rec-empty-desired killed TestAdv4PartialDesiredSetMassDeletes (internal/endpoint)
+rec-committedat killed TestReconcileAgesFromCommit (internal/endpoint)
+rec-refuses-held killed TestAdv4OneBusyLockAbortsWholeRun (internal/endpoint)
+rec-refuses-planned killed TestPlanReconcileHeldLimitsActions (internal/endpoint)
+rec-src-refuses survived 
+rec-src-inuse killed TestPlanReconcile (internal/endpoint)
+rec-src-addressable killed TestPlanReconcile (internal/endpoint)
+rec-maxdel-ge survived 
+rec-digest-required killed TestReconcileNeedsADigestToCollectUndesired (internal/endpoint)
+rec-dryrun killed TestAdv4OneFailureStarvesAndHidesDestroys (internal/endpoint)
+rec-empty-id killed TestReconcileAgainstDesiredSet (internal/endpoint)
+rec-minage-floor killed TestAdv4TinyMinAgeInFlightCreate (internal/endpoint)
+rec-trylock killed TestAdv4OneBusyLockAbortsWholeRun (internal/endpoint)
+apply-guid-empty killed TestApplyRefusesADestroyWithoutGUID (internal/endpoint)

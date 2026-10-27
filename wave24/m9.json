@@ -1,0 +1,18 @@
+[
+{"label": "9a: Probe reports a check the shutdown interrupted", "file": "internal/server/daemon.go",
+ "old": "\t\terr := check(ctx)\n\t\tif ctx.Err() != nil {\n\t\t\treturn\n\t\t}",
+ "new": "\t\terr := check(ctx)\n\t\tif false && ctx.Err() != nil {\n\t\t\treturn\n\t\t}",
+ "pkg": "./internal/server", "run": "TestProbeTransitions"},
+{"label": "9b: Probe never turns NOT_SERVING", "file": "internal/server/daemon.go",
+ "old": "\t\td.SetServing(err == nil)\n\t}\n}",
+ "new": "\t\td.SetServing(true)\n\t}\n}",
+ "pkg": "./internal/server", "run": "TestProbeTransitions"},
+{"label": "9c: the -listen socket is not closed when -admin-listen fails", "file": "cmd/zfs-endpoint/main.go",
+ "old": "\t\tif adminLis, err = unixsock.Listen(adminSock); err != nil {\n\t\t\tlis.Close()\n",
+ "new": "\t\tif adminLis, err = unixsock.Listen(adminSock); err != nil {\n",
+ "pkg": "./cmd/zfs-endpoint", "run": "TestAdminListenFailureClosesTheCSISocket"},
+{"label": "9d: secondSignal does not catch the signal", "file": "cmd/zfs-endpoint/main.go",
+ "old": "\tsignal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)\n\tagain := make(chan struct{})",
+ "new": "\t_ = signal.Notify\n\tagain := make(chan struct{})",
+ "pkg": "./cmd/zfs-endpoint", "run": "TestSecondSignal"}
+]

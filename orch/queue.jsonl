@@ -1,3 +1,1 @@
-{"id": "q-csi-sanity-nfs", "name": "csi-sanity-nfs", "lane": "writer", "wave": 25, "branch": "csi-sanity-nfs", "src": "wave24/csi-recheck.md", "items": "D4: sim NFS sanity in PR test job, real-pool nightly; plus exact passed-spec name pin per access type (sim and VM), replace count floor; fix stale Node-spec comment in sanity_test.go", "prio": 1, "src2": "wave25/sanity-skips.md"}
 {"id": "q-csi-local", "name": "csi-local", "lane": "writer", "wave": 25, "branch": "csi-local", "src": "wave24/csi-recheck.md", "items": "C5 D1 D2 D3 (ADR 0009)", "prio": 2}
-{"id": "q-csi-snapsize", "name": "csi-snapsize", "lane": "writer", "wave": 25, "branch": "csi-snapsize", "src": "wave24/csi-recheck.md", "items": "C4", "prio": 4}

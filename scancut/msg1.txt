@@ -1,0 +1,25 @@
+endpoint: guard the scan paths before cutting calls
+
+Three tests, all passing on the current code, that pin what the planned
+scan cuts (wave24 scan-reduction P1, P2/P3, P6) could break:
+
+- TestMissingParentFailsCreateAndDeleteUnavailable: with the parent
+  destroyed, CreateVolume (block, filesystem, clone of a snapshot, clone
+  of a volume, an existing name) and DeleteVolume (never made, block,
+  filesystem) are each Unavailable, never NotFound and never a create.
+  The prototype's first parent cut made a block create NotFound while
+  the suite stayed green.
+- TestCreateVolumeCatchesDatasetReplacedBeforeCommit: a dataset renamed
+  away and replaced by an unowned one just before the commit `zfs set`
+  is caught by the re-read (Aborted), neither adopted nor destroyed.
+  Nothing guarded this. The filesystem case also runs on a real pool.
+- TestRPCCallBudget: each main RPC path's zfs call sequence on the
+  simulator (new and retried block, filesystem, NFS and clone creates,
+  snapshot, expand, delete present and absent), recorded by the new
+  RecordCalls next to CountCalls. A mismatch prints the replacement
+  table. Simulator only.
+
+Weights for the three in ci/real-zfs-weights.txt.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

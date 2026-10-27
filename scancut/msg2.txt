@@ -1,0 +1,14 @@
+endpoint: no re-read when a create or expand applied nothing
+
+A compatible CreateVolume repeat and an ExpandVolume already at its
+capacity apply no op, yet re-read the volume they had just scanned under
+the same lock: the same rows twice. servedFrom answers from that scan
+when its row is a served volume, and falls back to the re-read (and its
+verdict) otherwise. CreateSnapshot already re-reads only after an op.
+
+Saves one scan per repeat: block, filesystem and NFS retries 2 -> 1,
+clone retries 3 -> 2, expand retry 2 -> 1 (TestRPCCallBudget updated).
+Endpoint calls over the simulator suite: 12392 -> 11998.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

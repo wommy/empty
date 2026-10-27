@@ -1,0 +1,19 @@
+own-vol-name killed TestLiteralDashMarkerIsAValue (internal/endpoint)
+own-snap-source killed TestOwnershipDifferentialFixtures (internal/endpoint)
+own-clonesrc-for killed TestAdv4ReleasedOriginOutsideParent (internal/endpoint)
+rec-owned killed TestPlanReconcile (internal/endpoint)
+rec-want killed TestReconcileAgesFromCommit (internal/endpoint)
+rec-stated-own killed TestPlanReconcile (internal/endpoint)
+rec-tooyoung killed TestAdv4TinyMinAgeInFlightCreate (internal/endpoint)
+rec-nocreation survived 
+rec-refuses-guid killed TestPlanReconcileHeldLimitsActions (internal/endpoint)
+rec-vol-refuses survived 
+rec-src-unstamped killed TestAdv4UserSnapshotWithReservedPrefixCollected (internal/endpoint)
+rec-src-vol-owned killed TestPlanReconcile (internal/endpoint)
+rec-maxdel survived 
+rec-maxdel-default survived 
+rec-digest-mismatch killed TestReconcileMaxDeletionsAndDigest (internal/endpoint)
+rec-max-ids killed TestReconcileRefusesAnOversizedDesiredSet (internal/endpoint)
+rec-maxdel-args killed TestReconcileMaxDeletionsAndDigest (internal/endpoint)
+rec-whole killed TestPlannersRequireACoveringTable (internal/endpoint)
+rec-replan killed TestAdv4OneBusyLockAbortsWholeRun (internal/endpoint)

@@ -28,3 +28,6 @@
 {"t": "2026-10-27T16:40:06Z", "id": "A-gate-ran-on-conflicted-merge", "sev": "med", "state": "closed", "note": "my merge&&gate chain continued past a failed merge because `| tail -1` masked git's exit; only README conflicted so gate result was still valid; fix: check merge exit before gating"}
 {"t": "2026-10-27T16:41:20Z", "id": "A-expand-refused-infeasible", "state": "closed", "fix": "e4777f5"}
 {"t": "2026-10-27T16:41:20Z", "id": "A-reconcile-ownership-mutant-survives", "sev": "high", "state": "open", "note": "weakening reconcile.go:269 ownership check survives suite + 1000 model seeds; own-gap writer + mutation sweep"}
+{"t": "2026-10-27T17:01:50Z", "id": "A-reconcile-ownership-mutant-survives", "state": "closed", "sev_revised": "low", "fix": "d411a99", "note": "only skip-report effect; planDelete re-checks ownership"}
+{"t": "2026-10-27T17:01:50Z", "id": "A-maxdel-gate-untested", "state": "closed", "fix": "afdd1a8"}
+{"t": "2026-10-27T17:01:50Z", "id": "A-root-owner-internal-strands", "sev": "high", "state": "closed", "fix": "65c03cb", "note": "Internal after change stranded uncommitted NFS volume; generalisation audit launched"}

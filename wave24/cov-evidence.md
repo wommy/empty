@@ -560,3 +560,225 @@ FAIL
 FAIL	github.com/wommy/empty/internal/endpoint	0.005s
 FAIL
 ```
+
+## Item 9: health probe transitions, drain cut short by a second signal, admin listen failure
+
+internal/server/probe_test.go TestProbeTransitions: Probe in a synctest bubble with an injected 30s interval
+(the fake clock advances one tick per time.Sleep; no wall-clock wait). The check fails, passes, then cancels
+the context and fails: NOT_SERVING, SERVING, then unchanged, and Probe returns.
+cmd/zfs-endpoint/signal_test.go: TestAdminListenFailureClosesTheCSISocket (a regular file at -admin-listen:
+run fails and the -listen socket path is gone); TestSecondSignal re-runs the test binary as a child, which
+calls secondSignal and sends itself SIGTERM: the channel closes and the child passes (the parent never
+receives a signal; the minute-long select is a failure bound only).
+
+### 9a: Probe reports a check the shutdown interrupted
+
+Mutation in `internal/server/daemon.go`:
+
+```diff
+- 		err := check(ctx)
+- 		if ctx.Err() != nil {
+- 			return
+- 		}
++ 		err := check(ctx)
++ 		if false && ctx.Err() != nil {
++ 			return
++ 		}
+```
+
+`go test -count=1 -run 'TestProbeTransitions'  ./internal/server` exit 1:
+
+```
+--- FAIL: TestProbeTransitions (0.00s)
+    probe_test.go:65: tick 3: 3 checks, NOT_SERVING, want SERVING
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.011s
+FAIL
+```
+
+### 9b: Probe never turns NOT_SERVING
+
+Mutation in `internal/server/daemon.go`:
+
+```diff
+- 		d.SetServing(err == nil)
+- 	}
+- }
++ 		d.SetServing(true)
++ 	}
++ }
+```
+
+`go test -count=1 -run 'TestProbeTransitions'  ./internal/server` exit 1:
+
+```
+--- FAIL: TestProbeTransitions (0.00s)
+    probe_test.go:65: tick 1: 1 checks, SERVING, want NOT_SERVING
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.014s
+FAIL
+```
+
+### 9c: the -listen socket is not closed when -admin-listen fails
+
+Mutation in `cmd/zfs-endpoint/main.go`:
+
+```diff
+- 		if adminLis, err = unixsock.Listen(adminSock); err != nil {
+- 			lis.Close()
++ 		if adminLis, err = unixsock.Listen(adminSock); err != nil {
+```
+
+`go test -count=1 -run 'TestAdminListenFailureClosesTheCSISocket'  ./cmd/zfs-endpoint` exit 1:
+
+```
+--- FAIL: TestAdminListenFailureClosesTheCSISocket (0.00s)
+    signal_test.go:37: -listen socket left behind: <nil>
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.016s
+FAIL
+```
+
+### 9d: secondSignal does not catch the signal
+
+Mutation in `cmd/zfs-endpoint/main.go`:
+
+```diff
+- 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+- 	again := make(chan struct{})
++ 	_ = signal.Notify
++ 	again := make(chan struct{})
+```
+
+`go test -count=1 -run 'TestSecondSignal'  ./cmd/zfs-endpoint` exit 1:
+
+```
+--- FAIL: TestSecondSignal (0.01s)
+    signal_test.go:63: child: signal: terminated
+        === RUN   TestSecondSignal
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.017s
+FAIL
+```
+
+## Item 10: lock and scan backpressure exhaustion
+
+internal/endpoint/cov24_internal_test.go. TestDeleteVolumeLockPassesAreBounded (cloneFixture, synctest bubble,
+LockWait 1 min on the fake clock): (1) vol:src held through the call: the second pass's lock wait ends
+Aborted "operation pending", clone kept. Note: wave22 expected "kept changing" here; holding one source
+reaches the lock error, not the pass bound. (2) While each pass waits, the test adds a stamped
+<sN>@volume-source-for-volume-clone on another volume it holds and releases the previous one: three passes
+each find a new busy volume, and DeleteVolume is Aborted "kept changing", clone kept.
+TestWholeScanSlotWaitEndsWithTheContext fills e.scans with maxWholeScans tokens: ListVolumes with an expired
+deadline is DeadlineExceeded, with a cancelled context Aborted; with a slot free it succeeds.
+
+### 10a: deleteLocked treats a lock failure as another pass
+
+Mutation in `internal/endpoint/endpoint.go`:
+
+```diff
+- 	release, err := e.lock(ctx, volKeys(*vols)...)
+- 	if err != nil {
+- 		return false, err
+- 	}
++ 	release, err := e.lock(ctx, volKeys(*vols)...)
++ 	if err != nil {
++ 		return true, nil
++ 	}
+```
+
+`go test -count=1 -run 'TestDeleteVolumeLockPassesAreBounded'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestDeleteVolumeLockPassesAreBounded (0.00s)
+    --- FAIL: TestDeleteVolumeLockPassesAreBounded/source_held_throughout (0.00s)
+        cov24_internal_test.go:149: DeleteVolume(clone) with vol:src held: volume clone: the volumes its delete touches kept changing; retry, want the lock wait's Aborted
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.008s
+FAIL
+```
+
+### 10b: DeleteVolume's pass bound raised from 3 to 100
+
+Mutation in `internal/endpoint/endpoint.go`:
+
+```diff
+- 	for range 3 {
+- 		again, err := e.deleteLocked(ctx, volID, &vols)
++ 	for range 100 {
++ 		again, err := e.deleteLocked(ctx, volID, &vols)
+```
+
+`go test -count=1 -run 'TestDeleteVolumeLockPassesAreBounded'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestDeleteVolumeLockPassesAreBounded (0.00s)
+    --- FAIL: TestDeleteVolumeLockPassesAreBounded/a_new_busy_volume_each_pass (0.00s)
+        cov24_internal_test.go:195: DeleteVolume(clone): operation pending on [vol:clone vol:src vol:s2 vol:s3], want Aborted after three passes
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.014s
+FAIL
+```
+
+### 10c: a scan-slot wait past its deadline is Aborted
+
+Mutation in `internal/endpoint/table.go`:
+
+```diff
+- 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+- 				code = DeadlineExceeded
++ 			if false && errors.Is(ctx.Err(), context.DeadlineExceeded) {
++ 				code = DeadlineExceeded
+```
+
+`go test -count=1 -run 'TestWholeScanSlotWaitEndsWithTheContext'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestWholeScanSlotWaitEndsWithTheContext (0.00s)
+    cov24_internal_test.go:217: expired: waiting for a whole-parent scan slot: context deadline exceeded, want DeadlineExceeded waiting for a slot
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.005s
+FAIL
+```
+
+### 10d: a cancelled scan-slot wait is DeadlineExceeded
+
+Mutation in `internal/endpoint/table.go`:
+
+```diff
+- 			code := Aborted
+- 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
++ 			code := DeadlineExceeded
++ 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+```
+
+`go test -count=1 -run 'TestWholeScanSlotWaitEndsWithTheContext'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestWholeScanSlotWaitEndsWithTheContext (0.00s)
+    cov24_internal_test.go:222: cancelled: waiting for a whole-parent scan slot: context canceled, want Aborted waiting for a slot
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.051s
+FAIL
+```
+
+## Commits (branch cov-tests, not pushed; each SSH-signed)
+
+- afdd1a8 item 1
+- 8624a63 item 2
+- a702044 item 3
+- c77c1b4 item 4
+- 82a1e44 item 5
+- f4d0c0e item 6
+- e267457 item 7 (rootErr table)
+- 65c03cb item 7 fix: rootErr production change + TestFileExportCreateRootFailureIsRetryable
+- a871314 item 8
+- 9af1842 item 9
+- 9ebfaea item 10
+- c9f0cef ci/real-zfs-weights.txt: the 12 new endpoint tests at 0.00
+
+## Gate (at c9f0cef)
+
+gofmt clean on the 184 tracked and untracked .go files; go vet ./... and -tags nightly; go mod tidy -diff;
+go test -race ./... (all ok); MODEL_SEQS=1000 TestModel ok (32.5s); nightly TestExploreModelMasksStillBite|
+TestExploreLifecycle ok (180.7s); bash ci/check-suites.sh ok; ci/real-zfs-plan.sh 2x3 runs on the new list.
