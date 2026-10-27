@@ -1,9 +1,8 @@
 name: ci
 
 on:
-  # every branch: this repository has no default branch yet, and the
-  # real-ZFS job is the only oracle the simulator is checked against
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -52,7 +51,8 @@ jobs:
           zfs version
       - name: create test pool
         run: |
-          truncate -s 2G "$RUNNER_TEMP/vdev0"
+          # sparse: thick zvols reserve space, the file uses none until written
+          truncate -s 20G "$RUNNER_TEMP/vdev0"
           sudo zpool create -f -O compression=lz4 zfsep-test "$RUNNER_TEMP/vdev0"
       - name: test (real zfs)
         env:

@@ -23,6 +23,9 @@ func TestClassify(t *testing.T) {
 		{"cannot destroy 'tank/a@s': snapshot has dependent clones\nuse '-R' ...\n", zfs.ErrHasClones},
 		{"cannot destroy 'tank/a': dataset is busy\n", zfs.ErrBusy},
 		{"cannot create 'tank/a': out of space\n", zfs.ErrNoSpace},
+		// first seen on real ZFS in CI: thick zvol volsize/refreservation
+		{"cannot set property for 'tank/a': size is greater than available space\n", zfs.ErrNoSpace},
+		{"cannot set property for 'tank/a': size is less than current used or reserved space\n", zfs.ErrInvalidProperty},
 	} {
 		c := zfs.New(failRunner(tc.stderr))
 		err := c.Destroy(ctx, "tank/a", zfs.DestroyOptions{})

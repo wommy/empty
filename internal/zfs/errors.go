@@ -98,6 +98,7 @@ func IsNotFound(err error) bool { return errors.Is(err, ErrNotFound) }
 // Patterns are the messages the zfs CLI prints, taken from OpenZFS:
 //
 //	lib/libzfs/libzfs_util.c   zfs_standard_error_fmt (errno -> aux text),
+//	                           zfs_setprop_error (property ENOSPC),
 //	                           libzfs_error_description (EZFS_* text)
 //	lib/libzfs/libzfs_dataset.c "parent does not exist", "snapshot is cloned"
 //	cmd/zfs/zfs_main.c         "has children", "has dependent clones"
@@ -120,10 +121,15 @@ var patterns = []struct {
 	{KindBusy, "dataset is busy"},
 	{KindBusy, "pool or dataset is busy"},
 	{KindNoSpace, "out of space"},
+	// zfs_setprop_error ENOSPC: reservation/refreservation (incl. volsize
+	// on a thick zvol) larger than the pool can give
+	{KindNoSpace, "size is greater than available space"},
 	{KindInvalidProperty, "invalid property value"},
 	{KindInvalidProperty, "bad property"},
 	{KindInvalidProperty, "invalid property"},
 	{KindInvalidProperty, "property is read-only"},
+	// zfs_setprop_error ENOSPC: quota/refquota below what is already used
+	{KindInvalidProperty, "size is less than current used or reserved space"},
 	{KindPermission, "permission denied"},
 	// a missing pool is not a missing dataset: never let it read as absent
 	{KindUnavailable, "no such pool"},
