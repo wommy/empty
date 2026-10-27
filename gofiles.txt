@@ -11,6 +11,7 @@ cmd/zfs-endpoint/main_test.go
 cmd/zfs-endpoint/notify.go
 cmd/zfs-endpoint/reconcile.go
 cmd/zfs-endpoint/reconcile_test.go
+cmd/zfs-endpoint/signal_test.go
 cmd/zfs-endpoint/sockdir_test.go
 cmd/zfs-endpoint/startup.go
 cmd/zfs-endpoint/startup_seams_test.go
@@ -37,6 +38,8 @@ internal/endpoint/belowfloor_test.go
 internal/endpoint/bounds_test.go
 internal/endpoint/clonesize_test.go
 internal/endpoint/converge_test.go
+internal/endpoint/cov24_internal_test.go
+internal/endpoint/cov24_test.go
 internal/endpoint/coverage_test.go
 internal/endpoint/crash_test.go
 internal/endpoint/dash_test.go
@@ -128,6 +131,7 @@ internal/server/peer_test.go
 internal/server/peercred.go
 internal/server/peercred_linux.go
 internal/server/peercred_other.go
+internal/server/probe_test.go
 internal/server/roles.go
 internal/server/roles_internal_test.go
 internal/server/roles_test.go

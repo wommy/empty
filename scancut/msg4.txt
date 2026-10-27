@@ -1,0 +1,27 @@
+endpoint: CreateVolume proves the parent once per pass
+
+Every single-volume scan that found nothing ran its own zfs Exists of the
+parent, though CreateVolume often proves the parent anyway: a new
+filesystem reads the parent's mountpoint (Unavailable when it is
+missing), and a clone's source scan that finds the source proves the
+parent its child lives in.
+
+scanForUnproven reads the volumes as scanFor did, leaving the parent
+unproven only when some volume is missing and none exists. CreateVolume
+clears that after the mountpoint read and otherwise proves the parent
+itself, once, before planning (proveParent: Unavailable, with zfs's
+not-found as the cause, never NotFound and never "absent, so create").
+scanFor keeps its contract for its other callers. ADR 0003's "only a
+classified not-found counts as absent" holds: no plan is made on an
+absence until the parent is proven.
+
+New filesystem, NFS and clone creates each make one call fewer (fs 7 ->
+6, NFS 8 -> 7, clone of a snapshot 7 -> 6, filesystem clone of a volume
+11 -> 10); a new plain block create keeps its Exists (TestRPCCallBudget
+updated). Guarded by TestMissingParentFailsCreateAndDeleteUnavailable:
+skipping the proof makes a block create NotFound (zfs create: parent
+does not exist) and a clone of a snapshot NotFound (source not found).
+Endpoint calls over the simulator suite: 11894 -> 10898.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

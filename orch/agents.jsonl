@@ -86,10 +86,13 @@
 {"id": "a62addd0d2b7fd9ff", "name": "weakening", "lane": "reader", "wave": 24, "status": "done", "branch": null, "report": "wave24/weakening.md", "anomaly": false, "queue": "q-weakening"}
 {"id": "a3b322c80ba25f7fc", "name": "cov-tests", "lane": "writer", "wave": 24, "status": "merged", "branch": "cov-tests", "report": null, "anomaly": false, "queue": "q-cov-tests"}
 {"id": "abe0dd621404bc340", "name": "csi-quick", "lane": "writer", "wave": 25, "status": "merged", "branch": "csi-quick", "report": null, "anomaly": true, "queue": "q-csi-quick"}
-{"id": "aec3b828c6a86e68b", "name": "scan-cut", "lane": "writer", "wave": 25, "status": "running", "branch": "scan-cut", "report": null, "anomaly": false, "queue": "q-scan-cut"}
+{"id": "aec3b828c6a86e68b", "name": "scan-cut", "lane": "writer", "wave": 25, "status": "merged", "branch": "scan-cut", "report": null, "anomaly": false, "queue": "q-scan-cut"}
 {"id": "a63b72f11e0c3fa4a", "name": "own-gap", "lane": "writer", "wave": 25, "status": "merged", "branch": "own-gap", "report": null, "anomaly": true, "queue": "q-own-gap"}
 {"id": "ac259b3d72ffec8e1", "name": "mutation", "lane": "reader", "wave": 25, "status": "running", "branch": null, "report": "wave25/mutation.md", "anomaly": false, "queue": "q-mutation"}
 {"id": "ab101d6ed5cc624ee", "name": "sanity-skips", "lane": "reader", "wave": 25, "status": "done", "branch": null, "report": "wave25/sanity-skips.md", "anomaly": false, "queue": "q-sanity-skips"}
 {"id": "a599c6ef2451a1d7b", "name": "csi-sanity", "lane": "writer", "wave": 26, "status": "running", "branch": "csi-sanity", "report": null, "anomaly": false, "queue": "q-csi-sanity"}
 {"id": "ae7e48e54556f40be", "name": "csi-snapsize", "lane": "writer", "wave": 26, "status": "running", "branch": "csi-snapsize", "report": null, "anomaly": false, "queue": "q-csi-snapsize2"}
-{"id": "a26e3bcddca4d82e2", "name": "retryable", "lane": "reader", "wave": 26, "status": "running", "branch": null, "report": "wave25/retryable.md", "anomaly": false, "queue": "q-retryable"}
+{"id": "a26e3bcddca4d82e2", "name": "retryable", "lane": "reader", "wave": 26, "status": "done", "branch": null, "report": "wave25/retryable.md", "anomaly": false, "queue": "q-retryable"}
+{"id": "a641f1e792d2b8587", "name": "retry-fix", "lane": "writer", "wave": 26, "status": "running", "branch": "retry-fix", "report": null, "anomaly": true, "queue": "q-retry-fix"}
+{"id": "ae8256c506f8f447a", "name": "pr-body", "lane": "reader", "wave": 26, "status": "running", "branch": null, "report": "wave26/pr-body.md", "anomaly": false, "queue": "q-pr-body"}
+{"id": "aea682cc64e7ceca3", "name": "rollback", "lane": "reader", "wave": 26, "status": "running", "branch": null, "report": "wave26/rollback.md", "anomaly": false, "queue": "q-rollback"}

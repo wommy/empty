@@ -31,3 +31,6 @@
 {"t": "2026-10-27T17:01:50Z", "id": "A-reconcile-ownership-mutant-survives", "state": "closed", "sev_revised": "low", "fix": "d411a99", "note": "only skip-report effect; planDelete re-checks ownership"}
 {"t": "2026-10-27T17:01:50Z", "id": "A-maxdel-gate-untested", "state": "closed", "fix": "afdd1a8"}
 {"t": "2026-10-27T17:01:50Z", "id": "A-root-owner-internal-strands", "sev": "high", "state": "closed", "fix": "65c03cb", "note": "Internal after change stranded uncommitted NFS volume; generalisation audit launched"}
+{"t": "2026-10-27T17:13:23Z", "id": "A-root-owner-internal-strands", "state": "reopened", "note": "65c03cb misses production LocalRoot classified Internal"}
+{"t": "2026-10-27T17:13:23Z", "id": "A-final-code-after-change", "sev": "high", "state": "open", "note": "CreateVolume reads, CreateSnapshot post-cut, ENOSPC post-clone return final codes; retry-fix"}
+{"t": "2026-10-27T17:13:23Z", "id": "A-weights-header-conflicts", "sev": "low", "state": "open", "note": "3 merges in a row conflicted on the one-line Source header in ci/real-zfs-weights.txt; consider one note per line"}

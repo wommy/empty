@@ -17,3 +17,31 @@ rec-empty-id killed TestReconcileAgainstDesiredSet (internal/endpoint)
 rec-minage-floor killed TestAdv4TinyMinAgeInFlightCreate (internal/endpoint)
 rec-trylock killed TestAdv4OneBusyLockAbortsWholeRun (internal/endpoint)
 apply-guid-empty killed TestApplyRefusesADestroyWithoutGUID (internal/endpoint)
+apply-guid-first killed ? (internal/endpoint)
+apply-create-p killed TestModel (internal/endpoint)
+del-children killed TestAdv4ChildDatasetsDestroyed (internal/endpoint)
+del-dependent killed TestReconcileSkipsSourceOfFailedClone (internal/endpoint)
+del-foreign killed TestPlanReconcile (internal/endpoint)
+origin-src-owned killed TestModel (internal/endpoint)
+origin-name killed TestPlanDeleteVolumeReleasesOnlyItsOwnOrigin (internal/csi)
+relsrc-owned compile-fail 
+relsrc-stamp compile-fail 
+create-owned killed TestGoldenPlans (internal/endpoint)
+create-cap killed TestSanity (internal/csi)
+create-sparse killed TestParametersAndAccessChecks (internal/csi)
+create-props killed TestPlanCreatePropertiesRetry (internal/endpoint)
+nfs-compat-foreign survived 
+nfs-compat-server killed TestNFS_N9_Idempotency (internal/csi)
+create-srcsnap-owned killed TestModel (internal/endpoint)
+create-sharenfs-off killed TestGoldenPlans (internal/endpoint)
+create-mount-escape killed TestNFS_N5_ShareNFSCanonicalAndServed (internal/csi)
+val-one-source killed TestPlannerErrorCodes (internal/endpoint)
+nfs-empty-host survived 
+nfs-floor killed TestNFS_N2_ClientsValidated (internal/csi)
+nfs-server-adv killed TestNFS_N3_ServerSelection (internal/csi)
+nfs-no-servers killed TestFileExportCreateNeedsServers (internal/endpoint)
+nfs-propsize survived 
+snap-reserved killed TestGoldenPlans (internal/endpoint)
+snap-src-served compile-fail internal/endpoint/plan.go:988:2: declared and not used: src
+snap-whole killed TestPlannersRequireACoveringTable (internal/endpoint)
+expand-cap-max killed TestReachCapacityWrap (internal/endpoint)
