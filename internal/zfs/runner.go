@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -84,6 +85,9 @@ func (r LocalRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	// just the leader: a grandchild holding a pipe otherwise outlives Run
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 	cmd.SysProcAttr = childAttr()
+	// classify matches libzfs's English messages: the child never runs in
+	// the daemon's locale (exec keeps the last of duplicate keys)
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANGUAGE=C")
 	cmd.WaitDelay = r.WaitDelay
 	if cmd.WaitDelay == 0 {
 		cmd.WaitDelay = 5 * time.Second
