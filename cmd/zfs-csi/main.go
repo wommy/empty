@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	zcsi "github.com/wommy/empty/internal/csi"
@@ -80,7 +81,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 	srv := grpc.NewServer()
-	csi.RegisterIdentityServer(srv, &zcsi.Identity{EP: ep, Name: *name})
+	csi.RegisterIdentityServer(srv, &zcsi.Identity{Health: healthpb.NewHealthClient(conn), Name: *name})
 	csi.RegisterControllerServer(srv, &zcsi.Controller{EP: ep, EnableBlock: *enableBlock})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

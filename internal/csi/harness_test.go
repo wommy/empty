@@ -10,6 +10,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/test/bufconn"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
@@ -23,6 +25,13 @@ import (
 // do. It runs on the simulator, or on a fresh parent dataset of a real pool
 // when ZFS_TEST_POOL is set (CI: a file-backed pool, as root).
 func endpointClient(t *testing.T) pb.EndpointServiceClient {
+	t.Helper()
+	return pb.NewEndpointServiceClient(endpointConn(t))
+}
+
+// endpointConn is endpointClient's connection, which also serves the gRPC
+// health service, SERVING, as the daemon does once ready.
+func endpointConn(t *testing.T) *grpc.ClientConn {
 	t.Helper()
 	ctx := context.Background()
 	var z *zfs.Client
@@ -55,6 +64,9 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
 	lis := bufconn.Listen(1 << 20)
 	srv := grpc.NewServer()
 	pb.RegisterEndpointServiceServer(srv, &server.Server{EP: ep, Parent: parent})
+	hs := health.NewServer()
+	hs.SetServingStatus(server.ServiceName, healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(srv, hs)
 	go srv.Serve(lis)
 	t.Cleanup(srv.Stop)
 	conn, err := grpc.NewClient("passthrough:///bufnet",
@@ -64,5 +76,5 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { conn.Close() })
-	return pb.NewEndpointServiceClient(conn)
+	return conn
 }
