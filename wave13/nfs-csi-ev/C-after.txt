@@ -1,0 +1,13 @@
+=== RUN   TestFileExportServedBeyondRequest
+--- PASS: TestFileExportServedBeyondRequest (0.00s)
+=== RUN   TestPlanPublishExport/served_in_the_other_mode:_refused_before_any_change
+=== RUN   TestPlanPublishExport/served_with_no_mode:_refused_before_any_change
+=== RUN   TestPlanPublishExport/served_only_under_a_name:_refused_before_any_change
+=== RUN   TestPlanPublishExport/served_with_no_root_squash:_refused_before_any_change
+=== RUN   TestPlanPublishExport/served_to_more_clients:_refused_before_any_change
+    --- PASS: TestPlanPublishExport/served_in_the_other_mode:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/served_with_no_mode:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/served_only_under_a_name:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/served_with_no_root_squash:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/served_to_more_clients:_refused_before_any_change (0.00s)
+ok  	github.com/wommy/empty/internal/endpoint	0.116s

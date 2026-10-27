@@ -1,6 +1,6 @@
 {
  "ci": "green",
- "head": "98aef7a",
+ "head": "18cbaea",
  "caps": {
   "total": 8,
   "writers": 3,
@@ -13,5 +13,5 @@
  "notes": "First warm run 62s wall (VM job 57s: restore guest 12s, qemu 4s, test 29s; static 12s; test 17s). Next: overlap guest restore with setup-go; default-branch warm job (b-cache-warm).",
  "last_ci_seconds": 56,
  "budget_regression": "variance: 3ab03d5 69s, bdfe867 56s; b-cache-warm targets <=45s nominal",
- "open_anomaly": "TestModel real-pool intermittent (2/3 red, same seeds); r-model-flake investigating"
+ "open_anomaly": "TestModel guid fix c7afa76: 1 green real-pool run so far; confirm over next merges"
 }

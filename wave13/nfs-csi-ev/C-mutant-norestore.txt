@@ -1,0 +1,5 @@
+--- FAIL: TestFileExportServedBeyondRequest (0.00s)
+    export_contract_test.go:661: refused publish of 10.0.0.3 left sharenfs "rw=10.0.0.3/32" (local), was "off" (default)
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.006s
+FAIL

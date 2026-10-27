@@ -1,0 +1,27 @@
+=== RUN   TestPlanReconcile/leftover_nfs_clients_is_reported
+=== PAUSE TestPlanReconcile/leftover_nfs_clients_is_reported
+=== RUN   TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it
+=== PAUSE TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it
+=== RUN   TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report
+=== PAUSE TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report
+=== CONT  TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report
+=== CONT  TestPlanReconcile/leftover_nfs_clients_is_reported
+=== CONT  TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it
+    --- PASS: TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report (0.00s)
+    --- PASS: TestPlanReconcile/leftover_nfs_clients_is_reported (0.00s)
+    --- PASS: TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it (0.00s)
+=== RUN   TestFileExportAdminWorldEditIsForeign
+--- PASS: TestFileExportAdminWorldEditIsForeign (0.00s)
+=== RUN   TestPlanUnpublishExport/leftover_stored_list_is_ignored
+=== RUN   TestPlanUnpublishExport/admin's_*_over_our_list:_refused,_not_rewritten
+=== RUN   TestPlanUnpublishExport/leftover_stored_list,_inherited_off
+    --- PASS: TestPlanUnpublishExport/leftover_stored_list_is_ignored (0.00s)
+    --- PASS: TestPlanUnpublishExport/admin's_*_over_our_list:_refused,_not_rewritten (0.00s)
+    --- PASS: TestPlanUnpublishExport/leftover_stored_list,_inherited_off (0.00s)
+=== RUN   TestPlanPublishExport/leftover_stored_list_is_ignored
+=== RUN   TestPlanPublishExport/leftover_stored_list,_inherited_sharenfs:_pinned
+=== RUN   TestPlanPublishExport/admin's_*_over_our_list_is_foreign
+    --- PASS: TestPlanPublishExport/leftover_stored_list_is_ignored (0.00s)
+    --- PASS: TestPlanPublishExport/leftover_stored_list,_inherited_sharenfs:_pinned (0.00s)
+    --- PASS: TestPlanPublishExport/admin's_*_over_our_list_is_foreign (0.00s)
+ok  	github.com/wommy/empty/internal/endpoint	0.117s

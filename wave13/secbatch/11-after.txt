@@ -1,0 +1,24 @@
+=== RUN   TestStartupRefusesACrossmntAncestor
+=== PAUSE TestStartupRefusesACrossmntAncestor
+=== CONT  TestStartupRefusesACrossmntAncestor
+=== RUN   TestStartupRefusesACrossmntAncestor/on
+=== PAUSE TestStartupRefusesACrossmntAncestor/on
+=== RUN   TestStartupRefusesACrossmntAncestor/rw=@10.0.0.0/24
+=== PAUSE TestStartupRefusesACrossmntAncestor/rw=@10.0.0.0/24
+=== RUN   TestStartupRefusesACrossmntAncestor/crossmnt,ro=@10.9.0.0/16
+=== PAUSE TestStartupRefusesACrossmntAncestor/crossmnt,ro=@10.9.0.0/16
+=== CONT  TestStartupRefusesACrossmntAncestor/on
+=== CONT  TestStartupRefusesACrossmntAncestor/crossmnt,ro=@10.9.0.0/16
+=== CONT  TestStartupRefusesACrossmntAncestor/rw=@10.0.0.0/24
+--- PASS: TestStartupRefusesACrossmntAncestor (0.00s)
+    --- PASS: TestStartupRefusesACrossmntAncestor/crossmnt,ro=@10.9.0.0/16 (0.00s)
+    --- PASS: TestStartupRefusesACrossmntAncestor/on (0.00s)
+    --- PASS: TestStartupRefusesACrossmntAncestor/rw=@10.0.0.0/24 (0.00s)
+PASS
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	0.014s
+=== RUN   TestExposedByAncestor
+=== PAUSE TestExposedByAncestor
+=== CONT  TestExposedByAncestor
+--- PASS: TestExposedByAncestor (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.011s
