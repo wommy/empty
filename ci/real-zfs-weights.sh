@@ -28,18 +28,29 @@
 # over (stderr says how many): drop each whose hand-set weight the new
 # runs now measure.
 #
-# A test's weight is what it adds to its shard's wall clock:
-# - a sequential test: its wall, parallel subtests included (without
-#   timestamps: its own time plus its parallel subtests' time / nproc);
-# - a parallel test (t.Parallel at top level): its time, parallel subtests
-#   summed, / nproc, since it shares the shard's nproc slots with the
-#   shard's other parallel tests.
-# A test split across shards (TestPropertyRoundTrip) sums its rows within
-# a run, its parts' files together, and ci/real-zfs-plan.sh gives each
-# shard 1/n of it. Several runs average. Rows from a nightly run (mode=full: the whole
-# zfsdiff corpus or every crash point) are skipped, since they are not what
-# a PR runs. An endpoint test with no measurement keeps its old weight.
-# Only the shard balance depends on the weights, never the coverage.
+# A test's measured seconds in one part (one input file):
+# - a test with parallel parts (t.Parallel at top level, or a sequential
+#   test with parallel subtests, like TestCrashAtEveryMutationConverges):
+#   its test-seconds, parallel subtests summed, / nproc, since they share
+#   the guest's nproc vCPUs with the part's other tests;
+# - any other test: its own time (its result line).
+# The same formula for a TSV and an older log: wall_s is not used.
+# A part's seconds carry its contention: a loaded part reads 2-4x higher
+# than the same test in a light one (ADR 0005), so they are normalized per
+# part before runs average. Each part's rows are scaled to sum to the
+# part's guest work, its fork count (the "forks N" line of the guest's
+# load report: in the job log, or in a TSV's sibling load.txt), or its
+# root cgroup CPU-seconds (the "root" row) when a part has no fork count;
+# with neither for every part, the parts stay raw seconds (stderr says
+# so). A test split across shards (TestPropertyRoundTrip) sums its rows
+# within a run, its parts' files together, and ci/real-zfs-plan.sh gives
+# each shard 1/n of it. Runs then average, and the weights are rescaled to
+# the total the raw seconds average to: the file stays in measured
+# seconds, its balance in guest work. Rows from a nightly run (mode=full:
+# the whole zfsdiff corpus or every crash point) are skipped, since they
+# are not what a PR runs. An endpoint test with no measurement keeps its
+# old weight. Only the shard balance depends on the weights, never the
+# coverage.
 set -euo pipefail
 
 src= list=
@@ -56,6 +67,17 @@ here=$(cd "$(dirname "$0")" && pwd)
 tmp=$(mktemp)
 logs=$(mktemp -d)
 trap 'rm -f "$tmp"; rm -rf "${logs:?}"' EXIT
+
+# the guest's load report (a job log, or a TSV's sibling load.txt) as a
+# header line: its fork count and root cgroup CPU-seconds over the phase
+loadhdr() {
+  awk '
+    { sub(/^[^0-9]*[0-9][0-9-]*T[0-9:.]+Z /, "") }
+    $1 == "forks" && $2 ~ /^[0-9]+$/ { fk = $2 }
+    $1 == "root" && $2 ~ /^[0-9]+(\.[0-9]+)?$/ && $3 == "(sys" { cpu = $2 }
+    END { if (fk != "" || cpu != "") print "# load: forks=" (fk == "" ? "-" : fk) " cpu_s=" (cpu == "" ? "-" : cpu) }
+  ' "$1"
+}
 
 # a job log as the TSV the guest wrote: its test-times.tsv group, or (an
 # older log) its shard logs through ci/test-times.awk under a made header
@@ -74,6 +96,8 @@ log2tsv() {
     / on [0-9]+ vCPUs$/ { n = $0; sub(/ vCPUs$/, "", n); sub(/.* on /, "", n); print n >(d "/nproc") }
     /^ +(ZFSDIFF_FULL|ZFS_CRASH_FULL): [^ ]/ { print "" >(d "/full") }
   ' "$f"
+  echo "# input: $f"
+  loadhdr "$f"
   if [ -s "$d/tsv" ]; then
     cat "$d/tsv"
     return
@@ -96,6 +120,11 @@ for f in "$@"; do
     i=$((i + 1))
     log2tsv "$f" "$logs/$i" >"$logs/$i.tsv"
     f=$logs/$i.tsv
+  elif [ -f "$(dirname "$f")/load.txt" ]; then
+    # an artifact's TSV: its part's load report sits beside it
+    i=$((i + 1))
+    { echo "# input: $f"; loadhdr "$(dirname "$f")/load.txt"; cat "$f"; } >"$logs/$i.tsv"
+    f=$logs/$i.tsv
   fi
   files+=("$f")
 done
@@ -109,11 +138,16 @@ awk -v src="$src" '
   /^#/ {
     # hand-set weights stay explained until a human drops the line
     if (FILENAME == old) { if ($0 ~ /^# note:/) notes[++nn] = $0; next }
+    # the input a made TSV stands for, to name it on stderr
+    if ($0 ~ /^# input: /) { inp[FILENAME] = substr($0, 10); next }
     if (match($0, /nproc=[0-9]+/)) nproc = substr($0, RSTART + 6, RLENGTH - 6) + 0
     # the parts of one run sum as one measurement; "local" is no run
     if (match($0, /run=[^ ]+/) && substr($0, RSTART + 4, RLENGTH - 4) != "local") key = "run " substr($0, RSTART + 4, RLENGTH - 4)
     if ($0 ~ /mode=full/) full = 1
-    if (full && !(FILENAME in warned)) { warned[FILENAME] = 1; print "skipping " FILENAME ": a nightly (mode=full) run" >"/dev/stderr" }
+    # the part'"'"'s guest work, to normalize its rows by (loadhdr)
+    if (match($0, /forks=[0-9]+/)) forks[FILENAME] = substr($0, RSTART + 6, RLENGTH - 6) + 0
+    if (match($0, /cpu_s=[0-9.]+/)) cpus[FILENAME] = substr($0, RSTART + 6, RLENGTH - 6) + 0
+    if (full && !(FILENAME in warned)) { warned[FILENAME] = 1; print "skipping " ((FILENAME in inp) ? inp[FILENAME] : FILENAME) ": a nightly (mode=full) run" >"/dev/stderr" }
     next
   }
   FILENAME == old {
@@ -130,16 +164,35 @@ awk -v src="$src" '
     # tabs, or spaces from a log viewer: no field holds a blank
     split($0, f, /[\t ]+/)
     if (f[1] !~ /^endpoint\./) next
-    t = f[2]; par = f[4] + 0; own = f[5] + 0; cost = f[6] + 0; wall = f[7]
-    if (par) w = cost / nproc
-    else if (wall != "-") w = wall + 0
-    else w = own + (cost - own) / nproc
+    t = f[2]; par = f[4] + 0; own = f[5] + 0; cost = f[6] + 0
+    # parallel test, or parallel subtests: they share the nproc vCPUs
+    w = (par || cost > own) ? cost / nproc : own
     # a split test (ci/real-zfs-plan.sh) has a row per shard of the run,
     # over the files of its parts: they add up within a run, runs average
-    sum[t] += w
+    val[FILENAME, t] += w
+    tot[FILENAME] += w
     if (!((key, t) in run)) { run[key, t] = 1; cnt[t]++ }
   }
   END {
+    # each part in its own guest work: forks if every part has them, else
+    # root CPU-seconds, else raw seconds
+    nf = nfk = ncpu = 0
+    for (pf in tot) { nf++; if (pf in forks) nfk++; if (pf in cpus) ncpu++ }
+    by = !nf ? "" : nfk == nf ? "forks" : ncpu == nf ? "CPU-s" : ""
+    if (nf && by == "") print "real-zfs-weights: not every part has a fork count or CPU-seconds (a job log, or load.txt beside a TSV): weights are raw seconds, not normalized per part" >"/dev/stderr"
+    for (pf in tot) {
+      b = by == "forks" ? forks[pf] : by == "CPU-s" ? cpus[pf] : 0
+      k[pf] = (by != "" && tot[pf] > 0) ? b / tot[pf] : 1
+      if (by != "") printf "real-zfs-weights: %s: %.2f s measured, %s %s: %.1f per s\n", (pf in inp) ? inp[pf] : pf, tot[pf], b, by, k[pf] >"/dev/stderr"
+    }
+    for (ft in val) {
+      split(ft, x, SUBSEP)
+      sum[x[2]] += val[ft]; norm[x[2]] += val[ft] * k[x[1]]
+    }
+    # back to seconds: the total the raw seconds average to
+    R = U = 0
+    for (t in sum) { R += sum[t] / cnt[t]; U += norm[t] / cnt[t] }
+    for (t in sum) wt[t] = U > 0 ? norm[t] / cnt[t] * R / U : sum[t] / cnt[t]
     print "# Hand-set a weight? Add one new `# note:` line for it after the others; never extend an existing line (merges conflict on it)."
     print "# Seconds each top-level endpoint test adds to its shard on the real-ZFS"
     print "# VM: the time cost of a test as data (ADR 0005). ci/real-zfs-guest.sh"
@@ -150,15 +203,18 @@ awk -v src="$src" '
     print "# ci/check-skips.sh fails a test that neither passed nor skipped."
     print "#"
     print "# Generated by ci/real-zfs-weights.sh from the guest'"'"'s test-times.tsv"
-    print "# (sequential test: wall, parallel subtests included; parallel test:"
-    print "# test-seconds / nproc). Edit by hand only with a `# note:` line; rerun the script on newer"
-    print "# runs when shards drift apart (shards.txt in the job summary)."
+    print "# (a parallel test, or one with parallel subtests: test-seconds / nproc;"
+    print "# any other: its own time), each part'"'"'s rows scaled to the part'"'"'s guest"
+    print "# work (forks, else CPU-s: a loaded part reads 2-4x high) before runs"
+    print "# average, then rescaled to the measured seconds'"'"' total. Edit by hand"
+    print "# only with a `# note:` line; rerun the script on newer runs when shards"
+    print "# drift apart (shards.txt in the job summary)."
     if (src != "") print "# Source: " src "."
     for (i = 1; i <= nn; i++) print notes[i]
     if (nn) printf "real-zfs-weights: kept %d `# note:` line(s) of the old file: drop each whose weight these runs now measure\n", nn >"/dev/stderr"
     print "#"
     print "# <test> <seconds>"
-    for (t in sum) printf "%s %.2f\n", t, sum[t] / cnt[t] | "sort -k2,2gr -k1,1"
+    for (t in wt) printf "%s %.2f\n", t, wt[t] | "sort -k2,2gr -k1,1"
     close("sort -k2,2gr -k1,1")
     n = 0
     for (t in prev) if (keep(t)) n++
