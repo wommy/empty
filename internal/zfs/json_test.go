@@ -37,7 +37,7 @@ func golden(t testing.TB, name string) []byte {
 }
 
 func decode(b []byte, props []string) (*zfs.Columns, error) {
-	return zfs.DecodeGetJSON(bytes.NewReader(b), props, 0)
+	return zfs.DecodeGetJSON(bytes.NewBuffer(b), props, 0)
 }
 
 // columns builds the Columns a decode should produce: per dataset, its

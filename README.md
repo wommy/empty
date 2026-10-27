@@ -81,7 +81,7 @@ All research is in `docs/research/`. Delegates produced it from pinned clones an
 | Busy is mapped by operation | CSI: "in use" on DeleteVolume/DeleteSnapshot is `FAILED_PRECONDITION`. On create, expand and clone it clears by itself, so it is retryable |
 | A killed zfs command is `DEADLINE_EXCEEDED`/`ABORTED`, never `INTERNAL` | its outcome is unknown, and a final code would strand a half-applied plan. Commands get SIGTERM and then a 5 s `WaitDelay` |
 | Never delete a non-socket at the socket path | a misconfigured `-csi-address` removed whatever file it named |
-| No struct-of-arrays layout | measured: struct-of-arrays saves about 12 µs on a filter over 10k rows (`docs/research/dod-go/memory-layout.md`), while a whole-parent scan of 10k rows costs about 160-180 ms and 19 MB in about 120 allocations Go-side (`BenchmarkScan`: JSON decode, row decode and index, zfs exec excluded; the text parser it replaced allocated 100 MB in 355k allocations). The cost is in parsing and decoding, not in the row layout |
+| No struct-of-arrays layout | measured: struct-of-arrays saves about 12 µs on a filter over 10k rows (`docs/research/dod-go/memory-layout.md`), while a whole-parent scan of 10k rows costs about 180-190 ms and 19 MB in about 100 allocations Go-side (`BenchmarkScan`: JSON decode, row decode and index, zfs exec excluded; the text parser it replaced took about 150-170 ms and 102 MB in 355k allocations). The cost is in parsing and decoding, not in the row layout |
 
 ### Corrections from adversarial review
 
