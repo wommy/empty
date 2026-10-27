@@ -40,3 +40,8 @@
 {"ts": "2026-10-27T06:46:43Z", "id": "ae6970226d3d7c24d", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T06:47:05Z", "id": "aa8e15be0fa34fc1a", "from": "queued", "to": "running", "note": "r-sec-decisions"}
 {"ts": "2026-10-27T06:47:05Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:51:35Z", "id": "a9650f942cd067cd8", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:51:35Z", "id": "a9650f942cd067cd8", "from": "reported", "to": "triaged", "note": "AN-04 confirmed (nightly.yml explore pattern matches no test; job passes vacuously). AN-01 plausible (third reconcile checks only Actions). Batches A/B/C adopted; C (test truth) first."}
+{"ts": "2026-10-27T06:51:35Z", "id": "a9650f942cd067cd8", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:53:42Z", "id": "a1f29cbd90f96571f", "from": "queued", "to": "running", "note": "w12-gaps"}
+{"ts": "2026-10-27T06:53:42Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

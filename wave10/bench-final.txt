@@ -1,0 +1,2 @@
+before         go test ./... #1                   wall  31.36s  cpu    9.37s  rc=0
+before         go test -race ./... #1             wall  48.51s  cpu   20.28s  rc=0
