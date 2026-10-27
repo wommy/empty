@@ -31,6 +31,10 @@ const (
 	kindLast = KindInterrupted
 )
 
+// NumKinds is the number of Kinds: every Kind is below it. Tables keyed by
+// Kind size themselves with it.
+const NumKinds = int(kindLast) + 1
+
 func (k Kind) String() string {
 	switch k {
 	case KindExists:
