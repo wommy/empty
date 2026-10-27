@@ -1551,7 +1551,8 @@ func (m *Model) walk(r *dset, depth int) []*dset {
 // SendRecv models `zfs send -p snap | zfs recv dst`: dst is created as a
 // copy of snap's head with every property set locally (or received) on
 // that head arriving as received (ZPROP_SRC_RECEIVED, dsl_prop.c:786-793),
-// plus the snapshot dst@<name>; zfs recv then mounts dst.
+// plus the snapshot dst@<name> with snap's own properties received;
+// zfs recv then mounts dst.
 func (m *Model) SendRecv(snap, dst string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1579,6 +1580,17 @@ func (m *Model) SendRecv(snap, dst string) error {
 	}
 	sn := m.newDS(dst+snap[strings.IndexByte(snap, '@'):], kSnap)
 	sn.volsize, sn.vbs = d.volsize, d.vbs
+	// the stream's snapprops: zfs_receive_one sets the snapshot's own
+	// properties on the received snapshot as received (libzfs_sendrecv.c,
+	// ZFS_IOC_SET_PROP with zc_cookie = B_TRUE)
+	for k, v := range s.recvd {
+		if !s.inh[k] {
+			sn.recvd[k] = v
+		}
+	}
+	for k, v := range s.local {
+		sn.recvd[k] = v
+	}
 	m.mountAndShare(d)
 	return nil
 }

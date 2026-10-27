@@ -38,3 +38,26 @@ func TestOpKindString(t *testing.T) {
 		}
 	}
 }
+
+// A destroy the planner did not tie to a guid is a program bug too: it
+// could hit whatever holds the name by then (OWN-15). Refused before
+// anything runs.
+func TestApplyRefusesADestroyWithoutGUID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	e, err := New(zfs.New(sim), Config{Parent: "tank"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.zfs.CreateFilesystem(ctx, "tank/b", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	plan := Plan{{Kind: OpCreateFS, Target: "tank/a"}, {Kind: OpDestroy, Target: "tank/b", OkMissing: true}}
+	if err := e.apply(ctx, plan); CodeOf(err) != Internal {
+		t.Fatalf("got %v, want Internal", err)
+	}
+	if sim.Has("tank/a") || !sim.Has("tank/b") {
+		t.Fatal("the plan ran")
+	}
+}

@@ -383,3 +383,159 @@ func TestCrashAtEveryMutationConverges(t *testing.T) {
 		})
 	}
 }
+
+// OWN-15: between a plan and its destroy, the target is renamed away and
+// another dataset made under its name, carrying the same ownership
+// markers. The destroy must not hit it: the endpoint checks the guid the
+// plan read right before each destroy and aborts on a mismatch.
+//
+// swapRunner does the swap for the at-th destroy of the run (0-based),
+// before the first command that touches its target: the guid check, or
+// the destroy itself where no check runs.
+type swapRunner struct {
+	zfs.Runner
+	t        *testing.T
+	z        *zfs.Client
+	at, n    int
+	swapped  string // the target swapped, "" until then
+	moved    string // where the original went
+	impostor string // the guid of the dataset made in its place
+}
+
+func (s *swapRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	target := ""
+	switch {
+	case len(args) > 1 && args[0] == "destroy":
+		target = args[len(args)-1]
+	// a single dataset's Get (the guid check), not a scan or a List: those
+	// name their types with -t
+	case len(args) > 1 && args[0] == "get" && !slices.Contains(args, "-t") && slices.Contains(args, "guid"):
+		target = args[len(args)-1]
+	}
+	if target != "" && s.swapped == "" && s.n == s.at {
+		s.swap(ctx, target)
+	}
+	if len(args) > 0 && args[0] == "destroy" {
+		s.n++
+	}
+	return s.Runner.Run(ctx, name, args...)
+}
+
+// ownership markers an impostor copies from the dataset it replaces
+var swapMarkers = func() []string {
+	p := endpoint.DefaultPropertyPrefix + ":"
+	return []string{p + "managed_resource", p + "provision_success", p + "csi_volume_name", p + "csi_snapshot_name",
+		p + "csi_snapshot_source_volume_id", p + "clone_source_for"}
+}()
+
+func (s *swapRunner) markers(ctx context.Context, name string) []string {
+	d, err := s.z.Get(ctx, name, swapMarkers...)
+	if err != nil {
+		s.t.Fatalf("swap: read %s: %v", name, err)
+	}
+	var out []string
+	for _, k := range swapMarkers {
+		if v := d.Props[k]; v.Local() {
+			out = append(out, "-o", k+"="+v.Value)
+		}
+	}
+	return out
+}
+
+func (s *swapRunner) zfs(ctx context.Context, args ...string) {
+	if _, err := s.Runner.Run(ctx, "zfs", args...); err != nil {
+		s.t.Fatalf("swap: zfs %v: %v", args, err)
+	}
+}
+
+func (s *swapRunner) swap(ctx context.Context, target string) {
+	vol, snap, isSnap := strings.Cut(target, "@")
+	volMarks := s.markers(ctx, vol)
+	var snapMarks []string
+	if isSnap {
+		snapMarks = s.markers(ctx, target)
+	}
+	s.swapped, s.moved = target, vol+"-moved"
+	s.zfs(ctx, "rename", vol, s.moved)
+	s.zfs(ctx, append(append([]string{"create", "-o", "canmount=noauto"}, volMarks...), vol)...)
+	if isSnap {
+		s.moved += "@" + snap
+		s.zfs(ctx, append(append([]string{"snapshot"}, snapMarks...), target)...)
+	}
+	d, err := s.z.Get(ctx, target, "guid")
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	s.impostor = d.Props["guid"].Value
+}
+
+var swapCases = []crashCase{
+	crashCaseNamed("delete-volume"),
+	crashCaseNamed("delete-clone-releases-source"),
+	crashCaseNamed("delete-restored-clone"),
+	crashCaseNamed("reconcile"),
+	{name: "delete-snapshot",
+		setup: then(mk(endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 16 * cmib}), snapOf("s", "v")),
+		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
+			snaps, _, err := ep.ListSnapshots(ctx, "", "v", 0, "")
+			if err != nil || len(snaps) != 1 {
+				return fmt.Errorf("snapshots %v: %v", snaps, err)
+			}
+			return ep.DeleteSnapshot(ctx, snaps[0].ID)
+		}},
+}
+
+func crashCaseNamed(name string) crashCase {
+	for _, c := range crashCases {
+		if c.name == name {
+			return c
+		}
+	}
+	panic("no crash case " + name)
+}
+
+func TestDestroyNeverHitsAReplacedDataset(t *testing.T) {
+	for _, c := range swapCases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			for k := 0; ; k++ {
+				done := false
+				t.Run(fmt.Sprintf("destroy%d", k), func(t *testing.T) {
+					ctx := context.Background()
+					ep0, h := setupNFS(t, "192.0.2.10")
+					if c.setup != nil {
+						if err := c.setup(ctx, ep0, h); err != nil {
+							t.Fatalf("setup: %v", err)
+						}
+					}
+					sw := &swapRunner{Runner: h.Z.Runner, t: t, z: h.Z, at: k}
+					err := c.op(ctx, crashEndpoint(t, h, sw, c.late))
+					if sw.swapped == "" {
+						done = true // the run made fewer destroys
+						if err != nil {
+							t.Fatalf("unswapped run: %v", err)
+						}
+						return
+					}
+					d, gerr := h.Z.Get(ctx, sw.swapped, "guid")
+					if gerr != nil || d.Props["guid"].Value != sw.impostor {
+						t.Errorf("the dataset made in place of %s was destroyed (%v)", sw.swapped, gerr)
+					}
+					if ok, _ := h.Z.Exists(ctx, sw.moved); !ok {
+						t.Errorf("the original, renamed to %s, is gone", sw.moved)
+					}
+					// Reconcile reports a failed group as skipped, not as an error
+					if c.name != "reconcile" && endpoint.CodeOf(err) != endpoint.Aborted {
+						t.Errorf("op after the swap of %s: %v (code %d), want Aborted", sw.swapped, err, endpoint.CodeOf(err))
+					}
+				})
+				if done || t.Failed() {
+					if k == 0 && done {
+						t.Fatal("the op made no destroy")
+					}
+					return
+				}
+			}
+		})
+	}
+}

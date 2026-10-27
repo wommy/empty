@@ -61,7 +61,12 @@ type Op struct {
 	Props     map[string]string // create/clone/snapshot -o, or OpSet values
 	OkExists  bool              // create/snapshot/clone: already exists is done
 	OkMissing bool              // destroy: already gone is done
-	Path      string            // OpSetRoot: the mountpoint
+	// GUID: OpDestroy, the guid of the dataset the plan inspected under
+	// Target. apply destroys Target only while it still has this guid: a
+	// dataset renamed away and another made under the name since is never
+	// destroyed in its place (OWN-15).
+	GUID string
+	Path string // OpSetRoot: the mountpoint
 }
 
 // Plan is the ordered ops of one request.
@@ -676,12 +681,23 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // cutting the snapshot and cloning, then given up on, would otherwise leak
 // it until Reconcile's orphan rule collects it, MinAge later. Finding those
 // needs the whole parent: they hang off whichever volume was the source.
+//
+// A present volume releases them too, first: CreateVolume re-issued
+// without the source after such a crash makes a plain volume, and a
+// delete that left the snapshot to a retry (which finds the volume absent)
+// would not be idempotent: DV;DV != DV.
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	d, err := p.planDelete(t, volID, p.DestroyForeignSnapshots)
-	if err != nil || d.vol != nil {
-		return d.plan(), err
+	if err != nil {
+		return nil, err
 	}
-	return p.releaseCloneSourcesFor(t, volID)
+	rel, err := p.releaseCloneSourcesFor(t, volID)
+	if err != nil || d.vol == nil {
+		return rel, err
+	}
+	// the volume's own origin is in use (by the volume), so never in rel;
+	// d.plan releases it
+	return append(rel, d.plan()...), nil
 }
 
 // releaseCloneSourcesFor plans the release (destroy -d, as a clone delete
@@ -689,19 +705,24 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 // clone id on a volume the endpoint owns. Only the stamp makes one ours;
 // the reserved name alone is anyone's (ADR 0003).
 func (p Planner) releaseCloneSourcesFor(t Table, id string) (Plan, error) {
-	if err := t.mustBeWhole("DeleteVolume of an absent volume"); err != nil {
-		return nil, err
+	if t.srcsFor != id {
+		if err := t.mustBeWhole("finding the clone sources cut for " + id); err != nil {
+			return nil, err
+		}
 	}
 	var plan Plan
 	for src := range t.Volumes() {
 		s, ok := t.Get(src.ID + "@" + cloneSourceSnapshotPrefix + id)
-		if !ok || !src.OwnedVolume() || s.Deferred || !zfs.ValidSnapshot(s.Name) || hasAny(t.ClonesOf(s.Name)) {
+		if !ok || !src.OwnedVolume() || s.Deferred || !zfs.ValidSnapshot(s.Name) {
+			continue
+		}
+		if _, used := t.dependent(s, p.Parent); used {
 			continue
 		}
 		if clone, ours := s.OwnedCloneSource(); !ours || clone != id {
 			continue
 		}
-		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true})
+		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true, GUID: s.GUID})
 	}
 	return plan, nil
 }
@@ -786,8 +807,8 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 		if s.SnapshotName != "" && !s.Deferred {
 			return deletion{}, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
 		}
-		for c := range t.ClonesOf(s.Name) {
-			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
+		if c, ok := t.dependent(s, p.Parent); ok {
+			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c)
 		}
 		// a user hold is someone's claim on the snapshot (zfs send, a
 		// backup tool); only its holder releases it (HOLD-REPLAN)
@@ -801,18 +822,18 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 			foreign = append(foreign, s.ID)
 		}
 		// plain, never -d: a snapshot still in use must make zfs refuse
-		d.snaps = append(d.snaps, Op{Kind: OpDestroy, Target: s.Name, OkMissing: true})
+		d.snaps = append(d.snaps, Op{Kind: OpDestroy, Target: s.Name, OkMissing: true, GUID: s.GUID})
 	}
 	if len(foreign) > 0 && !destroyForeign {
 		return deletion{}, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
 			id, strings.Join(foreign, ", "))
 	}
-	d.vol = &Op{Kind: OpDestroy, Target: row.Name, OkMissing: true}
+	d.vol = &Op{Kind: OpDestroy, Target: row.Name, OkMissing: true, GUID: row.GUID}
 	// an origin already marked (an earlier, interrupted delete) is released:
 	// zfs reaps it with the clone, and re-marking it would be a no-op op
 	// that a delete zfs keeps refusing repeats on every reconcile
 	if origin, src, ok := p.releasedOrigin(t, row); ok && !origin.Deferred {
-		d.origin = &Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true}
+		d.origin = &Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true, GUID: origin.GUID}
 		d.src = src
 	}
 	return d, nil
@@ -1007,7 +1028,7 @@ func (p Planner) PlanDeleteSnapshot(t Table, snapID string) (Plan, error) {
 	if !row.OwnedSnapshot() {
 		return nil, errorf(FailedPrecondition, "snapshot %s is not managed", snapID)
 	}
-	return Plan{{Kind: OpDestroy, Target: row.Name, Defer: true, OkMissing: true}}, nil
+	return Plan{{Kind: OpDestroy, Target: row.Name, Defer: true, OkMissing: true, GUID: row.GUID}}, nil
 }
 
 func sourceOf(r CreateVolumeRequest) (string, string) {

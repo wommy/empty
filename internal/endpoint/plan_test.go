@@ -365,6 +365,55 @@ func TestPlanDeleteAbsentVolumeReleasesItsCloneSource(t *testing.T) {
 	}
 }
 
+// The same crash window, then CreateVolume(c) re-issued without the
+// source: c exists, a plain volume, and the stamped snapshot still hangs
+// off src. Deleting the present c must release it as deleting an absent c
+// does, or DeleteVolume is not idempotent: the first call leaves the
+// snapshot, a retry after a lost answer releases it (TestExploreLifecycle,
+// CV(a); CV(b<-a) CRASH; CV(b); DV(b) CRASH@1/1; retry DV(b)). The
+// releases come first, deferred, as a clone's origin release does.
+func TestPlanDeletePresentVolumeReleasesItsCloneSource(t *testing.T) {
+	t.Parallel()
+	const prefix = cloneSourceSnapshotPrefix
+	for _, tc := range []struct {
+		name string
+		rows []Row
+		want []string // destroy targets, in order
+	}{
+		{"stamped for c", []Row{vol("c", nil), vol("src", nil), snap("src@"+prefix+"c", stamp)},
+			[]string{"tank/v/src@" + prefix + "c", "tank/v/c"}},
+		{"stamped for c on two sources", []Row{
+			vol("c", nil), vol("a", nil), snap("a@"+prefix+"c", stamp), vol("b", nil), snap("b@"+prefix+"c", stamp),
+		}, []string{"tank/v/a@" + prefix + "c", "tank/v/b@" + prefix + "c", "tank/v/c"}},
+		{"nothing cut", []Row{vol("c", nil), vol("src", nil)}, []string{"tank/v/c"}},
+		{"stamped for another clone", []Row{vol("c", nil), vol("src", nil), snap("src@"+prefix+"c", func(r *Row) { stamp(r); r.CloneSourceFor = "d" })},
+			[]string{"tank/v/c"}},
+		{"on an unmanaged volume", []Row{vol("c", nil), vol("src", func(r *Row) { r.Managed = false }), snap("src@"+prefix+"c", stamp)},
+			[]string{"tank/v/c"}},
+		{"in use by another clone", []Row{
+			vol("c", nil), vol("src", nil), snap("src@"+prefix+"c", stamp), vol("other", func(r *Row) { r.Origin = "tank/v/src@" + prefix + "c" }),
+		}, []string{"tank/v/c"}},
+		// c is the clone of one stamped snapshot (its origin, released once)
+		// and an orphan stamped for it hangs off another source
+		{"its own origin and an orphan", []Row{
+			vol("c", func(r *Row) { r.Origin = "tank/v/a@" + prefix + "c" }), vol("a", nil), snap("a@"+prefix+"c", stamp),
+			vol("b", nil), snap("b@"+prefix+"c", stamp),
+		}, []string{"tank/v/b@" + prefix + "c", "tank/v/a@" + prefix + "c", "tank/v/c"}},
+	} {
+		plan, err := pl.PlanDeleteVolume(NewTable(tc.rows), "c")
+		var got []string
+		for _, op := range plan {
+			if op.Kind != OpDestroy || !op.OkMissing || op.Recursive || op.Defer != strings.Contains(op.Target, "@") {
+				t.Errorf("%s: op %+v", tc.name, op)
+			}
+			got = append(got, op.Target)
+		}
+		if err != nil || !slices.Equal(got, tc.want) {
+			t.Errorf("%s: plan %v err %v, want %v", tc.name, got, err, tc.want)
+		}
+	}
+}
+
 // A dataset under a volume's name that is not that volume (unmanaged, or
 // managed with another or no volume-name marker: a rename, a hand-set
 // marker) is never answered as "already done", and an uncommitted one is

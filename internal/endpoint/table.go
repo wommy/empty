@@ -29,6 +29,13 @@ type Row struct {
 	// plain destroy of a held snapshot, and a deferred one outlives its
 	// last clone until the last hold is released.
 	Holds uint64
+	// Clones are a snapshot's clones by full name, wherever they live
+	// (the clones property): a table read for one volume sees its
+	// dependents without reading the rest of the parent.
+	Clones []string
+	// GUID identifies the dataset across renames: a dataset made since
+	// under the same name has another (OWN-15). Opaque, "" if unread.
+	GUID string
 	// Children are the ids of datasets below a volume. The endpoint makes
 	// none, so they are never its own and never in the table; zfs refuses
 	// to destroy the volume without -r while they exist.
@@ -144,6 +151,10 @@ type Table struct {
 	clonesOfSrc map[string][]int  // origin snapshot full name -> clone rows
 	whole       bool              // every volume under the parent was read
 	covered     map[string]bool   // else: the volumes that were read
+	// srcsFor: the table also covers every snapshot under the parent named
+	// <vol>@volume-source-for-volume-<srcsFor> (scanDelete), which is
+	// what releaseCloneSourcesFor needs instead of the whole parent.
+	srcsFor string
 }
 
 // NewTable sorts rows by ID and indexes them; they are everything under
@@ -282,11 +293,43 @@ func (t Table) SnapshotsOf(id string) iter.Seq[Row] {
 // ClonesOf yields rows whose origin is the snapshot with full name snap.
 func (t Table) ClonesOf(snap string) iter.Seq[Row] { return t.pick(t.clonesOfSrc[snap]) }
 
+// dependent names a clone of snapshot s, if it has any: a row of the table
+// first (by id, in id order), else one its clones property lists, by id
+// when under the parent, by full name elsewhere. A table read for one
+// volume holds no clone rows; the property still names them.
+func (t Table) dependent(s Row, parent string) (string, bool) {
+	for c := range t.ClonesOf(s.Name) {
+		return c.ID, true
+	}
+	if len(s.Clones) == 0 {
+		return "", false
+	}
+	c := slices.Min(s.Clones)
+	if rel, ok := strings.CutPrefix(c, parent+"/"); ok {
+		return rel, true
+	}
+	return c, true
+}
+
+// mergeTables is one partial table of the rows of parts, which cover
+// disjoint volumes, covering what each covers.
+func mergeTables(parts ...Table) Table {
+	var rows []Row
+	var vols []string
+	for _, p := range parts {
+		rows = append(rows, p.rows...)
+		for v := range p.covered {
+			vols = append(vols, v)
+		}
+	}
+	return newPartialTable(rows, vols...)
+}
+
 // columns fetched by every scan; decode below is the only place they are read.
 func (n props) columns() []string {
 	return append([]string{
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
-		"defer_destroy", "userrefs", "mountpoint", "sharenfs", "mounted", "canmount",
+		"defer_destroy", "userrefs", "clones", "guid", "mountpoint", "sharenfs", "mounted", "canmount",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
 		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(), n.committedAt(), n.nfsServer(),
 	}, propNames[:]...)
@@ -301,7 +344,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 	j := func(p string) int { return c.Col(p) }
 	cType, cVolsize, cBlock, cRefquota, cRefres := j("type"), j("volsize"), j("volblocksize"), j("refquota"), j("refreservation")
 	cOrigin, cCreation, cDefer, cMount := j("origin"), j("creation"), j("defer_destroy"), j("mountpoint")
-	cHolds := j("userrefs")
+	cHolds, cClones, cGUID := j("userrefs"), j("clones"), j("guid")
 	cManaged, cSuccess, cVolName := j(n.managed()), j(n.success()), j(n.volumeName())
 	cSrcType, cSrcID, cSnapName, cSnapSrc := j(n.sourceType()), j(n.sourceID()), j(n.snapshotName()), j(n.snapshotSource())
 	var cLocal [nPropKeys]int
@@ -341,6 +384,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 			Origin:         userValue(cell(cOrigin)),
 			Deferred:       cell(cDefer).Value == "on",
 			Holds:          u(cHolds),
+			GUID:           userValue(cell(cGUID)),
 			Mount:          userValue(cell(cMount)),
 			Managed:        own(cManaged) == "true",
 			Committed:      own(cSuccess) == "true",
@@ -360,6 +404,10 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 		r.NFSServer = own(cNFSServer)
 		r.NFSServerElsewhere = !cell(cNFSServer).Local() && userValue(cell(cNFSServer)) != ""
 		r.MountLocal = cell(cMount).Local() // the mountpoint pin (no new column)
+		// "-" (or "") when none; most snapshots have none
+		if v := userValue(cell(cClones)); v != "" && r.Type == zfs.TypeSnapshot {
+			r.Clones = strings.Split(v, ",")
+		}
 		for k, col := range cLocal {
 			// only local values: an inherited compression is the parent's
 			// choice, not this volume's, and must not satisfy a request

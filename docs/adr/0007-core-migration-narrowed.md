@@ -32,6 +32,9 @@ Status: accepted (decisive, reversible) · Date: 2026-10-27 · Related: ADR 0003
 ## Consequences
 
 - `table.go` and `plan.go` stay the production path.
+- Built (branch step1):
+  - DeleteVolume reads the volume's own subtree, its snapshots' `clones`, and only the volumes that hold a clone source stamped for it. It finds those through a list of snapshot names under the parent, which still grows with snapshots, at about 250 B each.
+  - Every destroy op carries the guid the plan read. The target's guid is checked right before the destroy, and a replaced target is Aborted. The window between that read and the destroy remains, because zfs has no compare-and-destroy (see `sameDataset` in apply.go).
 - Reverse this if retained memory at the target scale becomes the binding limit, or if a class of bug appears that the Table's untyped rows keep producing. The step-0 table and the differential are the first pieces such a migration would reuse.
 
 ## Spec amendment: OWN-04 (2026-10-27)

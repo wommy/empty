@@ -23,6 +23,11 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 		if _, ok := opNames[op.Kind]; !ok {
 			return 0, &Error{Code: Internal, Msg: fmt.Sprintf("op %d/%d: unknown kind %v on %s", i+1, len(plan), op.Kind, op.Target)}
 		}
+		// a destroy the plan did not tie to the dataset it inspected could
+		// hit whatever holds the name by then (OWN-15)
+		if op.Kind == OpDestroy && op.GUID == "" {
+			return 0, &Error{Code: Internal, Msg: fmt.Sprintf("op %d/%d: destroy %s without the guid the plan read", i+1, len(plan), op.Target)}
+		}
 	}
 	for i, op := range plan {
 		var err error
@@ -40,7 +45,10 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 		case OpSet:
 			err = e.zfs.Set(ctx, op.Target, op.Props)
 		case OpDestroy:
-			err = e.destroy(ctx, op)
+			if err = e.destroy(ctx, op); errors.As(err, new(*Error)) {
+				// replaced since the plan: no zfs command failed
+				return i, &Error{Code: CodeOf(err), Msg: fmt.Sprintf("op %d/%d %s %s: %v", i+1, len(plan), op.Kind, op.Target, err)}
+			}
 		case OpMount:
 			err = e.zfs.Mount(ctx, op.Target)
 		case OpSetRoot:
@@ -67,8 +75,17 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 // probing a zvol device the endpoint just created. Still busy, it is the
 // caller's busy (opErr: FAILED_PRECONDITION on a destroy). A failed settle
 // reports the busy it was meant to clear.
+//
+// Each destroy runs only while the target still has the guid the plan
+// read (sameDataset): renamed away and replaced by another dataset since,
+// the name is no longer the plan's, and the destroy is Aborted (a retry
+// re-scans and plans against what is there now). Gone, it is the
+// destroy's not-found (OkMissing).
 func (e *Endpoint) destroy(ctx context.Context, op Op) error {
 	o := zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer}
+	if err := e.sameDataset(ctx, op); err != nil {
+		return err
+	}
 	err := e.zfs.Destroy(ctx, op.Target, o)
 	if e.cfg.Settle == nil || !errors.Is(err, zfs.ErrBusy) {
 		return err
@@ -76,7 +93,31 @@ func (e *Endpoint) destroy(ctx context.Context, op Op) error {
 	if e.cfg.Settle(ctx) != nil {
 		return err
 	}
+	if err := e.sameDataset(ctx, op); err != nil {
+		return err
+	}
 	return e.zfs.Destroy(ctx, op.Target, o)
+}
+
+// sameDataset checks that op's target still has the guid the plan read.
+//
+// zfs has no compare-and-destroy: `zfs destroy` takes a name, and the
+// guid is read by a separate command just before it. A rename and
+// re-create inside that window (two administrative commands landing
+// between two of ours, milliseconds apart) still goes unseen. Closing it
+// takes a channel program (`zfs program`: zfs.get_prop guid, then
+// zfs.sync.destroy, in one sync task), which needs root rather than a
+// `zfs allow` grant. What the check closes is the window from the scan to
+// the destroy, which spans the whole plan and the lock waits.
+func (e *Endpoint) sameDataset(ctx context.Context, op Op) error {
+	d, err := e.zfs.Get(ctx, op.Target, "guid")
+	if err != nil {
+		return err // a zfs failure, mapped as the destroy's
+	}
+	if g := d.Props["guid"].Value; g != op.GUID {
+		return errorf(Aborted, "%s is not the dataset the plan inspected (guid %s, now %s): it was replaced since; retry", op.Target, op.GUID, g)
+	}
+	return nil
 }
 
 // setRoot runs an OpSetRoot through Config.Root.

@@ -367,7 +367,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		}
 		// CreateVolume(clone) holds vol:<clone> while cutting it
 		a := ReconcileAction{
-			Op:     Op{Kind: OpDestroy, Target: r.Name, Defer: true, OkMissing: true},
+			Op:     Op{Kind: OpDestroy, Target: r.Name, Defer: true, OkMissing: true, GUID: r.GUID},
 			Target: r.ID, Reason: ReasonOrphanCloneSource, Volumes: []string{vol, clone},
 		}
 		if why := d.refuses(a); why != "" {
