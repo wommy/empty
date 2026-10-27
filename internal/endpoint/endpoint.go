@@ -172,6 +172,8 @@ type Endpoint struct {
 	names props
 	plan  Planner
 	locks lock.Keyed
+	// scans holds a slot per whole-parent scan in flight (maxWholeScans)
+	scans chan struct{}
 }
 
 // New returns an Endpoint.
@@ -214,6 +216,7 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		zfs:   z,
 		cfg:   cfg,
 		names: names,
+		scans: make(chan struct{}, maxWholeScans),
 		plan: Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize, DestroyForeignSnapshots: cfg.DestroyForeignSnapshots,
 			RequireMounted: cfg.FileExport},
 	}, nil
