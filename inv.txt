@@ -44,6 +44,8 @@
 17 inherit-recursive
 13 inherit-snapshot-user
 11 inherit-wrong-type
+11 mount-endpoint-resume
+33 mount-rules
 13 mountpoint-inherit-path
 13 mountpoint-remount
 9 partial-set
@@ -98,4 +100,4 @@
 11 xattr-acltype-index
 9 zvol-snapshot-fs-props
 11 zvol-snapshot-volsize
-TOTAL 1228
+1272 TOTAL
