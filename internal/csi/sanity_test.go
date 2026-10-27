@@ -61,7 +61,10 @@ func TestSanity(t *testing.T) {
 	}
 	srv := grpc.NewServer()
 	csi.RegisterIdentityServer(srv, &zcsi.Identity{EP: ep})
-	csi.RegisterControllerServer(srv, &zcsi.Controller{EP: ep})
+	// "mount" (the default) provisions filesystems, "block" zvols, which
+	// needs -enable-block
+	at := os.Getenv("CSI_SANITY_ACCESS_TYPE")
+	csi.RegisterControllerServer(srv, &zcsi.Controller{EP: ep, EnableBlock: at == "block"})
 	csi.RegisterNodeServer(srv, cleanupNode{})
 	go srv.Serve(lis)
 	t.Cleanup(srv.Stop)
@@ -71,8 +74,7 @@ func TestSanity(t *testing.T) {
 	cfg.TargetPath = filepath.Join(dir, "target")
 	cfg.StagingPath = filepath.Join(dir, "staging")
 	cfg.TestVolumeSize = 1 << 30 // a sparse 20G CI pool holds many of these
-	// "mount" (the default) provisions filesystems, "block" zvols
-	if at := os.Getenv("CSI_SANITY_ACCESS_TYPE"); at != "" {
+	if at != "" {
 		cfg.TestVolumeAccessType = at
 	}
 
