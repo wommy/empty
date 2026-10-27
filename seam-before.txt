@@ -1,0 +1,34 @@
+--- FAIL: TestReconcileSkipsNonIssuableDesiredID (0.00s)
+    seams_test.go:362: invalid volume name "ns/pv"
+--- FAIL: TestCreateNeverStampsRowWithoutName (0.00s)
+    seams_test.go:154: committed=false: code 10 (volume m vanished or changed owner after provisioning), mutations [[set zfs-endpoint:committed_at=2000000000 zfs-endpoint:provision_success=true tank/v/m]]
+--- FAIL: TestCreateResumeFailureStaysAborted (0.00s)
+    seams_test.go:125: attempt 0: code 0 (<nil>), want Aborted
+--- FAIL: TestCloneOfLargeBlockZvolProvisions (0.00s)
+    seams_test.go:100: attempt 0: {ID: Name: Dataset: Kind:filesystem CapacityBytes:0 SourceType: SourceID: DevicePath: Mountpoint:} op 3/4 set tank/v/c (earlier ops applied; a retry converges): zfs set tank/v/c: unknown: cannot set property for 'tank/v/c': 'volsize' must be a multiple of volume block size (131072)
+--- FAIL: TestListTokenSurvivesDeletedVolume (0.00s)
+    seams_test.go:329: after delete: [] "" invalid starting token "v2"
+--- FAIL: TestPlanCloneRoundsToSourceBlockSize (0.00s)
+    seams_test.go:81: resume: [{Kind:set Target:tank/v/c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[volsize:2000011264] OkExists:false OkMissing:false} {Kind:set Target:tank/v/c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:provision_success:true] OkExists:false OkMissing:false}] <nil>
+    --- FAIL: TestPlanCloneRoundsToSourceBlockSize/volume_source,_2e9_on_128K (0.00s)
+        seams_test.go:70: volsize "2000011264", want "2000027648" (plan [{Kind:snapshot Target:tank/v/src@volume-source-for-volume-c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:clone_source_for:c democratic-csi:managed_resource:true] OkExists:true OkMissing:false} {Kind:clone Target:tank/v/c Source:tank/v/src@volume-source-for-volume-c Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:csi_volume_content_source_id:src democratic-csi:csi_volume_content_source_type:volume democratic-csi:csi_volume_name:c democratic-csi:managed_resource:true] OkExists:false OkMissing:false} {Kind:set Target:tank/v/c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[refreservation:auto volsize:2000011264] OkExists:false OkMissing:false} {Kind:set Target:tank/v/c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:provision_success:true] OkExists:false OkMissing:false}])
+    --- FAIL: TestPlanCloneRoundsToSourceBlockSize/limit_below_the_128K-rounded_size (0.00s)
+        seams_test.go:58: code 0 (<nil>), want 11
+    --- FAIL: TestPlanCloneRoundsToSourceBlockSize/snapshot_source,_2e9_on_128K (0.00s)
+        seams_test.go:70: volsize "2000011264", want "2000027648" (plan [{Kind:clone Target:tank/v/c Source:tank/v/src@s Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:csi_volume_content_source_id:src@s democratic-csi:csi_volume_content_source_type:snapshot democratic-csi:csi_volume_name:c democratic-csi:managed_resource:true] OkExists:false OkMissing:false} {Kind:set Target:tank/v/c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[refreservation:auto volsize:2000011264] OkExists:false OkMissing:false} {Kind:set Target:tank/v/c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:provision_success:true] OkExists:false OkMissing:false}])
+--- FAIL: TestPageResumesAfterDeletedToken (0.00s)
+    seams_test.go:300: after "b" over [c d]: [] invalid starting token "b", want [c d]
+--- FAIL: TestPlanCreateCommitsOnlyMounted (0.00s)
+    seams_test.go:213: {Name:n Kind:filesystem CapacityBytes:0 LimitBytes:0 Sparse:false Reserve:false SourceSnapshotID: SourceVolumeID: Properties:map[]}: plan [{Kind:create-filesystem Target:tank/v/n Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:csi_volume_name:n democratic-csi:managed_resource:true sharenfs:off sharesmb:off] OkExists:false OkMissing:false} {Kind:set Target:tank/v/n Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:provision_success:true] OkExists:false OkMissing:false}] <nil>
+    --- FAIL: TestPlanCreateCommitsOnlyMounted/unmounted,_canmount=on (0.00s)
+        seams_test.go:204: plan [{Kind:set Target:tank/v/u Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:provision_success:true] OkExists:false OkMissing:false}] <nil>, want Unavailable
+--- FAIL: TestCreateUnmountedFilesystemIsUnavailable (0.00s)
+    seams_test.go:259: attempt 0: <nil>
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.024s
+FAIL
+--- FAIL: TestCreateResumeFailureStaysAborted (0.00s)
+    seams_test.go:125: attempt 1: code 13 (op 1/2 set tank/v/c: zfs set tank/v/c: unknown: internal error: Input/output error), want Aborted
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.006s
+FAIL

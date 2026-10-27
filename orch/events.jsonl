@@ -67,3 +67,9 @@
 {"ts": "2026-10-27T07:01:33Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T07:03:38Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T07:04:52Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:07:07Z", "id": "a35e88fd13d787382", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T07:07:07Z", "id": "a35e88fd13d787382", "from": "reported", "to": "triaged", "note": "19/19 TestH_ fail on HEAD copy, 0 fail on fixed copy (I ran both). H-01 anomaly confirmed by reading endpoint.go:291-302. Independent corroboration: H-02=S3, H-03=S1, H-07=S9, SecureDir=gaps. H-01,H-02 -> running b-seam-plan (messaged). H-03 -> b-json-scan. H-07,H-13,H-14 -> b-startup. Rest -> b-security."}
+{"ts": "2026-10-27T07:07:07Z", "id": "a35e88fd13d787382", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T07:07:39Z", "id": "af4a379772913bf2b", "from": "queued", "to": "running", "note": "r-truth-probes"}
+{"ts": "2026-10-27T07:07:39Z", "id": "a8e06e71519dea03c", "from": "queued", "to": "running", "note": "r-csi-probes"}
+{"ts": "2026-10-27T07:07:39Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

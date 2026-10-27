@@ -70,3 +70,9 @@
 {"id": 703, "file": "internal/endpoint/endpoint.go", "line": 286, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestDeleteVolumeSparesChildDatasets", "TestDeleteVolumeSparesSnapshotCutAfterScan", "TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 40.5}
 {"id": 705, "file": "internal/endpoint/endpoint.go", "line": 296, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 28.1}
 {"id": 707, "file": "internal/endpoint/endpoint.go", "line": 298, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 28.2}
+{"id": 709, "file": "internal/endpoint/endpoint.go", "line": 303, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 32.8}
+{"id": 711, "file": "internal/endpoint/endpoint.go", "line": 306, "op": "ANDOR_SWAP", "status": "KILLED", "fails": ["TestCloneNeverAdoptsARacingDataset", "TestDeleteVolumeSparesChildDatasets", "TestDeleteVolumeSparesSnapshotCutAfterScan", "TestUnknownFailureAfterAMutationIsRetryable", "TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 33.8}
+{"id": 713, "file": "internal/endpoint/endpoint.go", "line": 306, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["TestCloneNeverAdoptsARacingDataset", "TestDeleteVolumeSparesChildDatasets", "TestDeleteVolumeSparesSnapshotCutAfterScan", "TestUnknownFailureAfterAMutationIsRetryable", "TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 31.5}
+{"id": 715, "file": "internal/endpoint/endpoint.go", "line": 307, "op": "CODE_INTERNAL", "status": "KILLED", "fails": ["TestZfsErrCodes"], "pkgfail": ["FAIL"], "secs": 26.8}
+{"id": 718, "file": "internal/endpoint/props.go", "line": 90, "op": "REL_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 26.0}
+{"id": 724, "file": "internal/endpoint/props.go", "line": 109, "op": "BOOL_FLIP", "status": "KILLED", "fails": ["TestValidatePropertyValues"], "pkgfail": ["FAIL"], "secs": 24.5}

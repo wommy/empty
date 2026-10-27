@@ -5,3 +5,5 @@
 {"id": 10590, "file": "internal/endpoint/reconcile.go", "line": 200, "op": "ANDOR_SWAP", "status": "KILLED", "fails": ["TestPlanReconcile"], "pkgfail": ["FAIL"], "secs": 32.4}
 {"id": 10565, "file": "internal/endpoint/reconcile.go", "line": 98, "op": "IF_NEGATE", "status": "KILLED", "fails": ["TestAdv4BusyDestroyAbortsRun", "TestAdv4OneBusyLockAbortsWholeRun", "TestAdv4OneFailureStarvesAndHidesDestroys", "TestReconcileSkipsSourceOfFailedClone"], "pkgfail": ["github.com/wommy/empty/internal/endpoint"], "secs": 34.7}
 {"id": 10623, "file": "internal/endpoint/reconcile.go", "line": 272, "op": "GUARD_DELETE", "status": "KILLED", "fails": [], "pkgfail": ["github.com/wommy/empty/internal/endpoint"], "secs": 278.1}
+{"id": 10634, "file": "internal/endpoint/reconcile.go", "line": 292, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["TestPlanReconcile"], "pkgfail": ["FAIL"], "secs": 22.5}
+{"id": 10625, "file": "internal/endpoint/reconcile.go", "line": 279, "op": "IF_NEGATE", "status": "KILLED", "fails": ["TestPlanReconcile", "TestPlanReconcileHeldLimitsActions"], "pkgfail": ["github.com/wommy/empty/internal/endpoint"], "secs": 20.0}

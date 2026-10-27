@@ -6,7 +6,21 @@ The host had 4 vCPUs and a load average of 50-80 from sibling agents the whole t
 
 ## 1. Before and after
 
-TIMINGS
+`wave10/bench2.sh`, warm build cache, `-count=1`, three interleaved runs per tree (before, after, before, after), raw output in `wave10/bench-final.txt`. Medians, with the minimum wall in brackets:
+
+| Phase | before (b5c4ec4) wall | after (0548c7a) wall | before CPU | after CPU | CPU change |
+|---|---|---|---|---|---|
+| `go test ./...` | 18.5 s (12.2) | 12.3 s (11.4) | 9.12 s | 7.44 s | −18% |
+| `go test -race ./...` | 36.0 s (33.8) | 25.5 s (22.7) | 20.28 s | 15.58 s | −23% |
+| race on endpoint, server, zfs, lock, cmd/zfs-endpoint + plain csi, unixsock | 39.9 s (33.9) | 28.4 s (26.4) | 18.93 s | 15.09 s | |
+| build+link only (`-run XXXNONE`) | 10.4 s (8.8) | 12.8 s (9.2) | 6.11 s | 5.73 s | −6% (one test binary fewer) |
+| `go vet ./...` (warm) | 1.5-2.6 s | 1.6-2.9 s | 0.87 s | 1.0 s | same |
+
+What this means:
+- **Test execution** (total minus build+link, CPU): plain ~3.0 s → ~1.7 s; race ~14.2 s → ~9.9 s. Wall time spent sleeping fell from ~6.7 s (2.58 + 2.49 + 1.6 s on the critical paths of three packages) to ~0.1 s.
+- **On this loaded host, `go test ./...` is now bounded by compile+link** (~6 CPU-s across 8 test binaries), not by tests. On an idle 4-core machine that is a few seconds of wall; the longest package (server) is now ~2 s instead of ~4.3 s.
+- **CI unit step** (37 s today, `-race`): the race CPU drop (−4.7 CPU-s, ~−23%) plus no sleeps on the server critical path should bring it to about 25-28 s on the runner. The remaining cost is race compile+link and `TestMessageSizes` under race (server package ~6 s in CI). Reaching under 20 s needs the `speed-ci` cache work (restored race build cache), not more test changes.
+- **Race scoping (Q6) does not pay at warm cache**: the subset + plain run was the same CPU as full race after the changes (15.1 vs 15.6 s), because csi and unixsock tests are cheap and their race builds are cached. It saves only race *compilation* of grpc/ginkgo for the csi binary on a cold cache. So the recommendation is: keep `-race ./...` and invest in the build cache.
 
 Per-package test wall (`go test -json -count=1 ./...`, package Elapsed, same load):
 
@@ -63,7 +77,27 @@ Additional deterministic kills that the before tree only got by luck or not at a
 
 | row | status | covering tests now | change |
 |---|---|---|---|
-ROWS
+| OWN-05 | current | TestNeverAdoptsOrDeletesUnmanaged, TestGoldenPlans/create/foreign, create/incompatible-* | removed: TestPlanCreateRefusesForeignAndIncompatible |
+| OWN-11 | current | TestCloneFromVolumeReleasesInternalSnapshot | removed: TestDeleteVolumeAfterItsCloneIsGone; SOLE killer replaced |
+| VOL-01 | current | FuzzCreateConverges, TestCreateVolumeIdempotent, TestCreateVolumeProperties, TestReserveRestoreIsIdempotent, TestRoundTripAndCodes, TestThickCloneRetry | removed: TestThickCloneRetryIsIdempotent |
+| VOL-03 | current | TestGoldenPlans/create/fs-limit-only | removed: TestPlanCreateHonorsLimitOnly; SOLE killer replaced |
+| VOL-05 | current | TestCreateVolumeIdempotent, TestParametersAndAccessChecks, TestRoundTripAndCodes, TestGoldenPlans/create/foreign, create/incompatible-* | removed: TestPlanCreateRefusesForeignAndIncompatible |
+| VOL-07 | current | TestCreateVolumeIdempotent, TestCreateVolumeResumesInterruptedProvision, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateConvergesUncommittedClone |
+| VOL-08 | current | TestCreateVolumeResumesInterruptedProvision, TestPlanCreatePropertiesConvergeUncommitted, TestCreateVolumeProperties, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateConvergesUncommittedClone |
+| VOL-10 | current | TestPlanCreateAppliesProperties, TestGoldenPlans/create/fs | removed: TestPlanCreateFilesystemsAreNotShared |
+| VOL-11 | current | TestGoldenPlans/create/zvol-thick, create/thick-on-sparse-zvol, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateThickZvolLeavesReservationToZFS, TestPlanCreateConvergesUncommittedClone; SOLE killer replaced |
+| CLN-02 | current | TestCloneFromVolumeReleasesInternalSnapshot, TestReconcileCollectsLeakedCloneSource, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| CLN-05 | current | TestCloneFailureAfterCloneConvergesToSameState, TestCloneResizeFailureConverges, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateConvergesUncommittedClone |
+| CLN-08 | current | TestSnapshotLifecycleWithClones, TestGoldenPlans/restore/malformed-source, clone/malformed-source | removed: TestPlanCreateMalformedSourceIsNotFound |
+| DEL-01 | current | TestDeleteVolume, TestRoundTripAndCodes, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| DEL-02 | current | TestDeleteVolume, TestRoundTripAndCodes, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| DEL-03 | current | TestCloneFromVolumeReleasesInternalSnapshot, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| DEL-04 | current | TestPlanReconcile, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| SNP-05 | current | TestGoldenPlans/snapshot/reserved-prefix | removed: TestPlanSnapshotReservedPrefix; SOLE killer replaced |
+| EXP-01 | current | TestExpand, TestGoldenPlans/expand/* | removed: TestPlanExpand |
+| EXP-03 | current | TestExpandUnlimitedFilesystem, TestGoldenPlans/expand/* | removed: TestPlanExpand |
+| ID-01 | current | TestNeverIssuedIDs, TestSnapshotLifecycleWithClones, TestGoldenPlans/restore/malformed-source, clone/malformed-source | removed: TestPlanCreateMalformedSourceIsNotFound |
+| REC-10 | current | TestReconcileLocksTargets, TestPlanReconcileHeldLimitsActions, TestPlanReconcile (lock-cover loop) | removed: TestPlanReconcileLocksEveryTarget |
 
 The other 154 rows are unchanged: their cited tests all still exist (renames none). 57 rows cite no test (open, decided-pending or untested), as before; INV-01 cites a file glob, not a test name.
 
@@ -81,12 +115,7 @@ Why each fold is safe (wave7 §1.3 plus my check):
   - `TestReconcileCollectsAbandonedCreate` (3 unique statements on the real leg via the dry run), `TestScanRecordsCoverage`, `TestClassify`/`FuzzClassify` (wave7 conditioned this on a corpus ratchet, not built).
 - **No DeleteVolume crash-window fix**: owned by `fixes-mutation` (plan.go). It turned out to be fixed already at HEAD (07c3f98).
 - **No wave7 `*mutation_kill_test.go` ports**: `fixes-mutation` does that.
-- **`.github/workflows/ci.yml` not edited.** `speed-ci` rewrites the same file (its test step is still `go test -race -count=1 ./...`). Proposed for that branch (race only where there is production concurrency; csi and unixsock have none):
-  ```
-  go test -race -count=1 ./internal/endpoint ./internal/server ./internal/zfs ./internal/lock ./cmd/zfs-endpoint
-  go test -count=1 ./internal/csi ./internal/unixsock ./cmd/zfs-csi
-  ```
-  Measured saving in §1 ("race subset + plain rest"). Also from the sibling's timing.md: `GORACE=atexit_sleep_ms=0` saves ~1 s per race binary.
+- **`.github/workflows/ci.yml` not edited.** `speed-ci` rewrites the same file (its test step is still `go test -race -count=1 ./...`). Race scoping was measured (§1) and saves nothing at warm cache, so I do not propose it. The sibling's timing.md measured `GORACE=atexit_sleep_ms=0` saving ~1 s per race binary wall; that one is worth adding on `speed-ci`.
 - **csi-sanity over bufconn / in parallel.** The endpoint side already uses bufconn; csi-sanity dials a unix socket that costs microseconds. Ginkgo allows one suite per process, so parallelism comes from separate processes: the VM script now runs mount and block concurrently (commit 6). Spec floor 44 unchanged.
 - **`t.Parallel` not added** where tests touch process-global state: unixsock and cmd/zfs-endpoint (`unixsock.Listen` sets the process umask around bind), `TestRequestIDReachesTheAuditLog` (`slog.SetDefault`), `TestServeHealthNotifyAndStop` (`t.Setenv`), `TestSanity` (Ginkgo). Adding it was tried and reverted.
 - **`TestKilledCommandIsInterrupted` keeps real time**: it execs; synctest cannot bubble a child process. WaitDelay shortened only.
@@ -102,3 +131,185 @@ Why each fold is safe (wave7 §1.3 plus my check):
 - **Fast tests found bugs.** Shortening timers exposed the grpc `Stop()` hang; making the create race deterministic exposed that `TestConcurrentCreatesSerialize` never tested serialization. The ADR could require that a test made faster is re-proved with a planted mutant (as done in §3), since "same assertions" is not enough: a test that never actually waited can pass for the wrong reason.
 - **Mutation scope**: wave7's sampler stopped at reconcile.go line 296, so `simulateDestroyAll` was never mutated. The nightly mutant sample in the ADR should be whole-file.
 - **Expected-skips**: suggest every sim-only test calls `requireSim` first (no pool access before the skip), and that ci/check-skips.sh could verify the listed tests skip with zero zfs calls.
+
+## Appendix: all 175 spec rows, covering tests on the after tree
+
+Covering = tests the row cites in wave8/spec.json that exist on 0548c7a, plus the replacement for any removed one. "-" = the row cites no test (unchanged from before).
+
+| row | status | covering tests now | change |
+|---|---|---|---|
+| OWN-01 | current | TestPropLocalIsOnlyLocal, TestInheritedOwnershipIsNotOwnership, TestReceivedCopyIsNotOwned |  |
+| OWN-02 | current | TestVolumeNameMustMatchID, TestReconcileSparesReceivedAndRenamed |  |
+| OWN-03 | open-finding | - |  |
+| OWN-04 | current | TestInheritedOwnershipIsNotOwnership, TestReceivedCopyIsNotOwned, TestDeleteVolumeSparesForeignSnapshots |  |
+| OWN-05 | current | TestNeverAdoptsOrDeletesUnmanaged, TestGoldenPlans/create/foreign, create/incompatible-* | removed: TestPlanCreateRefusesForeignAndIncompatible |
+| OWN-06 | current | TestReceivedCopyIsNotOwned, TestReconcileSparesReceivedAndRenamed, FuzzReconcileSafe |  |
+| OWN-07 | current | TestCloneSourcesMustBeOwned |  |
+| OWN-08 | current | TestCloneNeverAdoptsARacingDataset |  |
+| OWN-09 | current-untested | - |  |
+| OWN-10 | current | TestDeleteVolumeSparesForeignSnapshots |  |
+| OWN-11 | current | TestCloneFromVolumeReleasesInternalSnapshot | removed: TestDeleteVolumeAfterItsCloneIsGone; SOLE killer replaced |
+| OWN-12 | open-finding | - |  |
+| OWN-13 | open-finding | - |  |
+| OWN-14 | open-finding | - |  |
+| OWN-15 | open-finding | - |  |
+| OWN-16 | current | TestDefaultPropertyPrefixIsOurOwn, TestPropertyPrefixIsValidated |  |
+| OWN-17 | current | TestFileExportAdoptedVolumes, TestCloneNeverAdoptsARacingDataset |  |
+| VOL-01 | current | FuzzCreateConverges, TestCreateVolumeIdempotent, TestCreateVolumeProperties, TestReserveRestoreIsIdempotent, TestRoundTripAndCodes, TestThickCloneRetry | removed: TestThickCloneRetryIsIdempotent |
+| VOL-02 | current | TestCreateVolumeIdempotent, TestPlanCreateAppliesProperties, FuzzCreateConverges |  |
+| VOL-03 | current | TestGoldenPlans/create/fs-limit-only | removed: TestPlanCreateHonorsLimitOnly; SOLE killer replaced |
+| VOL-04 | current | TestPlanCreateAppliesProperties |  |
+| VOL-05 | current | TestCreateVolumeIdempotent, TestParametersAndAccessChecks, TestRoundTripAndCodes, TestGoldenPlans/create/foreign, create/incompatible-* | removed: TestPlanCreateRefusesForeignAndIncompatible |
+| VOL-06 | open-finding | - |  |
+| VOL-07 | current | TestCreateVolumeIdempotent, TestCreateVolumeResumesInterruptedProvision, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateConvergesUncommittedClone |
+| VOL-08 | current | TestCreateVolumeResumesInterruptedProvision, TestPlanCreatePropertiesConvergeUncommitted, TestCreateVolumeProperties, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateConvergesUncommittedClone |
+| VOL-09 | open-finding | - |  |
+| VOL-10 | current | TestPlanCreateAppliesProperties, TestGoldenPlans/create/fs | removed: TestPlanCreateFilesystemsAreNotShared |
+| VOL-11 | current | TestGoldenPlans/create/zvol-thick, create/thick-on-sparse-zvol, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateThickZvolLeavesReservationToZFS, TestPlanCreateConvergesUncommittedClone; SOLE killer replaced |
+| VOL-12 | current | TestLifecycleAgainstSim, TestParametersAndAccessChecks |  |
+| VOL-13 | current | TestReserveRestoreIsIdempotent, TestCloneFailureAfterCloneConvergesToSameState |  |
+| VOL-14 | current | TestConcurrentCreatesSerialize |  |
+| VOL-15 | current-untested | - |  |
+| VOL-16 | current | TestCreateVolumeProperties, TestPlanCreateAppliesProperties |  |
+| VOL-17 | current | TestPlanCreatePropertiesConvergeUncommitted |  |
+| VOL-18 | current | TestRoundTripAndCodes, TestFileExportLifecycle |  |
+| VOL-19 | open-finding | - |  |
+| CLN-01 | current | TestSnapshotLifecycleWithClones |  |
+| CLN-02 | current | TestCloneFromVolumeReleasesInternalSnapshot, TestReconcileCollectsLeakedCloneSource, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| CLN-03 | current | TestCloneLargerThanLimitIsOutOfRange |  |
+| CLN-04 | current | TestReserveRestoreIsIdempotent |  |
+| CLN-05 | current | TestCloneFailureAfterCloneConvergesToSameState, TestCloneResizeFailureConverges, TestGoldenPlans/create/uncommitted-clone-converges | removed: TestPlanCreateConvergesUncommittedClone |
+| CLN-06 | current-untested | - |  |
+| CLN-07 | current-untested | - |  |
+| CLN-08 | current | TestSnapshotLifecycleWithClones, TestGoldenPlans/restore/malformed-source, clone/malformed-source | removed: TestPlanCreateMalformedSourceIsNotFound |
+| CLN-09 | current-untested | - |  |
+| DEL-01 | current | TestDeleteVolume, TestRoundTripAndCodes, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| DEL-02 | current | TestDeleteVolume, TestRoundTripAndCodes, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| DEL-03 | current | TestCloneFromVolumeReleasesInternalSnapshot, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| DEL-04 | current | TestPlanReconcile, TestGoldenPlans/delete/* | removed: TestPlanDeleteVolume |
+| DEL-05 | current | TestSnapshotLifecycleWithClones, TestLifecycleAgainstSim, TestSimulateDestroyReapsDeferredOrigins |  |
+| DEL-06 | open-finding | - |  |
+| DEL-07 | current | TestBusyIsMappedByOperation |  |
+| DEL-08 | open-finding | - |  |
+| SNP-01 | current | TestSnapshotLifecycleWithClones, TestPlanSnapshotLongAndUnusualNames, TestReceivedCopyIsNotOwned |  |
+| SNP-02 | current | TestSnapshotLifecycleWithClones, TestPlannersRequireACoveringTable |  |
+| SNP-03 | current | TestPlanSnapshotLongAndUnusualNames |  |
+| SNP-04 | current | TestPlanSnapshotLongAndUnusualNames |  |
+| SNP-05 | current | TestGoldenPlans/snapshot/reserved-prefix | removed: TestPlanSnapshotReservedPrefix; SOLE killer replaced |
+| SNP-06 | current | TestSnapshotLifecycleWithClones |  |
+| SNP-07 | current | TestSnapshotLifecycleWithClones, TestPlannersRequireACoveringTable |  |
+| SNP-08 | current | TestInheritedOwnershipIsNotOwnership, TestReceivedCopyIsNotOwned |  |
+| SNP-09 | current | TestSnapshotLifecycleWithClones, TestInheritedOwnershipIsNotOwnership, TestReceivedCopyIsNotOwned |  |
+| SNP-10 | current-untested | - |  |
+| SNP-11 | current | TestSnapshotLifecycleWithClones |  |
+| SNP-12 | current | TestNeverIssuedIDs |  |
+| SNP-13 | decided-pending | - |  |
+| SNP-14 | current | TestVolumeNameMustMatchID |  |
+| EXP-01 | current | TestExpand, TestGoldenPlans/expand/* | removed: TestPlanExpand |
+| EXP-02 | current | TestExpand |  |
+| EXP-03 | current | TestExpandUnlimitedFilesystem, TestGoldenPlans/expand/* | removed: TestPlanExpand |
+| EXP-04 | current | TestExpandNodeExpansionRequired |  |
+| EXP-05 | current | TestDecodeRejectsImpossibleZvolSizes |  |
+| LST-01 | current | TestPagination, TestRoundTripAndCodes |  |
+| LST-02 | current | TestCreateVolumeResumesInterruptedProvision, TestVolumeNameMustMatchID, TestReceivedCopyIsNotOwned |  |
+| LST-03 | current | TestRoundTripAndCodes |  |
+| LST-04 | open-finding | - |  |
+| ID-01 | current | TestNeverIssuedIDs, TestSnapshotLifecycleWithClones, TestGoldenPlans/restore/malformed-source, clone/malformed-source | removed: TestPlanCreateMalformedSourceIsNotFound |
+| ERR-01 | current | TestExistsDoesNotSwallowUnknownErrors, TestClassify |  |
+| ERR-02 | current | TestMissingParentIsUnavailableNotAbsent, TestMissingParentIsUnavailableForWholeScans |  |
+| ERR-03 | current | TestClassify, FuzzClassify |  |
+| ERR-04 | current | TestZfsErrCodes |  |
+| ERR-05 | current | TestBusyIsMappedByOperation |  |
+| ERR-06 | current | TestUnknownFailureAfterAMutationIsRetryable |  |
+| ERR-07 | current | TestKilledCommandIsInterrupted, TestZfsErrCodes |  |
+| ERR-08 | current | TestReconcileLocksTargets |  |
+| ERR-09 | current | TestApplyRefusesAnUnknownOpKind, TestOpKindString |  |
+| ERR-10 | current | TestPlanReconcile, FuzzReconcileSafe, TestCloneNeverAdoptsARacingDataset |  |
+| ERR-11 | current | TestUnknownFailureAfterAMutationIsRetryable |  |
+| ERR-12 | open-finding | - |  |
+| ERR-13 | decided-pending | - |  |
+| SCN-01 | current | TestParseColumnsRejectsForgedLines, FuzzParseColumns |  |
+| SCN-02 | open-finding | - |  |
+| SCN-03 | current | FuzzParseColumns |  |
+| SCN-04 | decided-pending | - |  |
+| SCN-05 | current | TestDecodeRejectsImpossibleZvolSizes |  |
+| SCN-06 | open-finding | - |  |
+| SCN-07 | decided-pending | - |  |
+| SCN-08 | open-finding | - |  |
+| SCN-09 | open-finding | - |  |
+| SCN-10 | current | TestPlannersRequireACoveringTable, TestScanRecordsCoverage |  |
+| SCN-11 | open-finding | - |  |
+| SCN-12 | current | TestRejectsFlagLikeAndShellNames |  |
+| SCN-13 | current | TestSimPrintsIndexPropertiesLikeOpenZFS |  |
+| SCN-14 | current | TestLifecycleAgainstSim |  |
+| PRP-01 | current | TestPlanCreatePropertiesDenyList, TestCreateVolumeProperties, FuzzCreateConverges, TestRoundTripAndCodes |  |
+| PRP-02 | current | TestPlanCreatePropertiesDenyList |  |
+| PRP-03 | current | TestValidatePropertyValues, TestSimPrintsIndexPropertiesLikeOpenZFS |  |
+| PRP-04 | current | TestPlanCreateAppliesProperties, TestCreateVolumeProperties, FuzzCreateConverges |  |
+| PRP-05 | current | TestPlanCreatePropertiesRetry, TestRoundTripAndCodes |  |
+| PRP-06 | current | TestPlanCreatePropertiesConvergeUncommitted, TestCreateVolumeProperties |  |
+| PRP-07 | decided-pending | - |  |
+| PRP-08 | current | TestParametersAndAccessChecks |  |
+| NFS-01 | decided-pending | - |  |
+| NFS-02 | decided-pending | TestShareNFSAndClientEncoding |  |
+| NFS-03 | current | TestPlanPublishExport, TestFileExportAdoptedVolumes, TestPlanUnpublishExport |  |
+| NFS-04 | current | TestPlanUnpublishExport, TestFileExportLifecycle, TestExportConverges |  |
+| NFS-05 | current | TestFileExportVerifiesKernelTable, TestPlanPublishExport, TestPlanUnpublishExport |  |
+| NFS-06 | decided-pending | - |  |
+| NFS-07 | current | TestFileExportLifecycle, TestPlanPublishExport, TestPlanUnpublishExport, TestExportConverges, TestFileExport |  |
+| NFS-08 | open-finding | TestParseClient, TestFileExportPreconditions, TestFileExport |  |
+| NFS-09 | open-finding | TestParseEtab |  |
+| NFS-10 | current | TestFileExportPreconditions, TestPlanPublishExport |  |
+| NFS-11 | open-finding | TestPlanUnpublishExport |  |
+| NFS-12 | open-finding | - |  |
+| NFS-13 | current | TestFileExportPreconditions, TestFileExport |  |
+| NFS-14 | decided-pending | - |  |
+| NFS-15 | decided-pending | - |  |
+| NFS-16 | current | TestFileExportAdoptedVolumes, TestPlanPublishExport |  |
+| NFS-17 | decided-pending | - |  |
+| NFS-18 | decided-pending | - |  |
+| NFS-19 | decided-pending | - |  |
+| NFS-20 | decided-pending | - |  |
+| NFS-21 | current | TestFileExportLifecycle |  |
+| NFS-22 | decided-pending | TestFileExport |  |
+| REC-01 | current | TestPlanReconcile, FuzzReconcileSafe |  |
+| REC-02 | current | FuzzReconcileSafe, TestPlanReconcile, TestReconcileSparesReceivedAndRenamed, TestReconcileAgainstDesiredSet |  |
+| REC-03 | current | TestPlanReconcile, TestReconcileAgainstDesiredSet, FuzzReconcileSafe |  |
+| REC-04 | open-finding | - |  |
+| REC-05 | current | TestReconcileCollectsAbandonedCreate, TestPlanReconcile |  |
+| REC-06 | open-finding | - |  |
+| REC-07 | current | TestPlanReconcile, TestReconcileAgainstDesiredSet, TestSimulateDestroyReapsDeferredOrigins |  |
+| REC-08 | current | TestPlanReconcile, TestReconcileCollectsLeakedCloneSource |  |
+| REC-09 | current | TestReconcileCollectsAbandonedCreate, TestReconcileLocksTargets, FuzzReconcileSafe |  |
+| REC-10 | current | TestReconcileLocksTargets, TestPlanReconcileHeldLimitsActions, TestPlanReconcile (lock-cover loop) | removed: TestPlanReconcileLocksEveryTarget |
+| REC-11 | current | TestReconcileCollectsAbandonedCreate, TestReconcileAgainstDesiredSet, FuzzReconcileSafe |  |
+| REC-12 | open-finding | - |  |
+| REC-13 | current | TestReconcileAgainstDesiredSet, TestReconcile |  |
+| REC-14 | current | TestPlanReconcile, TestReconcile, TestDeleteVolumeSparesForeignSnapshots |  |
+| REC-15 | current-untested | - |  |
+| LCK-01 | current | TestConcurrentCreatesSerialize, TestReconcileLocksTargets |  |
+| LCK-02 | decided-pending | - |  |
+| LCK-03 | current | TestLockParentIsExclusive |  |
+| RT-01 | current | TestListenIsOwnerOnly, TestListenRefusesALiveSocket, TestListenReplacesAStaleSocket, TestListenNeverDeletesANonSocket |  |
+| RT-02 | decided-pending | - |  |
+| RT-03 | decided-pending | - |  |
+| RT-04 | decided-pending | - |  |
+| INV-01 | current | (not a Go test name: (all plan_test.go, props_test.go, export_test.go, reconcile_test.go tests)) |  |
+| INV-02 | decided-pending | FuzzCreateConverges, TestExportConverges |  |
+| INV-03 | decided-pending | - |  |
+| CR-01 | current | TestCloneFailureAfterCloneConvergesToSameState, TestCreateVolumeResumesInterruptedProvision |  |
+| CR-02 | current-untested | - |  |
+| CR-03 | current-untested | - |  |
+| CR-04 | current-untested | - |  |
+| CSI-01 | current | TestCapabilitiesAdvertised |  |
+| CSI-02 | current | TestParametersAndAccessChecks, TestNeverIssuedIDs |  |
+| CSI-03 | current | TestExpandNodeExpansionRequired |  |
+| CSI-04 | current | TestSanity |  |
+| CSI-05 | current-untested | - |  |
+| CSI-06 | open-finding | - |  |
+| PRF-01 | current-untested | - |  |
+| PRF-02 | decided-pending | - |  |
+| PRF-03 | decided-pending | - |  |
+| PRF-04 | decided-pending | - |  |
+| PRF-05 | decided-pending | - |  |
+| PRF-06 | decided-pending | - |  |
