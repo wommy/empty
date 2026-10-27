@@ -42,7 +42,9 @@ const (
 	Capability_CAPABILITY_CLONE_FROM_VOLUME   Capability = 4
 	Capability_CAPABILITY_EXPAND              Capability = 5
 	Capability_CAPABILITY_LIST                Capability = 6
-	Capability_CAPABILITY_CAPACITY            Capability = 7 // reserved for upcoming edges: exports, metadata (CBT), modify
+	Capability_CAPABILITY_CAPACITY            Capability = 7
+	// CreateVolumeRequest.properties is honoured (default-deny allowlist).
+	Capability_CAPABILITY_PROPERTIES Capability = 8 // reserved for upcoming edges: exports, metadata (CBT), modify
 )
 
 // Enum value maps for Capability.
@@ -56,6 +58,7 @@ var (
 		5: "CAPABILITY_EXPAND",
 		6: "CAPABILITY_LIST",
 		7: "CAPABILITY_CAPACITY",
+		8: "CAPABILITY_PROPERTIES",
 	}
 	Capability_value = map[string]int32{
 		"CAPABILITY_UNSPECIFIED":         0,
@@ -66,6 +69,7 @@ var (
 		"CAPABILITY_EXPAND":              5,
 		"CAPABILITY_LIST":                6,
 		"CAPABILITY_CAPACITY":            7,
+		"CAPABILITY_PROPERTIES":          8,
 	}
 )
 
@@ -447,7 +451,21 @@ type CreateVolumeRequest struct {
 	//
 	//	*CreateVolumeRequest_SourceSnapshotId
 	//	*CreateVolumeRequest_SourceVolumeId
-	Source        isCreateVolumeRequest_Source `protobuf_oneof:"source"`
+	Source isCreateVolumeRequest_Source `protobuf_oneof:"source"`
+	// Native ZFS properties applied at create (StorageClass parameters).
+	// Default-deny: only an allowlist is accepted, per kind, with validated
+	// values; anything else, including user properties ("a:b"), is
+	// INVALID_ARGUMENT.
+	//
+	//	FILESYSTEM: compression, recordsize, atime, relatime, sync, logbias,
+	//	            dedup (off|on|verify), xattr, acltype, snapdir, copies
+	//	BLOCK:      compression, volblocksize (create-only; a clone must match
+	//	            its source), sync, logbias, dedup, copies
+	//
+	// A repeat with the same name is compatible only if every requested
+	// property is set locally on the volume with the same value; otherwise
+	// ALREADY_EXISTS.
+	Properties    map[string]string `protobuf:"bytes,9,rep,name=properties,proto3" json:"properties,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -547,6 +565,13 @@ func (x *CreateVolumeRequest) GetSourceVolumeId() string {
 		}
 	}
 	return ""
+}
+
+func (x *CreateVolumeRequest) GetProperties() map[string]string {
+	if x != nil {
+		return x.Properties
+	}
+	return nil
 }
 
 type isCreateVolumeRequest_Source interface {
@@ -1393,7 +1418,7 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"size_bytes\x18\x04 \x01(\x04R\tsizeBytes\x12#\n" +
 	"\rcreation_unix\x18\x05 \x01(\x03R\fcreationUnix\x12 \n" +
 	"\fready_to_use\x18\x06 \x01(\bR\n" +
-	"readyToUse\"\xb9\x02\n" +
+	"readyToUse\"\xcd\x03\n" +
 	"\x13CreateVolumeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12.\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x1a.zfsendpoint.v1.VolumeKindR\x04kind\x12%\n" +
@@ -1403,7 +1428,13 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x06sparse\x18\x05 \x01(\bR\x06sparse\x12\x18\n" +
 	"\areserve\x18\x06 \x01(\bR\areserve\x12.\n" +
 	"\x12source_snapshot_id\x18\a \x01(\tH\x00R\x10sourceSnapshotId\x12*\n" +
-	"\x10source_volume_id\x18\b \x01(\tH\x00R\x0esourceVolumeIdB\b\n" +
+	"\x10source_volume_id\x18\b \x01(\tH\x00R\x0esourceVolumeId\x12S\n" +
+	"\n" +
+	"properties\x18\t \x03(\v23.zfsendpoint.v1.CreateVolumeRequest.PropertiesEntryR\n" +
+	"properties\x1a=\n" +
+	"\x0fPropertiesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\b\n" +
 	"\x06source\"2\n" +
 	"\x13DeleteVolumeRequest\x12\x1b\n" +
 	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\"\x16\n" +
@@ -1451,7 +1482,7 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x11GetVolumeResponse\x12.\n" +
 	"\x06volume\x18\x01 \x01(\v2\x16.zfsendpoint.v1.VolumeR\x06volume\"N\n" +
 	"\x16CreateSnapshotResponse\x124\n" +
-	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot*\xe5\x01\n" +
+	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot*\x80\x02\n" +
 	"\n" +
 	"Capability\x12\x1a\n" +
 	"\x16CAPABILITY_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -1461,7 +1492,8 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x1cCAPABILITY_CLONE_FROM_VOLUME\x10\x04\x12\x15\n" +
 	"\x11CAPABILITY_EXPAND\x10\x05\x12\x13\n" +
 	"\x0fCAPABILITY_LIST\x10\x06\x12\x17\n" +
-	"\x13CAPABILITY_CAPACITY\x10\a*\\\n" +
+	"\x13CAPABILITY_CAPACITY\x10\a\x12\x19\n" +
+	"\x15CAPABILITY_PROPERTIES\x10\b*\\\n" +
 	"\n" +
 	"VolumeKind\x12\x1b\n" +
 	"\x17VOLUME_KIND_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -1492,7 +1524,7 @@ func file_zfsendpoint_v1_endpoint_proto_rawDescGZIP() []byte {
 }
 
 var file_zfsendpoint_v1_endpoint_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_zfsendpoint_v1_endpoint_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_zfsendpoint_v1_endpoint_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_zfsendpoint_v1_endpoint_proto_goTypes = []any{
 	(Capability)(0),                 // 0: zfsendpoint.v1.Capability
 	(VolumeKind)(0),                 // 1: zfsendpoint.v1.VolumeKind
@@ -1518,42 +1550,44 @@ var file_zfsendpoint_v1_endpoint_proto_goTypes = []any{
 	(*ExpandVolumeResponse)(nil),    // 21: zfsendpoint.v1.ExpandVolumeResponse
 	(*GetVolumeResponse)(nil),       // 22: zfsendpoint.v1.GetVolumeResponse
 	(*CreateSnapshotResponse)(nil),  // 23: zfsendpoint.v1.CreateSnapshotResponse
+	nil,                             // 24: zfsendpoint.v1.CreateVolumeRequest.PropertiesEntry
 }
 var file_zfsendpoint_v1_endpoint_proto_depIdxs = []int32{
 	0,  // 0: zfsendpoint.v1.GetCapabilitiesResponse.capabilities:type_name -> zfsendpoint.v1.Capability
 	1,  // 1: zfsendpoint.v1.Volume.kind:type_name -> zfsendpoint.v1.VolumeKind
 	1,  // 2: zfsendpoint.v1.CreateVolumeRequest.kind:type_name -> zfsendpoint.v1.VolumeKind
-	4,  // 3: zfsendpoint.v1.ListVolumesResponse.volumes:type_name -> zfsendpoint.v1.Volume
-	5,  // 4: zfsendpoint.v1.ListSnapshotsResponse.snapshots:type_name -> zfsendpoint.v1.Snapshot
-	4,  // 5: zfsendpoint.v1.CreateVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
-	4,  // 6: zfsendpoint.v1.ExpandVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
-	4,  // 7: zfsendpoint.v1.GetVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
-	5,  // 8: zfsendpoint.v1.CreateSnapshotResponse.snapshot:type_name -> zfsendpoint.v1.Snapshot
-	2,  // 9: zfsendpoint.v1.EndpointService.GetCapabilities:input_type -> zfsendpoint.v1.GetCapabilitiesRequest
-	6,  // 10: zfsendpoint.v1.EndpointService.CreateVolume:input_type -> zfsendpoint.v1.CreateVolumeRequest
-	7,  // 11: zfsendpoint.v1.EndpointService.DeleteVolume:input_type -> zfsendpoint.v1.DeleteVolumeRequest
-	9,  // 12: zfsendpoint.v1.EndpointService.ExpandVolume:input_type -> zfsendpoint.v1.ExpandVolumeRequest
-	10, // 13: zfsendpoint.v1.EndpointService.GetVolume:input_type -> zfsendpoint.v1.GetVolumeRequest
-	11, // 14: zfsendpoint.v1.EndpointService.ListVolumes:input_type -> zfsendpoint.v1.ListVolumesRequest
-	13, // 15: zfsendpoint.v1.EndpointService.CreateSnapshot:input_type -> zfsendpoint.v1.CreateSnapshotRequest
-	14, // 16: zfsendpoint.v1.EndpointService.DeleteSnapshot:input_type -> zfsendpoint.v1.DeleteSnapshotRequest
-	16, // 17: zfsendpoint.v1.EndpointService.ListSnapshots:input_type -> zfsendpoint.v1.ListSnapshotsRequest
-	18, // 18: zfsendpoint.v1.EndpointService.GetCapacity:input_type -> zfsendpoint.v1.GetCapacityRequest
-	3,  // 19: zfsendpoint.v1.EndpointService.GetCapabilities:output_type -> zfsendpoint.v1.GetCapabilitiesResponse
-	20, // 20: zfsendpoint.v1.EndpointService.CreateVolume:output_type -> zfsendpoint.v1.CreateVolumeResponse
-	8,  // 21: zfsendpoint.v1.EndpointService.DeleteVolume:output_type -> zfsendpoint.v1.DeleteVolumeResponse
-	21, // 22: zfsendpoint.v1.EndpointService.ExpandVolume:output_type -> zfsendpoint.v1.ExpandVolumeResponse
-	22, // 23: zfsendpoint.v1.EndpointService.GetVolume:output_type -> zfsendpoint.v1.GetVolumeResponse
-	12, // 24: zfsendpoint.v1.EndpointService.ListVolumes:output_type -> zfsendpoint.v1.ListVolumesResponse
-	23, // 25: zfsendpoint.v1.EndpointService.CreateSnapshot:output_type -> zfsendpoint.v1.CreateSnapshotResponse
-	15, // 26: zfsendpoint.v1.EndpointService.DeleteSnapshot:output_type -> zfsendpoint.v1.DeleteSnapshotResponse
-	17, // 27: zfsendpoint.v1.EndpointService.ListSnapshots:output_type -> zfsendpoint.v1.ListSnapshotsResponse
-	19, // 28: zfsendpoint.v1.EndpointService.GetCapacity:output_type -> zfsendpoint.v1.GetCapacityResponse
-	19, // [19:29] is the sub-list for method output_type
-	9,  // [9:19] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	24, // 3: zfsendpoint.v1.CreateVolumeRequest.properties:type_name -> zfsendpoint.v1.CreateVolumeRequest.PropertiesEntry
+	4,  // 4: zfsendpoint.v1.ListVolumesResponse.volumes:type_name -> zfsendpoint.v1.Volume
+	5,  // 5: zfsendpoint.v1.ListSnapshotsResponse.snapshots:type_name -> zfsendpoint.v1.Snapshot
+	4,  // 6: zfsendpoint.v1.CreateVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
+	4,  // 7: zfsendpoint.v1.ExpandVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
+	4,  // 8: zfsendpoint.v1.GetVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
+	5,  // 9: zfsendpoint.v1.CreateSnapshotResponse.snapshot:type_name -> zfsendpoint.v1.Snapshot
+	2,  // 10: zfsendpoint.v1.EndpointService.GetCapabilities:input_type -> zfsendpoint.v1.GetCapabilitiesRequest
+	6,  // 11: zfsendpoint.v1.EndpointService.CreateVolume:input_type -> zfsendpoint.v1.CreateVolumeRequest
+	7,  // 12: zfsendpoint.v1.EndpointService.DeleteVolume:input_type -> zfsendpoint.v1.DeleteVolumeRequest
+	9,  // 13: zfsendpoint.v1.EndpointService.ExpandVolume:input_type -> zfsendpoint.v1.ExpandVolumeRequest
+	10, // 14: zfsendpoint.v1.EndpointService.GetVolume:input_type -> zfsendpoint.v1.GetVolumeRequest
+	11, // 15: zfsendpoint.v1.EndpointService.ListVolumes:input_type -> zfsendpoint.v1.ListVolumesRequest
+	13, // 16: zfsendpoint.v1.EndpointService.CreateSnapshot:input_type -> zfsendpoint.v1.CreateSnapshotRequest
+	14, // 17: zfsendpoint.v1.EndpointService.DeleteSnapshot:input_type -> zfsendpoint.v1.DeleteSnapshotRequest
+	16, // 18: zfsendpoint.v1.EndpointService.ListSnapshots:input_type -> zfsendpoint.v1.ListSnapshotsRequest
+	18, // 19: zfsendpoint.v1.EndpointService.GetCapacity:input_type -> zfsendpoint.v1.GetCapacityRequest
+	3,  // 20: zfsendpoint.v1.EndpointService.GetCapabilities:output_type -> zfsendpoint.v1.GetCapabilitiesResponse
+	20, // 21: zfsendpoint.v1.EndpointService.CreateVolume:output_type -> zfsendpoint.v1.CreateVolumeResponse
+	8,  // 22: zfsendpoint.v1.EndpointService.DeleteVolume:output_type -> zfsendpoint.v1.DeleteVolumeResponse
+	21, // 23: zfsendpoint.v1.EndpointService.ExpandVolume:output_type -> zfsendpoint.v1.ExpandVolumeResponse
+	22, // 24: zfsendpoint.v1.EndpointService.GetVolume:output_type -> zfsendpoint.v1.GetVolumeResponse
+	12, // 25: zfsendpoint.v1.EndpointService.ListVolumes:output_type -> zfsendpoint.v1.ListVolumesResponse
+	23, // 26: zfsendpoint.v1.EndpointService.CreateSnapshot:output_type -> zfsendpoint.v1.CreateSnapshotResponse
+	15, // 27: zfsendpoint.v1.EndpointService.DeleteSnapshot:output_type -> zfsendpoint.v1.DeleteSnapshotResponse
+	17, // 28: zfsendpoint.v1.EndpointService.ListSnapshots:output_type -> zfsendpoint.v1.ListSnapshotsResponse
+	19, // 29: zfsendpoint.v1.EndpointService.GetCapacity:output_type -> zfsendpoint.v1.GetCapacityResponse
+	20, // [20:30] is the sub-list for method output_type
+	10, // [10:20] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_zfsendpoint_v1_endpoint_proto_init() }
@@ -1571,7 +1605,7 @@ func file_zfsendpoint_v1_endpoint_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_zfsendpoint_v1_endpoint_proto_rawDesc), len(file_zfsendpoint_v1_endpoint_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

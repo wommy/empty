@@ -80,6 +80,7 @@ func (s *Server) GetCapabilities(ctx context.Context, _ *pb.GetCapabilitiesReque
 			pb.Capability_CAPABILITY_EXPAND,
 			pb.Capability_CAPABILITY_LIST,
 			pb.Capability_CAPABILITY_CAPACITY,
+			pb.Capability_CAPABILITY_PROPERTIES,
 		},
 	}, nil
 }
@@ -90,6 +91,7 @@ func (s *Server) CreateVolume(ctx context.Context, r *pb.CreateVolumeRequest) (*
 		CapacityBytes: r.GetCapacityBytes(), LimitBytes: r.GetLimitBytes(),
 		Sparse: r.GetSparse(), Reserve: r.GetReserve(),
 		SourceSnapshotID: r.GetSourceSnapshotId(), SourceVolumeID: r.GetSourceVolumeId(),
+		Properties: r.GetProperties(),
 	})
 	if err != nil {
 		return nil, grpcErr(err)
