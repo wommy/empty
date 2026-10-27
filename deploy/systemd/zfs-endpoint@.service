@@ -12,11 +12,18 @@
 # /run/zfs-endpoint, which holds every instance's lock (ADR 0001 v2, F1).
 # zfs-endpoint refuses (78) a -listen whose directory is or contains it.
 #
+# That socket serves the CSI role only: what zfs-csi calls. Reconcile and
+# the NFS export RPCs are served on the admin socket,
+# /run/zfs-endpoint/admin/<systemd-escape parent>/endpoint.sock, to root
+# (or the daemon's own uid) only; no pod mounts its directory (ADR 0001
+# v2, F2). Without -admin-listen those calls are refused.
+#
 # %i keeps the escapes literally: tank/k8s-vols is served in
 # /run/zfs-endpoint/sock/tank-k8s\x2dvols/, backslash and all, so each '-'
 # (and any byte outside [A-Za-z0-9:_.]) in the dataset name costs 4
 # bytes. A socket path holds at most 107 bytes (sun_path), which leaves 70
-# for the escaped name; a longer one exits 78 at startup (no restart), and
+# for the escaped name (69 for the admin socket's, admin/ being a byte
+# longer than sock/); a longer one exits 78 at startup (no restart), and
 # needs a shorter -listen in a drop-in, with zfs-csi -endpoint to match.
 #
 # For an encrypted parent, add After=zfs-load-key.service (or the matching
@@ -43,6 +50,7 @@ NotifyAccess=main
 ExecStart=/usr/local/sbin/zfs-endpoint \
     -parent %I \
     -listen unix:///run/zfs-endpoint/sock/%i/endpoint.sock \
+    -admin-listen unix:///run/zfs-endpoint/admin/%i/endpoint.sock \
     -drain 30s \
     -stop-wait 10s \
     -parent-wait 60s

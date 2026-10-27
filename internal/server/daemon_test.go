@@ -72,7 +72,7 @@ func daemon(t *testing.T, r zfs.Runner, log *slog.Logger) daemonClient {
 	d := server.NewDaemon(&server.Server{EP: ep, Parent: "tank/vols"}, log)
 	d.SetServing(true)
 	lis := bufconn.Listen(1 << 20)
-	go d.GRPC.Serve(lis)
+	go d.Serve(lis, server.RoleAdmin)
 	t.Cleanup(d.GRPC.Stop)
 	conn, err := grpc.NewClient("passthrough:///buf",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return lis.DialContext(ctx) }),

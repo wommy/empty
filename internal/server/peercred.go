@@ -18,6 +18,9 @@ type PeerInfo struct {
 	// not a unix socket (bufconn in tests; the daemon serves nothing else).
 	HasCred       bool
 	UID, GID, PID int
+	// Role is the role of the listener that accepted the connection
+	// (Daemon.Serve); 0 for none.
+	Role Role
 }
 
 // AuthType implements credentials.AuthInfo.
@@ -30,7 +33,11 @@ type peerCreds struct{}
 
 func (peerCreds) ServerHandshake(c net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	info := PeerInfo{CommonAuthInfo: credentials.CommonAuthInfo{SecurityLevel: credentials.NoSecurity}}
-	if uc, ok := c.(*net.UnixConn); ok {
+	raw := c
+	if rc, ok := c.(roleConn); ok {
+		info.Role, raw = rc.role, rc.Conn
+	}
+	if uc, ok := raw.(*net.UnixConn); ok {
 		if uid, gid, pid, err := peerCred(uc); err == nil {
 			info.HasCred, info.UID, info.GID, info.PID = true, uid, gid, pid
 		}

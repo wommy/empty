@@ -65,6 +65,7 @@ func NewDaemon(s *Server, log *slog.Logger) *Daemon {
 		grpc.MaxRecvMsgSize(MaxMsgSize),
 		grpc.MaxSendMsgSize(MaxMsgSize),
 		grpc.UnaryInterceptor(d.unary),
+		grpc.StreamInterceptor(stream),
 	)
 	pb.RegisterEndpointServiceServer(d.GRPC, s)
 	healthpb.RegisterHealthServer(d.GRPC, d.Health)
@@ -174,15 +175,22 @@ func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo,
 	}
 	defer d.calls.end()
 	start := time.Now()
-	resp, err := d.call(ctx, req, info, handler)
+	var resp any
+	err := authorize(ctx, info.FullMethod)
+	if err == nil {
+		resp, err = d.call(ctx, req, info, handler)
+	}
 	if !strings.HasPrefix(info.FullMethod, "/grpc.health.") {
 		attrs := []any{"method", info.FullMethod, "code", status.Code(err).String(), "duration", time.Since(start)}
 		if p, ok := peer.FromContext(ctx); ok {
 			if p.Addr != nil {
 				attrs = append(attrs, "peer", p.Addr.String())
 			}
-			if pi, ok := p.AuthInfo.(PeerInfo); ok && pi.HasCred {
-				attrs = append(attrs, "peer_uid", pi.UID, "peer_gid", pi.GID, "peer_pid", pi.PID)
+			if pi, ok := p.AuthInfo.(PeerInfo); ok {
+				attrs = append(attrs, "role", pi.Role.String())
+				if pi.HasCred {
+					attrs = append(attrs, "peer_uid", pi.UID, "peer_gid", pi.GID, "peer_pid", pi.PID)
+				}
 			}
 		}
 		if err != nil {

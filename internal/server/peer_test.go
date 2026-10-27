@@ -34,7 +34,7 @@ func unixDaemon(t *testing.T, r zfs.Runner, log *slog.Logger) pb.EndpointService
 	if err != nil {
 		t.Fatal(err)
 	}
-	go d.GRPC.Serve(lis)
+	go d.Serve(lis, server.RoleCSI)
 	t.Cleanup(d.GRPC.Stop)
 	conn, err := grpc.NewClient("unix://"+sock, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -73,6 +73,9 @@ func TestPeerCredentialsAreLogged(t *testing.T) {
 	lines := rpcLines(t, &buf)
 	if len(lines) != 1 {
 		t.Fatalf("%d rpc lines: %s", len(lines), buf.String())
+	}
+	if r := lines[0]["role"]; r != "csi" {
+		t.Errorf("role %v, want csi", r)
 	}
 	for k, want := range map[string]int{"peer_uid": os.Getuid(), "peer_gid": os.Getgid(), "peer_pid": os.Getpid()} {
 		if got, ok := lines[0][k].(float64); !ok || int(got) != want {

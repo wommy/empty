@@ -197,6 +197,14 @@ func EndpointAddr(parent string) string {
 	return "unix://" + EndpointSockDir(parent) + "/endpoint.sock"
 }
 
+// EndpointAdminAddr is the admin socket the unit serves for parent:
+// unix:///run/zfs-endpoint/admin/<systemd-escape parent>/endpoint.sock.
+// It serves the admin role (Reconcile, the NFS export RPCs) to root only,
+// and its directory is never mounted into a pod (ADR 0001 v2, F2).
+func EndpointAdminAddr(parent string) string {
+	return "unix://" + EndpointDir + "/admin/" + SystemdEscape(parent) + "/endpoint.sock"
+}
+
 // SystemdEscape is `systemd-escape <s>` (not --path): '/' becomes '-', a
 // byte outside [A-Za-z0-9:_.] (or a leading '.') becomes \xNN. It is what
 // %i holds for zfs-endpoint@<escaped>.service.

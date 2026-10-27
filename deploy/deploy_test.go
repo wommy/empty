@@ -93,6 +93,17 @@ func TestUnitServesTheConventionalSocket(t *testing.T) {
 			t.Errorf("unit serves %s for %s, binaries use %s", got, parent, want)
 		}
 	}
+	// F2: the admin role (Reconcile, NFS export) on a socket of its own,
+	// in a directory no pod mounts
+	admin, ok := flagValue(args, "-admin-listen")
+	if !ok {
+		t.Fatal("unit sets no -admin-listen")
+	}
+	for _, parent := range []string{"tank/k8s/vols", "tank/my-vols"} {
+		if got, want := strings.ReplaceAll(admin, "%i", unixsock.SystemdEscape(parent)), unixsock.EndpointAdminAddr(parent); got != want {
+			t.Errorf("unit serves admin %s for %s, want %s", got, parent, want)
+		}
+	}
 }
 
 // k8sObjects decodes every document in deploy/k8s.
@@ -202,6 +213,12 @@ func TestManifests(t *testing.T) {
 	if hostDir == unixsock.EndpointDir || !strings.HasPrefix(hostDir, unixsock.EndpointDir+"/sock/") {
 		// F1: the endpoint directory holds every instance's locks and sockets
 		t.Errorf("endpoint-dir hostPath %q, want one instance's socket directory under %s/sock/", hostDir, unixsock.EndpointDir)
+	}
+	// F2: no pod gets an admin socket
+	for name, v := range vols {
+		if p, _ := get(v, "hostPath", "path").(string); strings.HasPrefix(p+"/", unixsock.EndpointDir+"/admin/") {
+			t.Errorf("volume %s mounts the admin socket directory %s", name, p)
+		}
 	}
 
 	var names []string
