@@ -89,3 +89,57 @@ func TestListenNeverDeletesANonSocket(t *testing.T) {
 		t.Error("file content changed")
 	}
 }
+
+// "@name" would be a Linux abstract socket: no file, so no permissions.
+// Only a clean absolute path is accepted.
+func TestListenRefusesAbstractAndRelativePaths(t *testing.T) {
+	for _, p := range []string{"@zfs-endpoint", "@/run/x.sock", "x.sock", "run/x.sock", "/run/../tmp/x.sock", ""} {
+		if l, err := unixsock.Listen(p); err == nil {
+			l.Close()
+			t.Errorf("%q: listened", p)
+		}
+	}
+}
+
+// An existing socket directory others could write (or a symlink to one,
+// or one another user owns) is refused: they could swap the socket.
+func TestListenRefusesAnUnsafeDirectory(t *testing.T) {
+	base := t.TempDir()
+	open := filepath.Join(base, "open")
+	if err := os.Mkdir(open, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(open, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	safe := filepath.Join(base, "safe")
+	if err := os.Mkdir(safe, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(safe, link); err != nil {
+		t.Fatal(err)
+	}
+	dirs := []string{open, link}
+	if os.Geteuid() == 0 {
+		other := filepath.Join(base, "other")
+		if err := os.Mkdir(other, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chown(other, 4321, 4321); err != nil {
+			t.Fatal(err)
+		}
+		dirs = append(dirs, other)
+	}
+	for _, d := range dirs {
+		if l, err := unixsock.Listen(filepath.Join(d, "x.sock")); err == nil {
+			l.Close()
+			t.Errorf("%s: listened in an unsafe directory", d)
+		}
+	}
+	l, err := unixsock.Listen(filepath.Join(safe, "x.sock"))
+	if err != nil {
+		t.Fatalf("safe directory: %v", err)
+	}
+	l.Close()
+}
