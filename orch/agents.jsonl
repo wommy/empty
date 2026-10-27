@@ -103,12 +103,15 @@
 {"id": "abc486f01809cbb6f", "name": "rollback", "lane": "writer", "wave": 28, "status": "merged", "branch": "rollback", "report": null, "anomaly": false, "queue": "q-rollback2"}
 {"id": "a88911dfbc1ca4455", "name": "races", "lane": "reader", "wave": 28, "status": "done", "branch": null, "report": "wave28/races.md", "anomaly": false, "queue": "q-races"}
 {"id": "af5ac15f93157bea3", "name": "operator", "lane": "reader", "wave": 28, "status": "done", "branch": null, "report": "wave28/operator.md", "anomaly": false, "queue": "q-operator"}
-{"id": "a672364fdc0482ef0", "name": "ops-endpoint", "lane": "writer", "wave": 29, "status": "running", "branch": "ops-endpoint", "report": null, "anomaly": false, "queue": "q-ops-endpoint"}
+{"id": "a672364fdc0482ef0", "name": "ops-endpoint", "lane": "writer", "wave": 29, "status": "merged", "branch": "ops-endpoint", "report": null, "anomaly": false, "queue": "q-ops-endpoint"}
 {"id": "a6bc4d1bdd7188707", "name": "ops-csi", "lane": "writer", "wave": 29, "status": "merged", "branch": "ops-csi", "report": null, "anomaly": false, "queue": "q-ops-csi"}
 {"id": "a614a1d2e842fa2d4", "name": "node-sec", "lane": "reader", "wave": 29, "status": "done", "branch": null, "report": "wave29/node-sec.md", "anomaly": false, "queue": "q-node-sec"}
 {"id": "ae3a6babc225a3e78", "name": "node-harden", "lane": "writer", "wave": 30, "status": "merged", "branch": "node-harden", "report": null, "anomaly": false, "queue": "q-node-harden"}
 {"id": "aa255e826ccc26911", "name": "deploy-seam", "lane": "reader", "wave": 30, "status": "done", "branch": null, "report": "wave30/deploy-seam.md", "anomaly": false, "queue": "q-deploy-seam"}
 {"id": "a804dc84a8a9138c6", "name": "part-balance", "lane": "reader", "wave": 30, "status": "done", "branch": null, "report": "wave30/part-balance.md", "anomaly": false, "queue": "q-part-balance"}
 {"id": "a43719727e37e1ecb", "name": "guard-kills", "lane": "writer", "wave": 31, "status": "running", "branch": "guard-kills", "report": null, "anomaly": false, "queue": "q-guard-kills"}
-{"id": "a71b115d463ec644e", "name": "authz", "lane": "reader", "wave": 31, "status": "running", "branch": null, "report": "wave31/authz.md", "anomaly": true, "queue": "q-authz"}
+{"id": "a71b115d463ec644e", "name": "authz", "lane": "reader", "wave": 31, "status": "done", "branch": null, "report": "wave31/authz.md", "anomaly": true, "queue": "q-authz"}
 {"id": "a6607ed9c8b495476", "name": "critpath", "lane": "reader", "wave": 31, "status": "running", "branch": null, "report": "wave31/critpath.md", "anomaly": false, "queue": "q-critpath"}
+{"id": "ac14abffb0d26c4bf", "name": "deploy-usable", "lane": "writer", "wave": 31, "status": "running", "branch": "deploy-usable", "report": null, "anomaly": false, "queue": "q-deploy-usable"}
+{"id": "aa3b18c2bedd0e0b7", "name": "weights-normalize", "lane": "writer", "wave": 31, "status": "running", "branch": "weights-normalize", "report": null, "anomaly": false, "queue": "q-weights-normalize"}
+{"id": "acc36dcd178e1063b", "name": "rollback-review", "lane": "reader", "wave": 31, "status": "running", "branch": null, "report": "wave31/rollback-review.md", "anomaly": false, "queue": "q-rollback-review"}
