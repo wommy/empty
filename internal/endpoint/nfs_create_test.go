@@ -143,6 +143,18 @@ func TestPlanCreateVolumeNFS(t *testing.T) {
 			r.ShareNFSLocal = false
 			return r
 		}()}, req: nfsReq("a", exp("", false, "10.20.0.0/24")), code: AlreadyExists},
+		// the same value, but not the volume's own: the parent's (or the
+		// sender's) export, which changes under it, is not the one asked for
+		{name: "committed, inherited sharenfs equal to the request", rows: []Row{func() Row {
+			r := nfsVol("a", "rw=10.20.0.0/24", srv1)
+			r.ShareNFSLocal = false
+			return r
+		}()}, req: nfsReq("a", exp("", false, "10.20.0.0/24")), code: AlreadyExists},
+		{name: "committed, received sharenfs equal to the request", rows: []Row{func() Row {
+			r := nfsVol("a", "rw=10.20.0.0/24", srv1)
+			r.ShareNFSLocal, r.ShareNFSRecv = false, true
+			return r
+		}()}, req: nfsReq("a", exp("", false, "10.20.0.0/24")), code: AlreadyExists},
 		{name: "committed without NFS, now asked for it", rows: []Row{nfsVol("a", "off", "")},
 			req: nfsReq("a", exp("", false, "10.20.0.0/24")), code: AlreadyExists},
 		// legacy (created before the server was recorded): S1 keeps it

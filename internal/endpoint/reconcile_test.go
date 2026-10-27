@@ -461,6 +461,53 @@ func TestPlanReconcileHeldLimitsActions(t *testing.T) {
 	}
 }
 
+// An orphan clone source answers to the locks like a volume: busy (its
+// volume or its clone's lock taken by another call), or not in the unlocked
+// plan for the same reason on the same guid, it is skipped, not destroyed.
+func TestPlanReconcileOrphanCloneSourceHonoursLocks(t *testing.T) {
+	const src = "a@volume-source-for-volume-gone"
+	tab := table(vol("a", nil), snap(src, func(r *Row) { stamp(r); r.GUID = "1" }))
+	for _, tc := range []struct {
+		name    string
+		held    map[string]bool
+		planned map[string]plannedAction
+		why     string
+	}{
+		{"volume busy", map[string]bool{"a": false, "gone": true}, nil, SkipBusy},
+		{"clone busy", map[string]bool{"a": true, "gone": false}, nil, SkipBusy},
+		{"guid changed", nil, map[string]plannedAction{src: {ReasonOrphanCloneSource, "2"}}, SkipChangedSinceScan},
+	} {
+		d := desired("a")
+		d.held, d.planned = tc.held, tc.planned
+		plan, err := pl.PlanReconcile(tab, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if acts, skips := summary(plan); len(acts) != 0 || !slices.Equal(skips, []string{src + ":" + tc.why}) {
+			t.Errorf("%s: actions %q skipped %q", tc.name, acts, skips)
+		}
+	}
+}
+
+// A row with no creation time (0, as a scan reads an unset or unparsable
+// creation) is never old enough to collect: it does not age from 1970.
+// table() would age it, so the rows are built bare.
+func TestPlanReconcileZeroCreationIsNeverOld(t *testing.T) {
+	const src = "a@volume-source-for-volume-gone"
+	tab := NewTable([]Row{
+		vol("a", func(r *Row) { r.Creation = oldT }),
+		snap(src, stamp), // Creation 0
+		vol("b", func(r *Row) { r.Committed = false }),
+	})
+	plan, err := pl.PlanReconcile(tab, desired("a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acts, skips := summary(plan); len(acts) != 0 || !slices.Equal(skips, []string{"b:" + SkipNoCreation, src + ":" + SkipNoCreation}) {
+		t.Fatalf("actions %q skipped %q", acts, skips)
+	}
+}
+
 func TestSimulateDestroyReapsDeferredOrigins(t *testing.T) {
 	rows := []Row{
 		{Name: "tank/v/b", ID: "b"},
