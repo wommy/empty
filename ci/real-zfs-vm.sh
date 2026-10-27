@@ -50,6 +50,17 @@
 # for them with `udevadm settle` (UdevSettle), a call to udevd, not this
 # unit. The boot diagnostics below print who still wants it and any
 # failed unit.
+# systemd-modules-load, zfs-load-module and zfs-mount are masked as well
+# (ADR 0005, "ssh poll and module load"): the first loaded zfs (from
+# /etc/modules-load.d/zfs.conf) on sysinit.target's chain, so ssh's
+# (0.98s, 2.6s in the csi job, run 40513522394), and the other two held
+# local-fs.target, so ssh and nfs-server (1.05s in csi). No pool exists at
+# boot, so zfs-mount had nothing to mount. The checks below load zfs
+# explicitly (`modprobe zfs`, timed) before anything uses it and start
+# zed, which skipped its boot start (ConditionPathIsDirectory=
+# /sys/module/zfs). nfsd is not in modules-load.d: mounting
+# /proc/fs/nfsd loads it, as before. A GRUB boot (the cold run, the panic
+# fallback) masks nothing.
 #
 # ZFSVM_PHASE splits a run so the guest boots while the job sets up Go:
 #   boot  verify the image, start the guest, return (qemu keeps running)
@@ -128,6 +139,7 @@ cleanup() {
 # concurrent shards (three per suite) with their pools on a guest tmpfs.
 # boot <disk> [<dir with vmlinuz, initrd, cmdline>]; $noinitrd: no initrd
 masks="systemd.mask=zfs-import-cache.service systemd.mask=zfs-import-scan.service systemd.mask=systemd-udev-settle.service"
+masks+=" systemd.mask=systemd-modules-load.service systemd.mask=zfs-load-module.service systemd.mask=zfs-mount.service"
 boot() {
   local direct=() append
   if [ -n "${2:-}" ]; then
@@ -236,11 +248,24 @@ if [ -z "${ZFSVM_PROVISION_ONLY:-}" ]; then
   build=$!
 fi
 
+# the guest's sshd banner, read with a 0.3s bound. slirp's hostfwd accepts
+# every connect at once, then sends its own SYN to the guest; until the
+# guest has its address that SYN is lost and retried after seconds. ssh
+# itself waited for the banner up to ConnectTimeout (5s), so the host saw
+# sshd 3s (endpoint) to 6s (csi) after it started (run 40513522394). A
+# probe that stalls is dropped and the next one sends a fresh SYN: the
+# host sees sshd within about 0.4s (0.06-0.36s against a fake slirp,
+# 0.2-4.3s with a 5s bound). Only then does ssh log in (and open the
+# master), with the full ConnectTimeout for a guest busy booting. Every
+# 40th probe (about 16s) waits 5s for the banner, so a guest whose sshd
+# answers slower than 0.3s is still reached, as the old poll would
+banner() { (exec 3<>/dev/tcp/127.0.0.1/2222 && IFS= read -r -t "$1" -n 4 b <&3 && [ "$b" = SSH- ]) 2>/dev/null; }
 wait_ssh() {
-  local up=
-  # sshd refuses at once until it is up, so a short poll costs nothing
-  for _ in $(seq 1 900); do
-    vm true 2>/dev/null && { up=1; break; }
+  local up= probes=0 deadline=$((SECONDS + 600))
+  # 600s: a cold run's first boot (cloud-init writes the key) included
+  while [ $SECONDS -lt $deadline ]; do
+    probes=$((probes + 1))
+    banner "$([ $((probes % 40)) -eq 0 ] && echo 5 || echo 0.3)" && vm true 2>/dev/null && { up=1; break; }
     if [ -n "$noinitrd" ] && ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
       cp "$work/console.log" "$work/console-noinitrd.log" 2>/dev/null || true
       echo "::warning::the guest exited booting without an initrd (console-noinitrd.log); booting it through the BIOS and GRUB, with the disk's initrd"
@@ -248,10 +273,10 @@ wait_ssh() {
       echo "noinitrd=" >>"$work/state"
       boot "$work/run.qcow2"
     fi
-    sleep 0.2
+    sleep 0.1
   done
   [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
-  mark "ssh up"
+  mark "ssh up ($probes probes)"
 }
 wait_ssh
 # status exits non-zero on recoverable warnings; the version, module and
@@ -306,28 +331,19 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
   fi
   wait_ssh
 fi
-# services (zfs module, nfsd) come up after sshd on a reboot; wait for the
-# two the tests need, not for the whole boot to settle
-vm 'for _ in $(seq 1 300); do systemctl is-active -q nfs-server && break; sleep 0.1; done'
-mark "nfs-server active"
-# cloud-init's runcmd ran only on the provisioning boot
-vm 'sudo modprobe zfs'
+# the zfs module: a direct boot masks its load (systemd-modules-load,
+# zfs-load-module), so it is loaded here, timed, before anything uses it;
+# on a GRUB boot it is already loaded and modprobe returns at once. zed
+# skipped its boot start without the module (ConditionPathIsDirectory=
+# /sys/module/zfs) and is started as the boot would have; best effort, the
+# diagnostics below print its state. In the background over the master:
+# the checks that do not need zfs run beside it
+vm 's=$(date +%s%N); sudo modprobe zfs; r=$?; echo "modprobe zfs: $((($(date +%s%N) - s) / 1000000))ms, exit $r"
+  [ $r -ne 0 ] || sudo systemctl start --no-block zfs-zed.service || true; exit $r' >"$work/modprobe.txt" 2>&1 &
+modprobe=$!
 vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
-
-ver=$(vm 'zfs version 2>&1' || true) # a missing module fails below, with the output
-echo "$ver"
 serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
 running=$(vm 'uname -r')
-{
-  echo "### real ZFS VM: $series/$build, suite $suite (${pkgs[*]})"
-  echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
-  echo "- kernel: \`$running\` ($([ -n "$noinitrd" ] && echo "direct kernel boot, no initrd" || echo "BIOS, GRUB and the disk's initrd"))"
-  echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
-} >>"$summary"
-grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
-  || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
-[ "$(sed -n 's/^zfs-kmod-//p' <<<"$ver")" = "$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")" ] \
-  || { echo "userland and kmod versions differ:" >&2; echo "$ver" >&2; exit 1; }
 # a direct boot runs the kernel stored with the disk; its modules (zfs) are
 # the disk's /lib/modules/<release>, so the two must be the same release
 [ -z "$kernel" ] || [ "$running" = "$kernel" ] \
@@ -345,6 +361,26 @@ fi
 vm 'sudo sh -c "command -v exportfs"' >/dev/null \
   || { echo "exportfs missing in the VM (nfs-kernel-server not installed?)" >&2; exit 1; }
 vm 'ls -ld /etc/exports.d /var/lib/nfs/etab 2>&1 || true' # context for an export test failure
+wait "$modprobe" || { cat "$work/modprobe.txt"; echo "modprobe zfs failed in the VM" >&2; exit 1; }
+cat "$work/modprobe.txt"
+mark "zfs loaded"
+ver=$(vm 'zfs version 2>&1' || true) # a missing module fails below, with the output
+echo "$ver"
+{
+  echo "### real ZFS VM: $series/$build, suite $suite (${pkgs[*]})"
+  echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
+  echo "- kernel: \`$running\` ($([ -n "$noinitrd" ] && echo "direct kernel boot, no initrd" || echo "BIOS, GRUB and the disk's initrd"))"
+  echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
+} >>"$summary"
+grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
+  || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
+[ "$(sed -n 's/^zfs-kmod-//p' <<<"$ver")" = "$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")" ] \
+  || { echo "userland and kmod versions differ:" >&2; echo "$ver" >&2; exit 1; }
+# nfs-server comes up after sshd (behind network-online.target, 2.2s
+# after ssh in run 40513522394): wait for it last, so the checks above
+# run while it starts, not for the whole boot to settle
+vm 'for _ in $(seq 1 300); do systemctl is-active -q nfs-server && break; sleep 0.1; done'
+mark "nfs-server active"
 vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
 if [ -n "${stored:-}" ]; then
@@ -365,10 +401,14 @@ fi
 # findmnt: /boot and /boot/efi stay unmounted (noauto, cloud-config)
 # blame without .device units (they filled all 15 lines in run 40505456077);
 # udev-settle: masked (inactive), what still wants it, and any failed unit
-# (one that Requires= a masked unit fails)
+# (one that Requires= a masked unit fails); systemd-modules-load,
+# zfs-load-module and zfs-mount (masked) and zed (started after the
+# modprobe), and what modules-load.d lists, which a masked boot skipped
 vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "!/\\.device\$/ && ++n <= 15"
   echo "systemd-udev-settle: $(systemctl is-active systemd-udev-settle.service), $(systemctl is-enabled systemd-udev-settle.service 2>&1); zfs-import-scan: $(systemctl is-enabled zfs-import-scan.service 2>&1)"
   echo "wanted by: $(systemctl show -p WantedBy -p RequiredBy --value systemd-udev-settle.service | tr "\n" " ")"
+  for u in systemd-modules-load zfs-load-module zfs-mount zfs-zed; do printf "%s: %s, %s; " $u "$(systemctl is-active $u.service)" "$(systemctl is-enabled $u.service 2>&1)"; done; echo
+  echo "modules-load.d (not loaded at boot when masked): $(cat /etc/modules-load.d/*.conf /run/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf 2>/dev/null | awk "!/^[#;]/ && NF" | tr "\n" " ")"
   echo "failed units: $(systemctl --failed --plain --no-legend | awk "{ print \$1 }" | tr "\n" " ")"
   systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
   echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \

@@ -156,6 +156,40 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - zero-filling the free space instead of `fstrim`: the disk is 20G, and writing it would add a cold-run cost for a few MB.
 - **The first cold run must confirm:** `cloud-init status` without errors, no `slim: not purging` line and the `df` of `/` before the store; the checks and both suites pass on the slimmed guest; the stored size near the prediction. Warm runs must show `Cache Size` near 590 MB, no `booting it through the BIOS and GRUB` warning, and `direct kernel boot: … no initrd`.
 
+### ssh poll and module load
+
+- **Data.** Run 40513522394 (2b648ef, jobs 122221249079 endpoint and 122221249080 csi), times after qemu started:
+  - endpoint: test binaries built at +5.75s, `ssh up` at +9.22s, `nfs-server active` at +9.25s. In the guest, ssh.service was active 5.4s after the kernel's clock started (1.20s kernel + 4.19s userspace), about +6.2s on the host clock;
+  - csi: built at +7.87s, `ssh up` at +15.77s. ssh.service was active at about 8.7s of uptime (+9.5s);
+  - so the host saw sshd 3s (endpoint) and 6s (csi) after it started. The cause is the poll. slirp's hostfwd accepts the TCP connect at once and then sends its own SYN to the guest, which is lost until the guest has its address and is retried seconds later. ssh waits for the banner up to `ConnectTimeout` (5s), so each try could stall for 5s;
+  - nfs-server is now 2.2s behind ssh on the endpoint guest (rpc-statd after network-online.target, systemd-networkd-wait-online +2.0s). The wave 16 note that wait-online was at +75ms no longer holds;
+  - on ssh's chain: `systemd-modules-load.service +978ms` (endpoint, sysinit.target) and `+2.600s` (csi), which loads zfs from `/etc/modules-load.d/zfs.conf`. On csi, `zfs-load-module.service +1.050s` held local-fs.target, and so ssh and nfs-server. `systemd-ask-password-console.path`, on both chains, started as modules-load finished on both guests (@3.076s after +978ms ending at 3.057s; @4.601s after 2.6s). This suggests, but does not prove, that it waits for it;
+  - `apparmor.service +531ms` was on the endpoint's sysinit chain.
+- **Levers taken:**
+  - **The poll reads the banner, bounded at 0.3s** (`banner` in `ci/real-zfs-vm.sh`, a bash `/dev/tcp` read). A probe that stalls is dropped, and the next one makes slirp send a fresh SYN. Only once a banner comes does ssh log in and open the master, with its full ConnectTimeout. Against a fake slirp (accept and stall, accept and close, or refuse until T), the host saw the banner 0.03–0.40s after T. The old shape (a 5s bound) took 2.2s at T = 3s and 4.3s at T = 6s. Every 40th probe (about 16s) waits 5s, so a guest whose sshd answers slower than 0.3s is still reached (measured: a 1s banner was reached at 17s). The deadline is explicit: 600s. Before, it was 900 polls, 3 to 78 minutes depending on how they failed. The panic fallback is unchanged: qemu exits, and the loop boots again through GRUB.
+  - **systemd-modules-load, zfs-load-module and zfs-mount masked** on the kernel command line (direct boots only, no key change). zfs is loaded explicitly by `modprobe zfs` after ssh, in the background over the master, beside the checks that do not need it. Its time is logged (`modprobe zfs: …ms`). The version check (`zfs-kmod-2.4.x`) then gates on it, as before.
+    - zfs-mount: no pool exists at boot, so `zfs mount -a` had nothing to do. Its upstream unit has `ConditionPathIsDirectory=/sys/module/zfs` anyway.
+    - zfs-zed has the same condition, so it skips its boot start without the module. It is started (`--no-block`) after the modprobe, so it runs during the tests as before.
+    - zfs-share has the same condition and only orders before nfs-server.
+    - The zfs-endpoint unit (`Wants=zfs-mount.service`) is fine: a `Wants=` on a masked unit is no failure. It starts after the modprobe, so libzfs never needs `@module`.
+    - nfsd is not in modules-load.d. Mounting `/proc/fs/nfsd` loads it, as before, and the nfsd-threads check gates it.
+    - A GRUB boot (cold run, panic fallback) masks nothing.
+  - **The nfs-server wait moved last** in the guest checks. The checks (cloud-init, build.info, rootfs, exportfs, modprobe, version) now run while nfs-server starts, instead of after it.
+- **Levers rejected:**
+  - **masking apparmor** (0.53s on the endpoint's sysinit chain). Once ssh is seen at once, nfs-server's chain (local-fs, networkd, wait-online) binds, not sysinit. So it would buy nothing. It would also change what is confined during the tests (no profiles loaded), which cannot be justified for no gain;
+  - **a smaller `ConnectTimeout`** alone: it is whole seconds (1s at least), and a 1s login bound risks failing a real handshake on a busy guest.
+- **Predicted** (from run 40513522394; host time after qemu start until the guest is ready for scp, then the job):
+  - endpoint: before, ready at about +9.95 (nfs-server +9.25, then 0.7s of checks). With the poll: ssh at +6.4, checks by about +7.1, nfs-server at about +8.45, so ready at about +8.6: **−1.35s**. With the masks: ssh at about +5.45 and the modprobe hidden under the nfs wait, so **−0 to −1.0s** more, depending on whether modules-load gated local-fs (the path unit above). Endpoint total: **−1.35 to −2.35s**, about 53–54s on that runner. Build-bound only below +5.75.
+  - csi: before, ready at about +16.5. With the poll: ssh at +9.7, nfs-server at about +11.35, so ready at about +11.5: **−5.0s**. With the masks: −1.05s (zfs-load-module) up to −3.6s (if modules-load gated local-fs too), floored by the build at +7.87. csi total: **−6 to −8.5s**, about 46–48s.
+  - push-to-green is still bound by the endpoint job. The split into a third VM job and the cache levers (ADR's other waves) do the rest.
+- **The first runs must confirm:**
+  - `ssh up (N probes)` within about 0.4s of ssh.service in the critical chain (uptime + about 0.8s);
+  - `modprobe zfs: …ms, exit 0` and `zfs loaded` before `nfs-server active`;
+  - `systemd-modules-load: inactive, masked-runtime; zfs-load-module: inactive, masked-runtime; zfs-mount: inactive, masked-runtime; zfs-zed: active, enabled`;
+  - the `modules-load.d` line lists only `zfs`, or nothing a test needs;
+  - no failed units, and both suites and the unit check pass.
+  - If modules-load turns out not to gate the path unit, local-fs.target and nfs-server do not move, and the masks gain only csi's 1.05s on the poll's ready time.
+
 ## Consequences
 
 - Test code is held to the same data-oriented shape as the product: rows and plans as data, with exec only at the edges.
