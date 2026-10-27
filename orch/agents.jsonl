@@ -83,7 +83,10 @@
 {"id": "a3f0a5f1f843a9fe2", "name": "docs-fix", "lane": "writer", "wave": 23, "status": "merged", "branch": "docs-fix", "report": null, "anomaly": false, "queue": "q-docs-fix"}
 {"id": "a4d747b6e8fa52105", "name": "scan-reduction", "lane": "reader", "wave": 24, "status": "done", "branch": null, "report": "wave24/scan-reduction.md", "anomaly": false, "queue": "q-scan-reduction"}
 {"id": "ac1787ce6d014e384", "name": "csi-recheck", "lane": "reader", "wave": 24, "status": "done", "branch": null, "report": "wave24/csi-recheck.md", "anomaly": false, "queue": "q-csi-recheck"}
-{"id": "a62addd0d2b7fd9ff", "name": "weakening", "lane": "reader", "wave": 24, "status": "running", "branch": null, "report": "wave24/weakening.md", "anomaly": false, "queue": "q-weakening"}
+{"id": "a62addd0d2b7fd9ff", "name": "weakening", "lane": "reader", "wave": 24, "status": "done", "branch": null, "report": "wave24/weakening.md", "anomaly": false, "queue": "q-weakening"}
 {"id": "a3b322c80ba25f7fc", "name": "cov-tests", "lane": "writer", "wave": 24, "status": "running", "branch": "cov-tests", "report": null, "anomaly": false, "queue": "q-cov-tests"}
-{"id": "abe0dd621404bc340", "name": "csi-quick", "lane": "writer", "wave": 25, "status": "running", "branch": "csi-quick", "report": null, "anomaly": true, "queue": "q-csi-quick"}
+{"id": "abe0dd621404bc340", "name": "csi-quick", "lane": "writer", "wave": 25, "status": "merged", "branch": "csi-quick", "report": null, "anomaly": true, "queue": "q-csi-quick"}
 {"id": "aec3b828c6a86e68b", "name": "scan-cut", "lane": "writer", "wave": 25, "status": "running", "branch": "scan-cut", "report": null, "anomaly": false, "queue": "q-scan-cut"}
+{"id": "a63b72f11e0c3fa4a", "name": "own-gap", "lane": "writer", "wave": 25, "status": "running", "branch": "own-gap", "report": null, "anomaly": true, "queue": "q-own-gap"}
+{"id": "ac259b3d72ffec8e1", "name": "mutation", "lane": "reader", "wave": 25, "status": "running", "branch": null, "report": "wave25/mutation.md", "anomaly": false, "queue": "q-mutation"}
+{"id": "ab101d6ed5cc624ee", "name": "sanity-skips", "lane": "reader", "wave": 25, "status": "running", "branch": null, "report": "wave25/sanity-skips.md", "anomaly": false, "queue": "q-sanity-skips"}

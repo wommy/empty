@@ -1,0 +1,18 @@
+[
+{"label": "7a: a classified root error loses its code", "file": "internal/endpoint/apply.go",
+ "old": "\tif errors.As(err, &e) {\n\t\treturn &Error{Code: e.Code, Msg: what + \": \" + e.Msg, Err: e.Err}",
+ "new": "\tif false && errors.As(err, &e) {\n\t\treturn &Error{Code: e.Code, Msg: what + \": \" + e.Msg, Err: e.Err}",
+ "pkg": "./internal/endpoint", "run": "TestRootErrMapping"},
+{"label": "7b: the caller's deadline is not DeadlineExceeded", "file": "internal/endpoint/apply.go",
+ "old": "\tcase errors.Is(err, context.DeadlineExceeded):\n\t\tcode = DeadlineExceeded",
+ "new": "\tcase false && errors.Is(err, context.DeadlineExceeded):\n\t\tcode = DeadlineExceeded",
+ "pkg": "./internal/endpoint", "run": "TestRootErrMapping"},
+{"label": "7c: cancellation is not Aborted", "file": "internal/endpoint/apply.go",
+ "old": "\tcase errors.Is(err, context.Canceled):\n\t\tcode = Aborted",
+ "new": "\tcase false && errors.Is(err, context.Canceled):\n\t\tcode = Aborted",
+ "pkg": "./internal/endpoint", "run": "TestRootErrMapping"},
+{"label": "7d: after a change is not Aborted", "file": "internal/endpoint/apply.go",
+ "old": "\tcase i > 0:\n\t\treturn &Error{Code: Aborted, Msg: what + \" (earlier ops applied; a retry converges)\", Err: err}",
+ "new": "\tcase false && i > 0:\n\t\treturn &Error{Code: Aborted, Msg: what + \" (earlier ops applied; a retry converges)\", Err: err}",
+ "pkg": "./internal/endpoint", "run": "TestRootErrMapping"}
+]

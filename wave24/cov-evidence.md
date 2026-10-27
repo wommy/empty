@@ -384,3 +384,72 @@ FAIL
 FAIL	github.com/wommy/empty/internal/endpoint	0.010s
 FAIL
 ```
+
+## Item 7: rootErr mapping for a failed OpSetRoot
+
+internal/endpoint/cov24_internal_test.go TestRootErrMapping: a table over the pure rootErr(err, i, plan).
+
+### 7a: a classified root error loses its code
+
+Mutation in `internal/endpoint/apply.go`:
+
+```diff
+- 	if errors.As(err, &e) {
+- 		return &Error{Code: e.Code, Msg: what + ": " + e.Msg, Err: e.Err}
++ 	if false && errors.As(err, &e) {
++ 		return &Error{Code: e.Code, Msg: what + ": " + e.Msg, Err: e.Err}
+```
+
+`go test -count=1 -run 'TestRootErrMapping'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestRootErrMapping (0.00s)
+    cov24_internal_test.go:38: classified, first op: op 1/1 set-root tank/v/a: read-only (code 13), want code 9 with "op 1/1 set-root tank/v/a: read-only"
+    cov24_internal_test.go:38: classified, after a change: op 2/2 set-root tank/v/a (earlier ops applied; a retry converges): read-only (code 10), want code 9 with "op 2/2"
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.006s
+FAIL
+```
+
+### 7b: the caller's deadline is not DeadlineExceeded
+
+Mutation in `internal/endpoint/apply.go`:
+
+```diff
+- 	case errors.Is(err, context.DeadlineExceeded):
+- 		code = DeadlineExceeded
++ 	case false && errors.Is(err, context.DeadlineExceeded):
++ 		code = DeadlineExceeded
+```
+
+`go test -count=1 -run 'TestRootErrMapping'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestRootErrMapping (0.00s)
+    cov24_internal_test.go:38: deadline: op 1/1 set-root tank/v/a: context deadline exceeded (code 13), want code 4 with "op 1/1"
+    cov24_internal_test.go:38: deadline, after a change: op 2/2 set-root tank/v/a (earlier ops applied; a retry converges): context deadline exceeded (code 10), want code 4 with "op 2/2"
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.006s
+FAIL
+```
+
+### 7c: cancellation is not Aborted
+
+Mutation in `internal/endpoint/apply.go`:
+
+```diff
+- 	case errors.Is(err, context.Canceled):
+- 		code = Aborted
++ 	case false && errors.Is(err, context.Canceled):
++ 		code = Aborted
+```
+
+`go test -count=1 -run 'TestRootErrMapping'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestRootErrMapping (0.00s)
+    cov24_internal_test.go:38: canceled: op 1/1 set-root tank/v/a: context canceled (code 13), want code 10 with "op 1/1"
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.009s
+FAIL
+```

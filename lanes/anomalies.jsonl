@@ -26,3 +26,5 @@
 {"id":"A-zfs-version-revision-gate","state":"closed","verified":"run 40542324581"}
 {"t": "2026-10-27T16:36:13Z", "id": "A-replaced-before-commit-unguarded", "sev": "med", "state": "open", "note": "no test catches a dataset replaced between create and commit; P4 blocked on it"}
 {"t": "2026-10-27T16:40:06Z", "id": "A-gate-ran-on-conflicted-merge", "sev": "med", "state": "closed", "note": "my merge&&gate chain continued past a failed merge because `| tail -1` masked git's exit; only README conflicted so gate result was still valid; fix: check merge exit before gating"}
+{"t": "2026-10-27T16:41:20Z", "id": "A-expand-refused-infeasible", "state": "closed", "fix": "e4777f5"}
+{"t": "2026-10-27T16:41:20Z", "id": "A-reconcile-ownership-mutant-survives", "sev": "high", "state": "open", "note": "weakening reconcile.go:269 ownership check survives suite + 1000 model seeds; own-gap writer + mutation sweep"}
