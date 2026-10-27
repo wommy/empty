@@ -1,0 +1,12 @@
+zfs: "zfs slow" warning for any command, reads included, past -zfs-slow (10s)
+
+A zfs hung on a suspended pool left no line: reads are not audited and
+the rpc line is logged only when the call returns. zfs.AuditSlow logs one
+WARN "zfs slow" line, while the command still runs, once it passes the
+threshold: argv[0..2], the target (last argument), elapsed, and the
+call's request_id. zfs.Audit keeps its signature with DefaultSlow (10s);
+the endpoint's -zfs-slow sets it (0: off, negative refused, 78). The
+clock starts once the command has a -max-zfs slot.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

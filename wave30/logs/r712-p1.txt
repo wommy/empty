@@ -1,0 +1,2560 @@
+9Z Current runner version: '2.338.0'
+##[group]Runner Image Provisioner
+Hosted Compute Agent
+Version: 20261021.618
+Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+Build Date: 2026-10-21T00:45:21Z
+Worker ID: {38492445-b621-4b8b-bf8e-7f1753561006}
+Region: eastus
+Cloud: Azure
+##[endgroup]
+##[group]Operating System
+Ubuntu
+24.04.5
+LTS
+##[endgroup]
+##[group]Runner Image
+Image: ubuntu-24.04
+Version: 20261012.334.1
+Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+##[endgroup]
+##[group]GITHUB_TOKEN Permissions
+Contents: read
+Metadata: read
+##[endgroup]
+Secret source: Actions
+Cache mode: write
+Prepare workflow directory
+Prepare all required actions
+Getting action download info
+Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+Download action repository 'actions/cache@5a3ec84eff668545956fd18022155c47e93e2684' (SHA:5a3ec84eff668545956fd18022155c47e93e2684)
+Download action repository 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+Complete job name: real ZFS 2.4 (endpoint 1/2, Ubuntu 26.10 VM)
+##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+with:
+  persist-credentials: false
+  repository: wommy/empty
+  token: ***
+  ssh-strict: true
+  ssh-user: git
+  clean: true
+  sparse-checkout-cone-mode: true
+  fetch-depth: 1
+  fetch-tags: false
+  show-progress: true
+  lfs: false
+  submodules: false
+  set-safe-directory: true
+  allow-unsafe-pr-checkout: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+Syncing repository: wommy/empty
+##[group]Getting Git version info
+Working directory is '/home/runner/work/empty/empty'
+[command]/usr/bin/git version
+git version 2.55.0
+##[endgroup]
+Temporarily overriding HOME='/home/runner/work/_temp/c76055bc-7ec4-44a8-a840-d5d5e5c76ba1' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/empty/empty
+Deleting the contents of '/home/runner/work/empty/empty'
+##[group]Initializing the repository
+[command]/usr/bin/git init /home/runner/work/empty/empty
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: will change to "main" in Git 3.0. To configure the initial branch name
+hint: to use in all of your new repositories, which will suppress this warning,
+hint: call:
+hint:
+hint: 	git config --global init.defaultBranch <name>
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint: 	git branch -m <name>
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+Initialized empty Git repository in /home/runner/work/empty/empty/.git/
+[command]/usr/bin/git remote add origin https://github.com/wommy/empty
+##[endgroup]
+##[group]Disabling automatic garbage collection
+[command]/usr/bin/git config --local gc.auto 0
+##[endgroup]
+##[group]Setting up auth
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+##[endgroup]
+##[group]Fetching the repository
+[command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +654f7fded9e2493d0a12ca5b8627e860ae3a08d7:refs/remotes/pull/1/merge
+From https://github.com/wommy/empty
+ * [new ref]         654f7fded9e2493d0a12ca5b8627e860ae3a08d7 -> pull/1/merge
+##[endgroup]
+##[group]Determining the checkout info
+##[endgroup]
+[command]/usr/bin/git sparse-checkout disable
+[command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+##[group]Checking out the ref
+[command]/usr/bin/git checkout --progress --force refs/remotes/pull/1/merge
+Note: switching to 'refs/remotes/pull/1/merge'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 654f7fd Merge 6475fea4adb1e4df528398d720958870c3a4b352 into 2dff4422b6314a4453b50e332aa6dbc4623c9b90
+##[endgroup]
+[command]/usr/bin/git log -1 --format=%H
+654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+##[group]Removing auth
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+http.https://github.com/.extraheader
+[command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+##[endgroup]
+##[group]Run echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+[36;1mecho 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules[0m
+[36;1msudo udevadm control --reload-rules[0m
+[36;1msudo udevadm trigger --name-match=kvm[0m
+[36;1mtest -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"
+Prepare all required actions
+##[group]Run ./.github/actions/real-zfs-keys
+with:
+  series: stonking
+  build: current
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+##[start-action display=Run d=$RUNNER_TEMP/zfsvm-sums;id=keys.keys]
+##[group]Run d=$RUNNER_TEMP/zfsvm-sums
+[36;1md=$RUNNER_TEMP/zfsvm-sums[0m
+[36;1mmkdir -p "$d"[0m
+[36;1mbase=https://cloud-images.ubuntu.com/$SERIES/$BUILD[0m
+[36;1mcurl -fsSL --retry 3 -o "$d/SHA256SUMS" "$base/SHA256SUMS" & a=$![0m
+[36;1mcurl -fsSL --retry 3 -o "$d/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg" & b=$![0m
+[36;1m# the serial behind current/, fetched beside the sums: a cold run[0m
+[36;1m# downloads the image from that dated directory, once its sums[0m
+[36;1m# match these (ci/real-zfs-vm.sh), not from a current/ that may[0m
+[36;1m# have moved on since. Best effort: without it, current/ as before[0m
+[36;1mrm -f "${d:?}/build-info.txt"[0m
+[36;1mcurl -fsSL --retry 3 -o "$d/build-info.txt" "$base/unpacked/build-info.txt" & c=$![0m
+[36;1mwait "$a"[0m
+[36;1mwait "$b"[0m
+[36;1mwait "$c" || { rm -f "${d:?}/build-info.txt"; echo "::warning::no $base/unpacked/build-info.txt; a cold guest downloads the image from $base"; }[0m
+[36;1mgpgv --keyring /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg "$d/SHA256SUMS.gpg" "$d/SHA256SUMS"[0m
+[36;1mf=$SERIES-server-cloudimg-amd64.img[0m
+[36;1msum=$(awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }' "$d/SHA256SUMS")[0m
+[36;1mtest -n "$sum" || { echo "::error::$f is not in $base/SHA256SUMS"; exit 1; }[0m
+[36;1mh() { sha256sum "$1" | cut -c1-16; }[0m
+[36;1m# the guest part: provisioning inputs only, so editing how the[0m
+[36;1m# tests run must not reprovision. The ISO week bounds how far the[0m
+[36;1m# guest can lag zfsutils updates published after the image. v3: the[0m
+[36;1m# cache also holds the kernel and cmdline (until v5 also the[0m
+[36;1m# initrd) for a direct kernel boot. v4: one entry holds the guest and the qemu tree, so[0m
+[36;1m# the job pays one cache restore, not two (~2s of per-restore[0m
+[36;1m# overhead for 23 MB, run 40494213342). v5: a slimmer entry (899 ->[0m
+[36;1m# ~590 MB, ADR 0005 "cache bytes"): no initrd beside the disk, a[0m
+[36;1m# slimmed guest, a trimmed qemu tree[0m
+[36;1mguest=zfsvm-v5-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)[0m
+[36;1m# the qemu part: the tree is unpacked from this runner image's apt[0m
+[36;1m# view. A runner image release misses the full key but restores the[0m
+[36;1m# guest through the fallback prefix, with the old tree[0m
+[36;1mecho "vm=$guest-qemu-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"[0m
+[36;1mecho "vm-fallback=$guest-qemu-" >>"$GITHUB_OUTPUT"[0m
+[36;1mecho "sums=$d" >>"$GITHUB_OUTPUT"[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  SERIES: stonking
+  BUILD: current
+##[endgroup]
+gpgv: Signature made Sun Oct 25 19:09:06 2026 UTC
+gpgv:                using RSA key D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81
+gpgv: Good signature from "UEC Image Automatic Signing Key <cdimage@ubuntu.com>"
+##[end-action id=keys.keys;outcome=success;conclusion=success;duration_ms=419]
+##[group]Run actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+with:
+  path: /home/runner/work/_temp/zfsvm-cache
+
+
+  key: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-ubuntu24-20261023.334.3-815b695f1b3fe1df
+  restore-keys: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-
+  enableCrossOsArchive: false
+  fail-on-cache-miss: false
+  lookup-only: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+(node:2394) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Cache hit for: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-ubuntu24-20261023.334.3-815b695f1b3fe1df
+(node:2394) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+Received 247463936 of 566104595 (43.7%), 235.1 MBs/sec
+Received 511705088 of 566104595 (90.4%), 243.4 MBs/sec
+Received 566104595 of 566104595 (100.0%), 239.2 MBs/sec
+Cache Size: ~540 MB (566104595 B)
+[command]/usr/bin/tar -xf /home/runner/work/_temp/06cd1f27-cf68-4996-ab62-77364c3d2373/cache.tzst -P -C /home/runner/work/empty/empty --use-compress-program unzstd
+Cache restored successfully
+Cache restored from key: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-ubuntu24-20261023.334.3-815b695f1b3fe1df
+##[group]Run # verifies a restored tree, or builds one; apt is the fallback
+[36;1m# verifies a restored tree, or builds one; apt is the fallback[0m
+[36;1mif ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then[0m
+[36;1m  echo "$RUNNER_TEMP/qemu/bin" >>"$GITHUB_PATH"[0m
+[36;1m  echo "ok=1" >>"$GITHUB_OUTPUT"[0m
+[36;1melse[0m
+[36;1m  echo "::warning::qemu tree unusable; installing qemu from apt"[0m
+[36;1m  # empty, so the guest can still be saved; the next run falls[0m
+[36;1m  # back to apt again, as it did with no qemu entry[0m
+[36;1m  rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"[0m
+[36;1m  sudo apt-get update -qq[0m
+[36;1m  sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils[0m
+[36;1mfi[0m
+[36;1m# the cloud image signing key ships in ubuntu-keyring on 24.04[0m
+[36;1mtest -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+qemu-img version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+##[group]Run ci/real-zfs-vm.sh stonking current 2.4
+[36;1mci/real-zfs-vm.sh stonking current 2.4[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  ZFSVM_CACHE: /home/runner/work/_temp/zfsvm-cache
+  ZFSVM_PHASE: boot
+  ZFSVM_SUMS: /home/runner/work/_temp/zfsvm-sums
+  ZFSVM_SUITE: endpoint
+##[endgroup]
+gpgv: Signature made Sun Oct 25 19:09:06 2026 UTC
+gpgv:                using RSA key D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81
+gpgv: Good signature from "UEC Image Automatic Signing Key <cdimage@ubuntu.com>"
+warm guest: /home/runner/work/_temp/zfsvm-cache (provisioned from image 46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33)
+direct kernel boot: 7.3.0-9-generic, cmdline: root=LABEL=cloudimg-rootfs ro console=tty1 console=ttyS0, no initrd (root=/dev/vda1)
+guest started (qemu pid 2460); ZFSVM_PHASE=run continues
+Prepare all required actions
+Getting action download info
+##[group]Run ./.github/actions/setup-go
+with:
+  cache-name: real-zfs-endpoint
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+##[start-action display=start Go download;id=go.__run]
+##[group]Run rm -f "$RUNNER_TEMP/go.done" "$RUNNER_TEMP/go.status"
+[36;1mrm -f "$RUNNER_TEMP/go.done" "$RUNNER_TEMP/go.status"[0m
+[36;1msetsid nohup bash -c '[0m
+[36;1m  if curl -fsSL --retry 3 -o "$1/go.tgz" "$2" &&[0m
+[36;1m     echo "$3  $1/go.tgz" | sha256sum -c - &&[0m
+[36;1m     mkdir -p "$4" && tar -xzf "$1/go.tgz" -C "$4"; then[0m
+[36;1m    echo ok >"$1/go.status"[0m
+[36;1m  else[0m
+[36;1m    echo fail >"$1/go.status"[0m
+[36;1m  fi[0m
+[36;1m  touch "$1/go.done"[0m
+[36;1m' _ "$RUNNER_TEMP" "$GO_URL" "$GO_SHA256" "$HOME/sdk/go" >"$RUNNER_TEMP/go.log" 2>&1 &[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  GO_URL: https://github.com/actions/go-versions/releases/download/1.27.3-39437817176/go-1.27.3-linux-x64.tar.gz
+  GO_SHA256: d0fbe16a6a03fe5fbf5577ab36f95f0725af587820dca8a78e6edd4eb4e19fd6
+##[endgroup]
+##[end-action id=go.__run;outcome=success;conclusion=success;duration_ms=19]
+##[start-action display=restore Go caches;id=go.restore]
+##[group]Run actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+with:
+  path: ~/.cache/go-build
+
+
+  key: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+  restore-keys: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-
+
+
+  enableCrossOsArchive: false
+  fail-on-cache-miss: false
+  lookup-only: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+(node:2505) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Cache hit for: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+(node:2505) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+Received 23317320 of 23317320 (100.0%), 74.1 MBs/sec
+Cache Size: ~22 MB (23317320 B)
+[command]/usr/bin/tar -xf /home/runner/work/_temp/85886913-4e38-4485-9938-ca487604357e/cache.tzst -P -C /home/runner/work/empty/empty --use-compress-program unzstd
+Cache restored successfully
+Cache restored from key: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-e961f7264448d821b1c3e37338078ef9a60373fe
+##[end-action id=go.restore;outcome=success;conclusion=success;duration_ms=1266]
+##[start-action display=decide whether the job saves;id=go.decide]
+##[group]Run # KEY is go1.27.3-<ns>-<go.sum hash>-<sha>: an entry for the same
+[36;1m# KEY is go1.27.3-<ns>-<go.sum hash>-<sha>: an entry for the same[0m
+[36;1m# go.sum is good enough, only the module's own packages rebuild[0m
+[36;1mcase $MATCHED in[0m
+[36;1m  "${KEY%-*}-"*) echo "save=false" ;;[0m
+[36;1m  *) echo "save=true" ;;[0m
+[36;1mesac >>"$GITHUB_OUTPUT"[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  KEY: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+  MATCHED: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-e961f7264448d821b1c3e37338078ef9a60373fe
+##[endgroup]
+##[end-action id=go.decide;outcome=success;conclusion=success;duration_ms=31]
+##[start-action display=install Go 1.27.3;id=go.__run_2]
+##[group]Run for _ in $(seq 240); do [ -e "$RUNNER_TEMP/go.done" ] && break; sleep 0.25; done
+[36;1mfor _ in $(seq 240); do [ -e "$RUNNER_TEMP/go.done" ] && break; sleep 0.25; done[0m
+[36;1mcat "$RUNNER_TEMP/go.log" 2>/dev/null || true # the sha256sum verdict[0m
+[36;1mif [ "$(cat "$RUNNER_TEMP/go.status" 2>/dev/null)" != ok ]; then[0m
+[36;1m  echo "::error::Go download, sha256 check or extraction failed or did not finish"[0m
+[36;1m  exit 1[0m
+[36;1mfi[0m
+[36;1mecho "$HOME/sdk/go/bin" >> "$GITHUB_PATH"[0m
+[36;1m# never switch toolchains: go.mod says go 1.27.0, toolchain go1.27.3[0m
+[36;1mecho "GOTOOLCHAIN=local" >> "$GITHUB_ENV"[0m
+[36;1m"$HOME/sdk/go/bin/go" version[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+/home/runner/work/_temp/go.tgz: OK
+go version go1.27.3 linux/amd64
+##[end-action id=go.__run_2;outcome=success;conclusion=success;duration_ms=1795]
+##[group]Run ci/real-zfs-vm.sh stonking current 2.4
+[36;1mci/real-zfs-vm.sh stonking current 2.4[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  ZFSVM_CACHE: /home/runner/work/_temp/zfsvm-cache
+  ZFSVM_PHASE: run
+  ZFSVM_SUITE: endpoint
+  ZFSVM_PART: 1/2
+##[endgroup]
+part 0/2: 39.85 s: shard 0 16.61 shard 1 11.62 shard 2 11.62
+part 1/2: 39.84 s: shard 3 14.72 shard 4 13.93 shard 5 11.19
+timeline: test binaries built at +8661ms
+timeline: login prompt at +12685ms
+timeline: ssh up (1 probes) at +13561ms
+status: disabled
+extended_status: disabled
+boot_status_code: disabled-by-marker-file
+detail: Cloud-init disabled by /etc/cloud/cloud-init.disabled
+errors: []
+recoverable_errors: {}
+build_name: server
+serial: 20261025
+7.3.0-9-generic
+ls: cannot access '/etc/exports.d': No such file or directory
+-rw-r--r-- 1 root root 0 Oct 27 13:56 /var/lib/nfs/etab
+modprobe zfs: 750ms, exit 0
+timeline: zfs loaded at +14353ms
+zfs-2.4.4-1ubuntu4
+zfs-kmod-2.4.4-1ubuntu4
+guest CPU mitigations: 5 of 19 vulnerable
+zfs userland 2.4.4-1ubuntu4, kmod 2.4.4-1ubuntu4
+timeline: nfs-server active at +14410ms
+nfsd threads: 16
+start at uptime 13.47s
+guest load over the test phase: 8.4s on 4 vCPUs
+cpu: busy 86% (user 29%, sys+irq 57%, steal 1%), idle 8%, iowait 6%
+pressure (stalled share of the phase): cpu some 69%, cpu full 0%, io some 46%, io full 5%, memory some 0%, memory full 0%
+forks 4570 (543/s, 6.4 CPU-ms each), context switches 295539 (35100/s)
+interrupts 107016 (/proc/stat); /proc/interrupts 107020: LOC 62415 RES 2004 CAL 34097 TLB 8153
+block reads: pgpgin 38.2 MB, vda 0.7 MB, other (zvols) 37.5 MB; page faults 1347699 (major 4)
+cgroup CPU-s over the phase (cpu.stat usage, of it system):
+  root                 28.93  (sys 19.14)
+  tests                16.08  (sys 10.36)
+  init                  2.00  (sys 0.72)
+  system                6.47  (sys 3.64)
+  zfs-zed               3.29  (sys 1.85)
+  udisks2               0.31  (sys 0.19)
+  systemd-udevd         2.50  (sys 1.40)
+  systemd-journald      0.11  (sys 0.06)
+  rsyslog               0.03  (sys 0.02)
+endpoint.5 rc=0 13.66s..19.03s
+endpoint.4 rc=0 13.60s..21.12s
+endpoint.3 rc=0 13.56s..21.92s
+end at uptime 22.07s, rc 0
+##[group]endpoint.3.log
+=== RUN   TestPropertyRoundTrip
+=== PAUSE TestPropertyRoundTrip
+=== RUN   TestRealFacts
+=== RUN   TestRealFacts/OWN-09
+=== RUN   TestRealFacts/OWN-08
+=== RUN   TestRealFacts/SNP-06
+=== RUN   TestRealFacts/DEL-05
+=== RUN   TestRealFacts/DEL-07
+=== RUN   TestRealFacts/DEL-05/holds
+=== RUN   TestRealFacts/DEL-06
+=== RUN   TestRealFacts/OWN-12
+=== RUN   TestRealFacts/OWN-12/zvol
+=== RUN   TestRealFacts/DEL-03
+=== RUN   TestRealFacts/DEL-03/clones
+=== RUN   TestRealFacts/OWN-02/rename
+=== RUN   TestRealFacts/OWN-06
+=== RUN   TestRealFacts/OWN-06/snapshot
+=== RUN   TestRealFacts/VOL-11
+=== RUN   TestRealFacts/SNP-11
+=== RUN   TestRealFacts/CR-03
+=== RUN   TestRealFacts/A3
+=== RUN   TestRealFacts/SPC-01
+=== RUN   TestRealFacts/SPC-02
+=== RUN   TestRealFacts/MNT-02
+=== RUN   TestRealFacts/MNT-01
+=== RUN   TestRealFacts/VOL-12
+--- PASS: TestRealFacts (7.09s)
+    --- PASS: TestRealFacts/OWN-09 (0.14s)
+    --- PASS: TestRealFacts/OWN-08 (0.33s)
+    --- PASS: TestRealFacts/SNP-06 (0.38s)
+    --- PASS: TestRealFacts/DEL-05 (0.27s)
+    --- PASS: TestRealFacts/DEL-07 (0.20s)
+    --- PASS: TestRealFacts/DEL-05/holds (0.25s)
+    --- PASS: TestRealFacts/DEL-06 (0.37s)
+    --- PASS: TestRealFacts/OWN-12 (0.47s)
+    --- PASS: TestRealFacts/OWN-12/zvol (0.22s)
+    --- PASS: TestRealFacts/DEL-03 (0.29s)
+    --- PASS: TestRealFacts/DEL-03/clones (0.62s)
+    --- PASS: TestRealFacts/OWN-02/rename (0.59s)
+    --- PASS: TestRealFacts/OWN-06 (0.46s)
+    --- PASS: TestRealFacts/OWN-06/snapshot (0.30s)
+    --- PASS: TestRealFacts/VOL-11 (0.20s)
+    --- PASS: TestRealFacts/SNP-11 (0.13s)
+    --- PASS: TestRealFacts/CR-03 (0.19s)
+    --- PASS: TestRealFacts/A3 (0.17s)
+    --- PASS: TestRealFacts/SPC-01 (0.32s)
+    --- PASS: TestRealFacts/SPC-02 (0.35s)
+    --- PASS: TestRealFacts/MNT-02 (0.46s)
+    --- PASS: TestRealFacts/MNT-01 (0.27s)
+    --- PASS: TestRealFacts/VOL-12 (0.11s)
+=== CONT  TestPropertyRoundTrip
+    props_roundtrip_test.go:112: PROPRT_SHARD 3/6: 33 of 196 rows
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-2
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-2
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-8
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-8
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-5
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-5
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-11
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-11
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-17
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-17
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-4
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-4
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-10
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-10
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-70
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-70
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=512
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=512
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=4K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=4K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=32K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=32K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=256K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=256K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=2048K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=2048K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=16384K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=16384K
+=== RUN   TestPropertyRoundTrip/filesystem/sync=always
+=== PAUSE TestPropertyRoundTrip/filesystem/sync=always
+=== RUN   TestPropertyRoundTrip/filesystem/dedup=verify
+=== PAUSE TestPropertyRoundTrip/filesystem/dedup=verify
+=== RUN   TestPropertyRoundTrip/filesystem/acltype=nfsv4
+=== PAUSE TestPropertyRoundTrip/filesystem/acltype=nfsv4
+=== RUN   TestPropertyRoundTrip/block/compression=on
+=== PAUSE TestPropertyRoundTrip/block/compression=on
+=== RUN   TestPropertyRoundTrip/block/compression=zstd
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-5
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-5
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-2
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-2
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-8
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-8
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-14
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-14
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-1
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-1
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-7
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-7
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-40
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-40
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-100
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-100
+=== RUN   TestPropertyRoundTrip/block/logbias=latency
+=== PAUSE TestPropertyRoundTrip/block/logbias=latency
+=== RUN   TestPropertyRoundTrip/block/copies=2
+=== PAUSE TestPropertyRoundTrip/block/copies=2
+=== RUN   TestPropertyRoundTrip/block/volblocksize=2K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=2K
+=== RUN   TestPropertyRoundTrip/block/volblocksize=16K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=16K
+=== RUN   TestPropertyRoundTrip/block/volblocksize=128K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=128K
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip
+=== CONT  TestPropertyRoundTrip/filesystem/acltype=nfsv4
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=512
+=== CONT  TestPropertyRoundTrip/block/volblocksize=128K
+=== CONT  TestPropertyRoundTrip/block/volblocksize=16K
+=== CONT  TestPropertyRoundTrip/filesystem/dedup=verify
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-70
+=== CONT  TestPropertyRoundTrip/block/volblocksize=2K
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-10
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-4
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-17
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-11
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-5
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-8
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-2
+=== CONT  TestPropertyRoundTrip/block/copies=2
+=== CONT  TestPropertyRoundTrip/block/logbias=latency
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-100
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-40
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-7
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-1
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-14
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-8
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-2
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-5
+=== CONT  TestPropertyRoundTrip/block/compression=zstd
+=== CONT  TestPropertyRoundTrip/block/compression=on
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=2048K
+=== CONT  TestPropertyRoundTrip/filesystem/sync=always
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=16384K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=32K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=256K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=4K
+--- PASS: TestPropertyRoundTrip (0.38s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip (0.16s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=128K (0.18s)
+    --- PASS: TestPropertyRoundTrip/filesystem/acltype=nfsv4 (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=2K (0.20s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=512 (0.21s)
+    --- PASS: TestPropertyRoundTrip/filesystem/dedup=verify (0.21s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=16K (0.23s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-70 (0.29s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-4 (0.21s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-17 (0.21s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-8 (0.20s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-2 (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-10 (0.26s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-5 (0.25s)
+    --- PASS: TestPropertyRoundTrip/block/copies=2 (0.19s)
+    --- PASS: TestPropertyRoundTrip/block/logbias=latency (0.11s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-11 (0.31s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-7 (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-40 (0.19s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-1 (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-100 (0.23s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-14 (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-8 (0.23s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-5 (0.20s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-2 (0.25s)
+    --- PASS: TestPropertyRoundTrip/block/compression=on (0.14s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd (0.15s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=2048K (0.15s)
+    --- PASS: TestPropertyRoundTrip/filesystem/sync=always (0.16s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=16384K (0.15s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=256K (0.14s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=4K (0.11s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=32K (0.15s)
+PASS
+##[endgroup]
+##[group]endpoint.4.log
+=== RUN   TestNFSReplay
+    nfs_replay_test.go:199: report /home/ci/out/nfs-replay.log: 0 failures, 0 ambiguities, 1.242993177s
+--- PASS: TestNFSReplay (1.30s)
+=== RUN   TestFileExportCreateServedBeyondByAncestor
+--- PASS: TestFileExportCreateServedBeyondByAncestor (0.00s)
+=== RUN   TestFileExportCreateChangedBeforeCommit
+=== RUN   TestFileExportCreateChangedBeforeCommit/vanished
+=== RUN   TestFileExportCreateChangedBeforeCommit/owner_changed
+=== RUN   TestFileExportCreateChangedBeforeCommit/sharenfs_changed
+--- PASS: TestFileExportCreateChangedBeforeCommit (0.00s)
+    --- PASS: TestFileExportCreateChangedBeforeCommit/vanished (0.00s)
+    --- PASS: TestFileExportCreateChangedBeforeCommit/owner_changed (0.00s)
+    --- PASS: TestFileExportCreateChangedBeforeCommit/sharenfs_changed (0.00s)
+=== RUN   TestFileExportRefusedPublishRestoresLocalList
+=== RUN   TestFileExportRefusedPublishRestoresLocalList/restored
+=== RUN   TestFileExportRefusedPublishRestoresLocalList/restore_fails
+--- PASS: TestFileExportRefusedPublishRestoresLocalList (0.00s)
+    --- PASS: TestFileExportRefusedPublishRestoresLocalList/restored (0.00s)
+    --- PASS: TestFileExportRefusedPublishRestoresLocalList/restore_fails (0.00s)
+=== RUN   TestFileExportCreateRootFailureIsRetryable
+=== RUN   TestFileExportCreateRootFailureIsRetryable/bare_error
+=== RUN   TestFileExportCreateRootFailureIsRetryable/LocalRoot's_Internal
+--- PASS: TestFileExportCreateRootFailureIsRetryable (0.00s)
+    --- PASS: TestFileExportCreateRootFailureIsRetryable/bare_error (0.00s)
+    --- PASS: TestFileExportCreateRootFailureIsRetryable/LocalRoot's_Internal (0.00s)
+=== RUN   TestFileExportLifecycle
+=== PAUSE TestFileExportLifecycle
+=== RUN   TestFileExportPreconditions
+=== PAUSE TestFileExportPreconditions
+=== RUN   TestFileExportVerifiesKernelTable
+=== PAUSE TestFileExportVerifiesKernelTable
+=== RUN   TestFileExportRequiresNFSD
+    export_contract_test.go:280: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportRequiresNFSD (0.00s)
+=== RUN   TestFileExportDroppedHost
+    export_contract_test.go:318: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportDroppedHost (0.00s)
+=== RUN   TestFileExportResolvesSymlinks
+    export_contract_test.go:352: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportResolvesSymlinks (0.00s)
+=== RUN   TestFileExportUnmountedVolume
+    export_contract_test.go:393: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportUnmountedVolume (0.00s)
+=== RUN   TestFileExportReceivedShareNFS
+    export_contract_test.go:438: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportReceivedShareNFS (0.00s)
+=== RUN   TestFileExportAdoptedVolumes
+=== PAUSE TestFileExportAdoptedVolumes
+=== RUN   TestFileExportUnpublishStillServed
+--- PASS: TestFileExportUnpublishStillServed (0.53s)
+=== RUN   TestFileExportServedBeyondRequest
+--- PASS: TestFileExportServedBeyondRequest (0.79s)
+=== RUN   TestFileExportLeftoverClientList
+--- PASS: TestFileExportLeftoverClientList (0.65s)
+=== RUN   TestFileExportAdminWorldEditIsForeign
+--- PASS: TestFileExportAdminWorldEditIsForeign (0.69s)
+=== RUN   TestFileExportCreate
+--- PASS: TestFileExportCreate (0.47s)
+=== RUN   TestFileExportCreateNotServed
+=== PAUSE TestFileExportCreateNotServed
+=== RUN   TestFileExportCreateServerSurvivesRestart
+--- PASS: TestFileExportCreateServerSurvivesRestart (0.29s)
+=== RUN   TestFileExportCreateServerElsewhere
+--- PASS: TestFileExportCreateServerElsewhere (0.31s)
+=== RUN   TestFileExportCreateNeedsServers
+=== PAUSE TestFileExportCreateNeedsServers
+=== RUN   TestFileExportCreateRootOwner
+--- PASS: TestFileExportCreateRootOwner (0.44s)
+=== RUN   TestFileExportStaleShareOnlySharenfsHeals
+--- PASS: TestFileExportStaleShareOnlySharenfsHeals (0.13s)
+=== RUN   TestPropertyRoundTrip
+=== PAUSE TestPropertyRoundTrip
+=== RUN   TestFileExportCreateUnderUnmountedParentIsRefused
+=== RUN   TestFileExportCreateUnderUnmountedParentIsRefused/none
+=== RUN   TestFileExportCreateUnderUnmountedParentIsRefused/none_with_a_root_owner
+=== RUN   TestFileExportCreateUnderUnmountedParentIsRefused/legacy
+=== RUN   TestFileExportCreateUnderUnmountedParentIsRefused/legacy_with_a_root_owner
+--- PASS: TestFileExportCreateUnderUnmountedParentIsRefused (0.00s)
+    --- PASS: TestFileExportCreateUnderUnmountedParentIsRefused/none (0.00s)
+    --- PASS: TestFileExportCreateUnderUnmountedParentIsRefused/none_with_a_root_owner (0.00s)
+    --- PASS: TestFileExportCreateUnderUnmountedParentIsRefused/legacy (0.00s)
+    --- PASS: TestFileExportCreateUnderUnmountedParentIsRefused/legacy_with_a_root_owner (0.00s)
+=== CONT  TestFileExportLifecycle
+=== CONT  TestFileExportCreateNotServed
+    export_create_contract_test.go:93: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportCreateNotServed (0.00s)
+=== CONT  TestPropertyRoundTrip
+=== CONT  TestFileExportVerifiesKernelTable
+    export_contract_test.go:241: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportVerifiesKernelTable (0.00s)
+=== CONT  TestFileExportAdoptedVolumes
+=== CONT  TestFileExportCreateNeedsServers
+    export_create_contract_test.go:189: needs the simulator (fault injection / call accounting)
+--- SKIP: TestFileExportCreateNeedsServers (0.00s)
+=== CONT  TestFileExportPreconditions
+=== NAME  TestPropertyRoundTrip
+    props_roundtrip_test.go:112: PROPRT_SHARD 4/6: 32 of 196 rows
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zle
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zle
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-3
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-3
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-9
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-9
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-6
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-6
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-12
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-12
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-18
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-18
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-5
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-5
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-20
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-20
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-80
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-80
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=1024
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=1024
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=8192
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=8192
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=65536
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=65536
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=524288
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=524288
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=4194304
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=4194304
+=== RUN   TestPropertyRoundTrip/filesystem/atime=on
+=== PAUSE TestPropertyRoundTrip/filesystem/atime=on
+=== RUN   TestPropertyRoundTrip/filesystem/sync=disabled
+=== PAUSE TestPropertyRoundTrip/filesystem/sync=disabled
+=== RUN   TestPropertyRoundTrip/filesystem/xattr=off
+=== PAUSE TestPropertyRoundTrip/filesystem/xattr=off
+=== RUN   TestPropertyRoundTrip/filesystem/acltype=noacl
+=== PAUSE TestPropertyRoundTrip/filesystem/acltype=noacl
+=== RUN   TestPropertyRoundTrip/block/compression=off
+=== PAUSE TestPropertyRoundTrip/block/compression=off
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-6
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-6
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-3
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-3
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-9
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-9
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-15
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-15
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-2
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-2
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-8
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-8
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-50
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-50
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-500
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-500
+=== RUN   TestPropertyRoundTrip/block/logbias=throughput
+=== PAUSE TestPropertyRoundTrip/block/logbias=throughput
+=== RUN   TestPropertyRoundTrip/block/copies=3
+=== PAUSE TestPropertyRoundTrip/block/copies=3
+=== RUN   TestPropertyRoundTrip/block/volblocksize=4096
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=4096
+=== RUN   TestPropertyRoundTrip/block/volblocksize=32768
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=32768
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zle
+=== CONT  TestPropertyRoundTrip/filesystem/xattr=off
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-80
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-2
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-15
+=== CONT  TestPropertyRoundTrip/filesystem/sync=disabled
+=== CONT  TestPropertyRoundTrip/filesystem/atime=on
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=4194304
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=524288
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=65536
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=8192
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=1024
+=== CONT  TestPropertyRoundTrip/block/logbias=throughput
+=== CONT  TestPropertyRoundTrip/block/volblocksize=32768
+=== CONT  TestPropertyRoundTrip/block/volblocksize=4096
+--- PASS: TestFileExportPreconditions (0.69s)
+=== CONT  TestPropertyRoundTrip/block/copies=3
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-12
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-20
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-5
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-18
+--- PASS: TestFileExportAdoptedVolumes (0.77s)
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-50
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-500
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-9
+--- PASS: TestFileExportLifecycle (0.90s)
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-6
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-8
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-6
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-9
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-3
+=== CONT  TestPropertyRoundTrip/block/compression=off
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-3
+=== CONT  TestPropertyRoundTrip/filesystem/acltype=noacl
+--- PASS: TestPropertyRoundTrip (0.66s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zle (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-15 (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-2 (0.24s)
+    --- PASS: TestPropertyRoundTrip/filesystem/xattr=off (0.26s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-80 (0.34s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=524288 (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/atime=on (0.30s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=4194304 (0.25s)
+    --- PASS: TestPropertyRoundTrip/filesystem/sync=disabled (0.31s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=65536 (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/logbias=throughput (0.19s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=32768 (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=8192 (0.21s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=1024 (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=4096 (0.21s)
+    --- PASS: TestPropertyRoundTrip/block/copies=3 (0.20s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-50 (0.14s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-12 (0.23s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-18 (0.21s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-500 (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-20 (0.24s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-5 (0.25s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-8 (0.12s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-9 (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-6 (0.24s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-3 (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-6 (0.20s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-9 (0.20s)
+    --- PASS: TestPropertyRoundTrip/block/compression=off (0.19s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-3 (0.15s)
+    --- PASS: TestPropertyRoundTrip/filesystem/acltype=noacl (0.14s)
+PASS
+##[endgroup]
+##[group]endpoint.5.log
+=== RUN   TestAdv4CommitRaceDestroysJustProvisionedVolume
+=== PAUSE TestAdv4CommitRaceDestroysJustProvisionedVolume
+=== RUN   TestAdv4TinyMinAgeInFlightCreate
+--- PASS: TestAdv4TinyMinAgeInFlightCreate (0.00s)
+=== RUN   TestReconcileAgesFromCommit
+--- PASS: TestReconcileAgesFromCommit (0.00s)
+=== RUN   TestAdv4OneFailureStarvesAndHidesDestroys
+--- PASS: TestAdv4OneFailureStarvesAndHidesDestroys (0.00s)
+=== RUN   TestAdv4BusyDestroyAbortsRun
+--- PASS: TestAdv4BusyDestroyAbortsRun (0.00s)
+=== RUN   TestReconcileSkipsSourceOfFailedClone
+--- PASS: TestReconcileSkipsSourceOfFailedClone (0.01s)
+=== RUN   TestAdv4OneBusyLockAbortsWholeRun
+--- PASS: TestAdv4OneBusyLockAbortsWholeRun (0.00s)
+=== RUN   TestReconcileMaxDeletionsAndDigest
+--- PASS: TestReconcileMaxDeletionsAndDigest (0.00s)
+=== RUN   TestReconcileDefaultMaxDeletionsWithDigest
+--- PASS: TestReconcileDefaultMaxDeletionsWithDigest (0.01s)
+=== RUN   TestAdv4UserSnapshotWithReservedPrefixCollected
+--- PASS: TestAdv4UserSnapshotWithReservedPrefixCollected (0.00s)
+=== RUN   TestAdv4ReleasedOriginOutsideParent
+--- PASS: TestAdv4ReleasedOriginOutsideParent (0.00s)
+=== RUN   TestLegacyUnstampedOriginReleasedWithItsClone
+--- PASS: TestLegacyUnstampedOriginReleasedWithItsClone (0.00s)
+=== RUN   TestCloneRefusesUnstampedReservedSnapshot
+--- PASS: TestCloneRefusesUnstampedReservedSnapshot (0.00s)
+=== RUN   TestApplyRefusesAnUnknownOpKind
+=== PAUSE TestApplyRefusesAnUnknownOpKind
+=== RUN   TestOpKindString
+--- PASS: TestOpKindString (0.00s)
+=== RUN   TestApplyRefusesADestroyWithoutGUID
+=== PAUSE TestApplyRefusesADestroyWithoutGUID
+=== RUN   TestPlanReconcileNFSBelowFloor
+=== PAUSE TestPlanReconcileNFSBelowFloor
+=== RUN   TestParseEtabSurvivesALongLine
+=== PAUSE TestParseEtabSurvivesALongLine
+=== RUN   TestReconcileBoundsItsOwnAnswer
+=== PAUSE TestReconcileBoundsItsOwnAnswer
+=== RUN   TestReconcileRefusesAnOversizedDesiredSet
+=== PAUSE TestReconcileRefusesAnOversizedDesiredSet
+=== RUN   TestRootErrMapping
+=== PAUSE TestRootErrMapping
+=== RUN   TestReconcileCancelledMidRunStops
+--- PASS: TestReconcileCancelledMidRunStops (0.01s)
+=== RUN   TestReconcileRescanFailureDestroysNothing
+--- PASS: TestReconcileRescanFailureDestroysNothing (0.00s)
+=== RUN   TestDeleteVolumeLockPassesAreBounded
+=== RUN   TestDeleteVolumeLockPassesAreBounded/source_held_throughout
+=== RUN   TestDeleteVolumeLockPassesAreBounded/a_new_busy_volume_each_pass
+--- PASS: TestDeleteVolumeLockPassesAreBounded (0.01s)
+    --- PASS: TestDeleteVolumeLockPassesAreBounded/source_held_throughout (0.00s)
+    --- PASS: TestDeleteVolumeLockPassesAreBounded/a_new_busy_volume_each_pass (0.01s)
+=== RUN   TestWholeScanSlotWaitEndsWithTheContext
+=== PAUSE TestWholeScanSlotWaitEndsWithTheContext
+=== RUN   TestPlannersRequireACoveringTable
+--- PASS: TestPlannersRequireACoveringTable (0.00s)
+=== RUN   TestUserValueDash
+--- PASS: TestUserValueDash (0.00s)
+=== RUN   TestLiteralDashMarkerIsAValue
+--- PASS: TestLiteralDashMarkerIsAValue (0.00s)
+=== RUN   TestDecodeRejectsImpossibleZvolSizes
+--- PASS: TestDecodeRejectsImpossibleZvolSizes (0.00s)
+=== RUN   TestDeleteVolumeRefusesACloneOutsideTheParent
+=== PAUSE TestDeleteVolumeRefusesACloneOutsideTheParent
+=== RUN   TestDeleteCloneLocksItsSource
+=== PAUSE TestDeleteCloneLocksItsSource
+=== RUN   TestDeleteCloneWaitsForBusySource
+=== PAUSE TestDeleteCloneWaitsForBusySource
+=== RUN   TestVolumesOf
+=== PAUSE TestVolumesOf
+=== RUN   TestAdv4ChildDatasetsDestroyed
+--- PASS: TestAdv4ChildDatasetsDestroyed (0.00s)
+=== RUN   TestReconcileReportsHeldSnapshots
+--- PASS: TestReconcileReportsHeldSnapshots (0.01s)
+=== RUN   TestDeleteVolumeSparesChildDatasets
+--- PASS: TestDeleteVolumeSparesChildDatasets (0.00s)
+=== RUN   TestDeleteVolumeSparesSnapshotCutAfterScan
+--- PASS: TestDeleteVolumeSparesSnapshotCutAfterScan (0.00s)
+=== RUN   TestDeleteOfAbsentCloneReleasesItsCloneSource
+=== PAUSE TestDeleteOfAbsentCloneReleasesItsCloneSource
+=== RUN   TestDeleteCloneInterruptedThenRetriedReleasesOrigin
+--- PASS: TestDeleteCloneInterruptedThenRetriedReleasesOrigin (0.01s)
+=== RUN   TestZfsErrCodes
+=== PAUSE TestZfsErrCodes
+=== RUN   TestErrTableMatchesHeadSeesEveryCell
+=== PAUSE TestErrTableMatchesHeadSeesEveryCell
+=== RUN   TestErrTableIsTotal
+=== PAUSE TestErrTableIsTotal
+=== RUN   TestErrorText
+=== PAUSE TestErrorText
+=== RUN   TestCodeOfNeverReportsAFailureAsOK
+--- PASS: TestCodeOfNeverReportsAFailureAsOK (0.00s)
+=== RUN   TestResumeErrKeepsRefusals
+=== PAUSE TestResumeErrKeepsRefusals
+=== RUN   TestParseClient
+--- PASS: TestParseClient (0.00s)
+=== RUN   TestCheckFloor
+--- PASS: TestCheckFloor (0.00s)
+=== RUN   TestShareNFS
+--- PASS: TestShareNFS (0.00s)
+=== RUN   TestParseShareNFS
+=== PAUSE TestParseShareNFS
+=== RUN   TestSortClientsIsTotal
+--- PASS: TestSortClientsIsTotal (0.00s)
+=== RUN   TestParseEtab
+--- PASS: TestParseEtab (0.00s)
+=== RUN   TestEtabServesPrecedence
+=== PAUSE TestEtabServesPrecedence
+=== RUN   TestExportSizeLimit
+=== PAUSE TestExportSizeLimit
+=== RUN   TestPlanUnpublishExport
+=== PAUSE TestPlanUnpublishExport
+=== RUN   TestExportConverges
+--- PASS: TestExportConverges (0.00s)
+=== RUN   TestExposedByAncestor
+=== PAUSE TestExposedByAncestor
+=== RUN   TestSeamGhostRowFromForgedNewlines
+=== PAUSE TestSeamGhostRowFromForgedNewlines
+=== RUN   TestF11NewlineValueDoesNotFailTheScan
+=== PAUSE TestF11NewlineValueDoesNotFailTheScan
+=== RUN   TestClassify
+--- PASS: TestClassify (0.00s)
+=== RUN   TestMinFreeBytesGuardLevelUpUnreadable
+=== PAUSE TestMinFreeBytesGuardLevelUpUnreadable
+=== RUN   TestMinFreeBytesGuardPoolRootRefquota
+=== PAUSE TestMinFreeBytesGuardPoolRootRefquota
+=== RUN   TestGetCapacityIsChildSpace
+=== PAUSE TestGetCapacityIsChildSpace
+=== RUN   TestShortDeadlineStillTakesAFreeLock
+=== PAUSE TestShortDeadlineStillTakesAFreeLock
+=== RUN   TestFilesystemsMountWithoutSetuidExecOrDevices
+=== PAUSE TestFilesystemsMountWithoutSetuidExecOrDevices
+=== RUN   TestPlanCreateVolumePinsMountpoint
+=== PAUSE TestPlanCreateVolumePinsMountpoint
+=== RUN   TestPlanReconcileMountpointNotPinned
+=== PAUSE TestPlanReconcileMountpointNotPinned
+=== RUN   TestSnapshotComponentNeverDots
+=== PAUSE TestSnapshotComponentNeverDots
+=== RUN   TestValidateNFSExport
+=== PAUSE TestValidateNFSExport
+=== RUN   TestPlanCreateVolumeNFS
+=== PAUSE TestPlanCreateVolumeNFS
+=== RUN   TestVolumeViewNFS
+=== PAUSE TestVolumeViewNFS
+=== RUN   TestPlanReconcileNFSServer
+=== PAUSE TestPlanReconcileNFSServer
+=== RUN   TestNFSReplayOnSim
+=== PAUSE TestNFSReplayOnSim
+=== RUN   TestValidateNFSRoot
+=== PAUSE TestValidateNFSRoot
+=== RUN   TestRootPropsRoundTrip
+=== PAUSE TestRootPropsRoundTrip
+=== RUN   TestParseMountinfo
+=== PAUSE TestParseMountinfo
+=== RUN   TestPlanSnapshotLongAndUnusualNames
+--- PASS: TestPlanSnapshotLongAndUnusualNames (0.00s)
+=== RUN   TestPlanExpandReplansHalfAppliedReservation
+--- PASS: TestPlanExpandReplansHalfAppliedReservation (0.00s)
+=== RUN   TestPlanExpandRollback
+=== PAUSE TestPlanExpandRollback
+=== RUN   TestPlannerErrorCodes
+=== PAUSE TestPlannerErrorCodes
+=== RUN   TestPlanCreateConvergesUncommittedSize
+=== PAUSE TestPlanCreateConvergesUncommittedSize
+=== RUN   TestPlanDeleteSnapshot
+=== PAUSE TestPlanDeleteSnapshot
+=== RUN   TestPlanDeleteVolumeReleasesOnlyItsOwnOrigin
+=== PAUSE TestPlanDeleteVolumeReleasesOnlyItsOwnOrigin
+=== RUN   TestPlanDeleteAbsentVolumeReleasesItsCloneSource
+=== PAUSE TestPlanDeleteAbsentVolumeReleasesItsCloneSource
+=== RUN   TestPlanDeletePresentVolumeReleasesItsCloneSource
+=== PAUSE TestPlanDeletePresentVolumeReleasesItsCloneSource
+=== RUN   TestPlanCreateRefusesForeignAndIncompatible
+=== PAUSE TestPlanCreateRefusesForeignAndIncompatible
+=== RUN   TestPlanResumeThickness
+=== PAUSE TestPlanResumeThickness
+=== RUN   TestPlanUnlimitedFilesystemIdempotency
+=== PAUSE TestPlanUnlimitedFilesystemIdempotency
+=== RUN   TestPlanFilesystemCloneSize
+=== PAUSE TestPlanFilesystemCloneSize
+=== RUN   TestPlanDeleteVolumeRefusesHoldsAndChildren
+--- PASS: TestPlanDeleteVolumeRefusesHoldsAndChildren (0.00s)
+=== RUN   TestPlanCreatePropertiesDenyList
+--- PASS: TestPlanCreatePropertiesDenyList (0.00s)
+=== RUN   TestValidatePropertyValues
+--- PASS: TestValidatePropertyValues (0.00s)
+=== RUN   TestParseSize
+=== PAUSE TestParseSize
+=== RUN   TestPlanCreateAppliesProperties
+--- PASS: TestPlanCreateAppliesProperties (0.00s)
+=== RUN   TestPlanCreatePropertiesRetry
+--- PASS: TestPlanCreatePropertiesRetry (0.00s)
+=== RUN   TestPlanCreatePropertiesConvergeUncommitted
+--- PASS: TestPlanCreatePropertiesConvergeUncommitted (0.00s)
+=== RUN   TestReachCapacityWrap
+--- PASS: TestReachCapacityWrap (0.00s)
+=== RUN   TestReachUncommittedServed
+--- PASS: TestReachUncommittedServed (0.01s)
+=== RUN   TestReachOriginOutsideParent
+--- PASS: TestReachOriginOutsideParent (0.00s)
+=== RUN   TestManagedWithoutNameIsNotOwned
+--- PASS: TestManagedWithoutNameIsNotOwned (0.00s)
+=== RUN   TestReachOutsideCloneWedgesReconcile
+--- PASS: TestReachOutsideCloneWedgesReconcile (0.01s)
+=== RUN   TestReachPlannerZeroBlockSize
+--- PASS: TestReachPlannerZeroBlockSize (0.00s)
+=== RUN   TestPlanReconcile
+=== RUN   TestPlanReconcile/desired_committed_volume_is_kept
+=== PAUSE TestPlanReconcile/desired_committed_volume_is_kept
+=== RUN   TestPlanReconcile/undesired_committed_volume_is_collected
+=== PAUSE TestPlanReconcile/undesired_committed_volume_is_collected
+=== RUN   TestPlanReconcile/empty_desired_set_collects_no_committed_volume
+=== PAUSE TestPlanReconcile/empty_desired_set_collects_no_committed_volume
+=== RUN   TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set
+=== PAUSE TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set
+=== RUN   TestPlanReconcile/young_uncommitted_row_may_be_in_flight
+=== PAUSE TestPlanReconcile/young_uncommitted_row_may_be_in_flight
+=== RUN   TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set
+=== PAUSE TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set
+=== RUN   TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry
+=== PAUSE TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry
+=== RUN   TestPlanReconcile/unknown_creation_is_never_old
+=== PAUSE TestPlanReconcile/unknown_creation_is_never_old
+=== RUN   TestPlanReconcile/leftover_nfs_clients_is_reported
+=== PAUSE TestPlanReconcile/leftover_nfs_clients_is_reported
+=== RUN   TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it
+=== PAUSE TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it
+=== RUN   TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report
+=== PAUSE TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report
+=== RUN   TestPlanReconcile/unowned_datasets_are_invisible
+=== PAUSE TestPlanReconcile/unowned_datasets_are_invisible
+=== RUN   TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason
+=== PAUSE TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason
+=== RUN   TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped
+=== PAUSE TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped
+=== RUN   TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_source_last
+=== PAUSE TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_source_last
+=== RUN   TestPlanReconcile/fixpoint_blocked_by_a_young_clone
+=== PAUSE TestPlanReconcile/fixpoint_blocked_by_a_young_clone
+=== RUN   TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume
+=== PAUSE TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume
+=== RUN   TestPlanReconcile/clone-source_snapshot_in_use_is_kept
+=== PAUSE TestPlanReconcile/clone-source_snapshot_in_use_is_kept
+=== RUN   TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected
+=== PAUSE TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected
+=== RUN   TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only
+=== PAUSE TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only
+=== RUN   TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone
+=== PAUSE TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone
+=== RUN   TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it
+=== PAUSE TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it
+=== RUN   TestPlanReconcile/deferred_CSI_snapshot_does_not_block
+=== PAUSE TestPlanReconcile/deferred_CSI_snapshot_does_not_block
+=== RUN   TestPlanReconcile/a_desired_set_naming_no_existing_volume_counts_as_empty
+=== PAUSE TestPlanReconcile/a_desired_set_naming_no_existing_volume_counts_as_empty
+=== RUN   TestPlanReconcile/unstamped_clone-source-named_snapshot_on_a_desired_volume_is_not_ours
+=== PAUSE TestPlanReconcile/unstamped_clone-source-named_snapshot_on_a_desired_volume_is_not_ours
+=== RUN   TestPlanReconcile/unstamped_clone-source_snapshot_makes_its_volume's_deletion_refuse
+=== PAUSE TestPlanReconcile/unstamped_clone-source_snapshot_makes_its_volume's_deletion_refuse
+=== RUN   TestPlanReconcile/stamp_for_another_clone_is_not_ours
+=== PAUSE TestPlanReconcile/stamp_for_another_clone_is_not_ours
+=== RUN   TestPlanReconcile/orphan_and_released_clone_sources_lock_their_volumes_and_clones
+=== PAUSE TestPlanReconcile/orphan_and_released_clone_sources_lock_their_volumes_and_clones
+=== RUN   TestPlanReconcile/held_snapshot_blocks_its_volume's_collection
+=== PAUSE TestPlanReconcile/held_snapshot_blocks_its_volume's_collection
+=== RUN   TestPlanReconcile/held_deferred_CSI_snapshot_blocks_its_volume's_collection
+=== PAUSE TestPlanReconcile/held_deferred_CSI_snapshot_blocks_its_volume's_collection
+=== RUN   TestPlanReconcile/fixpoint:_a_held_released_origin_is_not_reaped
+=== PAUSE TestPlanReconcile/fixpoint:_a_held_released_origin_is_not_reaped
+=== RUN   TestPlanReconcile/child_dataset_blocks_its_volume's_collection
+=== PAUSE TestPlanReconcile/child_dataset_blocks_its_volume's_collection
+=== RUN   TestPlanReconcile/unaddressable_clone-source_snapshot_is_reported,_not_planned
+=== PAUSE TestPlanReconcile/unaddressable_clone-source_snapshot_is_reported,_not_planned
+=== RUN   TestPlanReconcile/a_desired_id_naming_a_snapshot_names_no_volume
+=== PAUSE TestPlanReconcile/a_desired_id_naming_a_snapshot_names_no_volume
+=== RUN   TestPlanReconcile/an_uncommitted_row_ages_from_its_creation
+=== PAUSE TestPlanReconcile/an_uncommitted_row_ages_from_its_creation
+=== RUN   TestPlanReconcile/exactly_MinAge_old_is_collected
+=== PAUSE TestPlanReconcile/exactly_MinAge_old_is_collected
+=== RUN   TestPlanReconcile/one_second_under_MinAge_is_not
+=== PAUSE TestPlanReconcile/one_second_under_MinAge_is_not
+=== CONT  TestPlanReconcile/desired_committed_volume_is_kept
+=== CONT  TestPlanReconcile/one_second_under_MinAge_is_not
+=== CONT  TestPlanReconcile/exactly_MinAge_old_is_collected
+=== CONT  TestPlanReconcile/an_uncommitted_row_ages_from_its_creation
+=== CONT  TestPlanReconcile/a_desired_id_naming_a_snapshot_names_no_volume
+=== CONT  TestPlanReconcile/unaddressable_clone-source_snapshot_is_reported,_not_planned
+=== CONT  TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected
+=== CONT  TestPlanReconcile/child_dataset_blocks_its_volume's_collection
+=== CONT  TestPlanReconcile/fixpoint:_a_held_released_origin_is_not_reaped
+=== CONT  TestPlanReconcile/held_deferred_CSI_snapshot_blocks_its_volume's_collection
+=== CONT  TestPlanReconcile/held_snapshot_blocks_its_volume's_collection
+=== CONT  TestPlanReconcile/orphan_and_released_clone_sources_lock_their_volumes_and_clones
+=== CONT  TestPlanReconcile/stamp_for_another_clone_is_not_ours
+=== CONT  TestPlanReconcile/unstamped_clone-source_snapshot_makes_its_volume's_deletion_refuse
+=== CONT  TestPlanReconcile/unstamped_clone-source-named_snapshot_on_a_desired_volume_is_not_ours
+=== CONT  TestPlanReconcile/a_desired_set_naming_no_existing_volume_counts_as_empty
+=== CONT  TestPlanReconcile/deferred_CSI_snapshot_does_not_block
+=== CONT  TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it
+=== CONT  TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone
+=== CONT  TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only
+=== CONT  TestPlanReconcile/clone-source_snapshot_in_use_is_kept
+=== CONT  TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume
+=== CONT  TestPlanReconcile/fixpoint_blocked_by_a_young_clone
+=== CONT  TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_source_last
+=== CONT  TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped
+=== CONT  TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason
+=== CONT  TestPlanReconcile/unowned_datasets_are_invisible
+=== CONT  TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report
+=== CONT  TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it
+=== CONT  TestPlanReconcile/leftover_nfs_clients_is_reported
+=== CONT  TestPlanReconcile/unknown_creation_is_never_old
+=== CONT  TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry
+=== CONT  TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set
+=== CONT  TestPlanReconcile/young_uncommitted_row_may_be_in_flight
+=== CONT  TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set
+=== CONT  TestPlanReconcile/empty_desired_set_collects_no_committed_volume
+=== CONT  TestPlanReconcile/undesired_committed_volume_is_collected
+--- PASS: TestPlanReconcile (0.02s)
+    --- PASS: TestPlanReconcile/desired_committed_volume_is_kept (0.00s)
+    --- PASS: TestPlanReconcile/one_second_under_MinAge_is_not (0.00s)
+    --- PASS: TestPlanReconcile/exactly_MinAge_old_is_collected (0.00s)
+    --- PASS: TestPlanReconcile/an_uncommitted_row_ages_from_its_creation (0.00s)
+    --- PASS: TestPlanReconcile/a_desired_id_naming_a_snapshot_names_no_volume (0.00s)
+    --- PASS: TestPlanReconcile/unaddressable_clone-source_snapshot_is_reported,_not_planned (0.00s)
+    --- PASS: TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected (0.00s)
+    --- PASS: TestPlanReconcile/child_dataset_blocks_its_volume's_collection (0.00s)
+    --- PASS: TestPlanReconcile/fixpoint:_a_held_released_origin_is_not_reaped (0.00s)
+    --- PASS: TestPlanReconcile/held_deferred_CSI_snapshot_blocks_its_volume's_collection (0.00s)
+    --- PASS: TestPlanReconcile/held_snapshot_blocks_its_volume's_collection (0.00s)
+    --- PASS: TestPlanReconcile/orphan_and_released_clone_sources_lock_their_volumes_and_clones (0.00s)
+    --- PASS: TestPlanReconcile/stamp_for_another_clone_is_not_ours (0.00s)
+    --- PASS: TestPlanReconcile/unstamped_clone-source_snapshot_makes_its_volume's_deletion_refuse (0.00s)
+    --- PASS: TestPlanReconcile/unstamped_clone-source-named_snapshot_on_a_desired_volume_is_not_ours (0.00s)
+    --- PASS: TestPlanReconcile/a_desired_set_naming_no_existing_volume_counts_as_empty (0.00s)
+    --- PASS: TestPlanReconcile/deferred_CSI_snapshot_does_not_block (0.00s)
+    --- PASS: TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it (0.00s)
+    --- PASS: TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone (0.00s)
+    --- PASS: TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only (0.00s)
+    --- PASS: TestPlanReconcile/clone-source_snapshot_in_use_is_kept (0.00s)
+    --- PASS: TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume (0.00s)
+    --- PASS: TestPlanReconcile/fixpoint_blocked_by_a_young_clone (0.00s)
+    --- PASS: TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_source_last (0.00s)
+    --- PASS: TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped (0.00s)
+    --- PASS: TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason (0.00s)
+    --- PASS: TestPlanReconcile/unowned_datasets_are_invisible (0.00s)
+    --- PASS: TestPlanReconcile/leftover_nfs_clients_on_an_unowned_dataset_is_not_ours_to_report (0.00s)
+    --- PASS: TestPlanReconcile/leftover_nfs_clients_on_a_collected_volume_goes_with_it (0.00s)
+    --- PASS: TestPlanReconcile/leftover_nfs_clients_is_reported (0.00s)
+    --- PASS: TestPlanReconcile/unknown_creation_is_never_old (0.00s)
+    --- PASS: TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry (0.00s)
+    --- PASS: TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set (0.00s)
+    --- PASS: TestPlanReconcile/young_uncommitted_row_may_be_in_flight (0.00s)
+    --- PASS: TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set (0.00s)
+    --- PASS: TestPlanReconcile/empty_desired_set_collects_no_committed_volume (0.00s)
+    --- PASS: TestPlanReconcile/undesired_committed_volume_is_collected (0.00s)
+=== RUN   TestPlanReconcileHeldLimitsActions
+--- PASS: TestPlanReconcileHeldLimitsActions (0.00s)
+=== RUN   TestSimulateDestroyReapsDeferredOrigins
+--- PASS: TestSimulateDestroyReapsDeferredOrigins (0.00s)
+=== RUN   TestSimulateDestroyAllCases
+=== PAUSE TestSimulateDestroyAllCases
+=== RUN   TestLocalRoot
+=== PAUSE TestLocalRoot
+=== RUN   TestThickZvolReservationIgnoresCopies
+=== PAUSE TestThickZvolReservationIgnoresCopies
+=== RUN   TestPlanCloneRoundsToSourceBlockSize
+=== PAUSE TestPlanCloneRoundsToSourceBlockSize
+=== RUN   TestCloneOfLargeBlockZvolProvisions
+=== PAUSE TestCloneOfLargeBlockZvolProvisions
+=== RUN   TestCreateResumeFailureStaysAborted
+=== PAUSE TestCreateResumeFailureStaysAborted
+=== RUN   TestCreateNeverStampsRowWithoutName
+=== PAUSE TestCreateNeverStampsRowWithoutName
+=== RUN   TestPlanCreateDoesNotAdoptUnnamedManaged
+=== PAUSE TestPlanCreateDoesNotAdoptUnnamedManaged
+=== RUN   TestPlanCreateCommitsOnlyMounted
+=== PAUSE TestPlanCreateCommitsOnlyMounted
+=== RUN   TestCreateUnmountedFilesystemMountsThenCommits
+=== PAUSE TestCreateUnmountedFilesystemMountsThenCommits
+=== RUN   TestPageResumesAfterDeletedToken
+=== PAUSE TestPageResumesAfterDeletedToken
+=== RUN   TestListTokenSurvivesDeletedVolume
+=== PAUSE TestListTokenSurvivesDeletedVolume
+=== RUN   TestReconcileSkipsNonIssuableDesiredID
+=== PAUSE TestReconcileSkipsNonIssuableDesiredID
+=== RUN   TestSimulateDestroyAllEquivalent
+=== PAUSE TestSimulateDestroyAllEquivalent
+=== RUN   TestRowOwnedVolume
+=== PAUSE TestRowOwnedVolume
+=== RUN   TestRowOwnedSnapshot
+=== PAUSE TestRowOwnedSnapshot
+=== RUN   TestRowOwnedCloneSource
+=== PAUSE TestRowOwnedCloneSource
+=== RUN   TestRowKindAndCapacity
+=== PAUSE TestRowKindAndCapacity
+=== RUN   TestTableVolumesSkipsSnapshots
+=== PAUSE TestTableVolumesSkipsSnapshots
+=== RUN   TestTableSnapshotsOf
+=== PAUSE TestTableSnapshotsOf
+=== RUN   TestAdv4_PrefixMatchUnpublishLivelock
+--- PASS: TestAdv4_PrefixMatchUnpublishLivelock (0.00s)
+=== RUN   TestAdv4_PrefixMatchPublishFalseSuccess
+--- PASS: TestAdv4_PrefixMatchPublishFalseSuccess (0.00s)
+=== RUN   TestAdv4_AddressDedupPublishNeverVerifies
+--- PASS: TestAdv4_AddressDedupPublishNeverVerifies (0.00s)
+=== RUN   TestAdv4_ClientPolicyGaps
+--- PASS: TestAdv4_ClientPolicyGaps (0.00s)
+=== RUN   TestRPCCallBudget
+=== PAUSE TestRPCCallBudget
+=== RUN   TestReserveRestoreIsIdempotent
+=== PAUSE TestReserveRestoreIsIdempotent
+=== RUN   TestCloneFailureAfterCloneConvergesToSameState
+=== PAUSE TestCloneFailureAfterCloneConvergesToSameState
+=== RUN   TestFilesystemCloneNeverSmallerThanSource
+=== PAUSE TestFilesystemCloneNeverSmallerThanSource
+=== RUN   TestSnapshotSizeIsItsSizeWhenTaken
+=== PAUSE TestSnapshotSizeIsItsSizeWhenTaken
+=== RUN   TestExpandRollbackFailureIsReported
+=== RUN   TestExpandRollbackFailureIsReported/set
+=== RUN   TestExpandRollbackFailureIsReported/scan
+--- PASS: TestExpandRollbackFailureIsReported (0.00s)
+    --- PASS: TestExpandRollbackFailureIsReported/set (0.00s)
+    --- PASS: TestExpandRollbackFailureIsReported/scan (0.00s)
+=== RUN   TestDestroyNeverHitsAReplacedDataset
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-volume
+=== PAUSE TestDestroyNeverHitsAReplacedDataset/delete-volume
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source
+=== PAUSE TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-restored-clone
+=== PAUSE TestDestroyNeverHitsAReplacedDataset/delete-restored-clone
+=== RUN   TestDestroyNeverHitsAReplacedDataset/reconcile
+=== PAUSE TestDestroyNeverHitsAReplacedDataset/reconcile
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-snapshot
+=== PAUSE TestDestroyNeverHitsAReplacedDataset/delete-snapshot
+=== CONT  TestDestroyNeverHitsAReplacedDataset/delete-volume
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-volume/destroy0
+=== CONT  TestDestroyNeverHitsAReplacedDataset/reconcile
+=== RUN   TestDestroyNeverHitsAReplacedDataset/reconcile/destroy0
+=== CONT  TestDestroyNeverHitsAReplacedDataset/delete-snapshot
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-snapshot/destroy0
+=== CONT  TestDestroyNeverHitsAReplacedDataset/delete-restored-clone
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-restored-clone/destroy0
+=== CONT  TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source
+=== RUN   TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source/destroy0
+--- PASS: TestDestroyNeverHitsAReplacedDataset (0.00s)
+    --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-volume (0.60s)
+        --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-volume/destroy0 (0.60s)
+    --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-snapshot (0.88s)
+        --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-snapshot/destroy0 (0.88s)
+    --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-restored-clone (0.91s)
+        --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-restored-clone/destroy0 (0.91s)
+    --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source (0.95s)
+        --- PASS: TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source/destroy0 (0.95s)
+    --- PASS: TestDestroyNeverHitsAReplacedDataset/reconcile (1.16s)
+        --- PASS: TestDestroyNeverHitsAReplacedDataset/reconcile/destroy0 (1.16s)
+=== RUN   TestCreateVolumeIdempotent
+=== PAUSE TestCreateVolumeIdempotent
+=== RUN   TestCreateVolumeResumesInterruptedProvision
+=== PAUSE TestCreateVolumeResumesInterruptedProvision
+=== RUN   TestDeleteVolume
+=== PAUSE TestDeleteVolume
+=== RUN   TestSnapshotLifecycleWithClones
+=== PAUSE TestSnapshotLifecycleWithClones
+=== RUN   TestExpand
+=== PAUSE TestExpand
+=== RUN   TestConcurrentCreatesSerialize
+=== PAUSE TestConcurrentCreatesSerialize
+=== RUN   TestPagination
+=== PAUSE TestPagination
+=== RUN   TestInheritedOwnershipIsNotOwnership
+=== PAUSE TestInheritedOwnershipIsNotOwnership
+=== RUN   TestCloneResizeFailureConverges
+=== PAUSE TestCloneResizeFailureConverges
+=== RUN   TestMissingParentIsUnavailableNotAbsent
+=== PAUSE TestMissingParentIsUnavailableNotAbsent
+=== RUN   TestExpandThickFilesystemRetryAfterENOSPC
+=== PAUSE TestExpandThickFilesystemRetryAfterENOSPC
+=== RUN   TestDeleteVolumeSparesForeignSnapshots
+=== PAUSE TestDeleteVolumeSparesForeignSnapshots
+=== RUN   TestRealGetJSONMatchesSim
+=== PAUSE TestRealGetJSONMatchesSim
+=== RUN   TestBusyIsMappedByOperation
+=== PAUSE TestBusyIsMappedByOperation
+=== RUN   TestUnknownFailureAfterAMutationIsRetryable
+=== PAUSE TestUnknownFailureAfterAMutationIsRetryable
+=== RUN   TestOwnershipDifferentialFixtures
+=== PAUSE TestOwnershipDifferentialFixtures
+=== RUN   TestOwnershipDifferentialCrashes
+=== PAUSE TestOwnershipDifferentialCrashes
+=== RUN   TestOwnershipDifferentialModel
+=== PAUSE TestOwnershipDifferentialModel
+=== RUN   TestCloneNeverAdoptsARacingDataset
+=== PAUSE TestCloneNeverAdoptsARacingDataset
+=== RUN   TestVolumeNameMustMatchID
+=== PAUSE TestVolumeNameMustMatchID
+=== RUN   TestReceivedCopyIsNotOwned
+=== PAUSE TestReceivedCopyIsNotOwned
+=== RUN   TestReconcileSparesReceivedAndRenamed
+=== PAUSE TestReconcileSparesReceivedAndRenamed
+=== RUN   TestMissingParentIsUnavailableForWholeScans
+=== PAUSE TestMissingParentIsUnavailableForWholeScans
+=== RUN   TestMissingParentFailsCreateAndDeleteUnavailable
+=== PAUSE TestMissingParentFailsCreateAndDeleteUnavailable
+=== RUN   TestOverlongParentIsRefused
+=== PAUSE TestOverlongParentIsRefused
+=== RUN   TestPropertyPrefixIsValidated
+=== PAUSE TestPropertyPrefixIsValidated
+=== RUN   TestPropertyRoundTrip
+=== PAUSE TestPropertyRoundTrip
+=== RUN   TestPropertyRoundTripCoversEveryKey
+=== PAUSE TestPropertyRoundTripCoversEveryKey
+=== RUN   TestReconcileLocksTargets
+    reconcile_contract_test.go:228: needs the simulator (fault injection / call accounting)
+--- SKIP: TestReconcileLocksTargets (0.00s)
+=== RUN   TestReconcileDigestCoversTheGuid
+=== PAUSE TestReconcileDigestCoversTheGuid
+=== RUN   TestCreateVolumeReadAfterChangeIsRetryable
+=== RUN   TestCreateVolumeReadAfterChangeIsRetryable/second_pass_scan
+=== RUN   TestCreateVolumeReadAfterChangeIsRetryable/re-read_after_the_commit
+=== RUN   TestCreateVolumeReadAfterChangeIsRetryable/NFS_second_pass_scan
+=== RUN   TestCreateVolumeReadAfterChangeIsRetryable/NFS_verifyExport_scan
+=== RUN   TestCreateVolumeReadAfterChangeIsRetryable/NFS_re-read_after_the_commit
+--- PASS: TestCreateVolumeReadAfterChangeIsRetryable (0.01s)
+    --- PASS: TestCreateVolumeReadAfterChangeIsRetryable/second_pass_scan (0.00s)
+    --- PASS: TestCreateVolumeReadAfterChangeIsRetryable/re-read_after_the_commit (0.00s)
+    --- PASS: TestCreateVolumeReadAfterChangeIsRetryable/NFS_second_pass_scan (0.00s)
+    --- PASS: TestCreateVolumeReadAfterChangeIsRetryable/NFS_verifyExport_scan (0.00s)
+    --- PASS: TestCreateVolumeReadAfterChangeIsRetryable/NFS_re-read_after_the_commit (0.00s)
+=== RUN   TestCreateVolumeReadBeforeChangeStaysInternal
+--- PASS: TestCreateVolumeReadBeforeChangeStaysInternal (0.00s)
+=== RUN   TestCreateSnapshotAfterCutIsRetryable
+=== RUN   TestCreateSnapshotAfterCutIsRetryable/re-read_fails
+=== RUN   TestCreateSnapshotAfterCutIsRetryable/vanished
+--- PASS: TestCreateSnapshotAfterCutIsRetryable (0.00s)
+    --- PASS: TestCreateSnapshotAfterCutIsRetryable/re-read_fails (0.00s)
+    --- PASS: TestCreateSnapshotAfterCutIsRetryable/vanished (0.00s)
+=== RUN   TestCloneNoSpaceAfterChangeIsRetryable
+--- PASS: TestCloneNoSpaceAfterChangeIsRetryable (0.00s)
+=== RUN   TestCreateNoSpaceBeforeChangeStaysExhausted
+--- PASS: TestCreateNoSpaceBeforeChangeStaysExhausted (0.00s)
+=== RUN   TestDeleteVolumeSettlesDeviceEventsOnBusy
+--- PASS: TestDeleteVolumeSettlesDeviceEventsOnBusy (0.00s)
+=== RUN   TestDeleteVolumeSettleWindow
+=== RUN   TestDeleteVolumeSettleWindow/replaced_while_settling
+=== RUN   TestDeleteVolumeSettleWindow/settle_fails
+--- PASS: TestDeleteVolumeSettleWindow (0.00s)
+    --- PASS: TestDeleteVolumeSettleWindow/replaced_while_settling (0.00s)
+    --- PASS: TestDeleteVolumeSettleWindow/settle_fails (0.00s)
+=== CONT  TestAdv4CommitRaceDestroysJustProvisionedVolume
+=== CONT  TestSimulateDestroyAllCases
+--- PASS: TestAdv4CommitRaceDestroysJustProvisionedVolume (0.00s)
+=== CONT  TestParseSize
+--- PASS: TestParseSize (0.00s)
+=== CONT  TestPlanFilesystemCloneSize
+--- PASS: TestPlanFilesystemCloneSize (0.00s)
+=== CONT  TestPlanUnlimitedFilesystemIdempotency
+--- PASS: TestPlanUnlimitedFilesystemIdempotency (0.00s)
+=== CONT  TestPlanResumeThickness
+--- PASS: TestPlanResumeThickness (0.00s)
+=== CONT  TestPlanCreateRefusesForeignAndIncompatible
+--- PASS: TestPlanCreateRefusesForeignAndIncompatible (0.00s)
+=== CONT  TestPlanDeletePresentVolumeReleasesItsCloneSource
+=== CONT  TestDeleteVolume
+--- PASS: TestSimulateDestroyAllCases (0.00s)
+=== CONT  TestCreateVolumeResumesInterruptedProvision
+=== CONT  TestPlanDeleteAbsentVolumeReleasesItsCloneSource
+=== CONT  TestPlanCreateConvergesUncommittedSize
+=== CONT  TestPlanDeleteVolumeReleasesOnlyItsOwnOrigin
+=== CONT  TestPlanDeleteSnapshot
+=== CONT  TestPlannerErrorCodes
+--- PASS: TestPlanDeletePresentVolumeReleasesItsCloneSource (0.00s)
+--- PASS: TestPlanDeleteSnapshot (0.00s)
+=== CONT  TestParseMountinfo
+--- PASS: TestParseMountinfo (0.00s)
+=== CONT  TestRootPropsRoundTrip
+--- PASS: TestRootPropsRoundTrip (0.00s)
+=== CONT  TestValidateNFSRoot
+--- PASS: TestValidateNFSRoot (0.00s)
+=== CONT  TestNFSReplayOnSim
+=== CONT  TestPlanExpandRollback
+--- PASS: TestPlanCreateConvergesUncommittedSize (0.02s)
+=== CONT  TestPlanReconcileNFSServer
+--- PASS: TestPlanReconcileNFSServer (0.00s)
+=== CONT  TestVolumeViewNFS
+--- PASS: TestVolumeViewNFS (0.00s)
+=== CONT  TestPlanCreateVolumeNFS
+--- PASS: TestPlanDeleteAbsentVolumeReleasesItsCloneSource (0.02s)
+=== CONT  TestValidateNFSExport
+--- PASS: TestValidateNFSExport (0.00s)
+=== CONT  TestSnapshotComponentNeverDots
+--- PASS: TestSnapshotComponentNeverDots (0.00s)
+--- PASS: TestPlanDeleteVolumeReleasesOnlyItsOwnOrigin (0.02s)
+=== CONT  TestPlanCreateVolumePinsMountpoint
+--- PASS: TestPlannerErrorCodes (0.02s)
+=== CONT  TestFilesystemsMountWithoutSetuidExecOrDevices
+--- PASS: TestPlanExpandRollback (0.02s)
+=== CONT  TestShortDeadlineStillTakesAFreeLock
+--- PASS: TestShortDeadlineStillTakesAFreeLock (0.00s)
+=== CONT  TestGetCapacityIsChildSpace
+--- PASS: TestFilesystemsMountWithoutSetuidExecOrDevices (0.00s)
+=== CONT  TestMinFreeBytesGuardPoolRootRefquota
+--- PASS: TestMinFreeBytesGuardPoolRootRefquota (0.00s)
+=== CONT  TestMinFreeBytesGuardLevelUpUnreadable
+--- PASS: TestGetCapacityIsChildSpace (0.00s)
+=== CONT  TestF11NewlineValueDoesNotFailTheScan
+=== RUN   TestPlanCreateVolumeNFS/create_records_the_default_server_with_the_export
+=== RUN   TestPlanCreateVolumeNFS/create_records_an_explicit_server
+--- PASS: TestMinFreeBytesGuardLevelUpUnreadable (0.00s)
+=== CONT  TestSeamGhostRowFromForgedNewlines
+=== RUN   TestPlanCreateVolumeNFS/restore_takes_the_request's_export
+=== RUN   TestPlanCreateVolumeNFS/uncommitted_converges_export_and_server
+=== RUN   TestPlanCreateVolumeNFS/committed,_same_set_in_another_order
+=== RUN   TestPlanCreateVolumeNFS/committed,_server_omitted_after_a_reorder:_the_recorded_one
+--- PASS: TestF11NewlineValueDoesNotFailTheScan (0.00s)
+=== CONT  TestExposedByAncestor
+=== RUN   TestPlanCreateVolumeNFS/committed,_the_recorded_server_named
+--- PASS: TestExposedByAncestor (0.00s)
+=== CONT  TestPlanUnpublishExport
+=== RUN   TestPlanCreateVolumeNFS/committed,_another_server_named
+=== RUN   TestPlanCreateVolumeNFS/committed,_other_clients
+=== CONT  TestPlanReconcileMountpointNotPinned
+=== RUN   TestPlanCreateVolumePinsMountpoint/create
+--- PASS: TestPlanReconcileMountpointNotPinned (0.01s)
+=== CONT  TestExportSizeLimit
+--- PASS: TestSeamGhostRowFromForgedNewlines (0.01s)
+=== CONT  TestEtabServesPrecedence
+--- PASS: TestEtabServesPrecedence (0.00s)
+=== CONT  TestParseShareNFS
+--- PASS: TestParseShareNFS (0.00s)
+=== CONT  TestResumeErrKeepsRefusals
+--- PASS: TestResumeErrKeepsRefusals (0.00s)
+=== CONT  TestErrorText
+--- PASS: TestErrorText (0.00s)
+=== CONT  TestErrTableIsTotal
+--- PASS: TestErrTableIsTotal (0.00s)
+=== CONT  TestErrTableMatchesHeadSeesEveryCell
+--- PASS: TestErrTableMatchesHeadSeesEveryCell (0.01s)
+=== CONT  TestZfsErrCodes
+--- PASS: TestZfsErrCodes (0.00s)
+=== CONT  TestDeleteOfAbsentCloneReleasesItsCloneSource
+=== RUN   TestPlanUnpublishExport/one_of_two
+=== RUN   TestPlanUnpublishExport/spelled_as_/32
+=== RUN   TestPlanUnpublishExport/last_sets_off_locally
+=== RUN   TestPlanUnpublishExport/not_a_client
+=== RUN   TestPlanUnpublishExport/network_around_a_client_is_not_that_client
+=== RUN   TestPlanUnpublishExport/already_removed
+=== RUN   TestPlanUnpublishExport/removed_but_still_served:_reshare
+=== RUN   TestPlanUnpublishExport/served_by_a_foreign_sharenfs
+=== RUN   TestPlanUnpublishExport/canonical_sharenfs_without_a_stored_list_is_ours
+=== RUN   TestPlanUnpublishExport/leftover_stored_list_is_ignored
+=== RUN   TestPlanUnpublishExport/served_by_a_received_sharenfs
+=== RUN   TestPlanUnpublishExport/admin's_*_over_our_list:_refused,_not_rewritten
+=== RUN   TestPlanUnpublishExport/inherited_world_export_after_the_last_client:_pinned_off
+=== RUN   TestPlanUnpublishExport/foreign_sharenfs_to_*_still_serves_the_host
+=== RUN   TestPlanUnpublishExport/foreign_but_not_served
+=== RUN   TestPlanUnpublishExport/unmounted_still_revokes
+=== RUN   TestPlanUnpublishExport/zvol
+=== RUN   TestPlanUnpublishExport/missing
+=== RUN   TestPlanUnpublishExport/leftover_stored_list,_inherited_off
+=== RUN   TestPlanUnpublishExport/hostname
+--- PASS: TestPlanUnpublishExport (0.03s)
+    --- PASS: TestPlanUnpublishExport/one_of_two (0.00s)
+    --- PASS: TestPlanUnpublishExport/spelled_as_/32 (0.00s)
+    --- PASS: TestPlanUnpublishExport/last_sets_off_locally (0.00s)
+    --- PASS: TestPlanUnpublishExport/not_a_client (0.00s)
+    --- PASS: TestPlanUnpublishExport/network_around_a_client_is_not_that_client (0.00s)
+    --- PASS: TestPlanUnpublishExport/already_removed (0.00s)
+    --- PASS: TestPlanUnpublishExport/removed_but_still_served:_reshare (0.00s)
+    --- PASS: TestPlanUnpublishExport/served_by_a_foreign_sharenfs (0.00s)
+    --- PASS: TestPlanUnpublishExport/canonical_sharenfs_without_a_stored_list_is_ours (0.00s)
+    --- PASS: TestPlanUnpublishExport/leftover_stored_list_is_ignored (0.00s)
+    --- PASS: TestPlanUnpublishExport/served_by_a_received_sharenfs (0.00s)
+    --- PASS: TestPlanUnpublishExport/admin's_*_over_our_list:_refused,_not_rewritten (0.00s)
+    --- PASS: TestPlanUnpublishExport/inherited_world_export_after_the_last_client:_pinned_off (0.00s)
+    --- PASS: TestPlanUnpublishExport/foreign_sharenfs_to_*_still_serves_the_host (0.00s)
+    --- PASS: TestPlanUnpublishExport/foreign_but_not_served (0.00s)
+    --- PASS: TestPlanUnpublishExport/unmounted_still_revokes (0.00s)
+    --- PASS: TestPlanUnpublishExport/zvol (0.00s)
+    --- PASS: TestPlanUnpublishExport/missing (0.00s)
+    --- PASS: TestPlanUnpublishExport/leftover_stored_list,_inherited_off (0.00s)
+    --- PASS: TestPlanUnpublishExport/hostname (0.00s)
+=== CONT  TestVolumesOf
+--- PASS: TestVolumesOf (0.00s)
+=== CONT  TestDeleteCloneWaitsForBusySource
+=== RUN   TestPlanCreateVolumeNFS/committed,_other_mode
+=== RUN   TestPlanCreateVolumeNFS/committed,_foreign_sharenfs
+=== RUN   TestPlanCreateVolumeNFS/committed,_inherited_sharenfs
+=== RUN   TestPlanCreateVolumePinsMountpoint/a_parent_at_the_root
+=== RUN   TestPlanCreateVolumePinsMountpoint/restore
+--- PASS: TestDeleteCloneWaitsForBusySource (0.01s)
+=== CONT  TestDeleteCloneLocksItsSource
+=== RUN   TestPlanCreateVolumeNFS/committed_without_NFS,_now_asked_for_it
+=== RUN   TestPlanCreateVolumeNFS/committed_legacy_export,_server_omitted
+=== RUN   TestPlanCreateVolumeNFS/committed_legacy_export,_server_named
+=== RUN   TestPlanCreateVolumeNFS/committed_export,_request_without_one
+--- PASS: TestPlanCreateVolumeNFS (0.05s)
+    --- PASS: TestPlanCreateVolumeNFS/create_records_the_default_server_with_the_export (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/create_records_an_explicit_server (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/restore_takes_the_request's_export (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/uncommitted_converges_export_and_server (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_same_set_in_another_order (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_server_omitted_after_a_reorder:_the_recorded_one (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_the_recorded_server_named (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_another_server_named (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_other_clients (0.01s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_other_mode (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_foreign_sharenfs (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed,_inherited_sharenfs (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed_without_NFS,_now_asked_for_it (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed_legacy_export,_server_omitted (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed_legacy_export,_server_named (0.00s)
+    --- PASS: TestPlanCreateVolumeNFS/committed_export,_request_without_one (0.00s)
+=== CONT  TestDeleteVolumeRefusesACloneOutsideTheParent
+--- PASS: TestDeleteOfAbsentCloneReleasesItsCloneSource (0.02s)
+=== CONT  TestWholeScanSlotWaitEndsWithTheContext
+--- PASS: TestWholeScanSlotWaitEndsWithTheContext (0.00s)
+=== CONT  TestRootErrMapping
+--- PASS: TestRootErrMapping (0.00s)
+=== CONT  TestReconcileRefusesAnOversizedDesiredSet
+=== RUN   TestPlanCreateVolumePinsMountpoint/clone
+=== RUN   TestPlanCreateVolumePinsMountpoint/NFS_export
+=== RUN   TestPlanCreateVolumePinsMountpoint/parent_mountpoint_none
+=== RUN   TestPlanCreateVolumePinsMountpoint/parent_mountpoint_legacy
+=== RUN   TestPlanCreateVolumePinsMountpoint/not_read_(a_bare_planner)
+=== RUN   TestPlanCreateVolumePinsMountpoint/zvol
+--- PASS: TestPlanCreateVolumePinsMountpoint (0.05s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/create (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/a_parent_at_the_root (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/restore (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/clone (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/NFS_export (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/parent_mountpoint_none (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/parent_mountpoint_legacy (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/not_read_(a_bare_planner) (0.00s)
+    --- PASS: TestPlanCreateVolumePinsMountpoint/zvol (0.00s)
+=== CONT  TestReconcileBoundsItsOwnAnswer
+--- PASS: TestDeleteVolumeRefusesACloneOutsideTheParent (0.01s)
+=== CONT  TestParseEtabSurvivesALongLine
+--- PASS: TestDeleteCloneLocksItsSource (0.04s)
+=== CONT  TestPlanReconcileNFSBelowFloor
+--- PASS: TestPlanReconcileNFSBelowFloor (0.00s)
+=== CONT  TestApplyRefusesADestroyWithoutGUID
+--- PASS: TestApplyRefusesADestroyWithoutGUID (0.00s)
+=== CONT  TestApplyRefusesAnUnknownOpKind
+--- PASS: TestApplyRefusesAnUnknownOpKind (0.00s)
+--- PASS: TestParseEtabSurvivesALongLine (0.04s)
+=== CONT  TestCreateVolumeIdempotent
+=== NAME  TestNFSReplayOnSim
+    nfs_replay_test.go:221: # NFS replay: tank/nfsreplay/v (mountpoint /tank/nfsreplay/v)
+        
+        export_features: 0x3ffff 0xf
+        
+        ## off: sharenfs="off"
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## on: sharenfs="on"
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw,crossmnt)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## bare rw: sharenfs="rw"
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## bare ro: sharenfs="ro"
+          etab clients: *(ro)
+          verifier exposure: /tank/nfsreplay/v *(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=ro 10.9.9.9=ro
+        
+        ## one /32 rw: sharenfs="rw=10.0.0.5/32"
+          etab clients: 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## one /32 ro: sharenfs="ro=10.0.0.5/32"
+          etab clients: 10.0.0.5/32(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## one /16: sharenfs="rw=10.1.0.0/16"
+          etab clients: 10.1.0.0/16(rw)
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=rw 10.9.9.9=none
+        
+        ## canonical mix: sharenfs="rw=10.0.0.5/32:10.0.0.6/32,ro=10.1.0.0/16"
+          etab clients: 10.0.0.5/32(rw) 10.0.0.6/32(rw) 10.1.0.0/16(ro)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=ro 10.9.9.9=none
+        
+        ## same net rw then ro: sharenfs="rw=10.0.0.0/24,ro=10.0.0.0/24"
+          ref exportfs: duplicated export entries: 10.0.0.0/24:/tank/nfsreplay/v (flags 0x425 vs 0x424)
+          etab clients: 10.0.0.0/24(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/24(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## same net ro then rw: sharenfs="ro=10.0.0.0/24,rw=10.0.0.0/24"
+          ref exportfs: duplicated export entries: 10.0.0.0/24:/tank/nfsreplay/v (flags 0x424 vs 0x425)
+          etab clients: 10.0.0.0/24(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/24(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=none 10.9.9.9=none
+        
+        ## overlap same mode: sharenfs="rw=10.0.0.0/24:10.0.0.5/32"
+          etab clients: 10.0.0.0/24(rw) 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/24(rw); /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## ro inside rw: sharenfs="rw=10.0.0.0/16,ro=10.0.0.0/24"
+          etab clients: 10.0.0.0/16(rw) 10.0.0.0/24(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/16(rw); /tank/nfsreplay/v 10.0.0.0/24(ro)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## host bits set: sharenfs="rw=10.0.0.5/24"
+          etab clients: 10.0.0.5/24(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/24(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## prefix 024: sharenfs="rw=10.0.0.0/024"
+          etab clients: 10.0.0.0/024(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/024(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## prefix +24: sharenfs="rw=10.0.0.0/+24"
+          etab clients: 10.0.0.0/+24(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/+24(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## dotted mask: sharenfs="rw=10.0.0.0/255.255.255.0"
+          etab clients: 10.0.0.0/255.255.255.0(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/255.255.255.0(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## prefix 33: sharenfs="rw=10.0.0.0/33"
+          ref exportfs: Invalid IP address or prefix 10.0.0.0/33
+          ref exportfs: Invalid IP address or prefix 10.0.0.0/33
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## bare address: sharenfs="rw=10.0.0.5"
+          etab clients: 10.0.0.5(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## address and /32: sharenfs="rw=10.0.0.5:10.0.0.5/32"
+          etab clients: 10.0.0.5(rw) 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5(rw); /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## at subnet: sharenfs="rw=@10.0.0.0/8"
+          etab clients: 10.0.0.0/8(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/8(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## empty list: sharenfs="rw="
+          ref exportfs: /etc/exports.d/zfs.exports: No host name given with /tank/nfsreplay/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## trailing colon: sharenfs="rw=10.0.0.5/32:"
+          ref exportfs: /etc/exports.d/zfs.exports: No host name given with /tank/nfsreplay/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+          etab clients: 10.0.0.5/32(rw) *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw); /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## double colon: sharenfs="rw=10.0.0.5/32::10.0.0.6/32"
+          ref exportfs: /etc/exports.d/zfs.exports: No host name given with /tank/nfsreplay/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+          etab clients: 10.0.0.5/32(rw) 10.0.0.6/32(rw) *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw); /tank/nfsreplay/v 10.0.0.5/32(rw); /tank/nfsreplay/v 10.0.0.6/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## star: sharenfs="rw=*"
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## unresolvable name: sharenfs="rw=node-a.invalid"
+          ref exportfs: Failed to resolve node-a.invalid
+          ref exportfs: Failed to resolve node-a.invalid
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## crossmnt: sharenfs="rw=10.0.0.5/32,crossmnt"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw,crossmnt)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## no_root_squash: sharenfs="rw=10.0.0.5/32,no_root_squash"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## root_mapping: sharenfs="ro=10.0.0.5/32,root_mapping=0"
+          etab clients: 10.0.0.5/32(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## sec krb5: sharenfs="sec=krb5,rw=10.0.0.5/32"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## sec switch: sharenfs="rw=10.0.0.5/32,sec=krb5,ro=10.1.0.0/16"
+          etab clients: 10.0.0.5/32(rw) 10.1.0.0/16(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw); /tank/nfsreplay/v 10.1.0.0/16(ro)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## sec null: sharenfs="sec,rw=10.0.0.5/32"
+          ref exportfs: /etc/exports.d/zfs.exports: syntax error: bad option list
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## hash host: sharenfs="rw=#"
+          ref exportfs: /etc/exports.d/zfs.exports: No options for /tank/nfsreplay/v : suggest (sync) to avoid warning
+          etab clients: (ro)
+          verifier exposure: /tank/nfsreplay/v (ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=ro 10.9.9.9=ro
+        
+        ## space in list: sharenfs="rw=10.0.0.5/32 10.0.0.6/32"
+          ref exportfs: /etc/exports.d/zfs.exports: No options for /tank/nfsreplay/v 10.0.0.5/32: suggest 10.0.0.5/32(sync) to avoid warning
+          etab clients: 10.0.0.5/32(ro) 10.0.0.6/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(ro); /tank/nfsreplay/v 10.0.0.6/32(rw)
+          mountd model: 10.0.0.5=ro 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## quote: sharenfs="rw=\"10.0.0.5/32"
+          ref exportfs: /etc/exports.d/zfs.exports: syntax error: bad option list
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## bad anonuid: sharenfs="anonuid=x,rw=10.0.0.5/32"
+          ref exportfs: /etc/exports.d/zfs.exports: /etc/exports.d/zfs.exports: bad anonuid "anonuid=x"
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## no hosts: sharenfs="sync"
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## unknown key: sharenfs="bogus"
+          zfs set refused: []: exit 1: cannot set property for 'tank/nfsreplay/v': 'sharenfs' cannot be set to invalid options
+        
+        
+        ## empty: sharenfs=""
+          zfs set refused: []: exit 1: cannot set property for 'tank/nfsreplay/v': 'sharenfs' cannot be set to invalid options
+        
+        
+        ## ipv6 literal: sharenfs="rw=[::1]"
+          etab clients: ::1(rw)
+          verifier exposure: /tank/nfsreplay/v ::1(rw)
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## mountpoint option: sharenfs="rw=10.0.0.5/32,mountpoint=/nonexistent"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## parent on: sharenfs="rw=10.0.0.5/32" (parent "on")
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay *(rw,crossmnt)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## parent subnet: sharenfs="rw=10.0.0.5/32" (parent "rw=@10.0.0.0/8")
+          etab clients: 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        42 cases, 0 failures, 0 ambiguities, 126ms
+        
+--- PASS: TestNFSReplayOnSim (0.13s)
+=== CONT  TestSnapshotSizeIsItsSizeWhenTaken
+=== RUN   TestSnapshotSizeIsItsSizeWhenTaken/filesystem
+=== PAUSE TestSnapshotSizeIsItsSizeWhenTaken/filesystem
+=== RUN   TestSnapshotSizeIsItsSizeWhenTaken/block
+=== PAUSE TestSnapshotSizeIsItsSizeWhenTaken/block
+=== CONT  TestFilesystemCloneNeverSmallerThanSource
+--- PASS: TestReconcileRefusesAnOversizedDesiredSet (0.06s)
+=== CONT  TestCloneFailureAfterCloneConvergesToSameState
+    clonesize_test.go:86: needs the simulator (fault injection / call accounting)
+--- SKIP: TestCloneFailureAfterCloneConvergesToSameState (0.00s)
+=== CONT  TestReserveRestoreIsIdempotent
+=== CONT  TestReconcileSkipsNonIssuableDesiredID
+--- PASS: TestReconcileSkipsNonIssuableDesiredID (0.00s)
+=== CONT  TestRPCCallBudget
+    callbudget_test.go:123: needs the simulator (fault injection / call accounting)
+--- SKIP: TestRPCCallBudget (0.00s)
+=== CONT  TestTableSnapshotsOf
+--- PASS: TestTableSnapshotsOf (0.00s)
+=== CONT  TestTableVolumesSkipsSnapshots
+--- PASS: TestTableVolumesSkipsSnapshots (0.00s)
+=== CONT  TestRowKindAndCapacity
+--- PASS: TestRowKindAndCapacity (0.00s)
+=== CONT  TestRowOwnedCloneSource
+--- PASS: TestRowOwnedCloneSource (0.00s)
+=== CONT  TestRowOwnedSnapshot
+--- PASS: TestRowOwnedSnapshot (0.00s)
+=== CONT  TestRowOwnedVolume
+--- PASS: TestRowOwnedVolume (0.00s)
+=== CONT  TestSimulateDestroyAllEquivalent
+--- PASS: TestReconcileBoundsItsOwnAnswer (0.09s)
+=== CONT  TestCreateResumeFailureStaysAborted
+--- PASS: TestCreateResumeFailureStaysAborted (0.01s)
+=== CONT  TestListTokenSurvivesDeletedVolume
+--- PASS: TestListTokenSurvivesDeletedVolume (0.02s)
+=== CONT  TestPageResumesAfterDeletedToken
+--- PASS: TestPageResumesAfterDeletedToken (0.00s)
+=== CONT  TestCreateUnmountedFilesystemMountsThenCommits
+--- PASS: TestCreateUnmountedFilesystemMountsThenCommits (0.00s)
+=== CONT  TestPlanCreateCommitsOnlyMounted
+=== RUN   TestPlanCreateCommitsOnlyMounted/unmounted,_canmount=on
+=== PAUSE TestPlanCreateCommitsOnlyMounted/unmounted,_canmount=on
+=== RUN   TestPlanCreateCommitsOnlyMounted/mounted
+=== PAUSE TestPlanCreateCommitsOnlyMounted/mounted
+=== RUN   TestPlanCreateCommitsOnlyMounted/canmount=noauto:_the_operator's_choice
+=== PAUSE TestPlanCreateCommitsOnlyMounted/canmount=noauto:_the_operator's_choice
+=== RUN   TestPlanCreateCommitsOnlyMounted/canmount=off
+=== PAUSE TestPlanCreateCommitsOnlyMounted/canmount=off
+=== RUN   TestPlanCreateCommitsOnlyMounted/mountpoint=none
+=== PAUSE TestPlanCreateCommitsOnlyMounted/mountpoint=none
+=== RUN   TestPlanCreateCommitsOnlyMounted/mountpoint=legacy
+=== PAUSE TestPlanCreateCommitsOnlyMounted/mountpoint=legacy
+=== RUN   TestPlanCreateCommitsOnlyMounted/non-root:_nothing_can_mount
+=== PAUSE TestPlanCreateCommitsOnlyMounted/non-root:_nothing_can_mount
+=== CONT  TestPlanCreateDoesNotAdoptUnnamedManaged
+--- PASS: TestPlanCreateDoesNotAdoptUnnamedManaged (0.00s)
+=== CONT  TestCreateNeverStampsRowWithoutName
+--- PASS: TestCreateNeverStampsRowWithoutName (0.00s)
+=== CONT  TestOwnershipDifferentialFixtures
+    owndiff_test.go:178: needs the simulator (fault injection / call accounting)
+--- SKIP: TestOwnershipDifferentialFixtures (0.00s)
+=== CONT  TestReconcileDigestCoversTheGuid
+--- PASS: TestSimulateDestroyAllEquivalent (0.27s)
+=== CONT  TestPropertyRoundTripCoversEveryKey
+    props_roundtrip_test.go:217: acltype         6 values
+    props_roundtrip_test.go:217: atime           2 values
+    props_roundtrip_test.go:217: compression   114 values
+    props_roundtrip_test.go:217: copies          3 values
+    props_roundtrip_test.go:217: dedup           6 values
+    props_roundtrip_test.go:217: logbias         4 values
+    props_roundtrip_test.go:217: recordsize     31 values
+    props_roundtrip_test.go:217: relatime        2 values
+    props_roundtrip_test.go:217: snapdir         3 values
+    props_roundtrip_test.go:217: sync            6 values
+    props_roundtrip_test.go:217: volblocksize   17 values
+    props_roundtrip_test.go:217: xattr           2 values
+--- PASS: TestPropertyRoundTripCoversEveryKey (0.01s)
+=== CONT  TestPropertyRoundTrip
+    props_roundtrip_test.go:112: PROPRT_SHARD 5/6: 32 of 196 rows
+--- PASS: TestExportSizeLimit (0.44s)
+=== CONT  TestPropertyPrefixIsValidated
+--- PASS: TestPropertyPrefixIsValidated (0.00s)
+=== CONT  TestOverlongParentIsRefused
+--- PASS: TestOverlongParentIsRefused (0.01s)
+=== CONT  TestMissingParentFailsCreateAndDeleteUnavailable
+    parent_test.go:47: needs the simulator (fault injection / call accounting)
+--- SKIP: TestMissingParentFailsCreateAndDeleteUnavailable (0.00s)
+=== CONT  TestMissingParentIsUnavailableForWholeScans
+    parent_test.go:16: needs the simulator (fault injection / call accounting)
+--- SKIP: TestMissingParentIsUnavailableForWholeScans (0.00s)
+=== CONT  TestReconcileSparesReceivedAndRenamed
+    ownership_test.go:263: needs the simulator (fault injection / call accounting)
+--- SKIP: TestReconcileSparesReceivedAndRenamed (0.00s)
+=== CONT  TestReceivedCopyIsNotOwned
+    ownership_test.go:192: needs the simulator (fault injection / call accounting)
+--- SKIP: TestReceivedCopyIsNotOwned (0.00s)
+=== CONT  TestVolumeNameMustMatchID
+--- PASS: TestCreateVolumeResumesInterruptedProvision (0.51s)
+=== CONT  TestCloneNeverAdoptsARacingDataset
+--- PASS: TestCloneNeverAdoptsARacingDataset (0.00s)
+=== CONT  TestOwnershipDifferentialModel
+    owndiff_test.go:310: needs the simulator (fault injection / call accounting)
+--- SKIP: TestOwnershipDifferentialModel (0.00s)
+=== CONT  TestOwnershipDifferentialCrashes
+    owndiff_test.go:266: needs the simulator (fault injection / call accounting)
+--- SKIP: TestOwnershipDifferentialCrashes (0.00s)
+=== CONT  TestCloneResizeFailureConverges
+    endpoint_test.go:550: needs the simulator (fault injection / call accounting)
+--- SKIP: TestCloneResizeFailureConverges (0.00s)
+=== CONT  TestUnknownFailureAfterAMutationIsRetryable
+    opcodes_test.go:65: needs the simulator (fault injection / call accounting)
+--- SKIP: TestUnknownFailureAfterAMutationIsRetryable (0.00s)
+=== CONT  TestBusyIsMappedByOperation
+    opcodes_test.go:28: needs the simulator (fault injection / call accounting)
+--- SKIP: TestBusyIsMappedByOperation (0.00s)
+=== CONT  TestRealGetJSONMatchesSim
+=== RUN   TestPropertyRoundTrip/filesystem/compression=lz4
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=lz4
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-4
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-4
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-1
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-1
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-7
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-7
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-13
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-13
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-19
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-19
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-6
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-6
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-30
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-30
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-90
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-90
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=1K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=1K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=8K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=8K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=64K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=64K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=512K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=512K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=4096K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=4096K
+=== RUN   TestPropertyRoundTrip/filesystem/atime=off
+=== PAUSE TestPropertyRoundTrip/filesystem/atime=off
+=== RUN   TestPropertyRoundTrip/filesystem/logbias=latency
+=== PAUSE TestPropertyRoundTrip/filesystem/logbias=latency
+=== RUN   TestPropertyRoundTrip/filesystem/xattr=sa
+=== PAUSE TestPropertyRoundTrip/filesystem/xattr=sa
+=== RUN   TestPropertyRoundTrip/filesystem/acltype=posixacl
+=== PAUSE TestPropertyRoundTrip/filesystem/acltype=posixacl
+=== RUN   TestPropertyRoundTrip/block/compression=lzjb
+=== PAUSE TestPropertyRoundTrip/block/compression=lzjb
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-1
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-1
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-7
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-7
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-4
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-4
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-10
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-10
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-16
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-16
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-3
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-3
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-9
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-9
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-60
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-60
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-1000
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-1000
+=== RUN   TestPropertyRoundTrip/block/dedup=on
+=== PAUSE TestPropertyRoundTrip/block/dedup=on
+=== RUN   TestPropertyRoundTrip/block/volblocksize=512
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=512
+=== RUN   TestPropertyRoundTrip/block/volblocksize=4K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=4K
+=== RUN   TestPropertyRoundTrip/block/volblocksize=32K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=32K
+=== CONT  TestDeleteVolumeSparesForeignSnapshots
+    foreign_test.go:18: needs the simulator (fault injection / call accounting)
+--- SKIP: TestDeleteVolumeSparesForeignSnapshots (0.00s)
+=== CONT  TestExpandThickFilesystemRetryAfterENOSPC
+--- PASS: TestCreateVolumeIdempotent (0.68s)
+=== CONT  TestMissingParentIsUnavailableNotAbsent
+    endpoint_test.go:581: needs the simulator (fault injection / call accounting)
+--- SKIP: TestMissingParentIsUnavailableNotAbsent (0.00s)
+=== CONT  TestConcurrentCreatesSerialize
+    endpoint_test.go:415: needs the simulator (fault injection / call accounting)
+--- SKIP: TestConcurrentCreatesSerialize (0.00s)
+=== CONT  TestInheritedOwnershipIsNotOwnership
+--- PASS: TestDeleteVolume (1.00s)
+=== CONT  TestPagination
+=== NAME  TestRealGetJSONMatchesSim
+    getjson_real_test.go:105: zfs get -j -p output (4268 bytes) matches the Sim byte for byte
+    getjson_real_test.go:173: EVIDENCE non-ASCII: é printed, U+1F600 dropped (UTF-8 locale): "{\"output_version\":{\"command\":\"zfs get\",\"vers_major\":0,\"vers_minor\":1},\"datasets\":{\"zep5/ep-TestRealGetJSONMatchesSim-1793122482246806921/u\":{\"name\":\"zep5/ep-TestRealGetJSONMatchesSim-1793122482246806921/u\",\"type\":\"FILESYSTEM\",\"pool\":\"zep5\",\"createtxg\":\"158\",\"properties\":{\"type\":{\"value\":\"filesystem\",\"source\":{\"type\":\"NONE\",\"data\":\"-\"}},\"jsontest:note\":{\"value\":\"caf\\u00e9 \",\"source\":{\"type\":\"LOCAL\",\"data\":\"-\"}}}}}}\n"
+    getjson_real_test.go:187: EVIDENCE invalid UTF-8: zfs set takes it, and the scan fails closed: zfs list zep5/ep-TestRealGetJSONMatchesSim-1793122482246806921/u: unknown: json scan at byte 353: dataset "zep5/ep-TestRealGetJSONMatchesSim-1793122482246806921/u": property "jsontest:note": jsontext: invalid character '\n' in string (expecting non-control character) within "/datasets/zep5~1ep-TestRealGetJSONMatchesSim-1793122482246806921~1u/properties/jsontest:note/value" after offset 366
+--- PASS: TestVolumeNameMustMatchID (0.96s)
+=== CONT  TestThickZvolReservationIgnoresCopies
+--- PASS: TestThickZvolReservationIgnoresCopies (0.00s)
+=== CONT  TestCloneOfLargeBlockZvolProvisions
+--- PASS: TestCloneOfLargeBlockZvolProvisions (0.00s)
+=== CONT  TestPlanCloneRoundsToSourceBlockSize
+=== RUN   TestPlanCloneRoundsToSourceBlockSize/volume_source,_2e9_on_128K
+=== PAUSE TestPlanCloneRoundsToSourceBlockSize/volume_source,_2e9_on_128K
+=== RUN   TestPlanCloneRoundsToSourceBlockSize/snapshot_source,_2e9_on_128K
+=== PAUSE TestPlanCloneRoundsToSourceBlockSize/snapshot_source,_2e9_on_128K
+=== RUN   TestPlanCloneRoundsToSourceBlockSize/limit_below_the_128K-rounded_size
+=== PAUSE TestPlanCloneRoundsToSourceBlockSize/limit_below_the_128K-rounded_size
+=== RUN   TestPlanCloneRoundsToSourceBlockSize/8K_source,_exact_size_at_the_limit
+=== PAUSE TestPlanCloneRoundsToSourceBlockSize/8K_source,_exact_size_at_the_limit
+=== RUN   TestPlanCloneRoundsToSourceBlockSize/8K_source,_24K_never_shrinks_below_the_source
+=== PAUSE TestPlanCloneRoundsToSourceBlockSize/8K_source,_24K_never_shrinks_below_the_source
+--- PASS: TestInheritedOwnershipIsNotOwnership (0.66s)
+=== CONT  TestSnapshotLifecycleWithClones
+=== CONT  TestExpand
+--- PASS: TestReconcileDigestCoversTheGuid (1.52s)
+=== CONT  TestLocalRoot
+=== RUN   TestLocalRoot/sets_owner_and_mode,_and_again
+=== RUN   TestLocalRoot/symlink_on_the_path
+=== RUN   TestLocalRoot/symlink_as_the_mountpoint
+=== RUN   TestLocalRoot/not_mounted
+=== RUN   TestLocalRoot/another_dataset
+=== RUN   TestLocalRoot/not_zfs
+=== RUN   TestLocalRoot/a_bind_mount_of_a_subdirectory
+=== RUN   TestLocalRoot/another_device
+=== RUN   TestLocalRoot/covered_by_a_later_mount
+=== RUN   TestLocalRoot/relative
+=== RUN   TestLocalRoot/unclean
+=== RUN   TestLocalRoot/missing
+--- PASS: TestLocalRoot (0.02s)
+    --- PASS: TestLocalRoot/sets_owner_and_mode,_and_again (0.00s)
+    --- PASS: TestLocalRoot/symlink_on_the_path (0.00s)
+    --- PASS: TestLocalRoot/symlink_as_the_mountpoint (0.00s)
+    --- PASS: TestLocalRoot/not_mounted (0.00s)
+    --- PASS: TestLocalRoot/another_dataset (0.00s)
+    --- PASS: TestLocalRoot/not_zfs (0.00s)
+    --- PASS: TestLocalRoot/a_bind_mount_of_a_subdirectory (0.00s)
+    --- PASS: TestLocalRoot/another_device (0.00s)
+    --- PASS: TestLocalRoot/covered_by_a_later_mount (0.00s)
+    --- PASS: TestLocalRoot/relative (0.00s)
+    --- PASS: TestLocalRoot/unclean (0.01s)
+    --- PASS: TestLocalRoot/missing (0.00s)
+=== CONT  TestSnapshotSizeIsItsSizeWhenTaken/filesystem
+--- PASS: TestRealGetJSONMatchesSim (1.37s)
+=== CONT  TestSnapshotSizeIsItsSizeWhenTaken/block
+--- PASS: TestFilesystemCloneNeverSmallerThanSource (1.80s)
+=== CONT  TestPlanCreateCommitsOnlyMounted/unmounted,_canmount=on
+=== CONT  TestPlanCreateCommitsOnlyMounted/mountpoint=none
+=== CONT  TestPlanCreateCommitsOnlyMounted/canmount=noauto:_the_operator's_choice
+=== CONT  TestPlanCreateCommitsOnlyMounted/canmount=off
+=== CONT  TestPlanCreateCommitsOnlyMounted/non-root:_nothing_can_mount
+=== CONT  TestPlanCreateCommitsOnlyMounted/mountpoint=legacy
+=== CONT  TestPlanCreateCommitsOnlyMounted/mounted
+--- PASS: TestPlanCreateCommitsOnlyMounted (0.00s)
+    --- PASS: TestPlanCreateCommitsOnlyMounted/unmounted,_canmount=on (0.00s)
+    --- PASS: TestPlanCreateCommitsOnlyMounted/mountpoint=none (0.00s)
+    --- PASS: TestPlanCreateCommitsOnlyMounted/canmount=noauto:_the_operator's_choice (0.00s)
+    --- PASS: TestPlanCreateCommitsOnlyMounted/canmount=off (0.00s)
+    --- PASS: TestPlanCreateCommitsOnlyMounted/non-root:_nothing_can_mount (0.00s)
+    --- PASS: TestPlanCreateCommitsOnlyMounted/mountpoint=legacy (0.00s)
+    --- PASS: TestPlanCreateCommitsOnlyMounted/mounted (0.00s)
+=== CONT  TestPropertyRoundTrip/filesystem/compression=lz4
+--- PASS: TestReserveRestoreIsIdempotent (1.87s)
+=== CONT  TestPropertyRoundTrip/filesystem/xattr=sa
+--- PASS: TestExpandThickFilesystemRetryAfterENOSPC (1.57s)
+=== CONT  TestPropertyRoundTrip/block/volblocksize=32K
+--- PASS: TestExpand (0.66s)
+=== CONT  TestPropertyRoundTrip/block/volblocksize=4K
+--- PASS: TestPagination (1.15s)
+=== CONT  TestPropertyRoundTrip/block/volblocksize=512
+=== CONT  TestPropertyRoundTrip/block/dedup=on
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-1000
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-60
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-9
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-3
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-16
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-10
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-4
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-7
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-1
+=== CONT  TestPropertyRoundTrip/block/compression=lzjb
+=== CONT  TestPropertyRoundTrip/filesystem/acltype=posixacl
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-90
+=== CONT  TestPropertyRoundTrip/filesystem/logbias=latency
+=== CONT  TestPropertyRoundTrip/filesystem/atime=off
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=4096K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=512K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=64K
+--- PASS: TestSnapshotSizeIsItsSizeWhenTaken (0.00s)
+    --- PASS: TestSnapshotSizeIsItsSizeWhenTaken/filesystem (1.20s)
+    --- PASS: TestSnapshotSizeIsItsSizeWhenTaken/block (1.21s)
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=8K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=1K
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-13
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-30
+--- PASS: TestSnapshotLifecycleWithClones (1.68s)
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-6
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-19
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-1
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-7
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-4
+=== CONT  TestPlanCloneRoundsToSourceBlockSize/8K_source,_24K_never_shrinks_below_the_source
+=== CONT  TestPlanCloneRoundsToSourceBlockSize/limit_below_the_128K-rounded_size
+=== CONT  TestPlanCloneRoundsToSourceBlockSize/8K_source,_exact_size_at_the_limit
+=== CONT  TestPlanCloneRoundsToSourceBlockSize/volume_source,_2e9_on_128K
+=== CONT  TestPlanCloneRoundsToSourceBlockSize/snapshot_source,_2e9_on_128K
+--- PASS: TestPlanCloneRoundsToSourceBlockSize (0.00s)
+    --- PASS: TestPlanCloneRoundsToSourceBlockSize/8K_source,_24K_never_shrinks_below_the_source (0.00s)
+    --- PASS: TestPlanCloneRoundsToSourceBlockSize/limit_below_the_128K-rounded_size (0.00s)
+    --- PASS: TestPlanCloneRoundsToSourceBlockSize/8K_source,_exact_size_at_the_limit (0.00s)
+    --- PASS: TestPlanCloneRoundsToSourceBlockSize/volume_source,_2e9_on_128K (0.00s)
+    --- PASS: TestPlanCloneRoundsToSourceBlockSize/snapshot_source,_2e9_on_128K (0.00s)
+--- PASS: TestPropertyRoundTrip (0.64s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=lz4 (0.35s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=32K (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=4K (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/xattr=sa (0.41s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=512 (0.30s)
+    --- PASS: TestPropertyRoundTrip/block/dedup=on (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-1000 (0.28s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-60 (0.31s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-9 (0.26s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-16 (0.19s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-3 (0.25s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-10 (0.24s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-7 (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/compression=lzjb (0.18s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-4 (0.25s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-1 (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/acltype=posixacl (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/logbias=latency (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/atime=off (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-90 (0.25s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=512K (0.20s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=4096K (0.24s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=8K (0.21s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=64K (0.24s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=1K (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-13 (0.23s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-19 (0.21s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-6 (0.23s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-30 (0.25s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-1 (0.22s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-7 (0.13s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-4 (0.13s)
+=== RUN   FuzzNFSRoundTrip
+=== RUN   FuzzNFSRoundTrip/seed#0
+=== RUN   FuzzNFSRoundTrip/seed#1
+=== RUN   FuzzNFSRoundTrip/seed#2
+--- PASS: FuzzNFSRoundTrip (0.00s)
+    --- PASS: FuzzNFSRoundTrip/seed#0 (0.00s)
+    --- PASS: FuzzNFSRoundTrip/seed#1 (0.00s)
+    --- PASS: FuzzNFSRoundTrip/seed#2 (0.00s)
+=== RUN   FuzzNFSVerifier
+=== RUN   FuzzNFSVerifier/seed#0
+=== RUN   FuzzNFSVerifier/seed#1
+=== RUN   FuzzNFSVerifier/seed#2
+--- PASS: FuzzNFSVerifier (0.00s)
+    --- PASS: FuzzNFSVerifier/seed#0 (0.00s)
+    --- PASS: FuzzNFSVerifier/seed#1 (0.00s)
+    --- PASS: FuzzNFSVerifier/seed#2 (0.00s)
+=== RUN   FuzzNFSEtabParse
+=== RUN   FuzzNFSEtabParse/seed#0
+=== RUN   FuzzNFSEtabParse/seed#1
+=== RUN   FuzzNFSEtabParse/seed#2
+=== RUN   FuzzNFSEtabParse/seed#3
+--- PASS: FuzzNFSEtabParse (0.00s)
+    --- PASS: FuzzNFSEtabParse/seed#0 (0.00s)
+    --- PASS: FuzzNFSEtabParse/seed#1 (0.00s)
+    --- PASS: FuzzNFSEtabParse/seed#2 (0.00s)
+    --- PASS: FuzzNFSEtabParse/seed#3 (0.00s)
+=== RUN   FuzzReconcileSafe
+=== RUN   FuzzReconcileSafe/seed#0
+=== RUN   FuzzReconcileSafe/seed#1
+=== RUN   FuzzReconcileSafe/seed#2
+=== RUN   FuzzReconcileSafe/seed#3
+=== RUN   FuzzReconcileSafe/seed#4
+=== RUN   FuzzReconcileSafe/seed#5
+=== RUN   FuzzReconcileSafe/seed#6
+=== RUN   FuzzReconcileSafe/seed#7
+--- PASS: FuzzReconcileSafe (0.06s)
+    --- PASS: FuzzReconcileSafe/seed#0 (0.01s)
+    --- PASS: FuzzReconcileSafe/seed#1 (0.00s)
+    --- PASS: FuzzReconcileSafe/seed#2 (0.01s)
+    --- PASS: FuzzReconcileSafe/seed#3 (0.01s)
+    --- PASS: FuzzReconcileSafe/seed#4 (0.01s)
+    --- PASS: FuzzReconcileSafe/seed#5 (0.01s)
+    --- PASS: FuzzReconcileSafe/seed#6 (0.01s)
+    --- PASS: FuzzReconcileSafe/seed#7 (0.00s)
+=== RUN   FuzzSimulateDestroyAllEquivalent
+=== RUN   FuzzSimulateDestroyAllEquivalent/seed#0
+=== RUN   FuzzSimulateDestroyAllEquivalent/seed#1
+=== RUN   FuzzSimulateDestroyAllEquivalent/seed#2
+=== RUN   FuzzSimulateDestroyAllEquivalent/seed#3
+--- PASS: FuzzSimulateDestroyAllEquivalent (0.00s)
+    --- PASS: FuzzSimulateDestroyAllEquivalent/seed#0 (0.00s)
+    --- PASS: FuzzSimulateDestroyAllEquivalent/seed#1 (0.00s)
+    --- PASS: FuzzSimulateDestroyAllEquivalent/seed#2 (0.00s)
+    --- PASS: FuzzSimulateDestroyAllEquivalent/seed#3 (0.00s)
+=== RUN   FuzzModel
+=== RUN   FuzzModel/seed#0
+=== RUN   FuzzModel/seed#1
+=== RUN   FuzzModel/seed#2
+--- PASS: FuzzModel (0.00s)
+    --- PASS: FuzzModel/seed#0 (0.00s)
+    --- PASS: FuzzModel/seed#1 (0.00s)
+    --- PASS: FuzzModel/seed#2 (0.00s)
+PASS
+##[endgroup]
+##[group]nfs-replay.log
+# NFS replay: zep4/nfsreplay-1793122480355728453/v (mountpoint /zep4/nfsreplay-1793122480355728453/v)
+
+export_features: 0x3ffff 0xf
+
+## off: sharenfs="off"
+  etab clients: 
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## on: sharenfs="on"
+  etab clients: *(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v *(rw,crossmnt)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## bare rw: sharenfs="rw"
+  etab clients: *(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v *(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## bare ro: sharenfs="ro"
+  etab clients: *(ro)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v *(ro)
+  mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=ro 10.9.9.9=ro
+
+## one /32 rw: sharenfs="rw=10.0.0.5/32"
+  etab clients: 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## one /32 ro: sharenfs="ro=10.0.0.5/32"
+  etab clients: 10.0.0.5/32(ro)
+  mountd model: 10.0.0.5=ro 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## one /16: sharenfs="rw=10.1.0.0/16"
+  etab clients: 10.1.0.0/16(rw)
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=rw 10.9.9.9=none
+
+## canonical mix: sharenfs="rw=10.0.0.5/32:10.0.0.6/32,ro=10.1.0.0/16"
+  etab clients: 10.0.0.5/32(rw) 10.0.0.6/32(rw) 10.1.0.0/16(ro)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=ro 10.9.9.9=none
+
+## same net rw then ro: sharenfs="rw=10.0.0.0/24,ro=10.0.0.0/24"
+  ref exportfs: duplicated export entries: 10.0.0.0/24:/zep4/nfsreplay-1793122480355728453/v (flags 0x425 vs 0x424)
+  etab clients: 10.0.0.0/24(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/24(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## same net ro then rw: sharenfs="ro=10.0.0.0/24,rw=10.0.0.0/24"
+  ref exportfs: duplicated export entries: 10.0.0.0/24:/zep4/nfsreplay-1793122480355728453/v (flags 0x424 vs 0x425)
+  etab clients: 10.0.0.0/24(ro)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/24(ro)
+  mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=none 10.9.9.9=none
+
+## overlap same mode: sharenfs="rw=10.0.0.0/24:10.0.0.5/32"
+  etab clients: 10.0.0.0/24(rw) 10.0.0.5/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/24(rw); /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## ro inside rw: sharenfs="rw=10.0.0.0/16,ro=10.0.0.0/24"
+  etab clients: 10.0.0.0/16(rw) 10.0.0.0/24(ro)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/16(rw); /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/24(ro)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## host bits set: sharenfs="rw=10.0.0.5/24"
+  etab clients: 10.0.0.5/24(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/24(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## prefix 024: sharenfs="rw=10.0.0.0/024"
+  etab clients: 10.0.0.0/024(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/024(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## prefix +24: sharenfs="rw=10.0.0.0/+24"
+  etab clients: 10.0.0.0/+24(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/+24(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## dotted mask: sharenfs="rw=10.0.0.0/255.255.255.0"
+  etab clients: 10.0.0.0/255.255.255.0(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/255.255.255.0(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## prefix 33: sharenfs="rw=10.0.0.0/33"
+  ref exportfs: Invalid IP address or prefix 10.0.0.0/33
+  ref exportfs: Invalid IP address or prefix 10.0.0.0/33
+  etab clients: 
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## bare address: sharenfs="rw=10.0.0.5"
+  etab clients: 10.0.0.5(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## address and /32: sharenfs="rw=10.0.0.5:10.0.0.5/32"
+  etab clients: 10.0.0.5(rw) 10.0.0.5/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5(rw); /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## at subnet: sharenfs="rw=@10.0.0.0/8"
+  etab clients: 10.0.0.0/8(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.0/8(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## empty list: sharenfs="rw="
+  ref exportfs: /etc/exports.d/zfs.exports: No host name given with /zep4/nfsreplay-1793122480355728453/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+  etab clients: *(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v *(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## trailing colon: sharenfs="rw=10.0.0.5/32:"
+  ref exportfs: /etc/exports.d/zfs.exports: No host name given with /zep4/nfsreplay-1793122480355728453/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+  etab clients: 10.0.0.5/32(rw) *(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v *(rw); /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## double colon: sharenfs="rw=10.0.0.5/32::10.0.0.6/32"
+  ref exportfs: /etc/exports.d/zfs.exports: No host name given with /zep4/nfsreplay-1793122480355728453/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+  etab clients: 10.0.0.5/32(rw) 10.0.0.6/32(rw) *(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v *(rw); /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw); /zep4/nfsreplay-1793122480355728453/v 10.0.0.6/32(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## star: sharenfs="rw=*"
+  etab clients: *(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v *(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## unresolvable name: sharenfs="rw=node-a.invalid"
+  ref exportfs: Failed to resolve node-a.invalid
+  ref exportfs: Failed to resolve node-a.invalid
+  etab clients: 
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## crossmnt: sharenfs="rw=10.0.0.5/32,crossmnt"
+  etab clients: 10.0.0.5/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw,crossmnt)
+  mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## no_root_squash: sharenfs="rw=10.0.0.5/32,no_root_squash"
+  etab clients: 10.0.0.5/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## root_mapping: sharenfs="ro=10.0.0.5/32,root_mapping=0"
+  etab clients: 10.0.0.5/32(ro)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(ro)
+  mountd model: 10.0.0.5=ro 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## sec krb5: sharenfs="sec=krb5,rw=10.0.0.5/32"
+  etab clients: 10.0.0.5/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## sec switch: sharenfs="rw=10.0.0.5/32,sec=krb5,ro=10.1.0.0/16"
+  etab clients: 10.0.0.5/32(rw) 10.1.0.0/16(ro)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw); /zep4/nfsreplay-1793122480355728453/v 10.1.0.0/16(ro)
+  mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## sec null: sharenfs="sec,rw=10.0.0.5/32"
+  ref exportfs: /etc/exports.d/zfs.exports: syntax error: bad option list
+  etab clients: 
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## hash host: sharenfs="rw=#"
+  ref exportfs: /etc/exports.d/zfs.exports: No options for /zep4/nfsreplay-1793122480355728453/v : suggest (sync) to avoid warning
+  etab clients: (ro)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v (ro)
+  mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=ro 10.9.9.9=ro
+
+## space in list: sharenfs="rw=10.0.0.5/32 10.0.0.6/32"
+  ref exportfs: /etc/exports.d/zfs.exports: No options for /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32: suggest 10.0.0.5/32(sync) to avoid warning
+  etab clients: 10.0.0.5/32(ro) 10.0.0.6/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(ro); /zep4/nfsreplay-1793122480355728453/v 10.0.0.6/32(rw)
+  mountd model: 10.0.0.5=ro 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+
+## quote: sharenfs="rw=\"10.0.0.5/32"
+  ref exportfs: /etc/exports.d/zfs.exports: syntax error: bad option list
+  etab clients: 
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## bad anonuid: sharenfs="anonuid=x,rw=10.0.0.5/32"
+  ref exportfs: /etc/exports.d/zfs.exports: /etc/exports.d/zfs.exports: bad anonuid "anonuid=x"
+  etab clients: 
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## no hosts: sharenfs="sync"
+  etab clients: 
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## unknown key: sharenfs="bogus"
+  zfs set refused: [zfs set sharenfs=bogus zep4/nfsreplay-1793122480355728453/v]: exit 255: cannot set property for 'zep4/nfsreplay-1793122480355728453/v': 'sharenfs' cannot be set to invalid options
+
+
+## empty: sharenfs=""
+  zfs set refused: [zfs set sharenfs= zep4/nfsreplay-1793122480355728453/v]: exit 255: cannot set property for 'zep4/nfsreplay-1793122480355728453/v': 'sharenfs' cannot be set to invalid options
+
+
+## ipv6 literal: sharenfs="rw=[::1]"
+  etab clients: ::1(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v ::1(rw)
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## mountpoint option: sharenfs="rw=10.0.0.5/32,mountpoint=/nonexistent"
+  etab clients: 10.0.0.5/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453/v 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+## parent on: sharenfs="rw=10.0.0.5/32" (parent "on")
+  etab clients: 10.0.0.5/32(rw)
+  verifier exposure: /zep4/nfsreplay-1793122480355728453 *(rw,crossmnt)
+  mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+
+## parent subnet: sharenfs="rw=10.0.0.5/32" (parent "rw=@10.0.0.0/8")
+  etab clients: 10.0.0.5/32(rw)
+  mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+
+42 cases, 0 failures, 0 ambiguities, 1.243s
+##[endgroup]
+##[group]guest load (test phase): cpu: busy 86% (user 29%, sys+irq 57%, steal 1%), idle 8%, iowait 6%
+guest load over the test phase: 8.4s on 4 vCPUs
+cpu: busy 86% (user 29%, sys+irq 57%, steal 1%), idle 8%, iowait 6%
+pressure (stalled share of the phase): cpu some 69%, cpu full 0%, io some 46%, io full 5%, memory some 0%, memory full 0%
+forks 4570 (543/s, 6.4 CPU-ms each), context switches 295539 (35100/s)
+interrupts 107016 (/proc/stat); /proc/interrupts 107020: LOC 62415 RES 2004 CAL 34097 TLB 8153
+block reads: pgpgin 38.2 MB, vda 0.7 MB, other (zvols) 37.5 MB; page faults 1347699 (major 4)
+cgroup CPU-s over the phase (cpu.stat usage, of it system):
+  root                 28.93  (sys 19.14)
+  tests                16.08  (sys 10.36)
+  init                  2.00  (sys 0.72)
+  system                6.47  (sys 3.64)
+  zfs-zed               3.29  (sys 1.85)
+  udisks2               0.31  (sys 0.19)
+  systemd-udevd         2.50  (sys 1.40)
+  systemd-journald      0.11  (sys 0.06)
+  rsyslog               0.03  (sys 0.02)
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu------- -----timestamp-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu                 UTC
+ 2  0      0 5522196 13332 208064    0    0 13612    54 5282    6  7 15 58  2 18  0 2026-10-27 17:34:40
+ 8  5      0 5427320 13400 221296    0    0   340   512 12289 35884 31 56 6 6  1  0 2026-10-27 17:34:41
+21  0      0 5392864 13400 231376    0    0  1312   156 12489 37302 34 54 6 6  0  0 2026-10-27 17:34:42
+19  4      0 5383260 13408 240620    0    0   132    28 10445 31195 34 60 2 5  1  0 2026-10-27 17:34:43
+26  7      0 5382912 13408 251360    0    0 16928    56 10494 33614 35 58 2 5  0  0 2026-10-27 17:34:44
+ 8  0      0 5375592 13408 265328    0    0  6776    24 12162 37869 27 63 4 6  0  0 2026-10-27 17:34:45
+17  4      0 5388468 13408 278304    0    0   312   104 17084 41471 23 55 14 7 1  0 2026-10-27 17:34:46
+ 2  0      0 5381976 13408 288480    0    0  4852    76 12210 33319 28 58 7 7  1  0 2026-10-27 17:34:47
+ 5  0      0 5372984 13408 299668    0    0  8132     0 12673 34129 27 58 7 7  0  0 2026-10-27 17:34:48
+##[endgroup]
+##[group]systemd-analyze
+Startup finished in 1.096s (kernel) + 8.317s (userspace) = 9.414s 
+graphical.target reached after 8.311s in userspace.
+2.484s systemd-networkd.service
+2.458s proc-fs-nfsd.mount
+1.620s systemd-networkd-wait-online.service
+1.606s systemd-binfmt.service
+ 995ms rsyslog.service
+ 992ms proc-sys-fs-binfmt_misc.mount
+ 858ms netplan-configure.service
+ 831ms chrony.service
+ 798ms udisks2.service
+ 774ms apparmor.service
+ 696ms networkd-dispatcher.service
+ 625ms nfsdcld.service
+ 522ms dev-hugepages.mount
+ 506ms dev-mqueue.mount
+ 483ms systemd-udevd.service
+systemd-udev-settle: inactive, masked-runtime; zfs-import-scan: masked-runtime
+wanted by:   
+systemd-modules-load: inactive, masked-runtime; zfs-load-module: inactive, masked-runtime; zfs-mount: inactive, masked-runtime; zfs-zed: active, enabled; 
+modules-load.d (not loaded at boot when masked): zfs i2c_dev msr 
+failed units: 
+sshd penalties: PerSourcePenaltyExemptList none PerSourcePenalties crash:90.000000 authfail:5.000000 noauth:1.000000 invaliduser:5.000000 grace-exceeded:10.000000 refuseconnection:10.000000 max:600.000000 min:15.000000 max-sources4:65536 max-sources6:65536 overflow:permissive overflow6:permissive 
+[   11.810315] ubuntu sshd-session[662]: Accepted publickey for ci from 10.0.2.2 port 41546 ssh2: ED25519 SHA256:Xvd0ju9evP9YSCFJ19ALhjrzGbdn63Iy0+xJJbjOr7E
+The time when unit became active or started is printed after the "@" character.
+The time the unit took to start is printed after the "+" character.
+
+ssh.service +35ms
+└─network.target @6.275s
+  └─systemd-networkd.service @3.786s +2.484s
+    └─systemd-networkd-resolve-hook.socket @3.751s +120us
+      └─network-pre.target @3.735s
+        └─netplan-configure.service @2.849s +858ms
+          └─local-fs.target @2.814s
+            └─local-fs-pre.target @2.810s
+              └─systemd-tmpfiles-setup-dev.service @2.760s +43ms
+                └─systemd-tmpfiles-setup-dev-early.service @2.546s +51ms
+                  └─kmod-static-nodes.service @2.130s +351ms
+                    └─systemd-journald.socket @1.871s +72us
+                      └─system.slice @1.598s
+                        └─-.slice @1.599s
+nfs-server.service +189ms
+└─rpc-statd.service @7.998s +54ms
+  └─network-online.target @7.917s
+    └─systemd-networkd-wait-online.service @6.292s +1.620s
+      └─systemd-networkd.service @3.786s +2.484s
+        └─systemd-networkd-resolve-hook.socket @3.751s +120us
+          └─network-pre.target @3.735s
+            └─netplan-configure.service @2.849s +858ms
+              └─local-fs.target @2.814s
+                └─local-fs-pre.target @2.810s
+                  └─systemd-tmpfiles-setup-dev.service @2.760s +43ms
+                    └─systemd-tmpfiles-setup-dev-early.service @2.546s +51ms
+                      └─kmod-static-nodes.service @2.130s +351ms
+                        └─systemd-journald.socket @1.871s +72us
+                          └─system.slice @1.598s
+                            └─-.slice @1.599s
+mounted under /boot: 
+##[endgroup]
+skip budget vm/endpoint: 24 skipped, 24 allowed (and 1 allowed in the tests another job runs)
+part 0/2: 39.85 s: shard 0 16.61 shard 1 11.62 shard 2 11.62
+part 1/2: 39.84 s: shard 3 14.72 shard 4 13.93 shard 5 11.19
+check-split: the plan puts each of 241 listed tests in exactly one of 6 shards (TestPropertyRoundTrip in all)
+check-split: list sha256 392b36773dfa3204, plan sha256 05c5c0f413be42af (every part's job prints the same)
+check-split: part 1/2: 204 top-level tests over 3 shard logs, each in exactly its planned shard (TestPropertyRoundTrip in all); TestPropertyRoundTrip: 97 of 196 subtests over shards 3..5 of 6, each exactly once, the other parts' shards run the rest
+##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+with:
+  name: real-zfs-report-endpoint-1
+  path: /home/runner/work/_temp/zfsvm/out/zfsdiff.log
+/out/test-times.tsv
+/out/*.list
+/out/*.plan
+/out/*.passed
+/out/load.txt
+/out/vmstat.txt
+
+  if-no-files-found: warn
+  retention-days: 30
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+(node:3302) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+With the provided path, there will be 5 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Beginning upload of artifact content to blob storage
+(node:3302) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+Uploaded bytes 10408
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact zip is b69bbf90cd401064a8136bdad8b4dbc251dffb000555fe258d576444e10f2830
+Finalizing artifact upload
+Artifact real-zfs-report-endpoint-1.zip successfully finalized. Artifact ID 12754983184
+Artifact real-zfs-report-endpoint-1 has been successfully uploaded! Final size is 10408 bytes. Artifact ID is 12754983184
+Artifact download URL: https://github.com/wommy/empty/actions/runs/40551837712/artifacts/12754983184
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.55.0
+Temporarily overriding HOME='/home/runner/work/_temp/910d86bd-9bc4-47ff-8e48-934310611edd' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/empty/empty
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Cleaning up orphan processes
+##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684, actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

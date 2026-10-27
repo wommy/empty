@@ -1,0 +1,1726 @@
+3Z Current runner version: '2.338.0'
+##[group]Runner Image Provisioner
+Hosted Compute Agent
+Version: 20261021.618
+Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+Build Date: 2026-10-21T00:45:21Z
+Worker ID: {cbb4789f-27b6-4d2c-a5d5-cda643f36a76}
+Region: southcentralus
+Cloud: Azure
+##[endgroup]
+##[group]Operating System
+Ubuntu
+24.04.5
+LTS
+##[endgroup]
+##[group]Runner Image
+Image: ubuntu-24.04
+Version: 20261012.334.1
+Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+##[endgroup]
+##[group]GITHUB_TOKEN Permissions
+Contents: read
+Metadata: read
+##[endgroup]
+Secret source: Actions
+Cache mode: write
+Prepare workflow directory
+Prepare all required actions
+Getting action download info
+Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+Download action repository 'actions/cache@5a3ec84eff668545956fd18022155c47e93e2684' (SHA:5a3ec84eff668545956fd18022155c47e93e2684)
+Download action repository 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+Complete job name: real ZFS 2.4 (endpoint 0/2, Ubuntu 26.10 VM)
+##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+with:
+  persist-credentials: false
+  repository: wommy/empty
+  token: ***
+  ssh-strict: true
+  ssh-user: git
+  clean: true
+  sparse-checkout-cone-mode: true
+  fetch-depth: 1
+  fetch-tags: false
+  show-progress: true
+  lfs: false
+  submodules: false
+  set-safe-directory: true
+  allow-unsafe-pr-checkout: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+Syncing repository: wommy/empty
+##[group]Getting Git version info
+Working directory is '/home/runner/work/empty/empty'
+[command]/usr/bin/git version
+git version 2.55.0
+##[endgroup]
+Temporarily overriding HOME='/home/runner/work/_temp/788c2812-90e7-4e40-a0ea-dfa7a46adfb6' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/empty/empty
+Deleting the contents of '/home/runner/work/empty/empty'
+##[group]Initializing the repository
+[command]/usr/bin/git init /home/runner/work/empty/empty
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: will change to "main" in Git 3.0. To configure the initial branch name
+hint: to use in all of your new repositories, which will suppress this warning,
+hint: call:
+hint:
+hint: 	git config --global init.defaultBranch <name>
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint: 	git branch -m <name>
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+Initialized empty Git repository in /home/runner/work/empty/empty/.git/
+[command]/usr/bin/git remote add origin https://github.com/wommy/empty
+##[endgroup]
+##[group]Disabling automatic garbage collection
+[command]/usr/bin/git config --local gc.auto 0
+##[endgroup]
+##[group]Setting up auth
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+##[endgroup]
+##[group]Fetching the repository
+[command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +654f7fded9e2493d0a12ca5b8627e860ae3a08d7:refs/remotes/pull/1/merge
+From https://github.com/wommy/empty
+ * [new ref]         654f7fded9e2493d0a12ca5b8627e860ae3a08d7 -> pull/1/merge
+##[endgroup]
+##[group]Determining the checkout info
+##[endgroup]
+[command]/usr/bin/git sparse-checkout disable
+[command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+##[group]Checking out the ref
+[command]/usr/bin/git checkout --progress --force refs/remotes/pull/1/merge
+Note: switching to 'refs/remotes/pull/1/merge'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 654f7fd Merge 6475fea4adb1e4df528398d720958870c3a4b352 into 2dff4422b6314a4453b50e332aa6dbc4623c9b90
+##[endgroup]
+[command]/usr/bin/git log -1 --format=%H
+654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+##[group]Removing auth
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+http.https://github.com/.extraheader
+[command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+##[endgroup]
+##[group]Run echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+[36;1mecho 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules[0m
+[36;1msudo udevadm control --reload-rules[0m
+[36;1msudo udevadm trigger --name-match=kvm[0m
+[36;1mtest -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"
+Prepare all required actions
+##[group]Run ./.github/actions/real-zfs-keys
+with:
+  series: stonking
+  build: current
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+##[start-action display=Run d=$RUNNER_TEMP/zfsvm-sums;id=keys.keys]
+##[group]Run d=$RUNNER_TEMP/zfsvm-sums
+[36;1md=$RUNNER_TEMP/zfsvm-sums[0m
+[36;1mmkdir -p "$d"[0m
+[36;1mbase=https://cloud-images.ubuntu.com/$SERIES/$BUILD[0m
+[36;1mcurl -fsSL --retry 3 -o "$d/SHA256SUMS" "$base/SHA256SUMS" & a=$![0m
+[36;1mcurl -fsSL --retry 3 -o "$d/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg" & b=$![0m
+[36;1m# the serial behind current/, fetched beside the sums: a cold run[0m
+[36;1m# downloads the image from that dated directory, once its sums[0m
+[36;1m# match these (ci/real-zfs-vm.sh), not from a current/ that may[0m
+[36;1m# have moved on since. Best effort: without it, current/ as before[0m
+[36;1mrm -f "${d:?}/build-info.txt"[0m
+[36;1mcurl -fsSL --retry 3 -o "$d/build-info.txt" "$base/unpacked/build-info.txt" & c=$![0m
+[36;1mwait "$a"[0m
+[36;1mwait "$b"[0m
+[36;1mwait "$c" || { rm -f "${d:?}/build-info.txt"; echo "::warning::no $base/unpacked/build-info.txt; a cold guest downloads the image from $base"; }[0m
+[36;1mgpgv --keyring /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg "$d/SHA256SUMS.gpg" "$d/SHA256SUMS"[0m
+[36;1mf=$SERIES-server-cloudimg-amd64.img[0m
+[36;1msum=$(awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }' "$d/SHA256SUMS")[0m
+[36;1mtest -n "$sum" || { echo "::error::$f is not in $base/SHA256SUMS"; exit 1; }[0m
+[36;1mh() { sha256sum "$1" | cut -c1-16; }[0m
+[36;1m# the guest part: provisioning inputs only, so editing how the[0m
+[36;1m# tests run must not reprovision. The ISO week bounds how far the[0m
+[36;1m# guest can lag zfsutils updates published after the image. v3: the[0m
+[36;1m# cache also holds the kernel and cmdline (until v5 also the[0m
+[36;1m# initrd) for a direct kernel boot. v4: one entry holds the guest and the qemu tree, so[0m
+[36;1m# the job pays one cache restore, not two (~2s of per-restore[0m
+[36;1m# overhead for 23 MB, run 40494213342). v5: a slimmer entry (899 ->[0m
+[36;1m# ~590 MB, ADR 0005 "cache bytes"): no initrd beside the disk, a[0m
+[36;1m# slimmed guest, a trimmed qemu tree[0m
+[36;1mguest=zfsvm-v5-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)[0m
+[36;1m# the qemu part: the tree is unpacked from this runner image's apt[0m
+[36;1m# view. A runner image release misses the full key but restores the[0m
+[36;1m# guest through the fallback prefix, with the old tree[0m
+[36;1mecho "vm=$guest-qemu-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"[0m
+[36;1mecho "vm-fallback=$guest-qemu-" >>"$GITHUB_OUTPUT"[0m
+[36;1mecho "sums=$d" >>"$GITHUB_OUTPUT"[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  SERIES: stonking
+  BUILD: current
+##[endgroup]
+gpgv: Signature made Sun Oct 25 19:09:06 2026 UTC
+gpgv:                using RSA key D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81
+gpgv: Good signature from "UEC Image Automatic Signing Key <cdimage@ubuntu.com>"
+##[end-action id=keys.keys;outcome=success;conclusion=success;duration_ms=560]
+##[group]Run actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+with:
+  path: /home/runner/work/_temp/zfsvm-cache
+
+
+  key: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-ubuntu24-20261023.334.3-815b695f1b3fe1df
+  restore-keys: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-
+  enableCrossOsArchive: false
+  fail-on-cache-miss: false
+  lookup-only: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+(node:2197) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Cache hit for: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-ubuntu24-20261023.334.3-815b695f1b3fe1df
+(node:2197) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+Received 83886080 of 566104595 (14.8%), 80.1 MBs/sec
+Received 130023424 of 566104595 (23.0%), 62.0 MBs/sec
+Received 130023424 of 566104595 (23.0%), 41.3 MBs/sec
+Received 192937984 of 566104595 (34.1%), 46.0 MBs/sec
+Received 264241152 of 566104595 (46.7%), 50.4 MBs/sec
+Received 293601280 of 566104595 (51.9%), 46.7 MBs/sec
+Received 398458880 of 566104595 (70.4%), 54.3 MBs/sec
+Received 452984832 of 566104595 (80.0%), 54.0 MBs/sec
+Received 532676608 of 566104595 (94.1%), 56.4 MBs/sec
+Received 561910291 of 566104595 (99.3%), 53.6 MBs/sec
+Received 566104595 of 566104595 (100.0%), 53.0 MBs/sec
+Cache Size: ~540 MB (566104595 B)
+[command]/usr/bin/tar -xf /home/runner/work/_temp/da7eed53-2943-4210-b838-813712930661/cache.tzst -P -C /home/runner/work/empty/empty --use-compress-program unzstd
+Cache restored successfully
+Cache restored from key: zfsvm-v5-stonking-46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33-2026-W44-33efa3e790a5f177-qemu-ubuntu24-20261023.334.3-815b695f1b3fe1df
+##[group]Run # verifies a restored tree, or builds one; apt is the fallback
+[36;1m# verifies a restored tree, or builds one; apt is the fallback[0m
+[36;1mif ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then[0m
+[36;1m  echo "$RUNNER_TEMP/qemu/bin" >>"$GITHUB_PATH"[0m
+[36;1m  echo "ok=1" >>"$GITHUB_OUTPUT"[0m
+[36;1melse[0m
+[36;1m  echo "::warning::qemu tree unusable; installing qemu from apt"[0m
+[36;1m  # empty, so the guest can still be saved; the next run falls[0m
+[36;1m  # back to apt again, as it did with no qemu entry[0m
+[36;1m  rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"[0m
+[36;1m  sudo apt-get update -qq[0m
+[36;1m  sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils[0m
+[36;1mfi[0m
+[36;1m# the cloud image signing key ships in ubuntu-keyring on 24.04[0m
+[36;1mtest -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+qemu-img version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+##[group]Run ci/real-zfs-vm.sh stonking current 2.4
+[36;1mci/real-zfs-vm.sh stonking current 2.4[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  ZFSVM_CACHE: /home/runner/work/_temp/zfsvm-cache
+  ZFSVM_PHASE: boot
+  ZFSVM_SUMS: /home/runner/work/_temp/zfsvm-sums
+  ZFSVM_SUITE: endpoint
+##[endgroup]
+gpgv: Signature made Sun Oct 25 19:09:06 2026 UTC
+gpgv:                using RSA key D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81
+gpgv: Good signature from "UEC Image Automatic Signing Key <cdimage@ubuntu.com>"
+warm guest: /home/runner/work/_temp/zfsvm-cache (provisioned from image 46d1d848cd8bfc05a2e729f70b02e0b4b97502bf7839b8928186d3c643c13b33)
+direct kernel boot: 7.3.0-9-generic, cmdline: root=LABEL=cloudimg-rootfs ro console=tty1 console=ttyS0, no initrd (root=/dev/vda1)
+guest started (qemu pid 2266); ZFSVM_PHASE=run continues
+Prepare all required actions
+Getting action download info
+##[group]Run ./.github/actions/setup-go
+with:
+  cache-name: real-zfs-endpoint
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+##[start-action display=start Go download;id=go.__run]
+##[group]Run rm -f "$RUNNER_TEMP/go.done" "$RUNNER_TEMP/go.status"
+[36;1mrm -f "$RUNNER_TEMP/go.done" "$RUNNER_TEMP/go.status"[0m
+[36;1msetsid nohup bash -c '[0m
+[36;1m  if curl -fsSL --retry 3 -o "$1/go.tgz" "$2" &&[0m
+[36;1m     echo "$3  $1/go.tgz" | sha256sum -c - &&[0m
+[36;1m     mkdir -p "$4" && tar -xzf "$1/go.tgz" -C "$4"; then[0m
+[36;1m    echo ok >"$1/go.status"[0m
+[36;1m  else[0m
+[36;1m    echo fail >"$1/go.status"[0m
+[36;1m  fi[0m
+[36;1m  touch "$1/go.done"[0m
+[36;1m' _ "$RUNNER_TEMP" "$GO_URL" "$GO_SHA256" "$HOME/sdk/go" >"$RUNNER_TEMP/go.log" 2>&1 &[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  GO_URL: https://github.com/actions/go-versions/releases/download/1.27.3-39437817176/go-1.27.3-linux-x64.tar.gz
+  GO_SHA256: d0fbe16a6a03fe5fbf5577ab36f95f0725af587820dca8a78e6edd4eb4e19fd6
+##[endgroup]
+##[end-action id=go.__run;outcome=success;conclusion=success;duration_ms=17]
+##[start-action display=restore Go caches;id=go.restore]
+##[group]Run actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+with:
+  path: ~/.cache/go-build
+
+
+  key: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+  restore-keys: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-
+
+
+  enableCrossOsArchive: false
+  fail-on-cache-miss: false
+  lookup-only: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+(node:2310) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Cache hit for: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+(node:2310) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+Received 23317320 of 23317320 (100.0%), 32.6 MBs/sec
+Cache Size: ~22 MB (23317320 B)
+[command]/usr/bin/tar -xf /home/runner/work/_temp/7e48cdc9-164f-4810-a999-a2b48b50d591/cache.tzst -P -C /home/runner/work/empty/empty --use-compress-program unzstd
+Cache restored successfully
+Cache restored from key: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-e961f7264448d821b1c3e37338078ef9a60373fe
+##[end-action id=go.restore;outcome=success;conclusion=success;duration_ms=1537]
+##[start-action display=decide whether the job saves;id=go.decide]
+##[group]Run # KEY is go1.27.3-<ns>-<go.sum hash>-<sha>: an entry for the same
+[36;1m# KEY is go1.27.3-<ns>-<go.sum hash>-<sha>: an entry for the same[0m
+[36;1m# go.sum is good enough, only the module's own packages rebuild[0m
+[36;1mcase $MATCHED in[0m
+[36;1m  "${KEY%-*}-"*) echo "save=false" ;;[0m
+[36;1m  *) echo "save=true" ;;[0m
+[36;1mesac >>"$GITHUB_OUTPUT"[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  KEY: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-654f7fded9e2493d0a12ca5b8627e860ae3a08d7
+  MATCHED: go1.27.3-real-zfs-endpoint-ccadfd6a838547b012e21a2cfae4c5d307d69e983210f1d8b08769c005bfce4a-e961f7264448d821b1c3e37338078ef9a60373fe
+##[endgroup]
+##[end-action id=go.decide;outcome=success;conclusion=success;duration_ms=15]
+##[start-action display=install Go 1.27.3;id=go.__run_2]
+##[group]Run for _ in $(seq 240); do [ -e "$RUNNER_TEMP/go.done" ] && break; sleep 0.25; done
+[36;1mfor _ in $(seq 240); do [ -e "$RUNNER_TEMP/go.done" ] && break; sleep 0.25; done[0m
+[36;1mcat "$RUNNER_TEMP/go.log" 2>/dev/null || true # the sha256sum verdict[0m
+[36;1mif [ "$(cat "$RUNNER_TEMP/go.status" 2>/dev/null)" != ok ]; then[0m
+[36;1m  echo "::error::Go download, sha256 check or extraction failed or did not finish"[0m
+[36;1m  exit 1[0m
+[36;1mfi[0m
+[36;1mecho "$HOME/sdk/go/bin" >> "$GITHUB_PATH"[0m
+[36;1m# never switch toolchains: go.mod says go 1.27.0, toolchain go1.27.3[0m
+[36;1mecho "GOTOOLCHAIN=local" >> "$GITHUB_ENV"[0m
+[36;1m"$HOME/sdk/go/bin/go" version[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+/home/runner/work/_temp/go.tgz: OK
+go version go1.27.3 linux/amd64
+##[end-action id=go.__run_2;outcome=success;conclusion=success;duration_ms=777]
+##[group]Run ci/real-zfs-vm.sh stonking current 2.4
+[36;1mci/real-zfs-vm.sh stonking current 2.4[0m
+shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+env:
+  GOTOOLCHAIN: local
+  ZFSVM_CACHE: /home/runner/work/_temp/zfsvm-cache
+  ZFSVM_PHASE: run
+  ZFSVM_SUITE: endpoint
+  ZFSVM_PART: 0/2
+##[endgroup]
+part 0/2: 39.85 s: shard 0 16.61 shard 1 11.62 shard 2 11.62
+part 1/2: 39.84 s: shard 3 14.72 shard 4 13.93 shard 5 11.19
+timeline: test binaries built at +6032ms
+timeline: login prompt at +10558ms
+timeline: ssh up (1 probes) at +11179ms
+status: disabled
+extended_status: disabled
+boot_status_code: disabled-by-marker-file
+detail: Cloud-init disabled by /etc/cloud/cloud-init.disabled
+errors: []
+recoverable_errors: {}
+build_name: server
+serial: 20261025
+7.3.0-9-generic
+ls: cannot access '/etc/exports.d': No such file or directory
+-rw-r--r-- 1 root root 0 Oct 27 13:56 /var/lib/nfs/etab
+modprobe zfs: 492ms, exit 0
+timeline: zfs loaded at +11706ms
+zfs-2.4.4-1ubuntu4
+zfs-kmod-2.4.4-1ubuntu4
+guest CPU mitigations: 4 of 19 vulnerable
+zfs userland 2.4.4-1ubuntu4, kmod 2.4.4-1ubuntu4
+timeline: nfs-server active at +11756ms
+nfsd threads: 16
+start at uptime 11.09s
+guest load over the test phase: 6.3s on 4 vCPUs
+cpu: busy 96% (user 33%, sys+irq 61%, steal 2%), idle 2%, iowait 2%
+pressure (stalled share of the phase): cpu some 82%, cpu full 0%, io some 68%, io full 2%, memory some 0%, memory full 0%
+forks 4713 (743/s, 5.2 CPU-ms each), context switches 287908 (45411/s)
+interrupts 84982 (/proc/stat); /proc/interrupts 84981: LOC 63292 RES 972 CAL 14625 TLB 5850
+block reads: pgpgin 68.9 MB, vda 0.7 MB, other (zvols) 68.3 MB; page faults 1612156 (major 4)
+cgroup CPU-s over the phase (cpu.stat usage, of it system):
+  root                 23.96  (sys 15.54)
+  tests                15.15  (sys 9.27)
+  init                  1.15  (sys 0.33)
+  system                4.54  (sys 2.79)
+  zfs-zed               1.66  (sys 1.02)
+  udisks2               0.31  (sys 0.16)
+  systemd-udevd         2.30  (sys 1.41)
+  systemd-journald      0.09  (sys 0.04)
+  rsyslog               0.03  (sys 0.01)
+endpoint.2 rc=0 11.28s..17.37s
+endpoint.1 rc=0 11.19s..17.44s
+endpoint.0 rc=0 11.15s..17.44s
+end at uptime 17.54s, rc 0
+##[group]endpoint.0.log
+=== RUN   TestCrashAtEveryMutationConverges
+=== RUN   TestCrashAtEveryMutationConverges/create-fs
+=== PAUSE TestCrashAtEveryMutationConverges/create-fs
+=== RUN   TestCrashAtEveryMutationConverges/create-fs-reserve
+=== PAUSE TestCrashAtEveryMutationConverges/create-fs-reserve
+=== RUN   TestCrashAtEveryMutationConverges/create-fs-props
+=== PAUSE TestCrashAtEveryMutationConverges/create-fs-props
+=== RUN   TestCrashAtEveryMutationConverges/create-zvol-sparse
+=== PAUSE TestCrashAtEveryMutationConverges/create-zvol-sparse
+=== RUN   TestCrashAtEveryMutationConverges/create-zvol-thick
+=== PAUSE TestCrashAtEveryMutationConverges/create-zvol-thick
+=== RUN   TestCrashAtEveryMutationConverges/restore-fs-grow
+=== PAUSE TestCrashAtEveryMutationConverges/restore-fs-grow
+=== RUN   TestCrashAtEveryMutationConverges/restore-fs-reserve
+=== PAUSE TestCrashAtEveryMutationConverges/restore-fs-reserve
+=== RUN   TestCrashAtEveryMutationConverges/restore-zvol-grow
+=== PAUSE TestCrashAtEveryMutationConverges/restore-zvol-grow
+=== RUN   TestCrashAtEveryMutationConverges/clone-volume-fs-reserve
+=== PAUSE TestCrashAtEveryMutationConverges/clone-volume-fs-reserve
+=== RUN   TestCrashAtEveryMutationConverges/clone-volume-zvol-thick
+=== PAUSE TestCrashAtEveryMutationConverges/clone-volume-zvol-thick
+=== RUN   TestCrashAtEveryMutationConverges/snapshot
+=== PAUSE TestCrashAtEveryMutationConverges/snapshot
+=== RUN   TestCrashAtEveryMutationConverges/expand-zvol
+=== PAUSE TestCrashAtEveryMutationConverges/expand-zvol
+=== RUN   TestCrashAtEveryMutationConverges/delete-volume
+=== PAUSE TestCrashAtEveryMutationConverges/delete-volume
+=== RUN   TestCrashAtEveryMutationConverges/delete-clone-releases-source
+=== PAUSE TestCrashAtEveryMutationConverges/delete-clone-releases-source
+=== RUN   TestCrashAtEveryMutationConverges/delete-restored-clone
+=== PAUSE TestCrashAtEveryMutationConverges/delete-restored-clone
+=== RUN   TestCrashAtEveryMutationConverges/create-nfs-root
+=== PAUSE TestCrashAtEveryMutationConverges/create-nfs-root
+=== RUN   TestCrashAtEveryMutationConverges/restore-nfs-root-mode
+=== PAUSE TestCrashAtEveryMutationConverges/restore-nfs-root-mode
+=== RUN   TestCrashAtEveryMutationConverges/publish
+=== PAUSE TestCrashAtEveryMutationConverges/publish
+=== RUN   TestCrashAtEveryMutationConverges/reconcile
+=== PAUSE TestCrashAtEveryMutationConverges/reconcile
+=== CONT  TestCrashAtEveryMutationConverges/create-fs
+=== RUN   TestCrashAtEveryMutationConverges/create-fs/uninterrupted
+=== CONT  TestCrashAtEveryMutationConverges/snapshot
+=== CONT  TestCrashAtEveryMutationConverges/create-nfs-root
+=== CONT  TestCrashAtEveryMutationConverges/reconcile
+=== CONT  TestCrashAtEveryMutationConverges/publish
+=== CONT  TestCrashAtEveryMutationConverges/restore-nfs-root-mode
+=== CONT  TestCrashAtEveryMutationConverges/restore-fs-grow
+=== CONT  TestCrashAtEveryMutationConverges/clone-volume-zvol-thick
+=== RUN   TestCrashAtEveryMutationConverges/snapshot/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/create-nfs-root/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/reconcile/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/publish/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/restore-nfs-root-mode/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/restore-fs-grow/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/clone-volume-zvol-thick/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/create-fs/k0-before
+=== PAUSE TestCrashAtEveryMutationConverges/create-fs/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/clone-volume-fs-reserve
+=== RUN   TestCrashAtEveryMutationConverges/clone-volume-fs-reserve/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/create-nfs-root/k1-after
+=== PAUSE TestCrashAtEveryMutationConverges/create-nfs-root/k1-after
+=== CONT  TestCrashAtEveryMutationConverges/restore-zvol-grow
+=== RUN   TestCrashAtEveryMutationConverges/restore-zvol-grow/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/publish/k0-after
+=== PAUSE TestCrashAtEveryMutationConverges/publish/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/restore-fs-reserve
+=== RUN   TestCrashAtEveryMutationConverges/restore-fs-reserve/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/snapshot/k0-before
+=== PAUSE TestCrashAtEveryMutationConverges/snapshot/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/create-zvol-sparse
+=== RUN   TestCrashAtEveryMutationConverges/create-zvol-sparse/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/clone-volume-zvol-thick/k0-after
+=== PAUSE TestCrashAtEveryMutationConverges/clone-volume-zvol-thick/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/create-zvol-thick
+=== RUN   TestCrashAtEveryMutationConverges/create-zvol-thick/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k2-before
+=== PAUSE TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k2-before
+=== CONT  TestCrashAtEveryMutationConverges/delete-clone-releases-source
+=== RUN   TestCrashAtEveryMutationConverges/delete-clone-releases-source/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/create-zvol-sparse/k1-after
+=== PAUSE TestCrashAtEveryMutationConverges/create-zvol-sparse/k1-after
+=== CONT  TestCrashAtEveryMutationConverges/delete-restored-clone
+=== RUN   TestCrashAtEveryMutationConverges/delete-restored-clone/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/restore-fs-grow/k2-after
+=== PAUSE TestCrashAtEveryMutationConverges/restore-fs-grow/k2-after
+=== CONT  TestCrashAtEveryMutationConverges/delete-volume
+=== RUN   TestCrashAtEveryMutationConverges/delete-volume/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/create-zvol-thick/k0-before
+=== PAUSE TestCrashAtEveryMutationConverges/create-zvol-thick/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/create-fs-props
+=== RUN   TestCrashAtEveryMutationConverges/create-fs-props/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/restore-zvol-grow/k0-after
+=== PAUSE TestCrashAtEveryMutationConverges/restore-zvol-grow/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/expand-zvol
+=== RUN   TestCrashAtEveryMutationConverges/expand-zvol/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/clone-volume-fs-reserve/k0-before
+=== PAUSE TestCrashAtEveryMutationConverges/clone-volume-fs-reserve/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/create-fs-reserve
+=== RUN   TestCrashAtEveryMutationConverges/create-fs-reserve/uninterrupted
+=== RUN   TestCrashAtEveryMutationConverges/restore-fs-reserve/k0-before
+=== PAUSE TestCrashAtEveryMutationConverges/restore-fs-reserve/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/create-fs/k0-before
+=== RUN   TestCrashAtEveryMutationConverges/delete-volume/k0-before
+=== PAUSE TestCrashAtEveryMutationConverges/delete-volume/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/create-nfs-root/k1-after
+=== RUN   TestCrashAtEveryMutationConverges/create-fs-props/k1-before
+=== PAUSE TestCrashAtEveryMutationConverges/create-fs-props/k1-before
+=== CONT  TestCrashAtEveryMutationConverges/publish/k0-after
+=== RUN   TestCrashAtEveryMutationConverges/reconcile/k1-before
+=== PAUSE TestCrashAtEveryMutationConverges/reconcile/k1-before
+=== CONT  TestCrashAtEveryMutationConverges/snapshot/k0-before
+=== RUN   TestCrashAtEveryMutationConverges/create-fs-reserve/k0-after
+=== PAUSE TestCrashAtEveryMutationConverges/create-fs-reserve/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/clone-volume-zvol-thick/k0-after
+=== RUN   TestCrashAtEveryMutationConverges/expand-zvol/k0-after
+=== PAUSE TestCrashAtEveryMutationConverges/expand-zvol/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k2-before
+=== CONT  TestCrashAtEveryMutationConverges/create-zvol-sparse/k1-after
+=== RUN   TestCrashAtEveryMutationConverges/delete-restored-clone/k0-before
+=== PAUSE TestCrashAtEveryMutationConverges/delete-restored-clone/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/restore-fs-grow/k2-after
+=== RUN   TestCrashAtEveryMutationConverges/delete-clone-releases-source/k0-after
+=== PAUSE TestCrashAtEveryMutationConverges/delete-clone-releases-source/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/create-zvol-thick/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/restore-zvol-grow/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/clone-volume-fs-reserve/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/restore-fs-reserve/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/delete-volume/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/create-fs-props/k1-before
+=== CONT  TestCrashAtEveryMutationConverges/reconcile/k1-before
+=== CONT  TestCrashAtEveryMutationConverges/create-fs-reserve/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/expand-zvol/k0-after
+=== CONT  TestCrashAtEveryMutationConverges/delete-restored-clone/k0-before
+=== CONT  TestCrashAtEveryMutationConverges/delete-clone-releases-source/k0-after
+--- PASS: TestCrashAtEveryMutationConverges (0.00s)
+    --- PASS: TestCrashAtEveryMutationConverges/create-fs (0.44s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-fs/uninterrupted (0.44s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-fs/k0-before (0.45s)
+    --- PASS: TestCrashAtEveryMutationConverges/create-nfs-root (0.48s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-nfs-root/uninterrupted (0.48s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-nfs-root/k1-after (0.59s)
+    --- PASS: TestCrashAtEveryMutationConverges/publish (0.55s)
+        --- PASS: TestCrashAtEveryMutationConverges/publish/uninterrupted (0.54s)
+        --- PASS: TestCrashAtEveryMutationConverges/publish/k0-after (0.66s)
+    --- PASS: TestCrashAtEveryMutationConverges/snapshot (0.57s)
+        --- PASS: TestCrashAtEveryMutationConverges/snapshot/uninterrupted (0.57s)
+        --- PASS: TestCrashAtEveryMutationConverges/snapshot/k0-before (0.66s)
+    --- PASS: TestCrashAtEveryMutationConverges/create-zvol-sparse (0.43s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-zvol-sparse/uninterrupted (0.43s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-zvol-sparse/k1-after (0.55s)
+    --- PASS: TestCrashAtEveryMutationConverges/create-zvol-thick (0.43s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-zvol-thick/uninterrupted (0.43s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-zvol-thick/k0-before (0.59s)
+    --- PASS: TestCrashAtEveryMutationConverges/clone-volume-zvol-thick (0.79s)
+        --- PASS: TestCrashAtEveryMutationConverges/clone-volume-zvol-thick/uninterrupted (0.78s)
+        --- PASS: TestCrashAtEveryMutationConverges/clone-volume-zvol-thick/k0-after (1.25s)
+    --- PASS: TestCrashAtEveryMutationConverges/restore-nfs-root-mode (0.85s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-nfs-root-mode/uninterrupted (0.84s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-nfs-root-mode/k2-before (1.16s)
+    --- PASS: TestCrashAtEveryMutationConverges/create-fs-props (0.53s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-fs-props/uninterrupted (0.53s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-fs-props/k1-before (0.68s)
+    --- PASS: TestCrashAtEveryMutationConverges/restore-fs-grow (1.10s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-fs-grow/uninterrupted (1.10s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-fs-grow/k2-after (1.36s)
+    --- PASS: TestCrashAtEveryMutationConverges/delete-volume (0.60s)
+        --- PASS: TestCrashAtEveryMutationConverges/delete-volume/uninterrupted (0.60s)
+        --- PASS: TestCrashAtEveryMutationConverges/delete-volume/k0-before (0.93s)
+    --- PASS: TestCrashAtEveryMutationConverges/restore-zvol-grow (0.94s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-zvol-grow/uninterrupted (0.94s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-zvol-grow/k0-after (1.33s)
+    --- PASS: TestCrashAtEveryMutationConverges/create-fs-reserve (0.37s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-fs-reserve/uninterrupted (0.37s)
+        --- PASS: TestCrashAtEveryMutationConverges/create-fs-reserve/k0-after (0.56s)
+    --- PASS: TestCrashAtEveryMutationConverges/clone-volume-fs-reserve (0.99s)
+        --- PASS: TestCrashAtEveryMutationConverges/clone-volume-fs-reserve/uninterrupted (0.99s)
+        --- PASS: TestCrashAtEveryMutationConverges/clone-volume-fs-reserve/k0-before (1.30s)
+    --- PASS: TestCrashAtEveryMutationConverges/expand-zvol (0.51s)
+        --- PASS: TestCrashAtEveryMutationConverges/expand-zvol/uninterrupted (0.51s)
+        --- PASS: TestCrashAtEveryMutationConverges/expand-zvol/k0-after (0.49s)
+    --- PASS: TestCrashAtEveryMutationConverges/restore-fs-reserve (1.01s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-fs-reserve/uninterrupted (1.01s)
+        --- PASS: TestCrashAtEveryMutationConverges/restore-fs-reserve/k0-before (1.45s)
+    --- PASS: TestCrashAtEveryMutationConverges/delete-restored-clone (1.01s)
+        --- PASS: TestCrashAtEveryMutationConverges/delete-restored-clone/uninterrupted (1.00s)
+        --- PASS: TestCrashAtEveryMutationConverges/delete-restored-clone/k0-before (0.81s)
+    --- PASS: TestCrashAtEveryMutationConverges/delete-clone-releases-source (1.18s)
+        --- PASS: TestCrashAtEveryMutationConverges/delete-clone-releases-source/uninterrupted (1.18s)
+        --- PASS: TestCrashAtEveryMutationConverges/delete-clone-releases-source/k0-after (1.02s)
+    --- PASS: TestCrashAtEveryMutationConverges/reconcile (1.77s)
+        --- PASS: TestCrashAtEveryMutationConverges/reconcile/uninterrupted (1.77s)
+        --- PASS: TestCrashAtEveryMutationConverges/reconcile/k1-before (1.53s)
+=== RUN   TestPropertyRoundTrip
+=== PAUSE TestPropertyRoundTrip
+=== CONT  TestPropertyRoundTrip
+    props_roundtrip_test.go:112: PROPRT_SHARD 0/6: 33 of 196 rows
+=== RUN   TestPropertyRoundTrip/filesystem/compression=on
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=on
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-5
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-5
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-2
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-2
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-8
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-8
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-14
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-14
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-1
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-1
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-7
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-7
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-40
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-40
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-100
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-100
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=2048
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=2048
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=16384
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=16384
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=131072
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=131072
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=1048576
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=1048576
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=8388608
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=8388608
+=== RUN   TestPropertyRoundTrip/filesystem/relatime=on
+=== PAUSE TestPropertyRoundTrip/filesystem/relatime=on
+=== RUN   TestPropertyRoundTrip/filesystem/logbias=throughput
+=== PAUSE TestPropertyRoundTrip/filesystem/logbias=throughput
+=== RUN   TestPropertyRoundTrip/filesystem/acltype=off
+=== PAUSE TestPropertyRoundTrip/filesystem/acltype=off
+=== RUN   TestPropertyRoundTrip/filesystem/snapdir=disabled
+=== PAUSE TestPropertyRoundTrip/filesystem/snapdir=disabled
+=== RUN   TestPropertyRoundTrip/block/compression=gzip
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-2
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-2
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-8
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-8
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-5
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-5
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-11
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-11
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-17
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-17
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-4
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-4
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-10
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-10
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-70
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-70
+=== RUN   TestPropertyRoundTrip/block/sync=standard
+=== PAUSE TestPropertyRoundTrip/block/sync=standard
+=== RUN   TestPropertyRoundTrip/block/dedup=off
+=== PAUSE TestPropertyRoundTrip/block/dedup=off
+=== RUN   TestPropertyRoundTrip/block/volblocksize=1024
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=1024
+=== RUN   TestPropertyRoundTrip/block/volblocksize=8192
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=8192
+=== RUN   TestPropertyRoundTrip/block/volblocksize=65536
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=65536
+=== CONT  TestPropertyRoundTrip/filesystem/compression=on
+=== CONT  TestPropertyRoundTrip/filesystem/acltype=off
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-100
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-14
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-40
+=== CONT  TestPropertyRoundTrip/filesystem/logbias=throughput
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-7
+=== CONT  TestPropertyRoundTrip/filesystem/relatime=on
+=== CONT  TestPropertyRoundTrip/block/volblocksize=65536
+=== CONT  TestPropertyRoundTrip/block/volblocksize=8192
+=== CONT  TestPropertyRoundTrip/block/volblocksize=1024
+=== CONT  TestPropertyRoundTrip/block/dedup=off
+=== CONT  TestPropertyRoundTrip/block/sync=standard
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-70
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-10
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-4
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-17
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-11
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-5
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-8
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-2
+=== CONT  TestPropertyRoundTrip/block/compression=gzip
+=== CONT  TestPropertyRoundTrip/filesystem/snapdir=disabled
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=131072
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=8388608
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=1048576
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-1
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=16384
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-2
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-8
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=2048
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-5
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd
+--- PASS: TestPropertyRoundTrip (0.42s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-14 (0.17s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-40 (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-100 (0.30s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-7 (0.30s)
+    --- PASS: TestPropertyRoundTrip/filesystem/logbias=throughput (0.30s)
+    --- PASS: TestPropertyRoundTrip/filesystem/acltype=off (0.39s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=65536 (0.23s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=on (0.40s)
+    --- PASS: TestPropertyRoundTrip/filesystem/relatime=on (0.43s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=1024 (0.25s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=8192 (0.40s)
+    --- PASS: TestPropertyRoundTrip/block/dedup=off (0.32s)
+    --- PASS: TestPropertyRoundTrip/block/sync=standard (0.32s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-70 (0.29s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-2 (0.11s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-10 (0.38s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-17 (0.35s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-4 (0.39s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-5 (0.24s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-8 (0.24s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-11 (0.36s)
+    --- PASS: TestPropertyRoundTrip/filesystem/snapdir=disabled (0.24s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=131072 (0.25s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=16384 (0.20s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip (0.38s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=1048576 (0.32s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=8388608 (0.38s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-2 (0.31s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=2048 (0.21s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-1 (0.40s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-5 (0.18s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-8 (0.26s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd (0.19s)
+PASS
+##[endgroup]
+##[group]endpoint.1.log
+=== RUN   TestAdv4PartialDesiredSetMassDeletes
+--- PASS: TestAdv4PartialDesiredSetMassDeletes (0.01s)
+=== RUN   TestWholeParentScansAreBounded
+=== PAUSE TestWholeParentScansAreBounded
+=== RUN   TestPlanPublishExport
+=== PAUSE TestPlanPublishExport
+=== RUN   TestGoldenPlans
+--- PASS: TestGoldenPlans (0.01s)
+=== RUN   TestPlanReserves
+=== PAUSE TestPlanReserves
+=== RUN   TestMinFreeBytesGuard
+=== PAUSE TestMinFreeBytesGuard
+=== RUN   TestPlanCreateVolumeNFSRoot
+=== PAUSE TestPlanCreateVolumeNFSRoot
+=== RUN   TestCreateVolumeCatchesDatasetReplacedBeforeCommit
+=== PAUSE TestCreateVolumeCatchesDatasetReplacedBeforeCommit
+=== RUN   TestResumeConvergesThickToThin
+=== PAUSE TestResumeConvergesThickToThin
+=== RUN   TestDefaultPropertyPrefixIsOurOwn
+=== PAUSE TestDefaultPropertyPrefixIsOurOwn
+=== RUN   TestPropertyRoundTrip
+=== PAUSE TestPropertyRoundTrip
+=== RUN   TestReconcileCollectsAbandonedCreate
+=== PAUSE TestReconcileCollectsAbandonedCreate
+=== RUN   TestReconcileCollectsLeakedCloneSource
+=== PAUSE TestReconcileCollectsLeakedCloneSource
+=== RUN   TestReconcileNeedsADigestToCollectUndesired
+=== PAUSE TestReconcileNeedsADigestToCollectUndesired
+=== RUN   TestZFSDiffReplay
+    zfsdiff_replay_test.go:81: zfsdiff replay: 21 sequences: agree=16 both-wrong=4 sim-bug=1 (3.688s)
+--- PASS: TestZFSDiffReplay (3.77s)
+=== CONT  TestWholeParentScansAreBounded
+=== CONT  TestReconcileNeedsADigestToCollectUndesired
+=== CONT  TestReconcileCollectsLeakedCloneSource
+=== CONT  TestReconcileCollectsAbandonedCreate
+=== CONT  TestCreateVolumeCatchesDatasetReplacedBeforeCommit
+=== RUN   TestCreateVolumeCatchesDatasetReplacedBeforeCommit/filesystem
+=== PAUSE TestCreateVolumeCatchesDatasetReplacedBeforeCommit/filesystem
+=== RUN   TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block
+=== PAUSE TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block
+=== CONT  TestCreateVolumeCatchesDatasetReplacedBeforeCommit/filesystem
+=== CONT  TestPlanCreateVolumeNFSRoot
+=== RUN   TestPlanCreateVolumeNFSRoot/create
+=== RUN   TestPlanCreateVolumeNFSRoot/create,_without_mounting_rights,_still_leaves_the_commit_to_the_resume
+=== RUN   TestPlanCreateVolumeNFSRoot/resume_sets_the_root,_then_commits
+=== RUN   TestPlanCreateVolumeNFSRoot/only_what_is_asked
+=== RUN   TestPlanCreateVolumeNFSRoot/unmounted:_mount,_then_the_root,_then_commit
+=== RUN   TestPlanCreateVolumeNFSRoot/unmounted,_and_the_endpoint_cannot_mount
+=== RUN   TestPlanCreateVolumeNFSRoot/no_mountpoint
+=== RUN   TestPlanCreateVolumeNFSRoot/canmount_off
+=== RUN   TestPlanCreateVolumeNFSRoot/committed:_not_compared
+=== RUN   TestPlanCreateVolumeNFSRoot/no_root_asked:_no_set-root
+--- PASS: TestPlanCreateVolumeNFSRoot (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/create (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/create,_without_mounting_rights,_still_leaves_the_commit_to_the_resume (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/resume_sets_the_root,_then_commits (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/only_what_is_asked (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/unmounted:_mount,_then_the_root,_then_commit (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/unmounted,_and_the_endpoint_cannot_mount (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/no_mountpoint (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/canmount_off (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/committed:_not_compared (0.00s)
+    --- PASS: TestPlanCreateVolumeNFSRoot/no_root_asked:_no_set-root (0.00s)
+=== CONT  TestMinFreeBytesGuard
+=== CONT  TestPropertyRoundTrip
+=== CONT  TestResumeConvergesThickToThin
+=== NAME  TestPropertyRoundTrip
+    props_roundtrip_test.go:112: PROPRT_SHARD 1/6: 33 of 196 rows
+--- PASS: TestMinFreeBytesGuard (0.03s)
+--- PASS: TestWholeParentScansAreBounded (0.03s)
+=== CONT  TestDefaultPropertyPrefixIsOurOwn
+--- PASS: TestDefaultPropertyPrefixIsOurOwn (0.00s)
+=== CONT  TestPlanReserves
+--- PASS: TestPlanReserves (0.00s)
+=== CONT  TestPlanPublishExport
+=== CONT  TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block
+    commitswap_test.go:49: needs the simulator (fault injection / call accounting)
+=== RUN   TestPropertyRoundTrip/filesystem/compression=off
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=off
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-6
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-6
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-3
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-3
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-9
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-9
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-15
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-15
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-2
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-2
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-8
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-8
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-50
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-50
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-500
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-500
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=2K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=2K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=16K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=16K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=128K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=128K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=1024K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=1024K
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=8192K
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=8192K
+=== RUN   TestPropertyRoundTrip/filesystem/relatime=off
+=== PAUSE TestPropertyRoundTrip/filesystem/relatime=off
+=== RUN   TestPropertyRoundTrip/filesystem/dedup=on
+=== PAUSE TestPropertyRoundTrip/filesystem/dedup=on
+=== RUN   TestPropertyRoundTrip/filesystem/acltype=disabled
+=== PAUSE TestPropertyRoundTrip/filesystem/acltype=disabled
+=== RUN   TestPropertyRoundTrip/filesystem/snapdir=hidden
+=== PAUSE TestPropertyRoundTrip/filesystem/snapdir=hidden
+=== RUN   TestPropertyRoundTrip/block/compression=zle
+=== PAUSE TestPropertyRoundTrip/block/compression=zle
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-3
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-3
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-9
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-9
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-6
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-6
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-12
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-12
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-18
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-18
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-5
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-5
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-20
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-20
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-80
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-80
+=== RUN   TestPropertyRoundTrip/block/sync=always
+=== PAUSE TestPropertyRoundTrip/block/sync=always
+=== RUN   TestPropertyRoundTrip/block/dedup=verify
+=== PAUSE TestPropertyRoundTrip/block/dedup=verify
+=== RUN   TestPropertyRoundTrip/block/volblocksize=1K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=1K
+=== RUN   TestPropertyRoundTrip/block/volblocksize=8K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=8K
+=== RUN   TestPropertyRoundTrip/block/volblocksize=64K
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=64K
+=== CONT  TestPropertyRoundTrip/filesystem/compression=off
+=== CONT  TestPropertyRoundTrip/filesystem/acltype=disabled
+=== RUN   TestPlanPublishExport/first_client
+=== RUN   TestPlanPublishExport/repeat_is_empty
+=== RUN   TestPlanPublishExport/repeat,_not_served:_reshare
+=== RUN   TestPlanPublishExport/served_in_the_other_mode:_refused_before_any_change
+=== RUN   TestPlanPublishExport/served_with_no_mode:_refused_before_any_change
+=== RUN   TestPlanPublishExport/served_only_under_a_name:_refused_before_any_change
+=== RUN   TestPlanPublishExport/second_client
+=== RUN   TestPlanPublishExport/other_mode
+=== RUN   TestPlanPublishExport/inside_an_exported_network
+=== RUN   TestPlanPublishExport/around_an_exported_host
+=== RUN   TestPlanPublishExport/in-grammar_edit_is_accepted
+=== RUN   TestPlanPublishExport/inherited_sharenfs_is_pinned
+=== RUN   TestPlanPublishExport/crossmnt_ancestor
+=== RUN   TestPlanPublishExport/crossmnt_root
+=== RUN   TestPlanPublishExport/ancestor_without_crossmnt
+=== RUN   TestPlanPublishExport/served_with_no_root_squash:_refused_before_any_change
+=== RUN   TestPlanPublishExport/served_to_more_clients:_refused_before_any_change
+=== RUN   TestPlanPublishExport/canonical_sharenfs_without_a_stored_list_is_ours
+=== RUN   TestPlanPublishExport/leftover_stored_list_is_ignored
+=== RUN   TestPlanPublishExport/foreign_local_sharenfs
+=== RUN   TestPlanPublishExport/received_sharenfs
+=== RUN   TestPlanPublishExport/received_sharenfs_over_our_list
+=== RUN   TestPlanPublishExport/received_off_is_pinned
+=== RUN   TestPlanPublishExport/leftover_stored_list,_inherited_sharenfs:_pinned
+=== RUN   TestPlanPublishExport/admin's_*_over_our_list_is_foreign
+=== RUN   TestPlanPublishExport/zvol
+=== RUN   TestPlanPublishExport/unmounted,_canmount=on
+=== RUN   TestPlanPublishExport/unmounted,_canmount=noauto
+=== RUN   TestPlanPublishExport/mountpoint_none
+=== RUN   TestPlanPublishExport/too_many_clients
+=== RUN   TestPlanPublishExport/unmanaged
+=== RUN   TestPlanPublishExport/missing
+--- PASS: TestPlanPublishExport (0.20s)
+    --- PASS: TestPlanPublishExport/first_client (0.00s)
+    --- PASS: TestPlanPublishExport/repeat_is_empty (0.00s)
+    --- PASS: TestPlanPublishExport/repeat,_not_served:_reshare (0.00s)
+    --- PASS: TestPlanPublishExport/served_in_the_other_mode:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/served_with_no_mode:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/served_only_under_a_name:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/second_client (0.00s)
+    --- PASS: TestPlanPublishExport/other_mode (0.00s)
+    --- PASS: TestPlanPublishExport/inside_an_exported_network (0.00s)
+    --- PASS: TestPlanPublishExport/around_an_exported_host (0.00s)
+    --- PASS: TestPlanPublishExport/in-grammar_edit_is_accepted (0.00s)
+    --- PASS: TestPlanPublishExport/inherited_sharenfs_is_pinned (0.00s)
+    --- PASS: TestPlanPublishExport/crossmnt_ancestor (0.00s)
+    --- PASS: TestPlanPublishExport/crossmnt_root (0.00s)
+    --- PASS: TestPlanPublishExport/ancestor_without_crossmnt (0.00s)
+    --- PASS: TestPlanPublishExport/served_with_no_root_squash:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/served_to_more_clients:_refused_before_any_change (0.00s)
+    --- PASS: TestPlanPublishExport/canonical_sharenfs_without_a_stored_list_is_ours (0.00s)
+    --- PASS: TestPlanPublishExport/leftover_stored_list_is_ignored (0.00s)
+    --- PASS: TestPlanPublishExport/foreign_local_sharenfs (0.00s)
+    --- PASS: TestPlanPublishExport/received_sharenfs (0.00s)
+    --- PASS: TestPlanPublishExport/received_sharenfs_over_our_list (0.00s)
+    --- PASS: TestPlanPublishExport/received_off_is_pinned (0.00s)
+    --- PASS: TestPlanPublishExport/leftover_stored_list,_inherited_sharenfs:_pinned (0.00s)
+    --- PASS: TestPlanPublishExport/admin's_*_over_our_list_is_foreign (0.00s)
+    --- PASS: TestPlanPublishExport/zvol (0.00s)
+    --- PASS: TestPlanPublishExport/unmounted,_canmount=on (0.00s)
+    --- PASS: TestPlanPublishExport/unmounted,_canmount=noauto (0.00s)
+    --- PASS: TestPlanPublishExport/mountpoint_none (0.00s)
+    --- PASS: TestPlanPublishExport/too_many_clients (0.03s)
+    --- PASS: TestPlanPublishExport/unmanaged (0.00s)
+    --- PASS: TestPlanPublishExport/missing (0.00s)
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-500
+=== CONT  TestPropertyRoundTrip/filesystem/dedup=on
+=== CONT  TestPropertyRoundTrip/filesystem/relatime=off
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=8192K
+--- PASS: TestReconcileCollectsAbandonedCreate (0.69s)
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=1024K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=128K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=16K
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=2K
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-5
+--- PASS: TestCreateVolumeCatchesDatasetReplacedBeforeCommit (0.00s)
+    --- SKIP: TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block (0.00s)
+    --- PASS: TestCreateVolumeCatchesDatasetReplacedBeforeCommit/filesystem (0.88s)
+=== CONT  TestPropertyRoundTrip/block/volblocksize=64K
+=== CONT  TestPropertyRoundTrip/block/volblocksize=8K
+=== CONT  TestPropertyRoundTrip/block/volblocksize=1K
+=== CONT  TestPropertyRoundTrip/block/dedup=verify
+=== CONT  TestPropertyRoundTrip/block/sync=always
+--- PASS: TestResumeConvergesThickToThin (1.22s)
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-80
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-20
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-15
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-50
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-8
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-2
+--- PASS: TestReconcileCollectsLeakedCloneSource (1.57s)
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-9
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-18
+--- PASS: TestReconcileNeedsADigestToCollectUndesired (1.68s)
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-12
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-6
+=== CONT  TestPropertyRoundTrip/block/compression=zle
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-3
+=== CONT  TestPropertyRoundTrip/filesystem/snapdir=hidden
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-3
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-9
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-6
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast
+--- PASS: TestPropertyRoundTrip (0.42s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=off (0.39s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-500 (0.25s)
+    --- PASS: TestPropertyRoundTrip/filesystem/acltype=disabled (0.43s)
+    --- PASS: TestPropertyRoundTrip/filesystem/dedup=on (0.24s)
+    --- PASS: TestPropertyRoundTrip/filesystem/relatime=off (0.25s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=8192K (0.27s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=2K (0.18s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=1024K (0.32s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=16K (0.31s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=128K (0.35s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-5 (0.29s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=64K (0.30s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=8K (0.33s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=1K (0.31s)
+    --- PASS: TestPropertyRoundTrip/block/dedup=verify (0.34s)
+    --- PASS: TestPropertyRoundTrip/block/sync=always (0.33s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-80 (0.43s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-20 (0.45s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-50 (0.46s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-2 (0.30s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-18 (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-15 (0.52s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-8 (0.46s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-9 (0.31s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-6 (0.21s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-12 (0.23s)
+    --- PASS: TestPropertyRoundTrip/filesystem/snapdir=hidden (0.11s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zle (0.17s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-3 (0.23s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-3 (0.18s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-6 (0.18s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-9 (0.20s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast (0.17s)
+=== RUN   FuzzNFSClassifier
+=== RUN   FuzzNFSClassifier/seed#0
+=== RUN   FuzzNFSClassifier/seed#1
+=== RUN   FuzzNFSClassifier/seed#2
+=== RUN   FuzzNFSClassifier/seed#3
+=== RUN   FuzzNFSClassifier/seed#4
+=== RUN   FuzzNFSClassifier/seed#5
+=== RUN   FuzzNFSClassifier/seed#6
+=== RUN   FuzzNFSClassifier/seed#7
+=== RUN   FuzzNFSClassifier/seed#8
+=== RUN   FuzzNFSClassifier/seed#9
+=== RUN   FuzzNFSClassifier/seed#10
+=== RUN   FuzzNFSClassifier/seed#11
+=== RUN   FuzzNFSClassifier/seed#12
+=== RUN   FuzzNFSClassifier/seed#13
+=== RUN   FuzzNFSClassifier/seed#14
+=== RUN   FuzzNFSClassifier/seed#15
+=== RUN   FuzzNFSClassifier/seed#16
+=== RUN   FuzzNFSClassifier/seed#17
+=== RUN   FuzzNFSClassifier/seed#18
+=== RUN   FuzzNFSClassifier/seed#19
+--- PASS: FuzzNFSClassifier (0.01s)
+    --- PASS: FuzzNFSClassifier/seed#0 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#1 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#2 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#3 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#4 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#5 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#6 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#7 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#8 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#9 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#10 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#11 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#12 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#13 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#14 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#15 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#16 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#17 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#18 (0.00s)
+    --- PASS: FuzzNFSClassifier/seed#19 (0.00s)
+=== RUN   FuzzCreateConverges
+=== RUN   FuzzCreateConverges/seed#0
+=== RUN   FuzzCreateConverges/seed#1
+=== RUN   FuzzCreateConverges/seed#2
+=== RUN   FuzzCreateConverges/seed#3
+=== RUN   FuzzCreateConverges/seed#4
+=== RUN   FuzzCreateConverges/seed#5
+=== RUN   FuzzCreateConverges/seed#6
+=== RUN   FuzzCreateConverges/seed#7
+=== RUN   FuzzCreateConverges/seed#8
+=== RUN   FuzzCreateConverges/seed#9
+=== RUN   FuzzCreateConverges/seed#10
+=== RUN   FuzzCreateConverges/seed#11
+=== RUN   FuzzCreateConverges/seed#12
+=== RUN   FuzzCreateConverges/seed#13
+--- PASS: FuzzCreateConverges (0.00s)
+    --- PASS: FuzzCreateConverges/seed#0 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#1 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#2 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#3 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#4 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#5 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#6 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#7 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#8 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#9 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#10 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#11 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#12 (0.00s)
+    --- PASS: FuzzCreateConverges/seed#13 (0.00s)
+PASS
+##[endgroup]
+##[group]endpoint.2.log
+=== RUN   TestErrorsDoNotEchoUnboundedInput
+=== PAUSE TestErrorsDoNotEchoUnboundedInput
+=== RUN   TestScanRecordsCoverage
+=== PAUSE TestScanRecordsCoverage
+=== RUN   TestDeleteVolumeScanIsSubtreeScoped
+=== PAUSE TestDeleteVolumeScanIsSubtreeScoped
+=== RUN   TestErrTableMatchesHead
+=== PAUSE TestErrTableMatchesHead
+=== RUN   TestCheckHeadroom
+=== PAUSE TestCheckHeadroom
+=== RUN   TestMinFreeBytesGuardParentSpace
+=== PAUSE TestMinFreeBytesGuardParentSpace
+=== RUN   TestChildAvail
+=== PAUSE TestChildAvail
+=== RUN   TestReconcileLockedReplanKeepsTheDigestedGuid
+--- PASS: TestReconcileLockedReplanKeepsTheDigestedGuid (0.00s)
+=== RUN   TestAdv4_TwoSpellingsBypassModeConflict
+--- PASS: TestAdv4_TwoSpellingsBypassModeConflict (0.00s)
+=== RUN   TestCloneLargerThanLimitIsOutOfRange
+=== PAUSE TestCloneLargerThanLimitIsOutOfRange
+=== RUN   TestNeverAdoptsOrDeletesUnmanaged
+=== PAUSE TestNeverAdoptsOrDeletesUnmanaged
+=== RUN   TestCloneFromVolumeReleasesInternalSnapshot
+=== PAUSE TestCloneFromVolumeReleasesInternalSnapshot
+=== RUN   TestCreateVolumeProperties
+=== PAUSE TestCreateVolumeProperties
+=== RUN   TestH_ScanRejectsRowsZFSNeverListed
+=== PAUSE TestH_ScanRejectsRowsZFSNeverListed
+=== RUN   TestModel
+=== RUN   TestModel/seqs
+=== RUN   TestModel/seqs/w0
+=== PAUSE TestModel/seqs/w0
+=== RUN   TestModel/seqs/w1
+=== PAUSE TestModel/seqs/w1
+=== RUN   TestModel/seqs/w2
+=== PAUSE TestModel/seqs/w2
+=== RUN   TestModel/seqs/w3
+=== PAUSE TestModel/seqs/w3
+=== RUN   TestModel/seqs/w4
+=== PAUSE TestModel/seqs/w4
+=== RUN   TestModel/seqs/w5
+=== PAUSE TestModel/seqs/w5
+=== RUN   TestModel/seqs/w6
+=== PAUSE TestModel/seqs/w6
+=== RUN   TestModel/seqs/w7
+=== PAUSE TestModel/seqs/w7
+=== CONT  TestModel/seqs/w0
+=== CONT  TestModel/seqs/w4
+=== CONT  TestModel/seqs/w7
+=== CONT  TestModel/seqs/w6
+=== CONT  TestModel/seqs/w5
+=== CONT  TestModel/seqs/w2
+=== CONT  TestModel/seqs/w3
+=== CONT  TestModel/seqs/w1
+=== NAME  TestModel
+    modelrun_test.go:1334: exercised:
+          CreateSnapshot -> 0                                          1
+          CreateSnapshot -> 13                                         1
+          CreateSnapshot -> 5                                          4
+          CreateVolume -> 0                                            2
+          CreateVolume -> 10                                           2
+          CreateVolume -> 13                                           1
+          CreateVolume -> 3                                            1
+          CreateVolume -> 5                                            5
+          CreateVolume -> 6                                            9
+          DeleteSnapshot -> 0                                          7
+          DeleteVolume -> 0                                            2
+          Reconcile -> 0                                               7
+          adm.clone accepted=false                                     1
+          adm.create accepted=true                                     1
+          adm.recv accepted=true                                       1
+          adm.snapshot accepted=false                                  7
+          fault fired: errBefore on CreateSnapshot                     1
+          fault fired: errBefore on CreateVolume                       2
+          fault fired: killAfter on CreateVolume                       1
+          retry                                                        2
+    modelrun_test.go:1336: 2 sequences x 25 steps (50 steps) in 1.971s
+--- PASS: TestModel (1.97s)
+    --- PASS: TestModel/seqs (0.00s)
+        --- PASS: TestModel/seqs/w4 (0.00s)
+        --- PASS: TestModel/seqs/w7 (0.00s)
+        --- PASS: TestModel/seqs/w6 (0.00s)
+        --- PASS: TestModel/seqs/w5 (0.00s)
+        --- PASS: TestModel/seqs/w2 (0.00s)
+        --- PASS: TestModel/seqs/w3 (0.00s)
+        --- PASS: TestModel/seqs/w0 (1.70s)
+        --- PASS: TestModel/seqs/w1 (1.97s)
+=== RUN   TestModelReceivedSnapshotSharesGUID
+=== PAUSE TestModelReceivedSnapshotSharesGUID
+=== RUN   TestCreateVolumePinsMountpoint
+=== PAUSE TestCreateVolumePinsMountpoint
+=== RUN   TestCloneSourcesMustBeOwned
+=== PAUSE TestCloneSourcesMustBeOwned
+=== RUN   TestPropertyRoundTrip
+=== PAUSE TestPropertyRoundTrip
+=== RUN   TestReconcileAgainstDesiredSet
+=== PAUSE TestReconcileAgainstDesiredSet
+=== CONT  TestErrorsDoNotEchoUnboundedInput
+=== CONT  TestCloneFromVolumeReleasesInternalSnapshot
+=== CONT  TestMinFreeBytesGuardParentSpace
+--- PASS: TestMinFreeBytesGuardParentSpace (0.00s)
+=== CONT  TestNeverAdoptsOrDeletesUnmanaged
+=== CONT  TestCreateVolumePinsMountpoint
+=== CONT  TestCloneLargerThanLimitIsOutOfRange
+=== CONT  TestCheckHeadroom
+=== CONT  TestErrTableMatchesHead
+=== CONT  TestReconcileAgainstDesiredSet
+--- PASS: TestCheckHeadroom (0.00s)
+=== CONT  TestDeleteVolumeScanIsSubtreeScoped
+--- PASS: TestErrTableMatchesHead (0.02s)
+=== CONT  TestScanRecordsCoverage
+--- PASS: TestScanRecordsCoverage (0.01s)
+=== CONT  TestChildAvail
+--- PASS: TestChildAvail (0.00s)
+=== CONT  TestCloneSourcesMustBeOwned
+--- PASS: TestErrorsDoNotEchoUnboundedInput (0.06s)
+=== CONT  TestPropertyRoundTrip
+    props_roundtrip_test.go:112: PROPRT_SHARD 2/6: 33 of 196 rows
+=== RUN   TestPropertyRoundTrip/filesystem/compression=lzjb
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=lzjb
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-1
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-1
+=== RUN   TestPropertyRoundTrip/filesystem/compression=gzip-7
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=gzip-7
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-4
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-4
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-10
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-10
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-16
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-16
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-3
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-3
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-9
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-9
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-60
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-60
+=== RUN   TestPropertyRoundTrip/filesystem/compression=zstd-fast-1000
+=== PAUSE TestPropertyRoundTrip/filesystem/compression=zstd-fast-1000
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=4096
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=4096
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=32768
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=32768
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=262144
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=262144
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=2097152
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=2097152
+=== RUN   TestPropertyRoundTrip/filesystem/recordsize=16777216
+=== PAUSE TestPropertyRoundTrip/filesystem/recordsize=16777216
+=== RUN   TestPropertyRoundTrip/filesystem/sync=standard
+=== PAUSE TestPropertyRoundTrip/filesystem/sync=standard
+=== RUN   TestPropertyRoundTrip/filesystem/dedup=off
+=== PAUSE TestPropertyRoundTrip/filesystem/dedup=off
+=== RUN   TestPropertyRoundTrip/filesystem/acltype=posix
+=== PAUSE TestPropertyRoundTrip/filesystem/acltype=posix
+=== RUN   TestPropertyRoundTrip/filesystem/snapdir=visible
+=== PAUSE TestPropertyRoundTrip/filesystem/snapdir=visible
+=== RUN   TestPropertyRoundTrip/block/compression=lz4
+=== PAUSE TestPropertyRoundTrip/block/compression=lz4
+=== RUN   TestPropertyRoundTrip/block/compression=gzip-4
+=== PAUSE TestPropertyRoundTrip/block/compression=gzip-4
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-1
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-1
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-7
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-7
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-13
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-13
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-19
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-19
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-6
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-6
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-30
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-30
+=== RUN   TestPropertyRoundTrip/block/compression=zstd-fast-90
+=== PAUSE TestPropertyRoundTrip/block/compression=zstd-fast-90
+=== RUN   TestPropertyRoundTrip/block/sync=disabled
+=== PAUSE TestPropertyRoundTrip/block/sync=disabled
+=== RUN   TestPropertyRoundTrip/block/copies=1
+=== PAUSE TestPropertyRoundTrip/block/copies=1
+=== RUN   TestPropertyRoundTrip/block/volblocksize=2048
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=2048
+=== RUN   TestPropertyRoundTrip/block/volblocksize=16384
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=16384
+=== RUN   TestPropertyRoundTrip/block/volblocksize=131072
+=== PAUSE TestPropertyRoundTrip/block/volblocksize=131072
+=== CONT  TestH_ScanRejectsRowsZFSNeverListed
+--- PASS: TestNeverAdoptsOrDeletesUnmanaged (0.67s)
+=== CONT  TestModelReceivedSnapshotSharesGUID
+--- PASS: TestModelReceivedSnapshotSharesGUID (0.01s)
+=== CONT  TestCreateVolumeProperties
+--- PASS: TestH_ScanRejectsRowsZFSNeverListed (1.00s)
+=== CONT  TestPropertyRoundTrip/filesystem/compression=lzjb
+--- PASS: TestCloneFromVolumeReleasesInternalSnapshot (1.54s)
+=== CONT  TestPropertyRoundTrip/filesystem/acltype=posix
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-6
+--- PASS: TestCreateVolumePinsMountpoint (1.72s)
+=== CONT  TestPropertyRoundTrip/block/volblocksize=131072
+=== CONT  TestPropertyRoundTrip/block/volblocksize=16384
+=== CONT  TestPropertyRoundTrip/block/volblocksize=2048
+--- PASS: TestCloneLargerThanLimitIsOutOfRange (1.76s)
+=== CONT  TestPropertyRoundTrip/block/copies=1
+=== CONT  TestPropertyRoundTrip/block/sync=disabled
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-90
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-fast-30
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-1
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-19
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-13
+=== CONT  TestPropertyRoundTrip/block/compression=zstd-7
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-1000
+=== NAME  TestDeleteVolumeScanIsSubtreeScoped
+    delete_scope_test.go:91: 1 unrelated: 3 rows (8733 B), names 5 (1381 B); 100 unrelated: 3 rows (8739 B), names 104 (26383 B)
+--- PASS: TestDeleteVolumeScanIsSubtreeScoped (2.49s)
+=== CONT  TestPropertyRoundTrip/filesystem/dedup=off
+=== CONT  TestPropertyRoundTrip/filesystem/sync=standard
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=16777216
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=2097152
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=262144
+--- PASS: TestCreateVolumeProperties (1.97s)
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=32768
+--- PASS: TestCloneSourcesMustBeOwned (2.64s)
+=== CONT  TestPropertyRoundTrip/filesystem/recordsize=4096
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-16
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-60
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-9
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-fast-3
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-4
+=== CONT  TestPropertyRoundTrip/filesystem/compression=zstd-10
+=== CONT  TestPropertyRoundTrip/block/compression=lz4
+=== CONT  TestPropertyRoundTrip/block/compression=gzip-4
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-7
+=== CONT  TestPropertyRoundTrip/filesystem/compression=gzip-1
+=== CONT  TestPropertyRoundTrip/filesystem/snapdir=visible
+--- PASS: TestReconcileAgainstDesiredSet (3.52s)
+--- PASS: TestPropertyRoundTrip (0.67s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=lzjb (0.28s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-6 (0.19s)
+    --- PASS: TestPropertyRoundTrip/filesystem/acltype=posix (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=16384 (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=131072 (0.26s)
+    --- PASS: TestPropertyRoundTrip/block/copies=1 (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/volblocksize=2048 (0.33s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-30 (0.27s)
+    --- PASS: TestPropertyRoundTrip/block/sync=disabled (0.32s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-1 (0.21s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-fast-90 (0.33s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-19 (0.27s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-7 (0.22s)
+    --- PASS: TestPropertyRoundTrip/block/compression=zstd-13 (0.27s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-1000 (0.33s)
+    --- PASS: TestPropertyRoundTrip/filesystem/sync=standard (0.24s)
+    --- PASS: TestPropertyRoundTrip/filesystem/dedup=off (0.33s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=16777216 (0.30s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=2097152 (0.32s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=4096 (0.30s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=32768 (0.34s)
+    --- PASS: TestPropertyRoundTrip/filesystem/recordsize=262144 (0.35s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-9 (0.29s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-16 (0.43s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-3 (0.45s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-fast-60 (0.51s)
+    --- PASS: TestPropertyRoundTrip/block/compression=lz4 (0.37s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-4 (0.44s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-1 (0.14s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=zstd-10 (0.52s)
+    --- PASS: TestPropertyRoundTrip/block/compression=gzip-4 (0.42s)
+    --- PASS: TestPropertyRoundTrip/filesystem/compression=gzip-7 (0.36s)
+    --- PASS: TestPropertyRoundTrip/filesystem/snapdir=visible (0.30s)
+PASS
+##[endgroup]
+##[group]zfsdiff.log
+zfsdiff replay: 21 sequences: agree=16 both-wrong=4 sim-bug=1
+
+canmount-noauto-mounted                  agree
+clone-vol-default-resv                   agree
+create-vol-resv-auto                     sim-bug
+create-vol-rounding                      agree
+defer-endpoint-clone-vol                 agree
+destroy-r-deferred-origin-inside         agree
+destroy-r-held-child                     agree
+expand-pattern                           agree
+hold-destroy                             agree
+inherit-native-from-pool                 agree
+mount-endpoint-resume                    agree
+mountpoint-remount                       agree
+promote-conflict                         agree
+recv-canmount-off                        agree
+recv-quota-none                          agree
+refquota-zero                            both-wrong
+resv-too-big                             both-wrong
+share-off-unmounted                      agree
+shrink-pattern                           both-wrong
+volsize-enospc-revert                    both-wrong
+volsize-tracks-thick                     agree
+
+==== create-vol-resv-auto: sim-bug
+# AMBIGUOUS: create -V -o refreservation=auto. 2.4.4 has no zfs_create_fix_auto_resv: UINT64_MAX reaches the kernel (ENOSPC); the simulator resolves it
+# covers: resv-auto
+zfs create -V 67108864 -o refreservation=auto $R/v
+-- real vs sim (A=real):
+step 1 `zfs create -V 67108864 -o refreservation=auto $R/v`: code differs
+  A: 1 cannot create 'zep1/zfsdiff-1026-1793122492118447770/s2/v': out of space
+  B: 0 
+-- model vs sim (A=model):
+step 1 `zfs create -V 67108864 -o refreservation=auto $R/v`: code differs
+  A: 1 cannot create 'zep1/zfsdiff-1026-1793122492118447770/s2/v': out of space
+  B: 0 
+-- real trace:
+ 0 zfs create -p $R
+   -> ok
+ 1 zfs create -V 67108864 -o refreservation=auto $R/v
+   -> exit 1 [nospace/no space] cannot create 'zep1/zfsdiff-1026-1793122492118447770/s2/v': out of space
+
+==== refquota-zero: both-wrong
+# refquota=0 must be spelled none; none is stored as a local 0
+# covers: quota
+zfs create $R/a
+zfs set refquota=0 $R/a
+zfs set refquota=none $R/a
+zfs set quota=none $R/a
+-- real vs sim (A=real):
+step 2 `zfs set refquota=0 $R/a`: code differs
+  A: 255 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s15/a': use 'none' to disable quota/refquota
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s15/a': use 'none' to disable quota/refquota
+-- real vs model (A=real):
+step 2 `zfs set refquota=0 $R/a`: code differs
+  A: 255 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s15/a': use 'none' to disable quota/refquota
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s15/a': use 'none' to disable quota/refquota
+-- real trace:
+ 0 zfs create -p $R
+   -> ok
+ 1 zfs create $R/a
+   -> ok
+   + $R/a	acltype	off	default
+   + $R/a	atime	on	default
+   + $R/a	canmount	on	default
+   + $R/a	compression	lz4	inherited from zep1
+   + $R/a	copies	1	default
+   + $R/a	dedup	off	default
+   + $R/a	logbias	latency	default
+   + $R/a	mounted	yes	-
+   + $R/a	mountpoint	/$R/a	default
+   + $R/a	quota	0	default
+   + $R/a	recordsize	131072	default
+   + $R/a	refquota	0	default
+   + $R/a	refreservation	0	default
+   + $R/a	relatime	on	default
+   + $R/a	reservation	0	default
+   + $R/a	sharenfs	off	default
+   + $R/a	snapdir	hidden	default
+   + $R/a	sync	standard	default
+   + $R/a	type	filesystem	-
+   + $R/a	xattr	sa	default
+ 2 zfs set refquota=0 $R/a
+   -> exit 255 [badprop/invalid property] cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s15/a': use 'none' to disable quota/refquota
+ 3 zfs set refquota=none $R/a
+   -> ok
+   - $R/a	refquota	0	default
+   + $R/a	refquota	0	local
+ 4 zfs set quota=none $R/a
+   -> ok
+   - $R/a	quota	0	default
+   + $R/a	quota	0	local
+
+==== resv-too-big: both-wrong
+# refreservation larger than the pool: 'size is greater than available space'; at create: out of space
+# covers: quota
+zfs create $R/a
+zfs set refreservation=21474836480 $R/a
+zfs create -o refreservation=21474836480 $R/b
+-- real vs sim (A=real):
+step 2 `zfs set refreservation=21474836480 $R/a`: code differs
+  A: 255 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s16/a': size is greater than available space
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s16/a': size is greater than available space
+-- real vs model (A=real):
+step 2 `zfs set refreservation=21474836480 $R/a`: code differs
+  A: 255 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s16/a': size is greater than available space
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s16/a': size is greater than available space
+-- real trace:
+ 0 zfs create -p $R
+   -> ok
+ 1 zfs create $R/a
+   -> ok
+   + $R/a	acltype	off	default
+   + $R/a	atime	on	default
+   + $R/a	canmount	on	default
+   + $R/a	compression	lz4	inherited from zep1
+   + $R/a	copies	1	default
+   + $R/a	dedup	off	default
+   + $R/a	logbias	latency	default
+   + $R/a	mounted	yes	-
+   + $R/a	mountpoint	/$R/a	default
+   + $R/a	quota	0	default
+   + $R/a	recordsize	131072	default
+   + $R/a	refquota	0	default
+   + $R/a	refreservation	0	default
+   + $R/a	relatime	on	default
+   + $R/a	reservation	0	default
+   + $R/a	sharenfs	off	default
+   + $R/a	snapdir	hidden	default
+   + $R/a	sync	standard	default
+   + $R/a	type	filesystem	-
+   + $R/a	xattr	sa	default
+ 2 zfs set refreservation=21474836480 $R/a
+   -> exit 255 [nospace-resv/no space] cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s16/a': size is greater than available space
+ 3 zfs create -o refreservation=21474836480 $R/b
+   -> exit 1 [nospace/no space] cannot create 'zep1/zfsdiff-1026-1793122492118447770/s16/b': out of space
+
+==== shrink-pattern: both-wrong
+# shrinking refquota and refreservation together: refquota is set first and fails against the old refreservation (partial apply)
+# covers: quota
+zfs create -o refquota=20971520 -o refreservation=20971520 $R/a
+zfs set refquota=10485760 refreservation=10485760 $R/a
+-- real vs sim (A=real):
+step 2 `zfs set refquota=10485760 refreservation=10485760 $R/a`: code differs
+  A: 0 
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s18/a': size is less than current used or reserved space
+-- real vs model (A=real):
+step 2 `zfs set refquota=10485760 refreservation=10485760 $R/a`: code differs
+  A: 0 
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s18/a': size is less than current used or reserved space
+-- real trace:
+ 0 zfs create -p $R
+   -> ok
+ 1 zfs create -o refquota=20971520 -o refreservation=20971520 $R/a
+   -> ok
+   + $R/a	acltype	off	default
+   + $R/a	atime	on	default
+   + $R/a	canmount	on	default
+   + $R/a	compression	lz4	inherited from zep1
+   + $R/a	copies	1	default
+   + $R/a	dedup	off	default
+   + $R/a	logbias	latency	default
+   + $R/a	mounted	yes	-
+   + $R/a	mountpoint	/$R/a	default
+   + $R/a	quota	0	default
+   + $R/a	recordsize	131072	default
+   + $R/a	refquota	20971520	local
+   + $R/a	refreservation	20971520	local
+   + $R/a	relatime	on	default
+   + $R/a	reservation	0	default
+   + $R/a	sharenfs	off	default
+   + $R/a	snapdir	hidden	default
+   + $R/a	sync	standard	default
+   + $R/a	type	filesystem	-
+   + $R/a	xattr	sa	default
+ 2 zfs set refquota=10485760 refreservation=10485760 $R/a
+   -> ok
+   - $R/a	refquota	20971520	local
+   - $R/a	refreservation	20971520	local
+   + $R/a	refquota	10485760	local
+   + $R/a	refreservation	10485760	local
+
+==== volsize-enospc-revert: both-wrong
+# growing a thick volume past the pool: ENOSPC on the synthetic refreservation and volsize is put back
+# covers: resv-auto
+zfs create -V 67108864 $R/v
+zfs set volsize=21474836480 $R/v
+-- real vs sim (A=real):
+step 2 `zfs set volsize=21474836480 $R/v`: code differs
+  A: 255 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s19/v': size is greater than available space
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s19/v': size is greater than available space
+-- real vs model (A=real):
+step 2 `zfs set volsize=21474836480 $R/v`: code differs
+  A: 255 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s19/v': size is greater than available space
+  B: 1 cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s19/v': size is greater than available space
+-- real trace:
+ 0 zfs create -p $R
+   -> ok
+ 1 zfs create -V 67108864 $R/v
+   -> ok
+   + $R/v	compression	lz4	inherited from zep1
+   + $R/v	copies	1	default
+   + $R/v	dedup	off	default
+   + $R/v	logbias	latency	default
+   + $R/v	refreservation	70254592	local
+   + $R/v	reservation	0	default
+   + $R/v	sync	standard	default
+   + $R/v	type	volume	-
+   + $R/v	volblocksize	16384	default
+   + $R/v	volsize	67108864	local
+ 2 zfs set volsize=21474836480 $R/v
+   -> exit 255 [nospace-resv/no space] cannot set property for 'zep1/zfsdiff-1026-1793122492118447770/s19/v': size is greater than available space
+
+zfsdiff replay: 21 sequences: agree=16 both-wrong=4 sim-bug=1 in 3.688s
+##[endgroup]
+##[group]guest load (test phase): cpu: busy 96% (user 33%, sys+irq 61%, steal 2%), idle 2%, iowait 2%
+guest load over the test phase: 6.3s on 4 vCPUs
+cpu: busy 96% (user 33%, sys+irq 61%, steal 2%), idle 2%, iowait 2%
+pressure (stalled share of the phase): cpu some 82%, cpu full 0%, io some 68%, io full 2%, memory some 0%, memory full 0%
+forks 4713 (743/s, 5.2 CPU-ms each), context switches 287908 (45411/s)
+interrupts 84982 (/proc/stat); /proc/interrupts 84981: LOC 63292 RES 972 CAL 14625 TLB 5850
+block reads: pgpgin 68.9 MB, vda 0.7 MB, other (zvols) 68.3 MB; page faults 1612156 (major 4)
+cgroup CPU-s over the phase (cpu.stat usage, of it system):
+  root                 23.96  (sys 15.54)
+  tests                15.15  (sys 9.27)
+  init                  1.15  (sys 0.33)
+  system                4.54  (sys 2.79)
+  zfs-zed               1.66  (sys 1.02)
+  udisks2               0.31  (sys 0.16)
+  systemd-udevd         2.30  (sys 1.41)
+  systemd-journald      0.09  (sys 0.04)
+  rsyslog               0.03  (sys 0.01)
+procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu------- -----timestamp-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu                 UTC
+ 2  0      0 5521920 13200 208028    0    0 16521    67 5741    6  5 13 67  2 13  0 2026-10-27 17:34:52
+26  8      0 5426076 13524 224392    0    0 14792   372 13558 44964 33 63 2 1  1  0 2026-10-27 17:34:53
+38  0      0 5386260 16476 237476    0    0 11968     8 13730 49288 34 63 1 1  1  0 2026-10-27 17:34:54
+31  5      0 5334948 13276 252832    0    0 14128    52 13044 45952 37 60 1 2  1  0 2026-10-27 17:34:55
+34  4      0 5330472 14564 267756    0    0  9660     0 13576 43191 37 60 0 2  0  0 2026-10-27 17:34:56
+22 11      0 5300668 13308 284236    0    0  8712     0 13051 42501 35 61 0 2  1  0 2026-10-27 17:34:57
+ 9  0      0 5286612 13276 305424    0    0 11036     0 12542 44133 29 61 2 2  7  0 2026-10-27 17:34:58
+##[endgroup]
+##[group]systemd-analyze
+Startup finished in 944ms (kernel) + 6.730s (userspace) = 7.675s 
+graphical.target reached after 6.669s in userspace.
+2.754s proc-fs-nfsd.mount
+1.976s systemd-networkd-wait-online.service
+1.597s systemd-networkd.service
+1.089s apparmor.service
+1.072s systemd-resolved.service
+ 965ms systemd-binfmt.service
+ 828ms modprobe@efi_pstore.service
+ 744ms systemd-sysctl.service
+ 509ms rsyslog.service
+ 457ms netplan-configure.service
+ 403ms udisks2.service
+ 400ms dev-hugepages.mount
+ 391ms networkd-dispatcher.service
+ 391ms dev-mqueue.mount
+ 370ms sys-kernel-debug.mount
+systemd-udev-settle: inactive, masked-runtime; zfs-import-scan: masked-runtime
+wanted by:   
+systemd-modules-load: inactive, masked-runtime; zfs-load-module: inactive, masked-runtime; zfs-mount: inactive, masked-runtime; zfs-zed: active, enabled; 
+modules-load.d (not loaded at boot when masked): zfs i2c_dev msr 
+failed units: 
+sshd penalties: PerSourcePenaltyExemptList none PerSourcePenalties crash:90.000000 authfail:5.000000 noauth:1.000000 invaliduser:5.000000 grace-exceeded:10.000000 refuseconnection:10.000000 max:600.000000 min:15.000000 max-sources4:65536 max-sources6:65536 overflow:permissive overflow6:permissive 
+[    9.959933] ubuntu sshd-session[668]: Accepted publickey for ci from 10.0.2.2 port 36486 ssh2: ED25519 SHA256:Xvd0ju9evP9YSCFJ19ALhjrzGbdn63Iy0+xJJbjOr7E
+The time when unit became active or started is printed after the "@" character.
+The time the unit took to start is printed after the "+" character.
+
+ssh.service +28ms
+└─network.target @4.522s
+  └─systemd-networkd.service @2.922s +1.597s
+    └─systemd-networkd-resolve-hook.socket @2.909s +58us
+      └─network-pre.target @2.902s
+        └─netplan-configure.service @2.440s +457ms
+          └─local-fs.target @2.411s
+            └─local-fs-pre.target @2.405s
+              └─systemd-tmpfiles-setup-dev.service @2.341s +33ms
+                └─systemd-tmpfiles-setup-dev-early.service @2.159s +53ms
+                  └─kmod-static-nodes.service @1.819s +301ms
+                    └─systemd-journald.socket @1.651s +34us
+                      └─system.slice @1.501s
+                        └─-.slice @1.501s
+nfs-server.service +144ms
+└─rpc-statd.service @6.544s +16ms
+  └─network-online.target @6.509s
+    └─systemd-networkd-wait-online.service @4.530s +1.976s
+      └─systemd-networkd.service @2.922s +1.597s
+        └─systemd-networkd-resolve-hook.socket @2.909s +58us
+          └─network-pre.target @2.902s
+            └─netplan-configure.service @2.440s +457ms
+              └─local-fs.target @2.411s
+                └─local-fs-pre.target @2.405s
+                  └─systemd-tmpfiles-setup-dev.service @2.341s +33ms
+                    └─systemd-tmpfiles-setup-dev-early.service @2.159s +53ms
+                      └─kmod-static-nodes.service @1.819s +301ms
+                        └─systemd-journald.socket @1.651s +34us
+                          └─system.slice @1.501s
+                            └─-.slice @1.501s
+mounted under /boot: 
+##[endgroup]
+skip budget vm/endpoint: 1 skipped, 1 allowed (and 24 allowed in the tests another job runs)
+part 0/2: 39.85 s: shard 0 16.61 shard 1 11.62 shard 2 11.62
+part 1/2: 39.84 s: shard 3 14.72 shard 4 13.93 shard 5 11.19
+check-split: the plan puts each of 241 listed tests in exactly one of 6 shards (TestPropertyRoundTrip in all)
+check-split: list sha256 392b36773dfa3204, plan sha256 05c5c0f413be42af (every part's job prints the same)
+check-split: part 0/2: 36 top-level tests over 3 shard logs, each in exactly its planned shard (TestPropertyRoundTrip in all); TestPropertyRoundTrip: 99 of 196 subtests over shards 0..2 of 6, each exactly once, the other parts' shards run the rest
+##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+with:
+  name: real-zfs-report-endpoint-0
+  path: /home/runner/work/_temp/zfsvm/out/zfsdiff.log
+/out/test-times.tsv
+/out/*.list
+/out/*.plan
+/out/*.passed
+/out/load.txt
+/out/vmstat.txt
+
+  if-no-files-found: warn
+  retention-days: 30
+  compression-level: 6
+  overwrite: false
+  include-hidden-files: false
+env:
+  GOTOOLCHAIN: local
+##[endgroup]
+(node:2850) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+With the provided path, there will be 6 files uploaded
+Artifact name is valid!
+Root directory input is valid!
+Beginning upload of artifact content to blob storage
+(node:2850) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+Uploaded bytes 9636
+Finished uploading artifact content to blob storage!
+SHA256 digest of uploaded artifact zip is c053475e3086d15fbe7d981242a11b748c0ee1e7cf4004f070c3cb9b2a9da960
+Finalizing artifact upload
+Artifact real-zfs-report-endpoint-0.zip successfully finalized. Artifact ID 12755252583
+Artifact real-zfs-report-endpoint-0 has been successfully uploaded! Final size is 9636 bytes. Artifact ID is 12755252583
+Artifact download URL: https://github.com/wommy/empty/actions/runs/40551837712/artifacts/12755252583
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.55.0
+Temporarily overriding HOME='/home/runner/work/_temp/39d5b24b-6c81-4f31-861e-88802b21f79a' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/empty/empty
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Cleaning up orphan processes
+##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684, actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
