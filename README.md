@@ -2,7 +2,7 @@
 
 A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset and exposes it over gRPC (`api/zfsendpoint/v1`), so that CSI drivers and other front ends can stay thin translators.
 
-[democratic-csi](https://github.com/democratic-csi/democratic-csi) is the **behavioral baseline**: the endpoint reads and writes its ZFS user properties (`democratic-csi:*`), so volumes it provisioned are adopted as they are.
+**OpenZFS is the source of truth** (`docs/adr/0003-openzfs-is-the-source-of-truth.md`). Behavior follows OpenZFS's own semantics, as verified in its source and on a real 2.4.x pool, never another driver's choices. [democratic-csi](https://github.com/democratic-csi/democratic-csi) is an **adoption target**: the endpoint can read its ZFS user properties (`democratic-csi:*`), so volumes it provisioned can be adopted, but it is evidence of practice, not of correctness.
 
 ## Status
 
