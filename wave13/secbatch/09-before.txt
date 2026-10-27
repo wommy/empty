@@ -1,0 +1,7 @@
+--- FAIL: TestPeerCredentialsAreLogged (0.04s)
+    peer_test.go:79: peer_uid = <nil>, want 0 (line map[code:OK duration:25987 level:INFO method:/zfsendpoint.v1.EndpointService/GetCapacity msg:rpc peer:@ time:2026-10-27T11:20:48.030925066Z])
+    peer_test.go:79: peer_gid = <nil>, want 0 (line map[code:OK duration:25987 level:INFO method:/zfsendpoint.v1.EndpointService/GetCapacity msg:rpc peer:@ time:2026-10-27T11:20:48.030925066Z])
+    peer_test.go:79: peer_pid = <nil>, want 28444 (line map[code:OK duration:25987 level:INFO method:/zfsendpoint.v1.EndpointService/GetCapacity msg:rpc peer:@ time:2026-10-27T11:20:48.030925066Z])
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.047s
+FAIL

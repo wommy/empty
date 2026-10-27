@@ -1,0 +1,61 @@
+diff --git a/internal/endpoint/model_test.go b/internal/endpoint/model_test.go
+index eaa8604..960f331 100644
+--- a/internal/endpoint/model_test.go
++++ b/internal/endpoint/model_test.go
+@@ -258,15 +258,11 @@ func (m *Model) CreateVolume(r endpoint.CreateVolumeRequest) mResult {
+ 			return fail(endpoint.InvalidArgument)
+ 		}
+ 		srcSize = src.Size
+-		if r.Kind == endpoint.Filesystem {
+-			if nd.Size == 0 {
+-				nd.Size = srcSize
+-			}
+-			if r.Reserve && nd.Size == 0 {
+-				return fail(endpoint.InvalidArgument)
+-			}
+-		} else {
+-			nd.Size = max(nd.Size, srcSize)
++		// a clone is never smaller than its source (E6); an unlimited
++		// filesystem source (size 0) leaves the request as is
++		nd.Size = max(nd.Size, srcSize)
++		if r.Kind == endpoint.Filesystem && r.Reserve && nd.Size == 0 {
++			return fail(endpoint.InvalidArgument)
+ 		}
+ 	}
+ 	if internal != "" {
+diff --git a/internal/endpoint/modelrun_test.go b/internal/endpoint/modelrun_test.go
+index d5b56fa..3515f49 100644
+--- a/internal/endpoint/modelrun_test.go
++++ b/internal/endpoint/modelrun_test.go
+@@ -411,7 +411,7 @@ func applyModel(m *Model, st Step) mResult {
+ // never permanent:
+ //   - TestModel fails once a mask's expiry date has passed (fix it, or
+ //     renew it with a reason in review);
+-//   - TestModelMasksStillBite (nightly) runs each mask unmasked and fails
++//   - TestExploreModelMasksStillBite (nightly) runs each mask unmasked and fails
+ //     when it no longer finds anything: the fix landed, delete the mask.
+ // MODEL_UNMASK=all, or a comma list of ids, runs the inputs anyway.
+ 
+@@ -423,13 +423,6 @@ type knownOpen struct {
+ }
+ 
+ var knownOpens = []knownOpen{
+-	{id: "D07", row: "VOL-06", expires: "2026-12-15",
+-		why: "D07: an unlimited filesystem satisfies `required`; HEAD returns AlreadyExists",
+-		match: func(m *Model, st Step) (bool, bool) {
+-			d, ok := m.DS[st.Req.Name]
+-			return st.Op == "CreateVolume" && ok && d.Kind == endpoint.Filesystem && d.Size == 0 &&
+-				st.Req.Kind == endpoint.Filesystem && st.Req.CapacityBytes > 0, false
+-		}},
+ 	{id: "GAP-RECRACE", row: "OWN-15", expires: "2026-12-15",
+ 		why: "model gap: a race inside one reconcile group is not interleaved (DeleteVolume's is)",
+ 		match: func(m *Model, st Step) (bool, bool) {
+@@ -437,7 +430,7 @@ var knownOpens = []knownOpen{
+ 		}},
+ }
+ 
+-// unmaskOnly, when set, overrides MODEL_UNMASK (TestModelMasksStillBite).
++// unmaskOnly, when set, overrides MODEL_UNMASK (TestExploreModelMasksStillBite).
+ var unmaskOnly string
+ 
+ func masked(m *Model, st Step) (skip bool, dropFault bool, why string) {

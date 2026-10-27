@@ -1,0 +1,10 @@
+ internal/endpoint/clonesize_test.go  |  27 +++++++
+ internal/endpoint/deletelock_test.go | 133 ++++++++++++++++++++++++++++++
+ internal/endpoint/endpoint.go        |  94 ++++++++++++++++++++--
+ internal/endpoint/endpoint_test.go   |  98 ++++++++++++++++-------
+ internal/endpoint/model_test.go      |  14 ++--
+ internal/endpoint/modelrun_test.go   |  11 +--
+ internal/endpoint/plan.go            |  77 +++++++++++++++---
+ internal/endpoint/plan_test.go       | 151 +++++++++++++++++++++++++++++++++++
+ internal/endpoint/prefix_test.go     |  38 +++++++++
+ 9 files changed, 583 insertions(+), 60 deletions(-)
