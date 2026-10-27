@@ -33,6 +33,7 @@ import (
 type node struct {
 	typ    zfs.Type
 	props  map[string]string // local props
+	recv   map[string]string // received props (zfs recv), below local ones
 	origin string            // clone origin snapshot
 	defer_ bool              // deferred destroy pending
 	birth  int64             // creation, unix seconds
@@ -125,6 +126,18 @@ func (s *Sim) Prop(name, prop string) string {
 		return n.props[prop]
 	}
 	return ""
+}
+
+// Receive sets a property with source "received", as `zfs recv` of a
+// replication stream does (test helper). A local value still wins.
+func (s *Sim) Receive(name, prop, value string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.ds[name]
+	if n.recv == nil {
+		n.recv = map[string]string{}
+	}
+	n.recv[prop] = value
 }
 
 func parent(name string) string {
@@ -612,10 +625,16 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 	if v, ok := n.props[prop]; ok {
 		return v, "local", true
 	}
+	if v, ok := n.recv[prop]; ok {
+		return v, "received", true
+	}
 	// inherited user properties, and the share properties (PROP_INHERIT)
 	if strings.Contains(prop, ":") || prop == "sharenfs" || prop == "sharesmb" {
 		for p := parent(name); p != ""; p = parent(p) {
 			if v, ok := s.ds[p].props[prop]; ok {
+				return v, "inherited from " + p, true
+			}
+			if v, ok := s.ds[p].recv[prop]; ok {
 				return v, "inherited from " + p, true
 			}
 		}

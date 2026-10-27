@@ -39,8 +39,11 @@ func (p Prop) Uint() (uint64, error) {
 	return strconv.ParseUint(p.Value, 10, 64)
 }
 
-// Local reports whether the value was set on the dataset itself.
-func (p Prop) Local() bool { return p.Source == "local" || p.Source == "received" }
+// Local reports whether the value was set on the dataset itself, here.
+// "received" is not local: `zfs recv` of a replication stream carries the
+// sender's properties, set by whoever owned the source (ADR 0003). A value
+// set locally after the receive overrides it and reads as "local".
+func (p Prop) Local() bool { return p.Source == "local" }
 
 // Dataset is a dataset and the properties fetched with it.
 type Dataset struct {

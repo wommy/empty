@@ -126,3 +126,16 @@ type failRunner string
 func (f failRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return nil, &zfs.ExitError{Args: args, Code: 1, Stderr: string(f)}
 }
+
+// ADR 0003: ownership is a user property set locally. A received value
+// (zfs send -R | zfs recv) was set by whoever owned the source, not here.
+func TestPropLocalIsOnlyLocal(t *testing.T) {
+	for src, want := range map[string]bool{
+		"local": true, "received": false, "default": false, "-": false,
+		"inherited from tank": false, "temporary": false,
+	} {
+		if got := (zfs.Prop{Value: "x", Source: src}).Local(); got != want {
+			t.Errorf("source %q: Local() = %v, want %v", src, got, want)
+		}
+	}
+}

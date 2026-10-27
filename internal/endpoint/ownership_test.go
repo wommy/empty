@@ -58,3 +58,56 @@ func TestCloneSourcesMustBeOwned(t *testing.T) {
 		}
 	}
 }
+
+// A backup copy received next to the original (`zfs send -R v@x | zfs recv
+// v-copy`) carries every user property with source "received". It is not
+// the endpoint's: not listed, not deletable, and its snapshots do not
+// shadow the original's CSI snapshot names.
+func TestReceivedCopyIsNotOwned(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc-1", CapacityBytes: 1 << 20}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "snapA", "pvc-1"); err != nil {
+		t.Fatal(err)
+	}
+	cp := h.Parent + "/pvc-1-copy"
+	if err := h.Z.CreateFilesystem(ctx, cp, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.Snapshot(ctx, cp+"@snapA", nil); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range map[string]string{"managed_resource": "true", "provision_success": "true", "csi_volume_name": "pvc-1"} {
+		sim.Receive(cp, "democratic-csi:"+k, v)
+	}
+	for k, v := range map[string]string{"managed_resource": "true", "csi_snapshot_name": "snapA", "csi_snapshot_source_volume_id": "pvc-1"} {
+		sim.Receive(cp+"@snapA", "democratic-csi:"+k, v)
+	}
+
+	vols, _, err := ep.ListVolumes(ctx, 0, "")
+	if err != nil || len(vols) != 1 || vols[0].ID != "pvc-1" {
+		t.Errorf("ListVolumes: %+v %v", vols, err)
+	}
+	snaps, _, err := ep.ListSnapshots(ctx, "", "", 0, "")
+	if err != nil || len(snaps) != 1 || snaps[0].ID != "pvc-1@snapA" {
+		t.Errorf("ListSnapshots: %+v %v", snaps, err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "snapA", "pvc-1"); err != nil {
+		t.Errorf("CreateSnapshot retry: %v", err)
+	}
+	if _, err := ep.GetVolume(ctx, "pvc-1-copy"); endpoint.CodeOf(err) != endpoint.NotFound {
+		t.Errorf("GetVolume copy: %v", err)
+	}
+	if err := ep.DeleteVolume(ctx, "pvc-1-copy"); endpoint.CodeOf(err) != endpoint.FailedPrecondition {
+		t.Errorf("DeleteVolume copy: %v", err)
+	}
+	if err := ep.DeleteSnapshot(ctx, "pvc-1-copy@snapA"); endpoint.CodeOf(err) != endpoint.FailedPrecondition {
+		t.Errorf("DeleteSnapshot copy: %v", err)
+	}
+	if !h.Has(cp) || !h.Has(cp+"@snapA") {
+		t.Error("received copy destroyed")
+	}
+}
