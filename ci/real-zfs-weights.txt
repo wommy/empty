@@ -17,9 +17,11 @@
 TestNFSReplay 5.00
 #
 # Its subtests run in parallel, so its own line reads 0.00s; the weight is
-# the sampled real leg's 34 runs (28.7s of subtest time for the full 93 on
-# run 40468062545, f3706a7), scaled and halved for 2 vCPUs.
-TestCrashAtEveryMutationConverges 6.00
+# its measured wall on the sampled real leg (~14s; run 40468413047, 5b42809).
+# 6.00, an estimate, left its shard the critical path by 7-11s.
+TestCrashAtEveryMutationConverges 14.00
+# parallel subtests too: 2.8-4.0s wall (same run); it was unlisted (0.1)
+TestPropertyRoundTrip 2.80
 TestFileExportUnpublishStillServed 0.30
 TestFileExportServedBeyondRequest 0.20
 #
