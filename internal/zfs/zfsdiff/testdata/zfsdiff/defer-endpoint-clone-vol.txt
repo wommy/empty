@@ -1,0 +1,7 @@
+# endpoint layout: zvol clone of an internal snapshot, origin destroy -d, then clone destroy -r reaps the origin
+# covers: destroy-d
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+zfs clone -o refreservation=auto $R/v@s1 $R/x
+zfs destroy -d $R/v@s1
+zfs destroy -r $R/x

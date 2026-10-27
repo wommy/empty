@@ -125,9 +125,10 @@ type Config struct {
 	// effective uid); unset, those calls are Unimplemented.
 	//
 	// It also says the endpoint can mount: CreateVolume then commits a
-	// filesystem volume zfs would mount only once it is mounted, and is
-	// Unavailable until then (Planner.RequireMounted). Without root
-	// (-allow-non-root) nothing can mount, and volumes commit unmounted.
+	// filesystem volume zfs would mount only once it is mounted, and
+	// mounts one the create left unmounted (`zfs mount`) before the commit
+	// (Planner.RequireMounted). Without root (-allow-non-root) nothing can
+	// mount, and volumes commit unmounted.
 	FileExport bool
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.

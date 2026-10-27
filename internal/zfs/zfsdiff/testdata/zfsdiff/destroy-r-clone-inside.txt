@@ -1,0 +1,6 @@
+# destroy -r succeeds when the clone lives inside the tree (dependents destroyed post-order)
+# covers: destroy-r-clones
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/a/x
+zfs destroy -r $R/a

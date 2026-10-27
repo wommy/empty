@@ -1,0 +1,8 @@
+# deferred origin and promote: after promote the old origin belongs to the clone
+# covers: destroy-d
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs destroy -d $R/a@s1
+zfs promote $R/x
+zfs destroy $R/a

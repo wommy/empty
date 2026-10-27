@@ -22,11 +22,14 @@ const (
 	OpClone
 	OpSet
 	OpDestroy
+	// OpMount: `zfs mount` of a filesystem; already mounted is done
+	// (OkExists).
+	OpMount
 )
 
 var opNames = map[OpKind]string{
 	OpCreateFS: "create-filesystem", OpCreateVol: "create-volume", OpSnapshot: "snapshot",
-	OpClone: "clone", OpSet: "set", OpDestroy: "destroy",
+	OpClone: "clone", OpSet: "set", OpDestroy: "destroy", OpMount: "mount",
 }
 
 func (k OpKind) String() string {
@@ -63,12 +66,13 @@ type Planner struct {
 	// DestroyForeignSnapshots: Config.DestroyForeignSnapshots.
 	DestroyForeignSnapshots bool
 	// RequireMounted: the endpoint can mount (it runs as root), so a
-	// filesystem volume zfs would mount is committed only once a scan
-	// shows it mounted. OpenZFS 2.4's `zfs create` and `zfs clone` exit 0
-	// when the mount after the create fails (zfs_main.c ignores
-	// zfs_mount_and_share), and a kill after the create ioctl skips the
-	// mount entirely; committing then hands out a mountpoint that is a
-	// plain directory of the parent.
+	// filesystem volume zfs would mount is committed only once it is
+	// mounted: the resume after the create's scan mounts an unmounted one
+	// (OpMount) right before the commit. OpenZFS 2.4's `zfs create` and
+	// `zfs clone` exit 0 when the mount after the create fails (zfs_main.c
+	// ignores zfs_mount_and_share), and a kill after the create ioctl
+	// skips the mount entirely; committing then would hand out a
+	// mountpoint that is a plain directory of the parent.
 	RequireMounted bool
 
 	// now, when set, is stamped as committed_at by a create's commit: the
@@ -226,14 +230,15 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			if bs, ok := props[volblocksizeProp]; ok && u64(row.BlockSz) != bs {
 				return nil, errorf(AlreadyExists, "volume %s exists with volblocksize %d, requested %s", id, row.BlockSz, bs)
 			}
-			if p.RequireMounted && mountable(row) && !row.Mounted {
-				// nothing is written: the retry after a mount commits
-				return nil, errorf(Unavailable, "filesystem %s is not mounted at %s (zfs create and clone succeed when the mount fails): "+
-					"mount it (zfs mount %s) or clear the mountpoint; the volume is committed once it is mounted", row.Name, row.Mount, row.Name)
-			}
 			plan := p.sizeOps(id, row, r, size)
 			if set := propSet(row, props); len(set) > 0 {
 				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: set})
+			}
+			if p.RequireMounted && mountable(row) && !row.Mounted {
+				// zfs create and clone exit 0 when their mount fails: mount
+				// it now, right before the commit, so a failed mount leaves
+				// the row uncommitted (a retry mounts again)
+				plan = append(plan, Op{Kind: OpMount, Target: p.full(id), OkExists: true})
 			}
 			return append(plan, commit), nil
 		}
@@ -630,6 +635,17 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 	if row.Kind() == Filesystem && row.Refquota == 0 {
 		// unlimited already satisfies any capacity; a quota would shrink it
 		return nil, row, nil
+	}
+	if row.Kind() == Filesystem && row.Refres > 0 && row.Refres < max(want, row.Refquota) {
+		// thick and under-reserved: an earlier Expand's set applied
+		// refquota, then refreservation failed ENOSPC (zfs applies space
+		// properties one by one). Reserve the capacity, never report it
+		// done.
+		set := map[string]string{"refreservation": u64(max(want, row.Refquota))}
+		if want > row.Refquota {
+			set["refquota"] = u64(want)
+		}
+		return Plan{{Kind: OpSet, Target: row.Name, Props: set}}, row, nil
 	}
 	if want <= row.Capacity() {
 		return nil, row, nil

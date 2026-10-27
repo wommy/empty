@@ -9,7 +9,9 @@
 # Shards: the endpoint binary split three ways by ci/real-zfs-weights.txt
 # (the NFS tests, TestFileExport* and TestNFSReplay, kept together: one
 # nfsd, one export table; the replay writes malformed zfs.exports lines,
-# which end exportfs's read of the file for every dataset), the csi
+# which end exportfs's read of the file for every dataset; nightly, with
+# ZFSDIFF_FULL=1, TestZFSDiffReplay joins them: its whole corpus turns
+# shares on, which runs exportfs -ra on the same table), the csi
 # tests other than csi-sanity, csi-sanity on filesystems, csi-sanity on
 # zvols. Six processes on six pools, so no shard's datasets, space
 # accounting or txg syncs meet another's.
@@ -37,9 +39,11 @@ mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -O compression=lz4 "
 # shard <list> <weights> <n>: "<shard> <test>" per top-level test, fuzz
 # target (its seed corpus) and example, as check-skips counts them; longest
 # first onto the lightest shard
+nfs='^(TestFileExport|TestNFSReplay$)'
+[ "${ZFSDIFF_FULL:-}" = 1 ] && nfs='^(TestFileExport|TestNFSReplay$|TestZFSDiffReplay$)'
 shard() {
-  awk 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
-       /^(Test|Fuzz|Example)/ { g = ($1 ~ /^(TestFileExport|TestNFSReplay$)/) ? "nfs" : $1
+  awk -v nfs="$nfs" 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
+       /^(Test|Fuzz|Example)/ { g = ($1 ~ nfs) ? "nfs" : $1
                  wt[g] += ($1 in w) ? w[$1] : 0.1; m[g] = m[g] " " $1 }
        END { for (g in wt) printf "%.3f%s\n", wt[g], m[g] }' "$2" "$1" |
     sort -k1,1gr -k2,2 |
@@ -54,6 +58,12 @@ t=(-test.count=1 -test.v -test.timeout=4m)
 # TestNFSReplay's report (internal/endpoint/nfs_replay_test.go), copied back
 # with the logs; ci/real-zfs-vm.sh puts it in the job summary
 export NFS_REPLAY_REPORT=$out/nfs-replay.log
+# TestZFSDiffReplay's report (internal/endpoint/zfsdiff_replay_test.go):
+# real pool vs simulator vs reference model. ZFSDIFF_FULL=1 (nightly)
+# replays the whole corpus instead of the PR sample, which turns no share
+# on (zfsdiff.PRSample) and so need not share the NFS tests' shard
+export ZFSDIFF_REPORT=$out/zfsdiff.log
+export ZFSDIFF_FULL=${ZFSDIFF_FULL:-}
 pids=() names=()
 # run <name> <pool> <command...>: one shard on its own pool, in the background
 run() {

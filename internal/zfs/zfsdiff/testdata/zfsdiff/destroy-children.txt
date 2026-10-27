@@ -1,0 +1,7 @@
+# destroy without -r of a dataset with children: 'filesystem has children' lists only direct children
+# covers: destroy-r-clones
+zfs create $R/a
+zfs create $R/a/c
+zfs create $R/a/c/d
+zfs snapshot $R/a@s1
+zfs destroy $R/a

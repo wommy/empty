@@ -444,7 +444,10 @@ func TestFileExportReceivedShareNFS(t *testing.T) {
 		t.Fatal(err)
 	}
 	sim.Receive(v.Dataset, "sharenfs", "rw=10.0.0.0/8")
-	if err := h.Z.Inherit(ctx, v.Dataset, "sharenfs"); err != nil {
+	// `zfs inherit -S` drops the local value and reverts to the received
+	// one; a plain `zfs inherit` on a received dataset would hide the
+	// received value too (dsl_prop_set_sync_impl writes sharenfs$inherit)
+	if _, err := sim.Run(ctx, "zfs", "inherit", "-S", "sharenfs", v.Dataset); err != nil {
 		t.Fatal(err)
 	}
 	_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)

@@ -1,0 +1,8 @@
+# volblocksize: power of 2 at create, readonly after (set, clone -o, inherit)
+# covers: resv-auto
+zfs create -s -V 1000000 -o volblocksize=3000 $R/v
+zfs create -V 67108864 -o volblocksize=8192 $R/v
+zfs set volblocksize=16384 $R/v
+zfs snapshot $R/v@s1
+zfs clone -o volblocksize=16384 $R/v@s1 $R/x
+zfs inherit volblocksize $R/v

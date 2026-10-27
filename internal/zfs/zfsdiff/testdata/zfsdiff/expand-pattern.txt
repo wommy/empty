@@ -1,0 +1,4 @@
+# the endpoint's Expand: refquota and refreservation in one set, keys sorted (refquota first)
+# covers: quota
+zfs create -o refquota=10485760 -o refreservation=10485760 $R/a
+zfs set refquota=20971520 refreservation=20971520 $R/a

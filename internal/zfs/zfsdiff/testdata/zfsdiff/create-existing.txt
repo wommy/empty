@@ -1,0 +1,5 @@
+# create without -p of an existing dataset
+# covers: create-p
+zfs create $R/a
+zfs create $R/a
+zfs create -V 67108864 $R/a
