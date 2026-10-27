@@ -187,9 +187,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		if len(plans) == 0 {
 			break
 		}
-		for _, plan := range plans {
-			rows = simulateDestroy(rows, plan)
-		}
+		rows = simulateDestroyAll(rows, plans)
 		cur = NewTable(slices.Clone(rows))
 		pending = blocked
 	}
@@ -254,44 +252,65 @@ func hasAny[T any](seq func(func(T) bool)) bool {
 	return false
 }
 
-// simulateDestroy applies a delete plan's destroys to rows the way zfs
-// does: -r takes a volume and its snapshots; a deferred snapshot destroy
-// removes the snapshot once no clone remains, else marks it, and removing
-// a dataset reaps its origin when that was marked and now has no clones.
-func simulateDestroy(rows []Row, plan Plan) []Row {
-	clones := func(snap string) bool {
-		return slices.ContainsFunc(rows, func(r Row) bool { return r.Origin == snap })
-	}
-	reap := func(origin string) {
-		if origin == "" || clones(origin) {
-			return
-		}
-		rows = slices.DeleteFunc(rows, func(r Row) bool { return r.Name == origin && r.Deferred })
-	}
-	for _, op := range plan {
-		if op.Kind != OpDestroy {
-			continue
-		}
-		var origins []string
-		rows = slices.DeleteFunc(rows, func(r Row) bool {
-			gone := r.Name == op.Target && !op.Defer ||
-				op.Recursive && (strings.HasPrefix(r.Name, op.Target+"@") || strings.HasPrefix(r.Name, op.Target+"/"))
-			if gone {
-				origins = append(origins, r.Origin)
+// simulateDestroyAll applies every destroy of a round's plans to rows the
+// way zfs does, in one pass: -r takes a dataset and everything below it; a
+// deferred snapshot destroy removes the snapshot once no clone remains, else
+// marks it; removing a dataset reaps its origin when that was marked and now
+// has no clones.
+//
+// It is O(rows + ops); applying the plans one at a time was O(rows) per op,
+// which made PlanReconcile quadratic (31 s at 16k volumes, half of it under
+// the locks). Destroys only remove rows, so reaping once at the end equals
+// reaping after each op: the candidates are the same (defer targets and
+// origins of removed rows), and a candidate with no clones left at the end
+// lost its last clone during the round. TestSimulateDestroyAllEquivalent
+// checks it against the sequential version.
+func simulateDestroyAll(rows []Row, plans []Plan) []Row {
+	exact, rec, deferT := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	for _, plan := range plans {
+		for _, op := range plan {
+			if op.Kind != OpDestroy {
+				continue
 			}
-			return gone
-		})
-		if op.Defer {
-			if i := slices.IndexFunc(rows, func(r Row) bool { return r.Name == op.Target }); i >= 0 {
-				rows[i].Deferred = true
-				reap(op.Target)
+			if op.Defer {
+				deferT[op.Target] = true
+			} else {
+				exact[op.Target] = true
+			}
+			if op.Recursive {
+				rec[op.Target] = true
 			}
 		}
-		for _, o := range origins {
-			reap(o)
+	}
+	under := func(name string) bool {
+		if len(rec) == 0 {
+			return false
+		}
+		for i := 0; i < len(name); i++ {
+			if (name[i] == '@' || name[i] == '/') && rec[name[:i]] {
+				return true
+			}
+		}
+		return false
+	}
+	cand := maps.Clone(deferT)
+	rows = slices.DeleteFunc(rows, func(r Row) bool {
+		gone := exact[r.Name] || under(r.Name)
+		if gone && r.Origin != "" {
+			cand[r.Origin] = true
+		}
+		return gone
+	})
+	clones := map[string]int{}
+	for i, r := range rows {
+		if deferT[r.Name] {
+			rows[i].Deferred = true
+		}
+		if r.Origin != "" {
+			clones[r.Origin]++
 		}
 	}
-	return rows
+	return slices.DeleteFunc(rows, func(r Row) bool { return cand[r.Name] && r.Deferred && clones[r.Name] == 0 })
 }
 
 // ReconcileRequest is what a caller asks a reconcile to keep.

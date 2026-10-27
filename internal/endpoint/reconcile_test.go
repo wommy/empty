@@ -283,12 +283,12 @@ func TestSimulateDestroyReapsDeferredOrigins(t *testing.T) {
 		{Name: "tank/v/c", ID: "c", Origin: "tank/v/b@s"},
 		{Name: "tank/v/d", ID: "d", Origin: "tank/v/b@s"},
 	}
-	rows = simulateDestroy(rows, Plan{{Kind: OpDestroy, Target: "tank/v/b@s", Defer: true}})
+	rows = simulateDestroyAll(rows, []Plan{{{Kind: OpDestroy, Target: "tank/v/b@s", Defer: true}}})
 	if len(rows) != 4 || !rows[1].Deferred {
 		t.Fatalf("deferred with clones: %+v", rows)
 	}
-	rows = simulateDestroy(rows, Plan{{Kind: OpDestroy, Target: "tank/v/c", Recursive: true}})
-	rows = simulateDestroy(rows, Plan{{Kind: OpDestroy, Target: "tank/v/d", Recursive: true}})
+	rows = simulateDestroyAll(rows, []Plan{{{Kind: OpDestroy, Target: "tank/v/c"}}})
+	rows = simulateDestroyAll(rows, []Plan{{{Kind: OpDestroy, Target: "tank/v/d"}}})
 	if len(rows) != 1 || rows[0].ID != "b" {
 		t.Fatalf("last clone gone: %+v", rows)
 	}
