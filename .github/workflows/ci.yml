@@ -263,14 +263,18 @@ jobs:
           retention-days: 30
       - name: check for a stored guest
         id: stored
-        if: always() && steps.vm.outputs.cache-hit != 'true'
+        # the csi job only: its test phase is the shorter (8.7s against
+        # 18.5s, run 40506940034), so it carries the save. Both jobs saved
+        # the same entry, and the endpoint job's 6s save (a guest restored
+        # through the fallback key after a runner image release) was on
+        # push-to-green; the second save only warned
+        if: always() && matrix.suite == 'csi' && steps.vm.outputs.cache-hit != 'true'
         run: test -f "$RUNNER_TEMP/zfsvm-cache/ok" && echo "ok=1" >>"$GITHUB_OUTPUT" || true
       - name: save the provisioned guest and qemu
         # a cold guest, or a guest restored with another runner image's qemu
         # tree; after the tests, so a miss does not delay the boot. Also
         # after a test failure: provisioning succeeded, and the version
-        # checks run again on every warm boot. Both suites' jobs may try:
-        # the first save wins, the other only warns (the key is taken)
+        # checks run again on every warm boot
         if: always() && steps.stored.outputs.ok == '1'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:

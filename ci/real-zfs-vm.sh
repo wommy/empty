@@ -24,6 +24,18 @@
 # (-kernel): no SeaBIOS, no GRUB, no BIOS-speed read of the kernel and
 # initrd (qemu start to the guest kernel's clock took 3.5-5.8s in runs
 # 40468413047 and 40469622947). A disk stored without them boots as before.
+# A direct boot of the cloud image's root (root=LABEL=cloudimg-rootfs, GPT
+# partition 1) skips the initrd too: the kernel has virtio-pci, virtio-blk
+# and ext4 built in (=y in config-7.3.0-9-generic), so it mounts /dev/vda1
+# itself, and the 4.6s initrd stage (run 40505456077) goes. If that kernel
+# cannot (it panics, qemu exits: -no-reboot), the guest boots again with
+# the stored initrd and the job warns. ZFSVM_INITRD=1 always uses it.
+# Every direct boot masks zfs-import-cache and zfs-import-scan from the
+# kernel command line: they Require systemd-udev-settle, which held
+# local-fs.target, so sshd, until every device settled (zfs-import.target
+# at 3.4s of the 4.1s to ssh in run 40505456077); no pool exists at boot,
+# the tests create theirs. No cache key change: the stored cmdline is
+# rewritten at boot.
 #
 # ZFSVM_PHASE splits a run so the guest boots while the job sets up Go:
 #   boot  verify the image, start the guest, return (qemu keeps running)
@@ -90,6 +102,8 @@ cleanup() {
   local rc=$?
   [ $rc -eq 0 ] || diag
   ssh "${common[@]}" -O exit -p 2222 ci@127.0.0.1 2>/dev/null || true
+  # a build still running when a check failed
+  [ -z "${build:-}" ] || { pkill -P "$build" 2>/dev/null; kill "$build" 2>/dev/null; } || true
   [ -n "$keep" ] || kill "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || true
   exit $rc
 }
@@ -98,10 +112,21 @@ cleanup() {
 # A warm boot reuses the cold boot's seed, though the provisioned disk has
 # cloud-init disabled. All the runner's vCPUs and 6G: the tests run as
 # concurrent shards (three per suite) with their pools on a guest tmpfs.
-# boot <disk> [<dir with vmlinuz, initrd, cmdline>]
+# boot <disk> [<dir with vmlinuz, initrd, cmdline>]; $noinitrd: no initrd
+masks="systemd.mask=zfs-import-cache.service systemd.mask=zfs-import-scan.service"
 boot() {
-  local direct=()
-  [ -z "${2:-}" ] || direct=(-kernel "$2/vmlinuz" -initrd "$2/initrd" -append "$(cat "$2/cmdline")")
+  local direct=() append
+  if [ -n "${2:-}" ]; then
+    append="$(cat "$2/cmdline") $masks"
+    if [ -n "$noinitrd" ]; then
+      # panic=1 with -no-reboot: a kernel that cannot mount the root exits
+      # qemu, and wait_ssh boots again with the initrd
+      append=$(sed -E 's#(^| )root=LABEL=cloudimg-rootfs( |$)#\1root=/dev/vda1 rootfstype=ext4 rootwait\2#' <<<"$append")
+      direct=(-kernel "$2/vmlinuz" -append "$append panic=1" -no-reboot)
+    else
+      direct=(-kernel "$2/vmlinuz" -initrd "$2/initrd" -append "$append")
+    fi
+  fi
   qemu-system-x86_64 -enable-kvm -cpu host -m 6144 -smp "$(nproc)" -display none "${direct[@]}" \
     -drive file="$1",if=virtio,discard=unmap,cache=unsafe -drive file="$work/seed.img",if=virtio,format=raw \
     -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
@@ -115,7 +140,12 @@ overlay() {
   if [ -s "$cache/vmlinuz" ] && [ -s "$cache/initrd" ] && [ -s "$cache/cmdline" ] && [ -s "$cache/kernel.release" ]; then
     kernel=$(cat "$cache/kernel.release")
     echo "kernel=$kernel" >>"$work/state"
-    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline"), initrd $(du -k "$cache/initrd" | cut -f1) KiB"
+    # the stored cmdline names the cloud image's root by label, which only
+    # an initrd resolves; partition 1 of the image carries that label
+    noinitrd=
+    if [ -z "${ZFSVM_INITRD:-}" ] && grep -Eq '(^| )root=LABEL=cloudimg-rootfs( |$)' "$cache/cmdline"; then noinitrd=1; fi
+    echo "noinitrd=$noinitrd" >>"$work/state"
+    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline"), initrd $(du -k "$cache/initrd" | cut -f1) KiB${noinitrd:+, not loaded (root=/dev/vda1)}"
     boot "$work/run.qcow2" "$cache"
   else
     kernel=
@@ -153,7 +183,7 @@ if [ "$phase" != run ]; then
   trap cleanup EXIT
   # boot first: provisioning (or a warm boot) overlaps setup-go and the
   # test compile
-  kernel=
+  kernel= noinitrd=
   if [ -n "$warm" ]; then overlay; else boot "$img"; fi
   if [ "$phase" = boot ]; then
     keep=1
@@ -162,34 +192,51 @@ if [ "$phase" != run ]; then
   fi
 else
   [ -s "$work/state" ] || { echo "ZFSVM_PHASE=run without a boot phase ($work/state)" >&2; exit 1; }
-  warm= sum= launched= kernel=
+  warm= sum= launched= kernel= noinitrd=
   # shellcheck source=/dev/null
   . "$work/state"
   trap cleanup EXIT
   kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || { echo "the guest started by the boot phase is not running" >&2; exit 1; }
 fi
 
+build=
 if [ -z "${ZFSVM_PROVISION_ONLY:-}" ]; then
   # test binaries: static, so the VM needs no Go toolchain; built as the
   # runner user, only the binaries run as root. One go invocation builds
   # and links both in parallel (-o <dir>/ writes <pkg>.test)
   # beside them, the daemon and the probe for the unit check
   # (ci/real-zfs-unit.sh): 2.5s cold, 0.4s from a warm cache, measured
-  # locally; in parallel, so it adds what the test link does not cover
-  unitbuild=
-  if [ -n "$unit" ]; then
-    CGO_ENABLED=0 go build -o "$work/" ./cmd/zfs-endpoint ./ci/unitprobe &
-    unitbuild=$!
-  fi
-  CGO_ENABLED=0 go test -c -o "$work/" "${pkgs[@]/#/./internal/}"
-  [ -z "$unitbuild" ] || wait "$unitbuild"
-  mark "test binaries built"
+  # locally; in parallel, so it adds what the test link does not cover.
+  # In the background: the wait for ssh and the guest checks below run
+  # beside the build (they took 0.7s after ssh in run 40505456077), and
+  # the scp waits for it
+  (
+    unitbuild=
+    if [ -n "$unit" ]; then
+      CGO_ENABLED=0 go build -o "$work/" ./cmd/zfs-endpoint ./ci/unitprobe &
+      unitbuild=$!
+    fi
+    CGO_ENABLED=0 go test -c -o "$work/" "${pkgs[@]/#/./internal/}"
+    [ -z "$unitbuild" ] || wait "$unitbuild"
+    mark "test binaries built"
+  ) &
+  build=$!
 fi
 
 wait_ssh() {
   local up=
   # sshd refuses at once until it is up, so a short poll costs nothing
-  for _ in $(seq 1 900); do vm true 2>/dev/null && { up=1; break; }; sleep 0.2; done
+  for _ in $(seq 1 900); do
+    vm true 2>/dev/null && { up=1; break; }
+    if [ -n "$noinitrd" ] && ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
+      cp "$work/console.log" "$work/console-noinitrd.log" 2>/dev/null || true
+      echo "::warning::the guest exited booting without an initrd (console-noinitrd.log); booting it with the stored initrd"
+      noinitrd=
+      echo "noinitrd=" >>"$work/state"
+      boot "$work/run.qcow2" "$cache"
+    fi
+    sleep 0.2
+  done
   [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
   mark "ssh up"
 }
@@ -256,7 +303,7 @@ running=$(vm 'uname -r')
 {
   echo "### real ZFS VM: $series/$build, suite $suite (${pkgs[*]})"
   echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
-  echo "- kernel: \`$running\`${kernel:+ (direct kernel boot)}"
+  echo "- kernel: \`$running\`${kernel:+ (direct kernel boot${noinitrd:+, no initrd})}"
   echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
 } >>"$summary"
 grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
@@ -267,6 +314,13 @@ grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}
 # the disk's /lib/modules/<release>, so the two must be the same release
 [ -z "$kernel" ] || [ "$running" = "$kernel" ] \
   || { echo "booted kernel $running, the stored disk's kernel is $kernel" >&2; exit 1; }
+# without an initrd the kernel mounted /dev/vda1 by name: it must be the
+# image's root, the partition the stored cmdline named by label
+if [ -n "$noinitrd" ]; then
+  rootfs=$(vm 'echo "$(findmnt -no SOURCE /) $(sudo blkid -s LABEL -o value /dev/vda1)"')
+  [ "$rootfs" = "/dev/vda1 cloudimg-rootfs" ] \
+    || { echo "no-initrd boot: expected / on /dev/vda1 labelled cloudimg-rootfs, got: $rootfs" >&2; exit 1; }
+fi
 # what the file-export tests need besides running nfsd threads. Only
 # exportfs: libzfs creates /etc/exports.d on the first share, and
 # exportfs writes /var/lib/nfs/etab when it first exports
@@ -291,11 +345,16 @@ fi
 # while units are still starting. Best effort, never a gate
 # critical-chain: what ssh and nfsd, the two the job waits for, waited for;
 # findmnt: /boot and /boot/efi stay unmounted (noauto, cloud-config)
-vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "NR <= 15"
+# blame without .device units (they filled all 15 lines in run 40505456077);
+# udev-settle: whether anything still pulls it in with the imports masked
+vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "!/\\.device\$/ && ++n <= 15"
+  echo "systemd-udev-settle: $(systemctl is-active systemd-udev-settle.service); zfs-import-scan: $(systemctl is-enabled zfs-import-scan.service 2>&1)"
   systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
   echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \
   >"$work/systemd-analyze.txt" 2>&1 &
 analyze=$!
+wait "$build" || { echo "building the test binaries failed" >&2; exit 1; }
+build=
 bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
 [ -z "$unit" ] || bins+=("$work/zfs-endpoint" "$work/unitprobe" ci/real-zfs-unit.sh deploy/systemd/zfs-endpoint@.service \
