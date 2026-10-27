@@ -21,7 +21,7 @@ func simulateDestroy(rows []Row, plan Plan) []Row {
 		if origin == "" || clones(origin) {
 			return
 		}
-		rows = slices.DeleteFunc(rows, func(r Row) bool { return r.Name == origin && r.Deferred })
+		rows = slices.DeleteFunc(rows, func(r Row) bool { return r.Name == origin && r.Deferred && r.Holds == 0 })
 	}
 	for _, op := range plan {
 		if op.Kind != OpDestroy {
@@ -98,6 +98,7 @@ func FuzzSimulateDestroyAllEquivalent(f *testing.F) {
 func simulateDestroyAllEquivalent(t *testing.T, seed uint64) {
 	{
 		rng := rand.New(rand.NewPCG(seed, 1))
+		holds := rand.New(rand.NewPCG(seed, 2)) // its own stream: rng's draws stay as they were
 		var rows []Row
 		var snaps []string
 		for v := range 1 + rng.IntN(6) {
@@ -109,7 +110,7 @@ func simulateDestroyAllEquivalent(t *testing.T, seed uint64) {
 			rows = append(rows, r)
 			for s := range rng.IntN(3) {
 				sn := fmt.Sprintf("%s@%d", name, s)
-				rows = append(rows, Row{Name: sn, ID: sn[7:], Type: zfs.TypeSnapshot, Deferred: rng.IntN(4) == 0})
+				rows = append(rows, Row{Name: sn, ID: sn[7:], Type: zfs.TypeSnapshot, Deferred: rng.IntN(4) == 0, Holds: uint64(holds.IntN(5) / 4)})
 				snaps = append(snaps, sn)
 			}
 		}

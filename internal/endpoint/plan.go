@@ -554,6 +554,13 @@ func (d deletion) plan() Plan {
 	return append(plan, *d.vol)
 }
 
+func plural(n uint64, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
 // planDelete is PlanDeleteVolume with the foreign-snapshot opt-in explicit:
 // Reconcile never passes it (no per-volume request asked for anything).
 func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletion, error) {
@@ -571,6 +578,11 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 	if !row.OwnedVolume() {
 		return deletion{}, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
 	}
+	// zfs refuses the plain destroy below on every attempt while these
+	// stand, so a plan through them would fail on every run (OWN-12)
+	if len(row.Children) > 0 {
+		return deletion{}, errorf(FailedPrecondition, "volume %s has datasets below it the endpoint did not make: %s", id, strings.Join(row.Children, ", "))
+	}
 	var d deletion
 	var foreign []string
 	for s := range t.SnapshotsOf(id) {
@@ -579,6 +591,12 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 		}
 		for c := range t.ClonesOf(s.Name) {
 			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
+		}
+		// a user hold is someone's claim on the snapshot (zfs send, a
+		// backup tool); only its holder releases it (HOLD-REPLAN)
+		if s.Holds > 0 {
+			return deletion{}, errorf(FailedPrecondition, "volume %s has held snapshot %s (%d user %s): zfs release it first",
+				id, s.ID, s.Holds, plural(s.Holds, "hold", "holds"))
 		}
 		// the endpoint's own: an internal clone-source snapshot, or one
 		// already pending deferred destruction (a deleted CSI snapshot)

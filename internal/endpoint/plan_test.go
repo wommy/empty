@@ -345,3 +345,33 @@ func TestPlanCreateRefusesForeignAndIncompatible(t *testing.T) {
 		}
 	}
 }
+
+// DeleteVolume refuses at plan time what zfs refuses at apply: a held
+// snapshot (HOLD-REPLAN) and a dataset below the volume (OWN-12). Refused
+// up front, nothing of the volume is destroyed first, even with the
+// foreign-snapshot opt-in.
+func TestPlanDeleteVolumeRefusesHoldsAndChildren(t *testing.T) {
+	cases := []struct {
+		name string
+		rows []Row
+		want string
+	}{
+		{"held clone source", []Row{vol("b", nil), snap("b@volume-source-for-volume-gone", func(r *Row) {
+			r.SnapshotName, r.CloneSourceFor, r.Holds = "", "gone", 1
+		})}, "volume b has held snapshot b@volume-source-for-volume-gone (1 user hold): zfs release it first"},
+		{"held foreign snapshot", []Row{vol("b", nil), snap("b@admin", func(r *Row) { r.Managed, r.SnapshotName, r.Holds = false, "", 3 })},
+			"volume b has held snapshot b@admin (3 user holds): zfs release it first"},
+		{"child dataset", []Row{vol("b", func(r *Row) { r.Children = []string{"b/x"} })},
+			"volume b has datasets below it the endpoint did not make: b/x"},
+	}
+	for _, c := range cases {
+		for _, foreign := range []bool{false, true} {
+			p := pl
+			p.DestroyForeignSnapshots = foreign
+			plan, err := p.PlanDeleteVolume(NewTable(c.rows), "b")
+			if code(err) != FailedPrecondition || err.Error() != c.want || len(plan) != 0 {
+				t.Errorf("%s (foreign=%v): %v %+v, want FailedPrecondition %q", c.name, foreign, err, plan, c.want)
+			}
+		}
+	}
+}
