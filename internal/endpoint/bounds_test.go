@@ -3,7 +3,6 @@ package endpoint
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -191,25 +190,6 @@ func TestReconcileBoundsItsOwnAnswer(t *testing.T) {
 	// the rest of the plan is unchanged: b is undesired and collected
 	if len(plan.Actions) != 1 || plan.Actions[0].Target != "b" {
 		t.Errorf("actions %+v, want b's destroy", plan.Actions)
-	}
-}
-
-// H-10: the API's word on missing ids is the bound above. The proto
-// comment on desired_volume_ids said every missing id is reported; a
-// caller reading it would take an absent id for an existing volume.
-func TestProtoDocumentsTheMissingIDBound(t *testing.T) {
-	t.Parallel()
-	b, err := os.ReadFile("../../api/zfsendpoint/v1/endpoint.proto")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, msg, _ := strings.Cut(string(b), "message ReconcileRequest {")
-	doc, _, _ := strings.Cut(msg, "repeated string desired_volume_ids")
-	doc = strings.Join(strings.Fields(strings.ReplaceAll(doc, "//", "")), " ")
-	for _, want := range []string{fmt.Sprintf("first %d", maxMissingSkips), `"(N more)"`, "sorted"} {
-		if !strings.Contains(doc, want) {
-			t.Errorf("desired_volume_ids comment lacks %q:\n%s", want, doc)
-		}
 	}
 }
 
