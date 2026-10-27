@@ -8,3 +8,8 @@
 {"id": 620, "file": "internal/endpoint/table.go", "line": 60, "op": "EQ_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 40.0}
 {"id": 641, "file": "internal/endpoint/table.go", "line": 80, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 27.3}
 {"id": 701, "file": "internal/endpoint/endpoint.go", "line": 280, "op": "CODE_INTERNAL", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 26.3}
+{"id": 729, "file": "internal/endpoint/props.go", "line": 112, "op": "BOOL_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 28.8}
+{"id": 778, "file": "internal/endpoint/props.go", "line": 172, "op": "BOOL_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 27.0}
+{"id": 856, "file": "internal/zfs/errors.go", "line": 103, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 29.9}
+{"id": 873, "file": "internal/zfs/errors.go", "line": 130, "op": "PATTERN_DROP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 25.6}
+{"id": 881, "file": "internal/zfs/errors.go", "line": 134, "op": "PATTERN_DROP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 25.4}

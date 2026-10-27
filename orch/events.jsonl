@@ -84,3 +84,7 @@
 {"ts": "2026-10-27T07:20:40Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T07:22:19Z", "id": "a7917f0701b7632ef", "from": "queued", "to": "running", "note": "r-busy-diag"}
 {"ts": "2026-10-27T07:22:19Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:24:24Z", "id": "af4a379772913bf2b", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T07:24:24Z", "id": "af4a379772913bf2b", "from": "reported", "to": "triaged", "note": "AN-01 and AN-09 probes reproduce (I ran). AN-01 -> b-test-truth (wave13/probe-src/an01-fuzz-strengthen.diff + seed 0x87,0x00). AN-09 explorer not in HEAD -> lands with b-model with classify fix; AN-04 guard ci/check-explore-ran.sh lands with b-model's first TestExplore* (it turns nightly red alone)."}
+{"ts": "2026-10-27T07:24:25Z", "id": "af4a379772913bf2b", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T07:24:25Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

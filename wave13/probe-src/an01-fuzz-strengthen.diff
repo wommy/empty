@@ -1,6 +1,14 @@
 --- internal/endpoint/reconcile_fuzz_test.go	2026-10-27 05:35:06.503773864 +0000
-+++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave13/truth-copy/internal/endpoint/reconcile_fuzz_test.go	2026-10-27 07:21:04.927981839 +0000
-@@ -88,6 +88,7 @@
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave13/truth-copy/internal/endpoint/reconcile_fuzz_test.go	2026-10-27 07:22:22.909870869 +0000
+@@ -37,6 +37,7 @@
+ //     does nothing
+ func FuzzReconcileSafe(f *testing.F) {
+ 	f.Add([]byte{0x07, 0x00, 0x03, 0x00, 0x23, 0x00, 0x00, 0x83, 0x00})
++	f.Add([]byte{0x87, 0x00}) // a desired volume with a stamped orphan clone source: the only seed that plans ReasonOrphanCloneSource
+ 	f.Add([]byte{0x01, 0x00, 0x00, 0x21, 0x00, 0x00, 0x21, 0x00, 0x01})
+ 	f.Add([]byte{0x13, 0x00, 0x00, 0x2b, 0x20, 0x00, 0x09, 0x00})
+ 	f.Add([]byte{0x00, 0x00, 0x00, 0x05, 0x00})
+@@ -88,6 +89,7 @@
  		}
  		var ids, want, outside []string
  		busy := map[string]bool{}
@@ -8,7 +16,7 @@
  		for i := 0; i < len(spec) && len(ids) < 8; i++ {
  			b := spec[i]
  			var x byte
-@@ -153,6 +154,7 @@
+@@ -153,6 +155,7 @@
  				must(z.Clone(ctx, ds+"@gone", "tank/other/d"+id, nil))
  				must(z.Destroy(ctx, ds+"@gone", zfs.DestroyOptions{Defer: true}))
  				outside = append(outside, "tank/other/d"+id)
@@ -16,7 +24,7 @@
  			}
  			if b&leak != 0 {
  				must(z.Snapshot(ctx, ds+"@"+cloneSourceSnapshotPrefix+"gone"+id, map[string]string{
-@@ -170,6 +172,7 @@
+@@ -170,6 +173,7 @@
  				must(z.CreateFilesystem(ctx, ds+"/kid", nil, false))
  				must(z.Snapshot(ctx, ds+"/kid@s", nil))
  				outside = append(outside, ds+"/kid", ds+"/kid@s")
@@ -24,7 +32,7 @@
  			}
  			if x&failDestroy != 0 {
  				busy[ds] = true
-@@ -224,6 +227,20 @@
+@@ -224,6 +228,20 @@
  		if err != nil || len(third.Actions) != 0 {
  			t.Fatalf("third reconcile: %+v %v", third.Actions, err)
  		}
