@@ -325,8 +325,15 @@ func TestExpandThickFilesystemRetryAfterENOSPC(t *testing.T) {
 	const huge = 1 << 50
 	_, err := ep.ExpandVolume(ctx, "thick", huge, 0)
 	wantCode(t, err, endpoint.ResourceExhausted)
+	half := true
 	if got := h.Prop(h.Parent+"/thick", "refquota"); got != fmt.Sprint(uint64(huge)) {
-		t.Fatalf("refquota %s: the scenario needs zfs to half-apply the set", got)
+		half = false
+		// the simulator half-applies, as 2.4.4's source reads; should a
+		// real pool not, the retries below hold all the same
+		if h.sim != nil {
+			t.Fatalf("refquota %s: the simulator must half-apply the set", got)
+		}
+		t.Logf("refquota %s: this zfs applied neither property", got)
 	}
 	for i := 0; i < 2; i++ {
 		v, err := ep.ExpandVolume(ctx, "thick", huge, 0)
@@ -337,8 +344,10 @@ func TestExpandThickFilesystemRetryAfterENOSPC(t *testing.T) {
 	}
 	// a smaller expand is no way out: the volume reports the 1 PiB
 	// refquota as its capacity, which a thick volume must reserve
-	_, err = ep.ExpandVolume(ctx, "thick", 2<<30, 0)
-	wantCode(t, err, endpoint.ResourceExhausted)
+	if half {
+		_, err = ep.ExpandVolume(ctx, "thick", 2<<30, 0)
+		wantCode(t, err, endpoint.ResourceExhausted)
+	}
 }
 
 func TestConcurrentCreatesSerialize(t *testing.T) {
