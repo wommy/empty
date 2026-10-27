@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -101,5 +102,18 @@ func TestStorageClassClientsPlaceholder(t *testing.T) {
 	set[zcsi.ParamNFSClients] = "10.20.0.0/24"
 	if err := create("pvc-set", set); err != nil {
 		t.Errorf("the class with nfs.clients set: %v", err)
+	}
+}
+
+// The shipped class mounts NFSv4.2 only (no v3 fallback, so no rpcbind or
+// mountd to expose), hard, and nosuid and nodev: a setuid binary or device
+// node on a volume grants nothing in a pod (ADR 0009). The real-ZFS VM
+// checks that its nfsd serves 4.2 (ci/real-zfs-vm.sh).
+func TestStorageClassMountOptions(t *testing.T) {
+	t.Parallel()
+	sc := object(t, k8sObjects(t), "StorageClass", className)
+	got := strs(get(sc, "mountOptions"))
+	if want := []string{"nfsvers=4.2", "hard", "nosuid", "nodev"}; !slices.Equal(got, want) {
+		t.Errorf("StorageClass %s mountOptions %q, want %q", className, got, want)
 	}
 }

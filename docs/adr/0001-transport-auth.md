@@ -142,7 +142,7 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 - **F6 (AUTH_SYS plus a CIDR ACL) is closed by deployment,** in both modes:
   - a cluster-scoped deny of pod egress to the storage host's 2049/tcp (and 111 and 20048 for NFSv3);
   - Pod Security baseline or stricter on tenant namespaces;
-  - a host firewall limiting 2049 to the node subnet.
+  - a host firewall limiting 2049 to the node subnet (narrowed to the node addresses: ADR 0004 Consequences).
 
   Mounts use host networking, so they are unaffected.
 - Static mode keeps `nfs.clients` required, with no default CIDR, plus the AUTH_SYS warning.

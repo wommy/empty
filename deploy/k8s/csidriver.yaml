@@ -1,6 +1,8 @@
 # The CSI driver object for zfs-csi (driver name: internal/csi
-# DefaultDriverName). Controller only: nothing attaches (no
-# ControllerPublish), and the node side needs no pod info.
+# DefaultDriverName), served by the zfs-csi controller (controller.yaml) and
+# csi-driver-nfs's node plugin (node.yaml). Nothing attaches (no
+# ControllerPublish: the export is static, made at CreateVolume), and the
+# node side needs no pod info.
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
@@ -10,3 +12,10 @@ spec:
   podInfoOnMount: false
   volumeLifecycleModes:
     - Persistent
+  # kubelet never chowns or chmods a volume for a pod's fsGroup: ownership
+  # is set server-side, by the endpoint, from the StorageClass's nfs.uid,
+  # nfs.gid and nfs.mode before export (ADR 0004), and root_squash would
+  # fail kubelet's recursive chown anyway, leaving the pod stuck. Explicit,
+  # because the default (ReadWriteOnceWithFSType) would turn it on for a
+  # class that sets csi.storage.k8s.io/fstype.
+  fsGroupPolicy: None

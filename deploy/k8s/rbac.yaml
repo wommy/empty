@@ -17,10 +17,12 @@ kind: Namespace
 metadata:
   name: zfs-csi
   labels:
-    # the pod mounts a hostPath (the endpoint's socket directory), which
-    # Pod Security baseline and restricted refuse; say so here rather than
-    # inherit a cluster default that rejects the pod with only a FailedCreate
-    # event on the ReplicaSet
+    # the controller pod mounts a hostPath (the endpoint's socket
+    # directory), and the node plugin (node.yaml) is privileged, uses the
+    # host network and mounts hostPaths: Pod Security baseline and
+    # restricted refuse both. Say so here rather than inherit a cluster
+    # default that rejects the pods with only a FailedCreate event on the
+    # ReplicaSet or DaemonSet
     pod-security.kubernetes.io/enforce: privileged
 ---
 apiVersion: v1

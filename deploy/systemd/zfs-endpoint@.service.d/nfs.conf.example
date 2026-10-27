@@ -6,15 +6,21 @@
 #
 # - The address is what clients mount from, recorded in every volume and
 #   PV at create and never recomputed (ADR 0004 Q1): advertise a stable
-#   VIP or DNS name, never an address that may change. Repeat
+#   VIP or DNS name, never an address that may change. Write it as an IPv4
+#   address or an FQDN with a trailing dot (nas.example.com.): the node
+#   plugin resolves it on each node, and a name without the trailing dot
+#   goes through the resolver's search list first, where another host's
+#   name (or, under cluster DNS, a tenant's Service) can answer. Repeat
 #   -nfs-server=<address> (space-separated) for more; the first is the
 #   default, StorageClass nfs.server picks another.
 # - NFS export needs root (the unit runs as root) and a running
 #   nfs-server; StorageClass nfs.clients is then required on every volume.
 # - AUTH_SYS: close F6 by deployment before serving tenants (ADR 0001 v2
 #   D8; deploy/k8s/node.yaml lists the controls): deny pod egress to this
-#   host's 2049 (and 111, 20048), and limit 2049 to the node subnet with a
-#   host firewall.
+#   host's 2049 (and 111, 20048), and limit 2049 to the node addresses,
+#   not the node subnet, with a host firewall: any host that reaches 2049
+#   from inside an export's networks can mount every exported volume
+#   (ADR 0004).
 
 [Service]
-Environment=ZFS_ENDPOINT_NFS=-nfs-server=<nfs-vip-or-dns-name>
+Environment=ZFS_ENDPOINT_NFS=-nfs-server=<nfs-ipv4-or-fqdn-with-trailing-dot>

@@ -48,6 +48,7 @@ Status: accepted · Date: 2026-10-27 · Related: ADR 0003 (OpenZFS is the source
 - Stock Ubuntu 24.04 and Debian 12 hosts are unsupported until they ship 2.4.
 - A `node_id` used as an export client must be validated as a single host, never a CIDR.
 - Block (zvol) volumes still need a node story; csi-driver-nfs covers only NFS.
+- **The export is per CIDR, so every host in it holds every volume.** Any host, node or hostNetwork pod inside an export's networks can mount every volume exported to them, read-write, as any uid but 0 (AUTH_SYS), whichever pods are scheduled there and with no trace (no VolumeAttachment, no per-node export); NetworkPolicy does not cover hostNetwork pods. Until per-node publish or krb5p, operators keep `nfs.clients` as narrow as the nodes allow and firewall NFS (2049) on the ZFS host to the node addresses (a set of /32s), not the node subnet, which narrows ADR 0001 v2 D8's host firewall (README, "Deploying the node side").
 
 ## Implementation notes (2026-10-27, branch `nfs-csi`)
 
