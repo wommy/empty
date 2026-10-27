@@ -16,7 +16,7 @@ outputs:
     value: ${{ steps.restore.outputs.cache-hit }}
   cache-key:
     description: the key a job saves under after a miss
-    value: go1.27.3-${{ inputs.cache-name }}-${{ hashFiles('go.sum') }}
+    value: ${{ steps.restore.outputs.cache-primary-key }}
 runs:
   using: composite
   steps:
