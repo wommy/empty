@@ -1,0 +1,59 @@
+=== class:release (x8)
+# generated: seed292
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create -p -o dedup=off $R/a/c
+zfs release -r t1 $R/a@s1
+step 4 `zfs release -r t1 $R/a@s1`: class differs
+  A: noent: cannot release hold from snapshot 'zfsep-test/zd/s0/a@s1': dataset does not exist
+  B: no-tag: cannot release hold from snapshot 'zfsep-test/zd/s0/a@s1': no such tag on this dataset
+
+=== proj:@sendrecv:mounted (x1)
+# generated: seed594
+zfs create $R/a
+zfs set canmount=off $R/a
+zfs snapshot -r $R/a@s2
+@sendrecv $R/a@s2 $R/r
+step 4 `@sendrecv $R/a@s2 $R/r`: proj differs
+  A: $R/r	mounted	no	-
+  B: $R/r	mounted	yes	-
+
+=== proj:destroy:acltype (x1)
+# generated: seed91
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create $R/a/x
+zfs hold t2 $R/a@s1
+zfs destroy -r $R/a
+step 5 `zfs destroy -r $R/a`: proj differs
+  A: 
+  B: $R/a/x	acltype	off	default
+     $R/a/x	atime	on	default
+     $R/a/x	canmount	on	default
+     $R/a/x	compression	lz4	inherited from zfsep-test
+     $R/a/x	copies	1	default
+     $R/a/x	dedup	off	default
+     $R/a/x	defer_destroy	-	-
+     $R/a/x	logbias	latency	default
+     $R/a/x	mounted	yes	-
+     $R/a/x	mountpoint	/$R/a/x	default
+     $R/a/x	origin	-	-
+     $R/a/x	quota	0	default
+     $R/a/x	recordsize	131072	default
+     $R/a/x	refquota	0	default
+     $R/a/x	refreservation	0	default
+     $R/a/x	relatime	on	default
+     $R/a/x	reservation	0	default
+     $R/a/x	sharenfs	off	default
+     $R/a/x	snapdir	hidden	default
+     $R/a/x	sync	standard	default
+     $R/a/x	type	filesystem	-
+     $R/a/x	userrefs	-	-
+     $R/a/x	volblocksize	-	-
+     $R/a/x	volsize	-	-
+     $R/a/x	xattr	sa	default
+     $R/a/x	zd:a	-	-
+     $R/a/x	zd:b	-	-
+
+known: map[create-vol-resv-auto:49]
+model step success by verb: @sendrecv 464/1331 clone 853/2642 create 5125/7848 destroy 1330/3198 hold 636/1315 inherit 683/1880 promote 157/1374 release 57/625 rename 287/1035 set 2008/4416 snapshot 1469/4287

@@ -1,0 +1,20 @@
+=== staged
+    zz_probe_test.go:41: phantom: ListVolumes = [a(filesystem) a@ghost(filesystem)], code=0 err=<nil>
+    zz_probe_test.go:46: Kind=7 Reserve+Sparse no capacity: 2 ops, err=<nil>
+    zz_probe_test.go:50: zero Planner block create: recovered=runtime error: integer divide by zero
+    zz_probe_test.go:58: NFSClient{Host:"*"}: sharenfs="rw=*" err=<nil>
+    zz_probe_test.go:67: prefix "Bad Prefix": New err=property prefix "Bad Prefix": 'B' is not allowed in a zfs user property (a-z 0-9 - _ . :)
+    zz_probe_test.go:67: prefix "a,type": New err=property prefix "a,type": ',' is not allowed in a zfs user property (a-z 0-9 - _ . :)
+    zz_probe_test.go:73: apply(Plan{{}}): op 1/1: unknown kind OpKind(0) on 
+    zz_probe_test.go:74: apply(Op{Kind: OpSet, Target: "tank/v/a"} no props): <nil>
+    zz_probe_test.go:75: apply(destroy outside parent): <nil>
+=== types-copy
+    zz_probe_test.go:41: phantom: ListVolumes = [], code=13 err=scan tank/v: refusing output zfs would not print: tank/v/a@ghost: type "-": not a dataset this scan lists
+    zz_probe_test.go:46: Kind=7 Reserve+Sparse no capacity: 2 ops, err=<nil>
+    zz_probe_test.go:50: zero Planner block create: recovered=runtime error: integer divide by zero
+    zz_probe_test.go:58: NFSClient{Host:"*"}: sharenfs="rw=*" err=<nil>
+    zz_probe_test.go:67: prefix "Bad Prefix": New err=property prefix "Bad Prefix": 'B' is not allowed in a zfs user property (a-z 0-9 - _ . :)
+    zz_probe_test.go:67: prefix "a,type": New err=property prefix "a,type": ',' is not allowed in a zfs user property (a-z 0-9 - _ . :)
+    zz_probe_test.go:73: apply(Plan{{}}): op 1/1: unknown kind OpKind(0) on 
+    zz_probe_test.go:74: apply(Op{Kind: OpSet, Target: "tank/v/a"} no props): <nil>
+    zz_probe_test.go:75: apply(destroy outside parent): <nil>

@@ -1,0 +1,1142 @@
+[
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range is required",
+    "count": 1232,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range is required",
+      "detail": "A: capacity_range is required | B: volume pvc-1 not found [missing+range-missing]",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\"}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range must not be negative",
+    "count": 943,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range must not be negative",
+      "detail": "A: capacity_range must not be negative | B: volume \"a/b\" not found: not an id this endpoint issues [missing+range-negative]",
+      "op": "ControllerExpandVolume {volume_id:\"a/b\" capacity_range:{limit_bytes:-5}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range needs required_bytes or limit_bytes",
+    "count": 430,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range needs required_bytes or limit_bytes",
+      "detail": "A: capacity_range needs required_bytes or limit_bytes | B: volume nope not found [missing+range-empty]",
+      "op": "ControllerExpandVolume {volume_id:\"nope\" capacity_range:{}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|required_bytes N exceeds limit_bytes N",
+    "count": 447,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=NotFound|required_bytes N exceeds limit_bytes N",
+      "detail": "A: required_bytes 2147483648 exceeds limit_bytes 1073741824 | B: volume \"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\" not found: not an id this endpoint issues [caps-no-mode+missing+plugin-mode+range-inverted]",
+      "op": "ControllerExpandVolume {volume_id:\"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\" capacity_range:{required_bytes:2147483648 limit_bytes:1073741824} volume_capability:{mount:{}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=OutOfRange|required_bytes N exceeds limit_bytes N",
+    "count": 67,
+    "verdict": "oracle-ambiguity: inverted capacity_range: CSI layer says INVALID_ARGUMENT (spec:526), endpoint OUT_OF_RANGE (spec:1298); both fit",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|code|A=InvalidArgument|B=OutOfRange|required_bytes N exceeds limit_bytes N",
+      "detail": "A: required_bytes 2147483648 exceeds limit_bytes 1073741824 | B: capacity 2147483648 exceeds limit 1073741824 [range-inverted]",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{required_bytes:2147483648 limit_bytes:1073741824}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: inverted capacity_range: CSI layer says INVALID_ARGUMENT (spec:526), endpoint OUT_OF_RANGE (spec:1298); both fit"
+    }
+  },
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range is required",
+    "count": 83,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range is required",
+      "detail": "A: capacity_range is required | B:  [range-missing]",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-4\"}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range must not be negative",
+    "count": 76,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range must not be negative",
+      "detail": "A: capacity_range must not be negative | B:  [plugin-fstype+plugin-mode+range-negative]",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-3\" capacity_range:{limit_bytes:-5} volume_capability:{mount:{fs_type:\"zfs\"} access_mode:{mode:MULTI_NODE_SINGLE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "diff|ControllerExpandVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range needs required_bytes or limit_bytes",
+    "count": 47,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|ControllerExpandVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range needs required_bytes or limit_bytes",
+      "detail": "A: capacity_range needs required_bytes or limit_bytes | B:  [plugin-mode+range-empty]",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{} volume_capability:{mount:{} access_mode:{mode:MULTI_NODE_READER_ONLY}}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "diff|CreateSnapshot|precheck|code|A=InvalidArgument|B=NotFound|name is required",
+    "count": 546,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateSnapshot|precheck|code|A=InvalidArgument|B=NotFound|name is required",
+      "detail": "A: name is required | B: volume \"a/b\" not found: not an id this endpoint issues [name-missing+source-not-found]",
+      "op": "CreateSnapshot {source_volume_id:\"a/b\"}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateSnapshot|precheck|code|A=InvalidArgument|B=NotFound|unsupported parameter Q",
+    "count": 916,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateSnapshot|precheck|code|A=InvalidArgument|B=NotFound|unsupported parameter Q",
+      "detail": "A: unsupported parameter \"foo\" | B: volume \"a/b\" not found: not an id this endpoint issues [name-legal+plugin-param+source-not-found]",
+      "op": "CreateSnapshot {source_volume_id:\"a/b\" name:\"snap-3\" parameters:{key:\"foo\" value:\"bar\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateSnapshot|precheck|csi-stricter|A=InvalidArgument|B=OK|unsupported parameter Q",
+    "count": 51,
+    "verdict": "intentional: controller.go parseParams/noParams: unknown parameters are refused rather than silently dropped",
+    "example": {
+      "sig": "diff|CreateSnapshot|precheck|csi-stricter|A=InvalidArgument|B=OK|unsupported parameter Q",
+      "detail": "A: unsupported parameter \"foo\" | B:  [name-legal+plugin-param]",
+      "op": "CreateSnapshot {source_volume_id:\"pvc-2\" name:\"π-snap\" parameters:{key:\"foo\" value:\"bar\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: controller.go parseParams/noParams: unknown parameters are refused rather than silently dropped"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|access mode MODE is not supported",
+    "count": 127,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|access mode MODE is not supported",
+      "detail": "A: access mode MULTI_NODE_SINGLE_WRITER is not supported | B: volume pvc-2 exists as filesystem from \"snapshot\" \"pvc-1@snap-1\" [incompatible-source+name-exists+name-legal+plugin-mode+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{required_bytes:1073741824} volume_capabilities:{mount:{} access_mode:{mode:MULTI_NODE_SINGLE_WRITER}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} parameters:{key:\"nfs.server\" value:\"192.0.2.1\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|capacity_range must not be negative",
+    "count": 2,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|capacity_range must not be negative",
+      "detail": "A: capacity_range must not be negative | B: volume pvc-4 exists with capacity 1 \u003c 18446744073709551615 [compat-plugin-defined+name-exists+name-legal+plugin-param+range-negative]",
+      "op": "CreateVolume {name:\"pvc-4\" capacity_range:{required_bytes:-1} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"foo\" value:\"bar\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|fs_type Q: mount volumes are zfs filesystems",
+    "count": 6,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|fs_type Q: mount volumes are zfs filesystems",
+      "detail": "A: fs_type \"xfs\": mount volumes are zfs filesystems | B: volume pvc-2 exists as filesystem from \"\" \"\" [incompatible-source+name-exists+name-legal+plugin-fstype+plugin-mode+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{required_bytes:1073741825 limit_bytes:1073758208} volume_capabilities:{mount:{fs_type:\"xfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_MULTI_WRITER}} parameters:{key:\"sparse\" value:\"false\"} volume_content_source:{volume:{volume_id:\"pvc-2\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|parameter sparse=Q: not a boolean",
+    "count": 8,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|parameter sparse=Q: not a boolean",
+      "detail": "A: parameter sparse=\"yes\": not a boolean | B: volume pvc-2 exists as filesystem from \"\" \"\" [incompatible-capabilities+name-exists+name-legal+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{required_bytes:1073741824} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"sparse\" value:\"yes\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|unsupported parameter Q",
+    "count": 16,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|unsupported parameter Q",
+      "detail": "A: unsupported parameter \"nfs.clients\" | B: volume pvc-4 exists as block from \"snapshot\" \"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy@snap-3\" [incompatible-source+name-exists+name-legal+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-4\" capacity_range:{required_bytes:16383} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} parameters:{key:\"nfs.server\" value:\"192.0.2.1\"} volume_content_source:{volume:{volume_id:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|volume capability needs an access type",
+    "count": 12,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|volume capability needs an access type",
+      "detail": "A: volume capability needs an access type | B: volume pvc-2 exists as filesystem from \"snapshot\" \"pvc-1@snap-1\" [caps-no-access-type+incompatible-source+name-exists+name-legal+no-capacity]",
+      "op": "CreateVolume {name:\"pvc-2\" volume_capabilities:{access_mode:{mode:SINGLE_NODE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|volume_capabilities are required",
+    "count": 29,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=AlreadyExists|volume_capabilities are required",
+      "detail": "A: volume_capabilities are required | B: volume pvc-3 exists as block from \"\" \"\" [caps-missing+incompatible-source+name-exists+name-legal+no-capacity+plugin-param+range-empty+source-missing]",
+      "op": "CreateVolume {name:\"pvc-3\" capacity_range:{} parameters:{key:\"sparse\" value:\"false\"} volume_content_source:{snapshot:{snapshot_id:\"garbage\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|access mode MODE is not supported",
+    "count": 3011,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|access mode MODE is not supported",
+      "detail": "A: access mode UNKNOWN is not supported | B: source volume pvc-1 not found [caps-no-mode+co-mutable+name-legal+plugin-mode+plugin-param+source-missing]",
+      "op": "CreateVolume {name:\"pvc-4\" capacity_range:{required_bytes:1073741824} volume_capabilities:{mount:{} access_mode:{}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} volume_content_source:{volume:{volume_id:\"pvc-1\"}} mutable_parameters:{key:\"sparse\" value:\"true\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|block and mount access types in one request",
+    "count": 21,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|block and mount access types in one request",
+      "detail": "A: block and mount access types in one request | B: source volume pvc-1 not found [name-legal+plugin-mixed-access+plugin-param+source-missing]",
+      "op": "CreateVolume {name:\"ok.name_1:2\" capacity_range:{required_bytes:1073741824 limit_bytes:1073741824} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} parameters:{key:\"nfs.server\" value:\"192.0.2.1\"} volume_content_source:{volume:{volume_id:\"pvc-1\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range must not be negative",
+    "count": 95,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|capacity_range must not be negative",
+      "detail": "A: capacity_range must not be negative | B: source volume zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz not found [name-legal+range-negative+source-missing]",
+      "op": "CreateVolume {name:\"pvc-4\" capacity_range:{required_bytes:-1} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{volume:{volume_id:\"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|fs_type Q: mount volumes are zfs filesystems",
+    "count": 198,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|fs_type Q: mount volumes are zfs filesystems",
+      "detail": "A: fs_type \"nfs\": mount volumes are zfs filesystems | B: source volume nope not found [name-legal+plugin-fstype+plugin-param+range-negative+source-missing]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{limit_bytes:-5} volume_capabilities:{mount:{fs_type:\"nfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"nfs.server\" value:\"192.0.2.1\"} volume_content_source:{volume:{volume_id:\"nope\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|parameter sparse=Q: not a boolean",
+    "count": 71,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|parameter sparse=Q: not a boolean",
+      "detail": "A: parameter sparse=\"yes\": not a boolean | B: source volume nope not found [name-legal+plugin-param+source-missing]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:9223372036854775807} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"sparse\" value:\"yes\"} volume_content_source:{volume:{volume_id:\"nope\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|unsupported parameter Q",
+    "count": 286,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|unsupported parameter Q",
+      "detail": "A: unsupported parameter \"foo\" | B: source volume nope not found [name-legal+no-capacity+plugin-param+source-missing]",
+      "op": "CreateVolume {name:\"pvc-1\" volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"foo\" value:\"bar\"} volume_content_source:{volume:{volume_id:\"nope\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|volume capability needs an access type",
+    "count": 220,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|volume capability needs an access type",
+      "detail": "A: volume capability needs an access type | B: source volume nope not found [caps-no-access-type+name-legal+no-capacity+plugin-param+source-missing]",
+      "op": "CreateVolume {name:\"pvc-3\" volume_capabilities:{access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pv/name\" value:\"pv\"} parameters:{key:\"reserve\" value:\"true\"} volume_content_source:{volume:{volume_id:\"nope\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|volume_capabilities are required",
+    "count": 408,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=NotFound|volume_capabilities are required",
+      "detail": "A: volume_capabilities are required | B: source volume zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz not found [caps-missing+name-legal+source-missing]",
+      "op": "CreateVolume {name:\"ok.name_1:2\" capacity_range:{required_bytes:16384 limit_bytes:16384} parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"} volume_content_source:{volume:{volume_id:\"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|access mode MODE is not supported",
+    "count": 690,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|access mode MODE is not supported",
+      "detail": "A: access mode UNKNOWN is not supported | B: capacity 2147483648 (rounded) exceeds limit 1073741824 [caps-no-mode+name-legal+plugin-fstype+plugin-mode+plugin-param+range-inverted+source-missing]",
+      "op": "CreateVolume {name:\"pvc-4\" capacity_range:{required_bytes:2147483648 limit_bytes:1073741824} volume_capabilities:{mount:{fs_type:\"xfs\"} access_mode:{}} parameters:{key:\"sparse\" value:\"false\"} volume_content_source:{volume:{volume_id:\"nope\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|block and mount access types in one request",
+    "count": 8,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|block and mount access types in one request",
+      "detail": "A: block and mount access types in one request | B: capacity 1073758208 (rounded) exceeds limit 1073741825 [name-legal+plugin-mixed-access+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:1073741825 limit_bytes:1073741825} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} parameters:{key:\"nfs.server\" value:\"192.0.2.1\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|fs_type Q: mount volumes are zfs filesystems",
+    "count": 36,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|fs_type Q: mount volumes are zfs filesystems",
+      "detail": "A: fs_type \"ext4\": mount volumes are zfs filesystems | B: capacity 2147483648 (rounded) exceeds limit 1073741824 [name-legal+plugin-fstype+plugin-param+range-inverted+source-missing]",
+      "op": "CreateVolume {name:\"ok.name_1:2\" capacity_range:{required_bytes:2147483648 limit_bytes:1073741824} volume_capabilities:{mount:{fs_type:\"ext4\"} access_mode:{mode:SINGLE_NODE_READER_ONLY}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} parameters:{key:\"nfs.server\" value:\"192.0.2.1\"} volume_content_source:{snapshot:{snapshot_id:\"pvc-1@volume-source-for-volume-pvc-2\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|parameter sparse=Q: not a boolean",
+    "count": 2,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|parameter sparse=Q: not a boolean",
+      "detail": "A: parameter sparse=\"yes\": not a boolean | B: capacity 1073758208 (rounded) exceeds limit 1073741825 [name-legal+plugin-param+source-empty]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:1073741825 limit_bytes:1073741825} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"sparse\" value:\"yes\"} volume_content_source:{}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|required_bytes N exceeds limit_bytes N",
+    "count": 156,
+    "verdict": "oracle-ambiguity: inverted capacity_range: CSI layer says INVALID_ARGUMENT (spec:526), endpoint OUT_OF_RANGE (spec:1298); both fit",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|required_bytes N exceeds limit_bytes N",
+      "detail": "A: required_bytes 2147483648 exceeds limit_bytes 1073741824 | B: capacity 2147483648 (rounded) exceeds limit 1073741824 [name-legal+plugin-param+range-inverted]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:2147483648 limit_bytes:1073741824} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"sparse\" value:\"yes\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: inverted capacity_range: CSI layer says INVALID_ARGUMENT (spec:526), endpoint OUT_OF_RANGE (spec:1298); both fit"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|unsupported parameter Q",
+    "count": 22,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|unsupported parameter Q",
+      "detail": "A: unsupported parameter \"nfs.clients\" | B: capacity 1073758208 (rounded) exceeds limit 1073741825 [name-legal+plugin-param+source-missing]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:1073741825 limit_bytes:1073741825} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} parameters:{key:\"nfs.server\" value:\"192.0.2.1\"} volume_content_source:{volume:{volume_id:\"pvc-1\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|unsupported volume_content_source",
+    "count": 2,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|unsupported volume_content_source",
+      "detail": "A: unsupported volume_content_source | B: capacity 1073758208 (rounded) exceeds limit 1073741825 [name-legal+source-empty]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:1073741825 limit_bytes:1073741825} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|volume capability needs an access type",
+    "count": 20,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|volume capability needs an access type",
+      "detail": "A: volume capability needs an access type | B: capacity 2147483648 (rounded) exceeds limit 1073741824 [caps-no-access-type+name-legal+plugin-param+range-inverted+source-missing]",
+      "op": "CreateVolume {name:\"pvc-3\" capacity_range:{required_bytes:2147483648 limit_bytes:1073741824} volume_capabilities:{access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} volume_content_source:{volume:{volume_id:\"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|volume_capabilities are required",
+    "count": 52,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|code|A=InvalidArgument|B=OutOfRange|volume_capabilities are required",
+      "detail": "A: volume_capabilities are required | B: source capacity 1073741825 exceeds limit 1: a clone is never smaller than its source [caps-missing+name-legal]",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{limit_bytes:1} volume_content_source:{volume:{volume_id:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\"}}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|access mode MODE is not supported",
+    "count": 5330,
+    "verdict": "intentional: controller.go modeSupported: no export or attach yet, single-node modes only; kindOf refuses mixed access types",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|access mode MODE is not supported",
+      "detail": "A: access mode MULTI_NODE_SINGLE_WRITER is not supported | B:  [name-legal+plugin-mode+plugin-param+source-volume-id-missing]",
+      "op": "CreateVolume {name:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" capacity_range:{limit_bytes:1} volume_capabilities:{mount:{} access_mode:{mode:MULTI_NODE_SINGLE_WRITER}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: controller.go modeSupported: no export or attach yet, single-node modes only; kindOf refuses mixed access types"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|block and mount access types in one request",
+    "count": 40,
+    "verdict": "intentional: controller.go modeSupported: no export or attach yet, single-node modes only; kindOf refuses mixed access types",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|block and mount access types in one request",
+      "detail": "A: block and mount access types in one request | B:  [name-legal+plugin-mixed-access+source-snapshot-id-missing]",
+      "op": "CreateVolume {name:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" capacity_range:{required_bytes:1073741825 limit_bytes:1073758208} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: controller.go modeSupported: no export or attach yet, single-node modes only; kindOf refuses mixed access types"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range must not be negative",
+    "count": 153,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|capacity_range must not be negative",
+      "detail": "A: capacity_range must not be negative | B:  [co-mutable+name-legal+range-negative]",
+      "op": "CreateVolume {name:\"pvc-3\" capacity_range:{limit_bytes:-5} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"} mutable_parameters:{key:\"sparse\" value:\"true\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|fs_type Q: mount volumes are zfs filesystems",
+    "count": 410,
+    "verdict": "intentional: controller.go kindOf: mount volumes are zfs filesystems",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|fs_type Q: mount volumes are zfs filesystems",
+      "detail": "A: fs_type \"xfs\": mount volumes are zfs filesystems | B:  [name-legal+plugin-fstype+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{limit_bytes:2147483648} volume_capabilities:{mount:{fs_type:\"xfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"nfs.clients\" value:\"10.0.0.0/24\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: controller.go kindOf: mount volumes are zfs filesystems"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|parameter sparse=Q: not a boolean",
+    "count": 132,
+    "verdict": "intentional: controller.go parseParams/noParams: unknown parameters are refused rather than silently dropped",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|parameter sparse=Q: not a boolean",
+      "detail": "A: parameter sparse=\"yes\": not a boolean | B:  [name-legal+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:1073741824 limit_bytes:1073741824} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} parameters:{key:\"sparse\" value:\"yes\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: controller.go parseParams/noParams: unknown parameters are refused rather than silently dropped"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|unsupported parameter Q",
+    "count": 581,
+    "verdict": "intentional: controller.go parseParams/noParams: unknown parameters are refused rather than silently dropped",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|unsupported parameter Q",
+      "detail": "A: unsupported parameter \"foo\" | B:  [name-legal+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{required_bytes:1073741825 limit_bytes:1073758208} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"foo\" value:\"bar\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: controller.go parseParams/noParams: unknown parameters are refused rather than silently dropped"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|unsupported volume_content_source",
+    "count": 60,
+    "verdict": "intentional: controller.go CreateVolume: an empty VolumeContentSource is refused (spec:921-922 one type MUST be set)",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|unsupported volume_content_source",
+      "detail": "A: unsupported volume_content_source | B:  [name-legal+source-empty]",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:9223372036854775807} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"} volume_content_source:{}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: controller.go CreateVolume: an empty VolumeContentSource is refused (spec:921-922 one type MUST be set)"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|volume capability needs an access type",
+    "count": 435,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|volume capability needs an access type",
+      "detail": "A: volume capability needs an access type | B:  [caps-no-access-type+name-legal+plugin-fstype+plugin-param]",
+      "op": "CreateVolume {name:\"pvc-4\" capacity_range:{required_bytes:1073741824 limit_bytes:1073741824} volume_capabilities:{mount:{fs_type:\"zfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} volume_capabilities:{access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pv/name\" value:\"pv\"} parameters:{key:\"reserve\" value:\"true\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|volume_capabilities are required",
+    "count": 866,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|CreateVolume|precheck|csi-stricter|A=InvalidArgument|B=OK|volume_capabilities are required",
+      "detail": "A: volume_capabilities are required | B:  [caps-missing+name-legal+plugin-param]",
+      "op": "CreateVolume {name:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" capacity_range:{required_bytes:9223372036854775807} parameters:{key:\"csi.storage.k8s.io/pv/name\" value:\"pv\"} parameters:{key:\"reserve\" value:\"true\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "diff|DeleteSnapshot|precheck|csi-stricter|A=InvalidArgument|B=OK|snapshot_id is required",
+    "count": 2192,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|DeleteSnapshot|precheck|csi-stricter|A=InvalidArgument|B=OK|snapshot_id is required",
+      "detail": "A: snapshot_id is required | B:  [id-missing]",
+      "op": "DeleteSnapshot {}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "diff|ListSnapshots|post|server-vs-direct|A=InvalidArgument|B=Aborted|max_entries must be \u003e= N",
+    "count": 175,
+    "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)",
+    "example": {
+      "sig": "diff|ListSnapshots|post|server-vs-direct|A=InvalidArgument|B=Aborted|max_entries must be \u003e= N",
+      "detail": "A: max_entries must be \u003e= 0 | B: invalid starting token \"bogus\" [max-negative+token-unknown]",
+      "op": "ListSnapshots {max_entries:-1 starting_token:\"bogus\" source_volume_id:\"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\"}",
+      "parent": "tank/vols",
+      "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)"
+    }
+  },
+  {
+    "sig": "diff|ListSnapshots|post|server-vs-direct|A=InvalidArgument|B=OK|max_entries must be \u003e= N",
+    "count": 1245,
+    "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)",
+    "example": {
+      "sig": "diff|ListSnapshots|post|server-vs-direct|A=InvalidArgument|B=OK|max_entries must be \u003e= N",
+      "detail": "A: max_entries must be \u003e= 0 | B:  [max-negative]",
+      "op": "ListSnapshots {max_entries:-1}",
+      "parent": "tank/vols",
+      "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)"
+    }
+  },
+  {
+    "sig": "diff|ListVolumes|post|server-vs-direct|A=InvalidArgument|B=Aborted|max_entries must be \u003e= N",
+    "count": 186,
+    "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)",
+    "example": {
+      "sig": "diff|ListVolumes|post|server-vs-direct|A=InvalidArgument|B=Aborted|max_entries must be \u003e= N",
+      "detail": "A: max_entries must be \u003e= 0 | B: invalid starting token \"zzzz\" [max-negative+token-unknown]",
+      "op": "ListVolumes walk max=-1 token=\"zzzz\"",
+      "parent": "tank/vols",
+      "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)"
+    }
+  },
+  {
+    "sig": "diff|ListVolumes|post|server-vs-direct|A=InvalidArgument|B=OK|max_entries must be \u003e= N",
+    "count": 960,
+    "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)",
+    "example": {
+      "sig": "diff|ListVolumes|post|server-vs-direct|A=InvalidArgument|B=OK|max_entries must be \u003e= N",
+      "detail": "A: max_entries must be \u003e= 0 | B:  [max-negative]",
+      "op": "ListVolumes walk max=-1 token=\"\"",
+      "parent": "tank/vols",
+      "verdict": "intentional: server.go maxEntries guards spec:1578; the endpoint's Go API reads a negative max as unlimited (unreachable over gRPC)"
+    }
+  },
+  {
+    "sig": "diff|ValidateVolumeCapabilities|precheck|code|A=InvalidArgument|B=NotFound|volume_capabilities are required",
+    "count": 687,
+    "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes",
+    "example": {
+      "sig": "diff|ValidateVolumeCapabilities|precheck|code|A=InvalidArgument|B=NotFound|volume_capabilities are required",
+      "detail": "A: volume_capabilities are required | B: volume pvc-1 not found [caps-missing+missing]",
+      "op": "ValidateVolumeCapabilities {volume_id:\"pvc-1\" parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"}}",
+      "parent": "tank/vols",
+      "verdict": "oracle-ambiguity: precedence: the CSI layer refuses a malformed request before the endpoint looks at state; the spec defines no order among applicable codes"
+    }
+  },
+  {
+    "sig": "diff|ValidateVolumeCapabilities|precheck|csi-stricter|A=InvalidArgument|B=OK|volume_capabilities are required",
+    "count": 75,
+    "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)",
+    "example": {
+      "sig": "diff|ValidateVolumeCapabilities|precheck|csi-stricter|A=InvalidArgument|B=OK|volume_capabilities are required",
+      "detail": "A: volume_capabilities are required | B:  [caps-missing]",
+      "op": "ValidateVolumeCapabilities {volume_id:\"pvc-4\" parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: identity.go package doc: required CSI fields are checked in CSI terms (spec:525, 1040, 1044, 1049); the naive endpoint mapping shows why (negatives wrap to huge uint64 and succeed)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-access-type+caps-no-mode+plugin-mode]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-access-type+caps-no-mode+plugin-mode]",
+      "detail": "spec:1027-1028,525; spec:1298: allowed InvalidArgument,OutOfRange [already-over-limit+caps-no-access-type+caps-no-mode+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-3\" capacity_range:{required_bytes:16384 limit_bytes:16384} volume_capability:{access_mode:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-access-type+plugin-mode]",
+    "count": 6,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-access-type+plugin-mode]",
+      "detail": "spec:1027-1028,525; spec:1298: allowed InvalidArgument,OutOfRange [already-over-limit+caps-no-access-type+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{required_bytes:16384 limit_bytes:16384} volume_capability:{access_mode:{mode:MULTI_NODE_READER_ONLY}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-access-type]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-access-type]",
+      "detail": "spec:1027-1028,525; spec:1298: allowed InvalidArgument,OutOfRange [already-over-limit+caps-no-access-type] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{limit_bytes:1} volume_capability:{access_mode:{mode:SINGLE_NODE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-mode+plugin-mode]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+caps-no-mode+plugin-mode]",
+      "detail": "spec:1022-1023,1034-1035,525; spec:1298: allowed InvalidArgument,OutOfRange [already-over-limit+caps-no-mode+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{limit_bytes:2147483648} volume_capability:{mount:{} access_mode:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+exceeds-capabilities+plugin-mode]",
+    "count": 6,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+exceeds-capabilities+plugin-mode]",
+      "detail": "spec:1298; spec:526,873-875: allowed InvalidArgument,OutOfRange [already-over-limit+exceeds-capabilities+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-4\" capacity_range:{required_bytes:16384 limit_bytes:16384} volume_capability:{block:{} access_mode:{mode:SINGLE_NODE_SINGLE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+exceeds-capabilities]",
+    "count": 4,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[already-over-limit+exceeds-capabilities]",
+      "detail": "spec:1298; spec:2545: allowed InvalidArgument,OutOfRange [already-over-limit+exceeds-capabilities] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-2\" capacity_range:{limit_bytes:1} volume_capability:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-access-type+caps-no-mode+plugin-mode]",
+    "count": 3,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-access-type+caps-no-mode+plugin-mode]",
+      "detail": "spec:1027-1028,525; spec:1298: allowed InvalidArgument,OutOfRange [caps-no-access-type+caps-no-mode+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" capacity_range:{required_bytes:9223372036854775807} volume_capability:{}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-access-type+plugin-mode]",
+    "count": 4,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-access-type+plugin-mode]",
+      "detail": "spec:1027-1028,525; spec:1298: allowed InvalidArgument,OutOfRange [caps-no-access-type+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-3\" capacity_range:{limit_bytes:9223372036854775807} volume_capability:{access_mode:{mode:MULTI_NODE_SINGLE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-access-type]",
+    "count": 10,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-access-type]",
+      "detail": "spec:1027-1028,525; spec:1298: allowed InvalidArgument,OutOfRange [caps-no-access-type] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{required_bytes:16383} volume_capability:{access_mode:{mode:SINGLE_NODE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-mode+exceeds-capabilities+plugin-mode]",
+    "count": 6,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-mode+exceeds-capabilities+plugin-mode]",
+      "detail": "spec:1022-1023,1034-1035,525; spec:1298: allowed InvalidArgument,OutOfRange [caps-no-mode+exceeds-capabilities+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-2\" capacity_range:{required_bytes:9223372036854775807} volume_capability:{block:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-mode+plugin-fstype+plugin-mode]",
+    "count": 13,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-mode+plugin-fstype+plugin-mode]",
+      "detail": "spec:1022-1023,1034-1035,525; spec:1298: allowed InvalidArgument,OutOfRange [caps-no-mode+plugin-fstype+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-2\" capacity_range:{required_bytes:1073741824} volume_capability:{mount:{fs_type:\"xfs\"} access_mode:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-mode+plugin-mode]",
+    "count": 23,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[caps-no-mode+plugin-mode]",
+      "detail": "spec:1022-1023,1034-1035,525; spec:1298: allowed InvalidArgument,OutOfRange [caps-no-mode+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{required_bytes:1} volume_capability:{mount:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume does not validate volume_capability (no access type / no mode accepted; spec:1027-1028, 1034-1035, 525)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[exceeds-capabilities+plugin-mode]",
+    "count": 25,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[exceeds-capabilities+plugin-mode]",
+      "detail": "spec:1298; spec:526,873-875: allowed InvalidArgument,OutOfRange [exceeds-capabilities+plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-1\" capacity_range:{required_bytes:1073741824} volume_capability:{block:{} access_mode:{mode:MULTI_NODE_SINGLE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:code:OK[exceeds-capabilities]",
+    "count": 13,
+    "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:code:OK[exceeds-capabilities]",
+      "detail": "spec:1298; spec:2545: allowed InvalidArgument,OutOfRange [exceeds-capabilities] ",
+      "op": "ControllerExpandVolume {volume_id:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" capacity_range:{required_bytes:16383} volume_capability:{block:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T2: ControllerExpandVolume ignores volume_capability; block access on a filesystem volume is OK, though Validate refuses it (spec:2545 MUST INVALID_ARGUMENT)"
+    }
+  },
+  {
+    "sig": "oracle|ControllerExpandVolume:expand-shrank",
+    "count": 14,
+    "verdict": "intentional: endpoint.go ExpandVolume: an unlimited filesystem stays unlimited and reports the requested size, never 0 (spec:2531-2532 REQUIRED); consecutive expands therefore report whatever was last asked, also smaller",
+    "example": {
+      "sig": "oracle|ControllerExpandVolume:expand-shrank",
+      "detail": "spec:2471-2472: 16383 \u003c 9223372036854775707 [plugin-mode] ",
+      "op": "ControllerExpandVolume {volume_id:\"pvc-4\" capacity_range:{required_bytes:16383} volume_capability:{mount:{} access_mode:{mode:SINGLE_NODE_MULTI_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "intentional: endpoint.go ExpandVolume: an unlimited filesystem stays unlimited and reports the requested size, never 0 (spec:2531-2532 REQUIRED); consecutive expands therefore report whatever was last asked, also smaller"
+    }
+  },
+  {
+    "sig": "oracle|CreateSnapshot:code:InvalidArgument|invalid snapshot name Q",
+    "count": 95,
+    "verdict": "endpoint-bug: E3: unicode.IsControl refuses TAB/LF/CR, which the spec allows in names (spec:2178-2181 bans only U+0000-0008, 000B, 000C, 000E-001F, 007F-009F)",
+    "example": {
+      "sig": "oracle|CreateSnapshot:code:InvalidArgument|invalid snapshot name Q",
+      "detail": "spec:2133-2134; spec:2304: allowed OK,ResourceExhausted [name-legal] invalid snapshot name \"tab\\tsnap\"",
+      "op": "CreateSnapshot {source_volume_id:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" name:\"tab\\tsnap\"}",
+      "parent": "tank/vols",
+      "verdict": "endpoint-bug: E3: unicode.IsControl refuses TAB/LF/CR, which the spec allows in names (spec:2178-2181 bans only U+0000-0008, 000B, 000C, 000E-001F, 007F-009F)"
+    }
+  },
+  {
+    "sig": "oracle|CreateSnapshot:code:InvalidArgument|snapshot name prefix Q is reserved",
+    "count": 79,
+    "verdict": "endpoint-bug: E4: the internal clone-source prefix volume-source-for-volume- is refused as a CSI snapshot name; any CO name is legal (spec:2178); the reservation belongs in a property, not the name space",
+    "example": {
+      "sig": "oracle|CreateSnapshot:code:InvalidArgument|snapshot name prefix Q is reserved",
+      "detail": "spec:2133-2134; spec:2304: allowed OK,ResourceExhausted [name-legal] snapshot name prefix \"volume-source-for-volume-\" is reserved",
+      "op": "CreateSnapshot {source_volume_id:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" name:\"volume-source-for-volume-x\"}",
+      "parent": "tank/vols",
+      "verdict": "endpoint-bug: E4: the internal clone-source prefix volume-source-for-volume- is refused as a CSI snapshot name; any CO name is legal (spec:2178); the reservation belongs in a property, not the name space"
+    }
+  },
+  {
+    "sig": "oracle|CreateSnapshot:code:InvalidArgument|volume id Q too long to address snapshots within N bytes",
+    "count": 47,
+    "verdict": "endpoint-bug: E5: volumes with ids over 91 bytes cannot be snapshotted (ADR 0002, proposed)",
+    "example": {
+      "sig": "oracle|CreateSnapshot:code:InvalidArgument|volume id Q too long to address snapshots within N bytes",
+      "detail": "spec:2133-2134; spec:2304: allowed OK,ResourceExhausted [name-legal] volume id \"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" too long to address snapshots within 128 bytes",
+      "op": "CreateSnapshot {source_volume_id:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" name:\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"}",
+      "parent": "tank/vols",
+      "verdict": "endpoint-bug: E5: volumes with ids over 91 bytes cannot be snapshotted (ADR 0002, proposed)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:InvalidArgument|block volume needs a capacity",
+    "count": 30,
+    "verdict": "endpoint-bug: E7: a block volume with only limit_bytes is refused as having no capacity, though the range is valid and filesystems take limit as the size (spec:855-858, 1039-1050; plan.go validateCreate)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:InvalidArgument|block volume needs a capacity",
+      "detail": "spec:1297; spec:1298; spec:807-808: allowed OK,OutOfRange,ResourceExhausted [name-legal] block volume needs a capacity",
+      "op": "CreateVolume {name:\"ok.name_1:2\" capacity_range:{limit_bytes:2147483648} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "endpoint-bug: E7: a block volume with only limit_bytes is refused as having no capacity, though the range is valid and filesystems take limit as the size (spec:855-858, 1039-1050; plan.go validateCreate)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:InvalidArgument|invalid volume name Q",
+    "count": 343,
+    "verdict": "endpoint-bug: E1: volume names the spec allows (unicode, space, '/', '@', tab, leading '-') are refused: volumeID uses the CSI name as the zfs component; snapshot names are already hashed (snapComponent) (spec:849-851)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:InvalidArgument|invalid volume name Q",
+      "detail": "spec:1297; spec:1298; spec:807-808: allowed OK,OutOfRange,ResourceExhausted [name-legal] invalid volume name \"a/b\"",
+      "op": "CreateVolume {name:\"a/b\" capacity_range:{required_bytes:9223372036854775807} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}}}",
+      "parent": "tank/vols",
+      "verdict": "endpoint-bug: E1: volume names the spec allows (unicode, space, '/', '@', tab, leading '-') are refused: volumeID uses the CSI name as the zfs component; snapshot names are already hashed (snapComponent) (spec:849-851)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:InvalidArgument|scan ID zfs list ID invalid property: invalid name",
+    "count": 21,
+    "verdict": "endpoint-bug: E2: a parent over 126 bytes is accepted, then a legal 128-byte name overflows zfs's 255-byte dataset name and is refused as an invalid property (spec:494; csi-test maxlen)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:InvalidArgument|scan ID zfs list ID invalid property: invalid name",
+      "detail": "spec:1297; spec:1298; spec:807-808: allowed OK,OutOfRange,ResourceExhausted [name-legal] scan tank/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: zfs list tank/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: invalid property: invalid name",
+      "op": "CreateVolume {name:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" capacity_range:{required_bytes:1073741825 limit_bytes:1073741825} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}}}",
+      "parent": "tank/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+      "verdict": "endpoint-bug: E2: a parent over 126 bytes is accepted, then a legal 128-byte name overflows zfs's 255-byte dataset name and is refused as an invalid property (spec:494; csi-test maxlen)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[co-mutable+name-legal+source-volume-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[co-mutable+name-legal+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:916-917,526: allowed InvalidArgument,OutOfRange,ResourceExhausted [co-mutable+name-legal+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{required_bytes:16383} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"} volume_content_source:{volume:{}} mutable_parameters:{key:\"sparse\" value:\"true\"}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+no-capacity+source-snapshot-id-missing]",
+    "count": 1,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+no-capacity+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:900-901,526: allowed InvalidArgument,ResourceExhausted [co-topology+name-legal+no-capacity+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} volume_content_source:{snapshot:{}} accessibility_requirements:{requisite:{segments:{key:\"zone\" value:\"a\"}}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+plugin-param+source-volume-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+plugin-param+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526,879-882: allowed InvalidArgument,OutOfRange,ResourceExhausted [co-topology+name-legal+plugin-param+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{limit_bytes:1} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"reserve\" value:\"true\"} volume_content_source:{volume:{}} accessibility_requirements:{requisite:{segments:{key:\"zone\" value:\"a\"}}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+source-snapshot-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:900-901,526: allowed InvalidArgument,OutOfRange,ResourceExhausted [co-topology+name-legal+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:1073741824} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{snapshot:{}} accessibility_requirements:{requisite:{segments:{key:\"zone\" value:\"a\"}}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+source-volume-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[co-topology+name-legal+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:900-901,526: allowed InvalidArgument,OutOfRange,ResourceExhausted [co-topology+name-legal+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{required_bytes:1} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"} volume_content_source:{volume:{}} accessibility_requirements:{requisite:{segments:{key:\"zone\" value:\"a\"}}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[incompatible-source+name-exists+name-legal+source-snapshot-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[incompatible-source+name-exists+name-legal+source-snapshot-id-missing]",
+      "detail": "spec:1296; spec:1297; spec:1298; spec:925-928,525: allowed AlreadyExists,InvalidArgument,OutOfRange,ResourceExhausted [incompatible-source+name-exists+name-legal+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"ok.name_1:2\" capacity_range:{required_bytes:1073741824} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-exists+name-legal+plugin-param+source-snapshot-id-missing]",
+    "count": 1,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-exists+name-legal+plugin-param+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526,879-882: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-exists+name-legal+plugin-param+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" capacity_range:{required_bytes:3221225472} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"sparse\" value:\"false\"} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-exists+name-legal+source-snapshot-id-missing]",
+    "count": 4,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-exists+name-legal+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:925-928,525: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-exists+name-legal+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" capacity_range:{required_bytes:1073741824 limit_bytes:1073741824} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-exists+name-legal+source-volume-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-exists+name-legal+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:932-936,525: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-exists+name-legal+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"ok.name_1:2\" capacity_range:{required_bytes:1073741824} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+plugin-fstype+source-volume-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+plugin-fstype+source-volume-id-missing]",
+      "detail": "spec:1297; spec:526: allowed InvalidArgument,ResourceExhausted [name-legal+no-capacity+plugin-fstype+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-1\" volume_capabilities:{mount:{fs_type:\"zfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+range-empty+source-snapshot-id-missing]",
+    "count": 3,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+range-empty+source-snapshot-id-missing]",
+      "detail": "spec:1040,526; spec:1297; spec:1298: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+no-capacity+range-empty+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" capacity_range:{} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+source-snapshot-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:856,526: allowed InvalidArgument,ResourceExhausted [name-legal+no-capacity+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"xyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\" volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+source-volume-id-missing]",
+    "count": 4,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+no-capacity+source-volume-id-missing]",
+      "detail": "spec:1297; spec:856,526: allowed InvalidArgument,ResourceExhausted [name-legal+no-capacity+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-1\" volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+plugin-param+source-snapshot-id-missing]",
+    "count": 2,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+plugin-param+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+plugin-fstype+plugin-param+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:1073741824} volume_capabilities:{mount:{fs_type:\"zfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pv/name\" value:\"pv\"} parameters:{key:\"reserve\" value:\"true\"} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+plugin-param+source-volume-id-missing]",
+    "count": 4,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+plugin-param+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+plugin-fstype+plugin-param+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-3\" capacity_range:{required_bytes:9223372036854775807} volume_capabilities:{mount:{fs_type:\"zfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"reserve\" value:\"true\"} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+source-snapshot-id-missing]",
+    "count": 9,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+plugin-fstype+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{required_bytes:1073741825 limit_bytes:1073758208} volume_capabilities:{mount:{fs_type:\"zfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pvc/name\" value:\"claim\"} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+source-volume-id-missing]",
+    "count": 4,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-fstype+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+plugin-fstype+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-2\" capacity_range:{limit_bytes:9223372036854775807} volume_capabilities:{mount:{fs_type:\"zfs\"} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-param+source-snapshot-id-missing]",
+    "count": 15,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-param+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526,879-882: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+plugin-param+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:9223372036854775807} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"csi.storage.k8s.io/pv/name\" value:\"pv\"} parameters:{key:\"reserve\" value:\"true\"} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-param+source-volume-id-missing]",
+    "count": 20,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+plugin-param+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:526,879-882: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+plugin-param+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" capacity_range:{required_bytes:1} volume_capabilities:{block:{} access_mode:{mode:SINGLE_NODE_WRITER}} parameters:{key:\"sparse\" value:\"false\"} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+source-snapshot-id-missing]",
+    "count": 22,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+source-snapshot-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:925-928,525: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+source-snapshot-id-missing] ",
+      "op": "CreateVolume {name:\"ok.name_1:2\" capacity_range:{required_bytes:1} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{snapshot:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:code:OK[name-legal+source-volume-id-missing]",
+    "count": 25,
+    "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)",
+    "example": {
+      "sig": "oracle|CreateVolume:code:OK[name-legal+source-volume-id-missing]",
+      "detail": "spec:1297; spec:1298; spec:932-936,525: allowed InvalidArgument,OutOfRange,ResourceExhausted [name-legal+source-volume-id-missing] ",
+      "op": "CreateVolume {name:\"pvc-1\" capacity_range:{required_bytes:3221225472} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{volume:{}}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T1: a content source with an empty snapshot_id/volume_id becomes no source; an empty volume is created and reported without content_source (spec:925-936 REQUIRED, 525)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:smaller-than-snapshot",
+    "count": 12,
+    "verdict": "endpoint-bug: E6: a filesystem restore/clone with required_bytes below the source's size gets refquota=required, smaller than the snapshot (spec:2229-2230; plan.go PlanCreateVolume keeps size=want)",
+    "example": {
+      "sig": "oracle|CreateVolume:smaller-than-snapshot",
+      "detail": "spec:2229-2230: 16384 \u003c 1073741824 [name-legal] ",
+      "op": "CreateVolume {name:\"pvc-3\" capacity_range:{required_bytes:16384} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_WRITER}} volume_content_source:{snapshot:{snapshot_id:\"pvc-1@snap-1\"}}}",
+      "parent": "tank/vols",
+      "verdict": "endpoint-bug: E6: a filesystem restore/clone with required_bytes below the source's size gets refquota=required, smaller than the snapshot (spec:2229-2230; plan.go PlanCreateVolume keeps size=want)"
+    }
+  },
+  {
+    "sig": "oracle|CreateVolume:validate-confirms-but-create-refuses",
+    "count": 346,
+    "verdict": "csi-translation-bug: T3: ValidateVolumeCapabilities confirms mount on a zvol (capSupported), CreateVolume with the same capability is ALREADY_EXISTS (kindOf maps mount to FILESYSTEM): the plugin contradicts itself (spec:808, 1479)",
+    "example": {
+      "sig": "oracle|CreateVolume:validate-confirms-but-create-refuses",
+      "detail": "spec:808,1479: ValidateVolumeCapabilities confirmed [mount: {}\naccess_mode: {\n  mode: SINGLE_NODE_READER_ONLY\n}] for pvc-4 but CreateVolume with them is ALREADY_EXISTS",
+      "op": "CreateVolume {name:\"pvc-4\" capacity_range:{required_bytes:1073741824} volume_capabilities:{mount:{} access_mode:{mode:SINGLE_NODE_READER_ONLY}} parameters:{key:\"reserve\" value:\"false\"}}",
+      "parent": "tank/vols",
+      "verdict": "csi-translation-bug: T3: ValidateVolumeCapabilities confirms mount on a zvol (capSupported), CreateVolume with the same capability is ALREADY_EXISTS (kindOf maps mount to FILESYSTEM): the plugin contradicts itself (spec:808, 1479)"
+    }
+  }
+]

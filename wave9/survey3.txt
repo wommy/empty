@@ -1,0 +1,7 @@
+=== proj:create:refreservation (x400)
+# generated: seed0
+zfs create -V 67108864 $R/v
+step 1 `zfs create -V 67108864 $R/v`: proj differs
+  A: $R/v	refreservation	70254592	local
+  B: $R/v	refreservation	69206016	local
+

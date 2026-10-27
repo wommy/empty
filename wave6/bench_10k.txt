@@ -1,0 +1,66 @@
+goos: linux
+goarch: amd64
+pkg: github.com/wommy/empty/internal/zfs
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+BenchmarkScan/10k/text-parseColumns-4         	       6	 233770259 ns/op	 134.77 MB/s	96023584 B/op	  270188 allocs/op
+BenchmarkScan/10k/text-parseColumns-4         	       6	 237118724 ns/op	 132.87 MB/s	96023541 B/op	  270187 allocs/op
+BenchmarkScan/10k/text-parseColumns-4         	       6	 228748555 ns/op	 137.73 MB/s	96023578 B/op	  270187 allocs/op
+BenchmarkScan/10k/text-parseColumns-4         	       7	 159362700 ns/op	 197.70 MB/s	96023568 B/op	  270187 allocs/op
+BenchmarkScan/10k/text-parseColumns-4         	       6	 169186218 ns/op	 186.22 MB/s	96023616 B/op	  270188 allocs/op
+BenchmarkScan/10k/text-parseColumns-4         	       8	 133193605 ns/op	 236.54 MB/s	96023560 B/op	  270187 allocs/op
+BenchmarkScan/10k/jsontext-stream-4           	       7	 209511828 ns/op	 118.99 MB/s	21685792 B/op	     150 allocs/op
+BenchmarkScan/10k/jsontext-stream-4           	       4	 261915941 ns/op	  95.18 MB/s	21685788 B/op	     150 allocs/op
+BenchmarkScan/10k/jsontext-stream-4           	       7	 200385013 ns/op	 124.41 MB/s	21685792 B/op	     150 allocs/op
+BenchmarkScan/10k/jsontext-stream-4           	       6	 254443682 ns/op	  97.97 MB/s	21685778 B/op	     150 allocs/op
+BenchmarkScan/10k/jsontext-stream-4           	       4	 283584734 ns/op	  87.91 MB/s	21685788 B/op	     150 allocs/op
+BenchmarkScan/10k/jsontext-stream-4           	       3	 335190426 ns/op	  74.37 MB/s	21685760 B/op	     150 allocs/op
+BenchmarkScan/10k/v2-unmarshal-4              	       2	 734164878 ns/op	  33.96 MB/s	57898572 B/op	 1465273 allocs/op
+BenchmarkScan/10k/v2-unmarshal-4              	       2	 650851596 ns/op	  38.30 MB/s	57884664 B/op	 1465163 allocs/op
+BenchmarkScan/10k/v2-unmarshal-4              	       2	 758441576 ns/op	  32.87 MB/s	57884664 B/op	 1465163 allocs/op
+BenchmarkScan/10k/v2-unmarshal-4              	       1	1021937630 ns/op	  24.39 MB/s	57884848 B/op	 1465164 allocs/op
+BenchmarkScan/10k/v2-unmarshal-4              	       2	 754017496 ns/op	  33.06 MB/s	57884680 B/op	 1465163 allocs/op
+BenchmarkScan/10k/v2-unmarshal-4              	       1	1166533995 ns/op	  21.37 MB/s	57869328 B/op	 1465096 allocs/op
+BenchmarkScan/10k/v1-token-4                  	       2	 867719028 ns/op	  28.73 MB/s	104905848 B/op	 4371090 allocs/op
+BenchmarkScan/10k/v1-token-4                  	       2	 958487805 ns/op	  26.01 MB/s	104905824 B/op	 4371090 allocs/op
+BenchmarkScan/10k/v1-token-4                  	       2	 894950206 ns/op	  27.86 MB/s	104906024 B/op	 4371092 allocs/op
+BenchmarkScan/10k/v1-token-4                  	       2	 680058132 ns/op	  36.66 MB/s	104905920 B/op	 4371091 allocs/op
+BenchmarkScan/10k/v1-token-4                  	       2	 720762914 ns/op	  34.59 MB/s	104905944 B/op	 4371091 allocs/op
+BenchmarkScan/10k/v1-token-4                  	       2	 707813492 ns/op	  35.22 MB/s	104905848 B/op	 4371090 allocs/op
+BenchmarkScan/10k/v1-unmarshal-4              	       1	1364798773 ns/op	  18.27 MB/s	124984496 B/op	 1465171 allocs/op
+BenchmarkScan/10k/v1-unmarshal-4              	       2	 792820474 ns/op	  31.44 MB/s	124981616 B/op	 1465146 allocs/op
+BenchmarkScan/10k/v1-unmarshal-4              	       2	1025430834 ns/op	  24.31 MB/s	124984528 B/op	 1465171 allocs/op
+BenchmarkScan/10k/v1-unmarshal-4              	       1	1082698742 ns/op	  23.02 MB/s	124984464 B/op	 1465171 allocs/op
+BenchmarkScan/10k/v1-unmarshal-4              	       2	1016981893 ns/op	  24.51 MB/s	124984568 B/op	 1465171 allocs/op
+BenchmarkScan/10k/v1-unmarshal-4              	       2	 827580682 ns/op	  30.12 MB/s	124984448 B/op	 1465171 allocs/op
+BenchmarkScan/110k/text-parseColumns-4        	       1	3229712562 ns/op	 107.61 MB/s	1099675920 B/op	 2970731 allocs/op
+BenchmarkScan/110k/text-parseColumns-4        	       1	2554789916 ns/op	 136.03 MB/s	1099512144 B/op	 2970719 allocs/op
+BenchmarkScan/110k/text-parseColumns-4        	       1	2439747492 ns/op	 142.45 MB/s	1099512144 B/op	 2970719 allocs/op
+BenchmarkScan/110k/text-parseColumns-4        	       1	2102415350 ns/op	 165.30 MB/s	1099239184 B/op	 2970699 allocs/op
+BenchmarkScan/110k/text-parseColumns-4        	       1	2123733083 ns/op	 163.64 MB/s	1099621440 B/op	 2970728 allocs/op
+BenchmarkScan/110k/text-parseColumns-4        	       1	2870194223 ns/op	 121.08 MB/s	1099675920 B/op	 2970731 allocs/op
+BenchmarkScan/110k/jsontext-stream-4          	       1	3779984679 ns/op	  72.66 MB/s	295674240 B/op	     824 allocs/op
+BenchmarkScan/110k/jsontext-stream-4          	       1	3502920687 ns/op	  78.40 MB/s	295892608 B/op	     840 allocs/op
+BenchmarkScan/110k/jsontext-stream-4          	       1	4743529413 ns/op	  57.90 MB/s	295947200 B/op	     844 allocs/op
+BenchmarkScan/110k/jsontext-stream-4          	       1	3200890888 ns/op	  85.80 MB/s	295674240 B/op	     824 allocs/op
+BenchmarkScan/110k/jsontext-stream-4          	       1	2622375780 ns/op	 104.73 MB/s	295783424 B/op	     832 allocs/op
+BenchmarkScan/110k/jsontext-stream-4          	       1	3123501623 ns/op	  87.93 MB/s	295455872 B/op	     808 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4             	       1	9174851953 ns/op	  29.93 MB/s	628212048 B/op	16117632 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4             	       1	9452463197 ns/op	  29.05 MB/s	629359008 B/op	16117652 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4             	       1	7890864143 ns/op	  34.80 MB/s	628212080 B/op	16117632 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4             	       1	8423925868 ns/op	  32.60 MB/s	629588672 B/op	16117656 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4             	       1	9132562081 ns/op	  30.07 MB/s	629359152 B/op	16117652 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4             	       1	7716426375 ns/op	  35.59 MB/s	629129760 B/op	16117648 allocs/op
+BenchmarkScan/110k/v1-token-4                 	       1	6686121761 ns/op	  41.08 MB/s	1192899384 B/op	48086109 allocs/op
+BenchmarkScan/110k/v1-token-4                 	       1	9329123536 ns/op	  29.44 MB/s	1192899272 B/op	48086107 allocs/op
+BenchmarkScan/110k/v1-token-4                 	       1	7206256322 ns/op	  38.11 MB/s	1192899240 B/op	48086108 allocs/op
+BenchmarkScan/110k/v1-token-4                 	       1	10380594623 ns/op	  26.46 MB/s	1193117720 B/op	48086123 allocs/op
+BenchmarkScan/110k/v1-token-4                 	       1	10290791409 ns/op	  26.69 MB/s	1193063096 B/op	48086120 allocs/op
+BenchmarkScan/110k/v1-token-4                 	       1	5822188892 ns/op	  47.17 MB/s	1192844616 B/op	48086103 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4             	       1	10023054513 ns/op	  27.40 MB/s	1701945024 B/op	16117645 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4             	       1	11138549174 ns/op	  24.66 MB/s	1701715296 B/op	16117641 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4             	       1	10810174753 ns/op	  25.41 MB/s	1703780256 B/op	16117676 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4             	       1	13879367455 ns/op	  19.79 MB/s	1701944848 B/op	16117644 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4             	       1	13337104210 ns/op	  20.59 MB/s	1702403664 B/op	16117652 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4             	       1	12439583214 ns/op	  22.08 MB/s	1702633232 B/op	16117657 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/zfs	266.941s

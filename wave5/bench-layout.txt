@@ -1,0 +1,27 @@
+BenchmarkLayout/build/flat-4         	     156	   8129676 ns/op	 4764461 B/op	    5025 allocs/op
+BenchmarkLayout/build/flat-4         	     158	   7629498 ns/op	 4764462 B/op	    5025 allocs/op
+BenchmarkLayout/build/flat-4         	     128	   9150529 ns/op	 4764459 B/op	    5025 allocs/op
+BenchmarkLayout/build/split-4        	     238	   4907723 ns/op	 4895012 B/op	      32 allocs/op
+BenchmarkLayout/build/split-4        	     229	   5044400 ns/op	 4895011 B/op	      32 allocs/op
+BenchmarkLayout/build/split-4        	     223	   5252307 ns/op	 4895011 B/op	      32 allocs/op
+BenchmarkLayout/build/ptr-4          	     333	   3781275 ns/op	 1636736 B/op	   10001 allocs/op
+BenchmarkLayout/build/ptr-4          	     255	   4795086 ns/op	 1636739 B/op	   10001 allocs/op
+BenchmarkLayout/build/ptr-4          	     390	   3379044 ns/op	 1636737 B/op	   10001 allocs/op
+BenchmarkLayout/snapsOf-all-vols/flat-4         	    2294	    521877 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/snapsOf-all-vols/flat-4         	    2124	    547706 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/snapsOf-all-vols/flat-4         	    2456	    491086 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/snapsOf-all-vols/split-4        	    1514	    781014 ns/op	   48000 B/op	    1000 allocs/op
+BenchmarkLayout/snapsOf-all-vols/split-4        	    1562	    717476 ns/op	   48000 B/op	    1000 allocs/op
+BenchmarkLayout/snapsOf-all-vols/split-4        	    1699	    755637 ns/op	   48000 B/op	    1000 allocs/op
+BenchmarkLayout/scan-snaps/flat-4               	    3760	    285870 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/scan-snaps/flat-4               	    4270	    331041 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/scan-snaps/flat-4               	    3997	    346409 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/scan-snaps/split-4              	  112782	     11322 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/scan-snaps/split-4              	  125311	     14147 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLayout/scan-snaps/split-4              	   55178	     20891 ns/op	       0 B/op	       0 allocs/op
+BenchmarkScanAllFixture-4                       	       3	 453709570 ns/op	143996322 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4                       	       3	 382825403 ns/op	143996317 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4                       	       3	 402022125 ns/op	143996317 B/op	  275237 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	31.411s
+    layout_bench_test.go:153: rows=10000 vols=1000 sizeof Row=432 volRow=384 snapRow=88 ptrRow=88 volCols=320 snapCols=40

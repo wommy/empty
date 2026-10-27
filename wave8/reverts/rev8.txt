@@ -1,0 +1,20 @@
+=== R1
+--- existing:
+--- FAIL: TestCloneNeverAdoptsARacingDataset (0.00s)
+--- model:
+    modelrun_test.go:1273: model check failed: detected after 475ms and 521 steps; shrunk by 575ms (seed 30, replay: MODEL_SEED=30 go test ./internal/endpoint -run TestModel)
+        minimal trace (2 of 25 steps):
+           0 CreateVolume(v1 filesystem cap=3145733)
+           1 CreateVolume(v0 filesystem cap=1048576 from-vol=v1) !race@1[adm.create(, v0)]
+=== R2
+--- existing:
+--- FAIL: TestDeleteVolumeSparesForeignSnapshots (0.00s)
+--- FAIL: TestPropLocalIsOnlyLocal (0.00s)
+--- model:
+    modelrun_test.go:1273: model check failed: detected after 406ms and 40 steps; shrunk by 529ms (seed 1, replay: MODEL_SEED=1 go test ./internal/endpoint -run TestModel)
+        minimal trace (3 of 40 steps):
+           0 CreateVolume(v0 filesystem cap=3145733)
+           1 adm.recvsnap(v0, s0)
+           2 CreateSnapshot(v2, s0)
+=== R4
+--- existing:

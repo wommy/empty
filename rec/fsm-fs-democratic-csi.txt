@@ -1,0 +1,22 @@
+# FSM explore: kind=filesystem prefix=democratic-csi depth=4
+distinct worlds=344 edges=1937 crash/retry runs=6492 combos=156 time=14.925s
+
+## row states observed
+  Adopted-dcsi                                                 5962
+  CSI-snap                                                     4369
+  CSI-snap-deferred                                            58
+  Clone-uncommitted                                            2564
+  Committed                                                    7744
+  Committed-clone                                              2428
+  Created-uncommitted                                          1234
+  Foreign                                                      983
+  Foreign(recv)                                                1112
+  Foreign-snap                                                 3777
+  Foreign-snap(recv)                                           190
+  IMPOSSIBLE(managed internal snapshot)                        5540
+
+## findings (minimal depth first)
+
+[unnamed-state] (depth 2) IMPOSSIBLE(managed internal snapshot)
+  trace: CV(a) ; CV(b<-a,reserve)
+    => a@volume-source-for-volume-b:IMPOSSIBLE(managed internal snapshot)

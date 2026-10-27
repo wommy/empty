@@ -1,0 +1,212 @@
+diff --git a/internal/zfs/zfstest/sim.go b/internal/zfs/zfstest/sim.go
+index 7a1ec44..bc426bd 100644
+--- a/internal/zfs/zfstest/sim.go
++++ b/internal/zfs/zfstest/sim.go
+@@ -37,6 +37,8 @@ type node struct {
+ 	origin string            // clone origin snapshot
+ 	defer_ bool              // deferred destroy pending
+ 	birth  int64             // creation, unix seconds
++	guid   uint64            // assigned on first read; kept across rename
++	holds  map[string]bool   // user holds (zfs hold), snapshots only
+ }
+ 
+ // Sim is an in-memory zfs. Safe for concurrent use.
+@@ -54,6 +56,7 @@ type Sim struct {
+ 
+ 	live    map[string]string // dataset -> sharenfs value the "kernel" serves
+ 	nfsDown bool
++	guids   uint64
+ }
+ 
+ func (s *Sim) now() int64 {
+@@ -106,6 +109,12 @@ func (s *Sim) Run(ctx context.Context, name string, args ...string) ([]byte, err
+ 		return nil, s.inherit(args[1:])
+ 	case "promote":
+ 		return nil, s.promote(args[1:])
++	case "rename":
++		return nil, s.rename(args[1:])
++	case "hold":
++		return nil, s.hold(args[1:])
++	case "release":
++		return nil, s.release(args[1:])
+ 	}
+ 	return nil, exit("unrecognized command '%s'", args[0])
+ }
+@@ -221,6 +230,9 @@ func (s *Sim) create(args []string) error {
+ 			s.ds[q] = &node{typ: zfs.TypeFilesystem, props: map[string]string{}}
+ 		}
+ 	}
++	if s.ds[p].typ != zfs.TypeFilesystem {
++		return exit("cannot create '%s': parent is not a filesystem", name)
++	}
+ 	typ := zfs.TypeFilesystem
+ 	if volsize != "" {
+ 		typ = zfs.TypeVolume
+@@ -292,6 +304,9 @@ func (s *Sim) clone(args []string) error {
+ 	if _, ok := s.ds[parent(name)]; !ok {
+ 		return exit("cannot create '%s': parent does not exist", name)
+ 	}
++	if s.ds[parent(name)].typ != zfs.TypeFilesystem {
++		return exit("cannot create '%s': parent is not a filesystem", name)
++	}
+ 	typ := s.ds[parent(snap)].typ
+ 	if _, ok := props["volblocksize"]; ok && typ == zfs.TypeVolume {
+ 		// zfs_valid_proplist with the origin's handle: set-once is readonly
+@@ -361,6 +376,15 @@ func (s *Sim) destroy(args []string) error {
+ 		return exit("cannot open '%s': dataset does not exist", name)
+ 	}
+ 	if n.typ == zfs.TypeSnapshot {
++		if len(n.holds) > 0 {
++			// dsl_destroy_snapshot_check: a held snapshot is EBUSY unless
++			// the destroy is deferred, which marks it instead
++			if deferred {
++				n.defer_ = true
++				return nil
++			}
++			return exit("cannot destroy snapshot %s: dataset is busy", name)
++		}
+ 		if clones := s.clonesOf(name); len(clones) > 0 {
+ 			if deferred {
+ 				n.defer_ = true
+@@ -380,6 +404,11 @@ func (s *Sim) destroy(args []string) error {
+ 		if s.ds[k].typ != zfs.TypeSnapshot {
+ 			continue
+ 		}
++		if len(s.ds[k].holds) > 0 {
++			// modelled atomically; real zfs destroys some of the tree
++			// before it reaches the held snapshot
++			return exit("cannot destroy snapshot %s: dataset is busy", k)
++		}
+ 		for _, c := range s.clonesOf(k) {
+ 			if c != name && !strings.HasPrefix(c, name+"/") {
+ 				return exit("cannot destroy '%s': filesystem has dependent clones\nuse '-R' to destroy the following datasets:\n%s", name, c)
+@@ -403,7 +432,7 @@ func (s *Sim) remove(name string) {
+ 	if origin == "" {
+ 		return
+ 	}
+-	if o, ok := s.ds[origin]; ok && o.defer_ && len(s.clonesOf(origin)) == 0 {
++	if o, ok := s.ds[origin]; ok && o.defer_ && len(o.holds) == 0 && len(s.clonesOf(origin)) == 0 {
+ 		delete(s.ds, origin)
+ 	}
+ }
+@@ -551,6 +580,7 @@ var applies = map[string][]zfs.Type{
+ 	"snapdir":        {zfs.TypeFilesystem},
+ 	"available":      {zfs.TypeFilesystem, zfs.TypeVolume},
+ 	"defer_destroy":  {zfs.TypeSnapshot},
++	"userrefs":       {zfs.TypeSnapshot},
+ }
+ 
+ // misfit reports a native property that does not exist on typ
+@@ -569,7 +599,7 @@ func known(prop string) bool {
+ 		return true
+ 	}
+ 	switch prop {
+-	case "all", "name", "type", "origin", "creation", "used":
++	case "all", "name", "type", "origin", "creation", "used", "guid":
+ 		return true
+ 	}
+ 	_, ok := applies[prop]
+@@ -613,6 +643,14 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
+ 			return "yes", "-", true
+ 		}
+ 		return "no", "-", true
++	case "guid":
++		if n.guid == 0 {
++			s.guids++
++			n.guid = 1000 + s.guids
++		}
++		return strconv.FormatUint(n.guid, 10), "-", true
++	case "userrefs":
++		return strconv.Itoa(len(n.holds)), "-", true
+ 	case "defer_destroy":
+ 		if n.defer_ {
+ 			return "on", "-", true
+@@ -829,3 +867,88 @@ func shareHosts(v string) [][2]string {
+ 	}
+ 	return out
+ }
++
++// rename moves a dataset (with its descendants and snapshots) to a new
++// name in the same pool, like `zfs rename a b`: guids, properties and the
++// clone/origin graph follow it.
++func (s *Sim) rename(args []string) error {
++	if len(args) != 2 {
++		return exit("missing source dataset argument")
++	}
++	from, to := args[0], args[1]
++	n, ok := s.ds[from]
++	if !ok {
++		return exit("cannot open '%s': dataset does not exist", from)
++	}
++	if n.typ == zfs.TypeSnapshot || strings.Contains(to, "@") {
++		return exit("cannot rename to '%s': snapshot rename is not modelled", to)
++	}
++	if _, ok := s.ds[to]; ok {
++		return exit("cannot rename to '%s': dataset already exists", to)
++	}
++	if _, ok := s.ds[parent(to)]; !ok {
++		return exit("cannot rename to '%s': parent does not exist", to)
++	}
++	if strings.HasPrefix(to, from+"/") {
++		return exit("cannot rename to '%s': New name is a descendant of current name", to)
++	}
++	moved := map[string]string{from: to}
++	for _, k := range s.children(from) {
++		moved[k] = to + k[len(from):]
++	}
++	for old, nw := range moved {
++		s.ds[nw] = s.ds[old]
++		delete(s.ds, old)
++		if v, ok := s.live[old]; ok {
++			delete(s.live, old)
++			s.live[nw] = v
++		}
++	}
++	for _, d := range s.ds {
++		if nw, ok := moved[d.origin]; ok {
++			d.origin = nw
++		}
++	}
++	return nil
++}
++
++// hold runs `zfs hold tag snap`.
++func (s *Sim) hold(args []string) error {
++	if len(args) != 2 {
++		return exit("missing snapshot argument")
++	}
++	tag, name := args[0], args[1]
++	n, ok := s.ds[name]
++	if !ok || n.typ != zfs.TypeSnapshot {
++		return exit("cannot hold snapshot '%s': dataset does not exist", name)
++	}
++	if n.holds[tag] {
++		return exit("cannot hold snapshot '%s': tag already exists on this dataset", name)
++	}
++	if n.holds == nil {
++		n.holds = map[string]bool{}
++	}
++	n.holds[tag] = true
++	return nil
++}
++
++// release runs `zfs release tag snap`; releasing the last hold of a
++// snapshot marked for deferred destroy (and without clones) destroys it.
++func (s *Sim) release(args []string) error {
++	if len(args) != 2 {
++		return exit("missing snapshot argument")
++	}
++	tag, name := args[0], args[1]
++	n, ok := s.ds[name]
++	if !ok || n.typ != zfs.TypeSnapshot {
++		return exit("cannot release hold from snapshot '%s': dataset does not exist", name)
++	}
++	if !n.holds[tag] {
++		return exit("cannot release hold from snapshot '%s': no such tag on this dataset", name)
++	}
++	delete(n.holds, tag)
++	if len(n.holds) == 0 && n.defer_ && len(s.clonesOf(name)) == 0 {
++		s.remove(name)
++	}
++	return nil
++}

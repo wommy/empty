@@ -1,0 +1,9 @@
+# extra paths (globs, relative to the scratchpad) saved beyond the default:
+# text files at depth <= 3, outside directories that contain a go.mod
+wave8/core/internal/core/**
+wave8/core/internal/endpoint/zz_wave8_bench_test.go
+wave9/*/internal/*/*_test.go
+wave7/mut-copy/internal/*/mutation_kill_test.go
+wave7/suite-data/**
+wave7/mutgen/main.go
+wave8-tools/*

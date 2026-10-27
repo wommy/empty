@@ -1,0 +1,29 @@
+  | "rw=10.0.0.5/32,ro=10.1.0.0/16" | sim: 10.0.0.5/32=rw 10.1.0.0/16=ro | ref: 10.0.0.5/32=rw 10.1.0.0/16=ro
+  | "on" | sim: *=rw | ref: *=rw
+  | "rw" | sim: *=rw | ref: *=rw
+  | "ro" | sim: *=ro | ref: *=ro
+≠ | "rw=" | sim: =rw | ref: *=rw
+≠ | "rw=10.0.0.1/32:" | sim: 10.0.0.1/32=rw =rw | ref: 10.0.0.1/32=rw *=rw
+≠ | "rw=10.0.0.1/32::10.0.0.2/32" | sim: 10.0.0.1/32=rw =rw 10.0.0.2/32=rw | ref: 10.0.0.1/32=rw 10.0.0.2/32=rw *=rw
+≠ | "rw=@10.0.0.0/8" | sim: @10.0.0.0/8=rw | ref: 10.0.0.0/8=rw
+≠ | "ro=10.0.0.0/24,rw=10.0.0.0/24" | sim: 10.0.0.0/24=ro 10.0.0.0/24=rw | ref: 10.0.0.0/24=ro
+≠ | "rw=10.0.0.0/24:10.0.0.0/24" | sim: 10.0.0.0/24=rw 10.0.0.0/24=rw | ref: 10.0.0.0/24=rw
+  | "rw=10.0.0.0/24,crossmnt" | sim: 10.0.0.0/24=rw | ref: 10.0.0.0/24=rw
+  | "sec=krb5,rw=10.0.0.0/24" | sim: 10.0.0.0/24=rw | ref: 10.0.0.0/24=rw
+≠ | "sec,rw=10.0.0.1/32" | sim: 10.0.0.1/32=rw | ref: 
+≠ | "rw=#" | sim: #=rw | ref: =ro
+≠ | "rw=10.0.0.1/32 0.0.0.0/0" | sim: 10.0.0.1/32 0.0.0.0/0=rw | ref: 10.0.0.1/32=ro 0.0.0.0/0=rw
+≠ | "rw=10.0.0.0/33" | sim: 10.0.0.0/33=rw | ref: 
+  | "rw=10.0.0.0/024" | sim: 10.0.0.0/024=rw | ref: 10.0.0.0/024=rw
+  | "rw=10.0.0.5" | sim: 10.0.0.5=rw | ref: 10.0.0.5=rw
+≠ | "rw=node-a" | sim: node-a=rw | ref: 
+  | "rw=*" | sim: *=rw | ref: *=rw
+  | "rw=10.0.0.1/32,no_root_squash" | sim: 10.0.0.1/32=rw | ref: 10.0.0.1/32=rw
+≠ | "bogus" | sim:  | ref: (zfs set refused)
+≠ | "" | sim:  | ref: (zfs set refused)
+  | "rw=10.0.0.1/32\n/etc *(rw)" | sim: (zfs set refused) | ref: (zfs set refused)
+  | "sync" | sim:  | ref: 
+≠ | "rw=\"10.0.0.1/32" | sim: "10.0.0.1/32=rw | ref: 
+≠ | "anonuid=x,rw=10.0.0.1/32" | sim: 10.0.0.1/32=rw | ref: 
+≠ | "rw=[::1]" | sim: [=rw =rw 1]=rw | ref: ::1=rw
+≠ | "rw=[::1" | sim: [=rw =rw 1=rw | ref: (zfs set refused)

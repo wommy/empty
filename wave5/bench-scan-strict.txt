@@ -1,0 +1,14 @@
+== staged
+BenchmarkScanAllFixture-4   	       2	 933513674 ns/op	143996276 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4   	       4	 341698430 ns/op	143996370 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4   	       3	 341042843 ns/op	143996317 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4   	       4	 789524528 ns/op	143996426 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4   	       3	 390157086 ns/op	143996317 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4   	       2	 538411004 ns/op	143996220 B/op	  275236 allocs/op
+== types-copy
+BenchmarkScanAllFixture-4   	       2	1188507326 ns/op	143996492 B/op	  275239 allocs/op
+BenchmarkScanAllFixture-4   	       3	 350780143 ns/op	143996354 B/op	  275237 allocs/op
+BenchmarkScanAllFixture-4   	       1	1297212168 ns/op	143995896 B/op	  275235 allocs/op
+BenchmarkScanAllFixture-4   	       2	1054196906 ns/op	143996108 B/op	  275235 allocs/op
+BenchmarkScanAllFixture-4   	       4	 294368634 ns/op	143996490 B/op	  275238 allocs/op
+BenchmarkScanAllFixture-4   	       6	 366623728 ns/op	143996444 B/op	  275237 allocs/op

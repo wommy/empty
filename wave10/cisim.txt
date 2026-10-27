@@ -1,0 +1,14 @@
+gofmt rc=0 0.39s
+tidy rc=0 1.77s
+vet rc=0 253.20s
+test-race-ownchanged rc=0 81.80s
+test-race-rerun-warm rc=0 47.58s
+test-plain-ownchanged rc=0 49.98s
+vm-compile-endpoint-cold rc=0 149.93s
+vm-compile-csi-after-endpoint rc=0 327.05s
+vm-compile-endpoint-deps-warm rc=0 7.02s
+vm-compile-csi-deps-warm rc=0 6.23s
+total 36656
+-rwxr-xr-x 1 root root 29127676 Oct 27 06:09 csi.test
+-rwxr-xr-x 1 root root  8404603 Oct 27 06:09 endpoint.test
+done

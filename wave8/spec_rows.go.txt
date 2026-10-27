@@ -1,0 +1,235 @@
+// spec_rows.go.txt -- skeleton, not compiled. How wave8/spec.json rows drive tests.
+//
+// Three residual test shapes, one per `drive` value in spec.json:
+//   type     -> no row here; the constructor test for the type (e.g. TestSnapNameRejects) cites the id,
+//               and a `//spec:SNP-04` comment on the type lets the coverage check find it.
+//   table    -> a SpecRow below: (Given rows, Request) -> Outcome, run through the pure planner AND
+//               through Sim-backed apply, then re-plan must be empty (INV-02).
+//   scenario -> a named func in scenarios{} (multi-step, races, crash injection, real kernel).
+//
+// A meta-test fails if any spec.json id with status current|current-untested has neither a
+// SpecRow, a scenario, nor a //spec: tag on a type. That is the "nothing dropped" ratchet for
+// the refactor (see wave8/adversary.md R1).
+
+package endpoint
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+
+	"google.golang.org/grpc/codes"
+)
+
+// ---------------------------------------------------------------- world description
+
+// Row is one dataset as `zfs get -j -p` would print it. Every property carries its source,
+// because ownership (OWN-01) is a function of source, not value.
+type Row struct {
+	Name  string            // "tank/k8s/pvc-1", "tank/k8s/pvc-1@snap"
+	Type  string            // filesystem | volume | snapshot
+	Props map[string]PV     // native and user properties
+}
+
+type PV struct {
+	Value  string
+	Source string // "local" | "received" | "inherited from tank/k8s" | "default" | "-"
+}
+
+// Helpers keep rows short; each expands to the exact props OpenZFS 2.4 prints.
+func committedFS(id string, refquota uint64) Row   { panic("fixture") }
+func committedZvol(id string, volsize uint64) Row  { panic("fixture") }
+func uncommitted(r Row) Row                        { panic("fixture") } // drop provision_success
+func received(r Row) Row                           { panic("fixture") } // every user prop source=received
+func inherited(r Row, from string) Row             { panic("fixture") }
+func csiSnap(vol, name string) Row                 { panic("fixture") }
+func adminSnap(vol, name string) Row               { panic("fixture") } // no markers (sanoid)
+func cloneSource(src, dst string) Row              { panic("fixture") } // src@volume-source-for-volume-dst
+func deferred(r Row) Row                           { panic("fixture") } // defer_destroy=on
+func cloneOf(r Row, origin string) Row             { panic("fixture") }
+func foreign(name, typ string) Row                 { panic("fixture") }
+
+// ---------------------------------------------------------------- request and outcome
+
+type Request struct {
+	RPC  string          // CreateVolume | DeleteVolume | CreateSnapshot | ... | Reconcile
+	Args json.RawMessage // the proto request as JSON, so rows stay data
+}
+
+type Outcome struct {
+	Code    codes.Code // codes.OK for success
+	Ops     []string   // expected plan, Op.String() form, e.g. "create -V tank/k8s/a volsize=1073741824"
+	NoOps   bool       // assert len(plan)==0 (idempotency rows) without listing ops
+	Visible []string   // for List* rows: ids that must be returned, in order
+	Detail  string     // substring of the status message (names the snapshot/clone/server)
+}
+
+type SpecRow struct {
+	ID     string // spec.json id; one id may have several SpecRows (one per case)
+	Case   string
+	Kind   string // copied from spec.json for filtering (-run 'TestSpecRows/ownership')
+	Oracle string // openzfs | nfs-utils | csi-spec | adr | self
+	Given  []Row
+	Req    Request
+	Want   Outcome
+	Prefix string // "" = zfs-endpoint, "democratic-csi" = adoption mode (OWN-17 runs both)
+}
+
+// ---------------------------------------------------------------- rows (excerpt)
+
+var specRows = []SpecRow{
+	{ID: "OWN-01", Case: "received markers are not ownership", Kind: "ownership", Oracle: "openzfs",
+		Given: []Row{received(committedFS("a", 1 << 30))},
+		Req:   req("DeleteVolume", `{"volume_id":"a"}`),
+		Want:  Outcome{Code: codes.FailedPrecondition, Ops: nil}},
+	{ID: "OWN-01", Case: "inherited markers are not ownership", Kind: "ownership", Oracle: "openzfs",
+		Given: []Row{inherited(committedFS("a", 1<<30), "tank/k8s")},
+		Req:   req("ListVolumes", `{}`),
+		Want:  Outcome{Code: codes.OK, Visible: []string{}}},
+	{ID: "OWN-05", Case: "unmanaged dataset at the name", Kind: "ownership",
+		Given: []Row{foreign("tank/k8s/a", "filesystem")},
+		Req:   req("CreateVolume", `{"name":"a","capacity_range":{"required_bytes":1073741824}}`),
+		Want:  Outcome{Code: codes.AlreadyExists}},
+	{ID: "VOL-01", Case: "retry is empty", Kind: "idempotency", Oracle: "self",
+		Given: []Row{committedFS("a", 1 << 30)},
+		Req:   req("CreateVolume", `{"name":"a","capacity_range":{"required_bytes":1073741824}}`),
+		Want:  Outcome{Code: codes.OK, NoOps: true}},
+	{ID: "VOL-11", Case: "uncommitted thick zvol converges with auto", Kind: "OpenZFS-fact", Oracle: "openzfs",
+		Given: []Row{uncommitted(committedZvol("a", 1 << 30))},
+		Req:   req("CreateVolume", `{"name":"a","block":true,"capacity_range":{"required_bytes":1073741824}}`),
+		Want:  Outcome{Code: codes.OK, Ops: []string{"set tank/k8s/a refreservation=auto", "set tank/k8s/a zfs-endpoint:provision_success=true"}}},
+	{ID: "DEL-02", Case: "live CSI snapshot blocks", Kind: "CSI-contract", Oracle: "csi-spec",
+		Given: []Row{committedFS("a", 1 << 30), csiSnap("a", "s1")},
+		Req:   req("DeleteVolume", `{"volume_id":"a"}`),
+		Want:  Outcome{Code: codes.FailedPrecondition, Detail: "s1"}},
+	{ID: "DEL-04", Case: "deferred CSI snapshot does not block", Kind: "invariant",
+		Given: []Row{committedFS("a", 1 << 30), deferred(csiSnap("a", "s1"))},
+		Req:   req("DeleteVolume", `{"volume_id":"a"}`),
+		Want:  Outcome{Code: codes.OK, Ops: []string{ /* R1 order once fixed: see DEL-06 */ }}},
+	{ID: "SNP-06", Case: "snapshot delete is deferred", Kind: "OpenZFS-fact", Oracle: "openzfs",
+		Given: []Row{committedFS("a", 1 << 30), csiSnap("a", "s1")},
+		Req:   req("DeleteSnapshot", `{"snapshot_id":"a@s1"}`),
+		Want:  Outcome{Code: codes.OK, Ops: []string{"destroy -d tank/k8s/a@s1 [ok-missing]"}}},
+	{ID: "ERR-05", Case: "busy on destroy is in use", Kind: "error-code", Oracle: "csi-spec",
+		// error-code rows inject a classified failure for op k instead of a Given world change
+		Given: []Row{committedFS("a", 1 << 30)},
+		Req:   req("DeleteVolume", `{"volume_id":"a"}`, inject(0, "cannot destroy 'tank/k8s/a': dataset is busy")),
+		Want:  Outcome{Code: codes.FailedPrecondition}},
+	{ID: "NFS-04", Case: "unpublish last client writes off, never inherit", Kind: "OpenZFS-fact", Oracle: "openzfs",
+		Given: []Row{withShare(committedFS("a", 1<<30), "rw=10.0.0.5/32", "local")},
+		Req:   req("UnpublishFileExport", `{"volume_id":"a","client":"10.0.0.5"}`),
+		Want:  Outcome{Code: codes.OK, Ops: []string{"set tank/k8s/a sharenfs=off"}}},
+	// ... remaining table rows generated from spec.json (drive == "table"), one or more cases each.
+}
+
+// ---------------------------------------------------------------- driver
+
+func TestSpecRows(t *testing.T) {
+	for _, r := range specRows {
+		r := r
+		t.Run(r.Kind+"/"+r.ID+"/"+r.Case, func(t *testing.T) {
+			t.Parallel()
+			prefixes := []string{r.Prefix}
+			if r.ID == "OWN-17" {
+				prefixes = []string{"", "democratic-csi"}
+			}
+			for _, p := range prefixes {
+				// 1. pure: decode Given -> Table, plan the request, compare plan and code.
+				tbl := mustDecode(t, p, r.Given)        // decode is the same function the scanner uses
+				plan, err := planFor(tbl, r.Req)         // no I/O (INV-01)
+				assertOutcome(t, r.Want, plan, err)
+
+				// 2. applied: seed a Sim with Given, run the RPC through the real Endpoint,
+				//    compare code; then re-plan from a fresh scan must be empty (INV-02),
+				//    and a second identical RPC must yield NoOps (VOL-01 / REC-11 family).
+				sim := seedSim(t, p, r.Given)
+				code := callRPC(t, sim, p, r.Req)
+				if code != r.Want.Code {
+					t.Fatalf("applied: code %v, want %v", code, r.Want.Code)
+				}
+				if code == codes.OK && isMutating(r.Req) {
+					assertResidualEmpty(t, sim, p, r.Req)
+				}
+			}
+		})
+	}
+}
+
+// Rows whose oracle is "openzfs" or "nfs-utils" ALSO run under -tags zfsreal against a
+// throwaway pool (same rows, real Runner instead of Sim). A row that is green on the Sim
+// and red on the pool is a simulator bug, never a "flake". See adversary.md R2.
+
+// ---------------------------------------------------------------- scenarios
+
+type scenario func(t *testing.T, env Env)
+
+// Env is either the Sim or a real pool; scenarios with an upstream oracle must be run on both.
+type Env interface {
+	Endpoint() *Endpoint
+	ZFS(args ...string) (string, error) // out-of-band admin actions (races, recv, rename)
+	BeforeOp(k int, f func())            // race injection between scan and op k (OWN-15)
+	CrashAfterOp(k int)                  // kill apply after op k (CR-01, DEL-06)
+	Real() bool
+}
+
+var scenarios = map[string]scenario{
+	"OWN-06": func(t *testing.T, e Env) { /* send -R | recv into parent; every RPC on the copy */ },
+	"OWN-08": func(t *testing.T, e Env) { /* BeforeOp(clone): admin creates the target -> AlreadyExists, untouched */ },
+	"OWN-12": func(t *testing.T, e Env) { /* zfs create a child under a volume; DeleteVolume/Reconcile never destroy it */ },
+	"OWN-15": func(t *testing.T, e Env) {
+		// For each destructive plan and each op k: BeforeOp(k, admin snapshot | child | rename).
+		// Assert: the out-of-band object still exists afterwards, the RPC is not OK-with-loss.
+	},
+	"DEL-06": func(t *testing.T, e Env) { /* CrashAfterOp(k) for every k, then retry: no leaked clone source (CX1) */ },
+	"CR-01":  func(t *testing.T, e Env) { /* every plan x every k: state(retry) == state(uncrashed) on the Real env */ },
+	"NFS-05": func(t *testing.T, e Env) { /* stop exportfs/nfsd; publish -> Unavailable; restore; retry reshares */ },
+	"NFS-16": func(t *testing.T, e Env) { /* parent sharenfs=on; volume inherits; showmount sees '*'; publish pins */ },
+	"SNP-11": func(t *testing.T, e Env) { /* zvol grows after snapshot; snapshot size unchanged (Sim is wrong today) */ },
+	// ... one entry per spec.json row with drive == "scenario".
+}
+
+func TestSpecScenarios(t *testing.T) {
+	for id, s := range scenarios {
+		id, s := id, s
+		t.Run(id, func(t *testing.T) { s(t, simEnv(t)) })
+	}
+}
+
+// ---------------------------------------------------------------- coverage ratchet
+
+func TestSpecCoverage(t *testing.T) {
+	var spec struct {
+		Rows []struct{ ID, Drive, Status string } `json:"rows"`
+	}
+	b, _ := os.ReadFile("testdata/spec.json")
+	_ = json.Unmarshal(b, &spec)
+	have := map[string]bool{}
+	for _, r := range specRows {
+		have[r.ID] = true
+	}
+	for id := range scenarios {
+		have[id] = true
+	}
+	for id := range typeTags() { // grep of //spec:ID comments on types, generated at go:generate time
+		have[id] = true
+	}
+	for _, r := range spec.Rows {
+		if (r.Status == "current" || r.Status == "current-untested") && !have[r.ID] {
+			t.Errorf("%s (%s) has no SpecRow, scenario or type tag", r.ID, r.Drive)
+		}
+	}
+}
+
+// stubs
+func req(rpc, js string, opts ...any) Request                     { return Request{RPC: rpc, Args: json.RawMessage(js)} }
+func inject(op int, stderr string) any                            { return nil }
+func withShare(r Row, v, src string) Row                          { return r }
+func mustDecode(t *testing.T, prefix string, rows []Row) *Table   { return nil }
+func planFor(*Table, Request) (Plan, error)                       { return Plan{}, nil }
+func assertOutcome(*testing.T, Outcome, Plan, error)              {}
+func seedSim(*testing.T, string, []Row) any                       { return nil }
+func callRPC(*testing.T, any, string, Request) codes.Code         { return codes.OK }
+func isMutating(Request) bool                                     { return true }
+func assertResidualEmpty(*testing.T, any, string, Request)        {}
+func simEnv(*testing.T) Env                                       { return nil }
+func typeTags() map[string]bool                                   { return nil }

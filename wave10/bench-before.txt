@@ -1,0 +1,8 @@
+before build+link only                    15.62s
+before go test ./... #1                   16.62s rc=0
+before go test ./... #2                   21.24s rc=0
+before go test ./... #3                   20.11s rc=0
+before race build+link only               18.50s
+before go test -race ./... #1             28.95s rc=0
+before go test -race ./... #2             32.34s rc=0
+before go vet                              4.67s rc=0

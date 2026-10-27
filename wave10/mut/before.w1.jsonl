@@ -1,0 +1,52 @@
+{"id": 23, "file": "internal/endpoint/plan.go", "line": 108, "op": "GUARD_DELETE", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 88.0}
+{"id": 25, "file": "internal/endpoint/plan.go", "line": 107, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["TestCloneFailureAfterCloneConvergesToSameState", "TestCloneFromVolumeReleasesInternalSnapshot", "TestCloneLargerThanLimitIsOutOfRange", "TestCloneRefusesUnstampedReservedSnapshot", "TestCloneSourcesMustBeOwned", "TestDeleteCloneInterruptedThenRetriedReleasesOrigin", "TestDeleteVolumeAfterItsCloneIsGone", "TestPlanCreateAppliesProperties", "TestPlanCreateMalformedSourceIsNotFound", "TestPlannersRequireACoveringTable", "TestReachUncommittedServed", "TestReconcileAgainstDesiredSet", "TestReconcileCollectsLeakedCloneSource", "TestReconcileSkipsSourceOfFailedClone", "TestReserveRestoreIsIdempotent", "TestSanity", "TestThickCloneRetryIsIdempotent"], "pkgfail": ["FAIL"], "secs": 72.2}
+{"id": 30, "status": "MISMATCH"}
+{"id": 32, "status": "MISMATCH"}
+{"id": 37, "status": "MISMATCH"}
+{"id": 44, "status": "MISMATCH"}
+{"id": 48, "status": "MISMATCH"}
+{"id": 52, "status": "MISMATCH"}
+{"id": 63, "status": "MISMATCH"}
+{"id": 73, "status": "MISMATCH"}
+{"id": 92, "status": "MISMATCH"}
+{"id": 105, "status": "MISMATCH"}
+{"id": 113, "status": "MISMATCH"}
+{"id": 123, "status": "MISMATCH"}
+{"id": 127, "status": "MISMATCH"}
+{"id": 153, "status": "MISMATCH"}
+{"id": 165, "status": "MISMATCH"}
+{"id": 190, "status": "MISMATCH"}
+{"id": 203, "status": "MISMATCH"}
+{"id": 217, "status": "MISMATCH"}
+{"id": 232, "status": "MISMATCH"}
+{"id": 253, "status": "MISMATCH"}
+{"id": 259, "status": "MISMATCH"}
+{"id": 272, "status": "MISMATCH"}
+{"id": 276, "status": "MISMATCH"}
+{"id": 282, "status": "MISMATCH"}
+{"id": 286, "status": "MISMATCH"}
+{"id": 289, "status": "MISMATCH"}
+{"id": 294, "status": "MISMATCH"}
+{"id": 297, "status": "MISMATCH"}
+{"id": 299, "status": "MISMATCH"}
+{"id": 321, "status": "MISMATCH"}
+{"id": 327, "status": "MISMATCH"}
+{"id": 349, "status": "MISMATCH"}
+{"id": 399, "status": "MISMATCH"}
+{"id": 411, "status": "MISMATCH"}
+{"id": 420, "status": "MISMATCH"}
+{"id": 436, "status": "MISMATCH"}
+{"id": 441, "status": "MISMATCH"}
+{"id": 465, "status": "MISMATCH"}
+{"id": 478, "status": "MISMATCH"}
+{"id": 495, "file": "internal/endpoint/reconcile.go", "line": 113, "op": "GUARD_DELETE", "status": "KILLED", "fails": ["TestPlannersRequireACoveringTable"], "pkgfail": ["FAIL"], "secs": 53.2}
+{"id": 503, "file": "internal/endpoint/reconcile.go", "line": 135, "op": "IF_NEGATE", "status": "KILLED", "fails": ["FuzzReconcileSafe", "TestAdv4BusyDestroyAbortsRun", "TestAdv4ChildDatasetsDestroyed", "TestAdv4OneBusyLockAbortsWholeRun", "TestAdv4OneFailureStarvesAndHidesDestroys", "TestAdv4PartialDesiredSetMassDeletes", "TestAdv4ReleasedOriginOutsideParent", "TestDeleteVolumeSparesForeignSnapshots", "TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestPlanReconcileLocksEveryTarget", "TestReachOutsideCloneWedgesReconcile", "TestReconcile", "TestReconcileAgainstDesiredSet", "TestReconcileAgesFromCommit", "TestReconcileCollectsAbandonedCreate", "TestReconcileCollectsLeakedCloneSource", "TestReconcileLocksTargets", "TestReconcileMaxDeletionsAndDigest", "TestReconcileSkipsSourceOfFailedClone", "TestReconcileSparesReceivedAndRenamed"], "pkgfail": ["FAIL"], "secs": 77.3}
+{"id": 505, "file": "internal/endpoint/reconcile.go", "line": 135, "op": "ANDOR_SWAP", "status": "KILLED", "fails": ["FuzzReconcileSafe", "TestAdv4BusyDestroyAbortsRun", "TestAdv4ChildDatasetsDestroyed", "TestAdv4OneFailureStarvesAndHidesDestroys", "TestAdv4PartialDesiredSetMassDeletes", "TestDeleteVolumeSparesForeignSnapshots", "TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestPlanReconcileLocksEveryTarget", "TestReconcile", "TestReconcileAgainstDesiredSet", "TestReconcileCollectsLeakedCloneSource", "TestReconcileLocksTargets", "TestReconcileMaxDeletionsAndDigest", "TestReconcileSkipsSourceOfFailedClone", "TestReconcileSparesReceivedAndRenamed"], "pkgfail": ["FAIL"], "secs": 61.7}
+{"id": 513, "file": "internal/endpoint/reconcile.go", "line": 146, "op": "IF_NEGATE", "status": "KILLED", "fails": ["TestAdv4BusyDestroyAbortsRun", "TestAdv4ChildDatasetsDestroyed", "TestAdv4OneBusyLockAbortsWholeRun", "TestAdv4OneFailureStarvesAndHidesDestroys", "TestAdv4PartialDesiredSetMassDeletes", "TestAdv4ReleasedOriginOutsideParent", "TestAdv4TinyMinAgeInFlightCreate", "TestDeleteVolumeSparesForeignSnapshots", "TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestReachOutsideCloneWedgesReconcile", "TestReconcile", "TestReconcileAgainstDesiredSet", "TestReconcileAgesFromCommit", "TestReconcileCollectsAbandonedCreate", "TestReconcileLocksTargets", "TestReconcileMaxDeletionsAndDigest", "TestReconcileSkipsSourceOfFailedClone", "TestReconcileSparesReceivedAndRenamed"], "pkgfail": ["FAIL"], "secs": 115.4}
+{"id": 548, "file": "internal/endpoint/reconcile.go", "line": 214, "op": "IF_NEGATE", "status": "KILLED", "fails": ["TestPlanReconcile", "TestReconcileCollectsLeakedCloneSource"], "pkgfail": ["FAIL"], "secs": 122.6}
+{"id": 569, "file": "internal/endpoint/reconcile.go", "line": 252, "op": "BOOL_FLIP", "status": "KILLED", "fails": ["TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestReconcileAgainstDesiredSet", "TestReconcileCollectsLeakedCloneSource"], "pkgfail": ["FAIL"], "secs": 42.5}
+{"id": 605, "file": "internal/endpoint/table.go", "line": 53, "op": "GUARD_DELETE", "status": "KILLED", "fails": ["FuzzCreateConverges", "TestCloneLargerThanLimitIsOutOfRange", "TestCloneResizeFailureConverges", "TestCreateVolumeIdempotent", "TestCreateVolumeProperties", "TestExpand", "TestExpandNodeExpansionRequired", "TestPlanCreatePropertiesRetry", "TestRoundTripAndCodes", "TestSnapshotLifecycleWithClones", "TestThickCloneRetryIsIdempotent"], "pkgfail": ["FAIL"], "secs": 46.9}
+{"id": 608, "file": "internal/endpoint/table.go", "line": 52, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 49.3}
+{"id": 614, "file": "internal/endpoint/table.go", "line": 60, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["TestExpandNodeExpansionRequired", "TestParametersAndAccessChecks", "TestPlanCreateConvergesUncommittedClone", "TestPlanExpand", "TestRoundTripAndCodes"], "pkgfail": ["FAIL", "github.com/wommy/empty/internal/endpoint"], "secs": 49.7}
+{"id": 619, "file": "internal/endpoint/table.go", "line": 60, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 68.4}
+{"id": 621, "file": "internal/endpoint/table.go", "line": 60, "op": "REL_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 73.2}

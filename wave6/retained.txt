@@ -1,0 +1,14 @@
+=== RUN   TestRetained
+    json_bench_test.go:488: 10k text-parseColumns  retained   38.9 MiB (10001 names)
+    json_bench_test.go:488: 10k jsontext-stream    retained   13.2 MiB (10001 names)
+    json_bench_test.go:488: 10k v2-unmarshal       retained   12.7 MiB (10001 names)
+    json_bench_test.go:488: 10k v1-token           retained   15.8 MiB (10001 names)
+    json_bench_test.go:488: 10k v1-unmarshal       retained   12.7 MiB (10001 names)
+    json_bench_test.go:488: 110k text-parseColumns  retained  434.3 MiB (110001 names)
+    json_bench_test.go:488: 110k jsontext-stream    retained  177.1 MiB (110001 names)
+    json_bench_test.go:488: 110k v2-unmarshal       retained  139.8 MiB (110001 names)
+    json_bench_test.go:488: 110k v1-token           retained  180.2 MiB (110001 names)
+    json_bench_test.go:488: 110k v1-unmarshal       retained  139.8 MiB (110001 names)
+--- PASS: TestRetained (40.90s)
+PASS
+ok  	github.com/wommy/empty/internal/zfs	41.540s

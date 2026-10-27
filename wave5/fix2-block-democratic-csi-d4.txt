@@ -1,0 +1,65 @@
+# FSM explore: kind=block prefix=democratic-csi depth=4
+distinct worlds=289 edges=1703 crash/retry runs=5322 combos=192 time=41.981s
+
+## row states observed
+  Adopted-dcsi                                                 4076
+  CSI-snap                                                     4580
+  CSI-snap-deferred                                            58
+  Clone-uncommitted                                            860
+  CloneSrc-live                                                1724
+  CloneSrc-orphan                                              1164
+  Committed                                                    6076
+  Committed-clone                                              1394
+  Created-uncommitted                                          2757
+  Foreign                                                      1214
+  Foreign(recv)                                                1412
+  Foreign-snap                                                 2983
+  Foreign-snap(recv)                                           283
+
+## findings (minimal depth first)
+
+[foreign-touch] (depth 2) zfs -r touches a@autosnap [Foreign-snap]
+  trace: CV(a) CRASH@1/2 ; DV(a) [race: X:sanoid(a@autosnap) before op 1/1]
+    => `zfs destroy -r tank/k8s/vols/a` touches a@autosnap [Foreign-snap]
+
+[retry-diverges] (depth 4) DV(b) CRASH@1/2 [a:Adopted-dcsi] vs [a:Adopted-dcsi a@volume-source-for-volume-b:CloneSrc-orphan]
+  trace: X:dcsi-create(a) ; CV(b<-a,reserve) CRASH@2/3 ; DV(b) CRASH@1/2 ; retry DV(b)
+    uncrashed: a:Adopted-dcsi resp=0
+    retried:   a:Adopted-dcsi a@volume-source-for-volume-b:CloneSrc-orphan resp=0
+    diff: a@volume-source-for-volume-b: (absent) -> "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|Mfalse|Cfalse||||||[          ]||;"
+    then Reconcile{committed}: converges (OK collected=a@volume-source-for-volume-b)
+
+[retry-diverges] (depth 4) DV(b) CRASH@1/2 [a:Committed] vs [a:Committed a@volume-source-for-volume-b:CloneSrc-orphan]
+  trace: CV(a) ; CV(b<-a,reserve) ; DV(b) CRASH@1/2 ; retry DV(b)
+    uncrashed: a:Committed resp=0
+    retried:   a:Committed a@volume-source-for-volume-b:CloneSrc-orphan resp=0
+    diff: a@volume-source-for-volume-b: (absent) -> "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|Mfalse|Cfalse||||||[          ]||;"
+    then Reconcile{committed}: converges (OK collected=a@volume-source-for-volume-b)
+
+[retry-diverges] (depth 5) DV(b) CRASH@1/2 [a:Adopted-dcsi a@autosnap:Foreign-snap] vs [a:Adopted-dcsi a@autosnap:Foreign-snap a@volume-source-for-volume-b:CloneSrc-orphan]
+  trace: X:dcsi-create(a) ; CV(b<-a,reserve) ; X:sanoid(a@autosnap) ; DV(b) CRASH@1/2 ; retry DV(b)
+    uncrashed: a:Adopted-dcsi a@autosnap:Foreign-snap resp=0
+    retried:   a:Adopted-dcsi a@autosnap:Foreign-snap a@volume-source-for-volume-b:CloneSrc-orphan resp=0
+    diff: a@volume-source-for-volume-b: (absent) -> "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|Mfalse|Cfalse||||||[          ]||;"
+    then Reconcile{committed}: converges (OK collected=a@volume-source-for-volume-b)
+
+[retry-diverges] (depth 5) DV(b) CRASH@1/2 [a:Adopted-dcsi a@s:CSI-snap] vs [a:Adopted-dcsi a@s:CSI-snap a@volume-source-for-volume-b:CloneSrc-orphan]
+  trace: X:dcsi-create(a) ; CV(b<-a,reserve) ; CS(s,a) ; DV(b) CRASH@1/2 ; retry DV(b)
+    uncrashed: a:Adopted-dcsi a@s:CSI-snap resp=0
+    retried:   a:Adopted-dcsi a@s:CSI-snap a@volume-source-for-volume-b:CloneSrc-orphan resp=0
+    diff: a@volume-source-for-volume-b: (absent) -> "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|Mfalse|Cfalse||||||[          ]||;"
+    then Reconcile{committed}: converges (OK collected=a@volume-source-for-volume-b)
+
+[retry-diverges] (depth 5) DV(b) CRASH@1/2 [a:Committed a@autosnap:Foreign-snap] vs [a:Committed a@autosnap:Foreign-snap a@volume-source-for-volume-b:CloneSrc-orphan]
+  trace: CV(a) ; CV(b<-a,reserve) ; X:sanoid(a@autosnap) ; DV(b) CRASH@1/2 ; retry DV(b)
+    uncrashed: a:Committed a@autosnap:Foreign-snap resp=0
+    retried:   a:Committed a@autosnap:Foreign-snap a@volume-source-for-volume-b:CloneSrc-orphan resp=0
+    diff: a@volume-source-for-volume-b: (absent) -> "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|Mfalse|Cfalse||||||[          ]||;"
+    then Reconcile{committed}: converges (OK collected=a@volume-source-for-volume-b)
+
+[retry-diverges] (depth 5) DV(b) CRASH@1/2 [a:Committed a@s:CSI-snap] vs [a:Committed a@s:CSI-snap a@volume-source-for-volume-b:CloneSrc-orphan]
+  trace: CV(a) ; CV(b<-a,reserve) ; CS(s,a) ; DV(b) CRASH@1/2 ; retry DV(b)
+    uncrashed: a:Committed a@s:CSI-snap resp=0
+    retried:   a:Committed a@s:CSI-snap a@volume-source-for-volume-b:CloneSrc-orphan resp=0
+    diff: a@volume-source-for-volume-b: (absent) -> "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|Mfalse|Cfalse||||||[          ]||;"
+    then Reconcile{committed}: converges (OK collected=a@volume-source-for-volume-b)

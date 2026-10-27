@@ -1,0 +1,207 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# one run per PR: a new push cancels the old run; every push to main gets
+# its own group, so none is cancelled or dropped from the queue
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # go.mod's `go` line is 1.27.0 and its toolchain line 1.27.3: install
+  # 1.27.3 directly and never switch (the setup-go action also sets this)
+  GOTOOLCHAIN: local
+
+defaults:
+  run:
+    shell: bash # -eo pipefail, so `| tee` does not hide a failure
+
+jobs:
+  # ADR 0005: a PR is green or red within 60s. Two jobs run in parallel next
+  # to the real-ZFS VM, each sized to a ~45s critical path:
+  #   static  gofmt, tidy, vet, buf lint, gen drift, fuzz seed corpus
+  #   test    the simulator suite under -race
+  # Go comes from the sha256-pinned tarball in .github/actions/setup-go, and
+  # every job restores a Go build/module cache keyed by go.sum, saved by the
+  # first run that misses it.
+  # Exploratory fuzzing, scale tests and the FSM explorer run in nightly.yml.
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      # buf is a prebuilt release binary, checksum-pinned, not a go.mod tool:
+      # its dependency tree would take part in this module's version
+      # selection (grpc, protobuf, x/...), and compiling it through `go run`
+      # cost 53s. The protoc plugins are go.mod tools (buf.gen.yaml runs `go
+      # tool ...`), so they always match the protobuf/grpc versions in go.sum.
+      BUF_VERSION: v1.47.2
+      BUF_SHA256: 39716cfe0185df3cba21f66ec739620ffb6876c48b2da4338a8c68c290c9b116 # buf-Linux-x86_64.tar.gz
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: start buf download
+        run: |
+          rm -f "$RUNNER_TEMP/buf.tgz.done"
+          setsid nohup bash -c 'curl -fsSL --retry 3 -o "$1/buf.tgz" "https://github.com/bufbuild/buf/releases/download/$2/buf-Linux-x86_64.tar.gz" && touch "$1/buf.tgz.done"' _ "$RUNNER_TEMP" "$BUF_VERSION" >/dev/null 2>&1 &
+      - id: go
+        uses: ./.github/actions/setup-go
+        with:
+          cache-name: static
+      - name: toolchain matches go.mod
+        run: |
+          want=$(awk '$1 == "toolchain" { print $2 }' go.mod)
+          test "$(go env GOVERSION)" = "$want" || { echo "::error::go is $(go env GOVERSION), go.mod toolchain is $want"; exit 1; }
+      - name: install buf (sha256-pinned)
+        run: |
+          for _ in $(seq 120); do [ -e "$RUNNER_TEMP/buf.tgz.done" ] && break; sleep 0.5; done
+          test -e "$RUNNER_TEMP/buf.tgz.done" || { echo "::error::buf download did not finish"; exit 1; }
+          echo "$BUF_SHA256  $RUNNER_TEMP/buf.tgz" | sha256sum -c -
+          mkdir -p "$HOME/buf"
+          tar -xzf "$RUNNER_TEMP/buf.tgz" -C "$HOME/buf" --strip-components=1
+          echo "$HOME/buf/bin" >> "$GITHUB_PATH"
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: go.mod and go.sum tidy
+        run: go mod tidy -diff
+      - name: vet
+        run: go vet ./...
+      - name: buf lint
+        run: buf lint
+      - name: generated code up to date
+        run: |
+          buf generate
+          test -z "$(gofmt -l gen | tee /dev/stderr)"
+          git diff --exit-code -- gen/
+          test -z "$(git status --porcelain -- gen | tee /dev/stderr)"
+      - name: fuzz seed corpus (every target replays its seeds and testdata/fuzz)
+        # `go test ./...` in the test job replays these too; this step makes
+        # it explicit and fails if a Fuzz function exists that did not pass.
+        run: |
+          want=$(grep -rhoE '^func Fuzz[A-Za-z0-9_]+' --include='*_test.go' . | awk '{ print $2 }' | sort)
+          pkgs=$(grep -rlE '^func Fuzz[A-Za-z0-9_]+' --include='*_test.go' . | xargs -n1 dirname | sort -u)
+          test -n "$want" || { echo "::error::no fuzz targets found"; exit 1; }
+          go test -count=1 -run '^Fuzz' -v $pkgs | tee "$RUNNER_TEMP/seed.log"
+          got=$(grep -oE '^--- PASS: Fuzz[A-Za-z0-9_]+' "$RUNNER_TEMP/seed.log" | awk '{ print $3 }' | sort)
+          test "$want" = "$got" || { echo "::error::fuzz targets that did not pass their seeds:"; diff <(echo "$want") <(echo "$got") || true; exit 1; }
+      - name: save Go caches (when the restore missed)
+        if: steps.go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go.outputs.cache-key }}
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: go
+        uses: ./.github/actions/setup-go
+        with:
+          cache-name: test
+      - name: test (simulator)
+        run: go test -race -count=1 ./...
+      - name: save Go caches (when the restore missed)
+        if: steps.go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go.outputs.cache-key }}
+
+  real-zfs:
+    # The real-ZFS gate: the endpoint contract tests and csi-sanity
+    # (mount and block) against Ubuntu 26.10 (OpenZFS 2.4.x, the only
+    # supported version, what TrueNAS 27 ships), with nfs-server running so
+    # the file-export tests hit a real nfsd. Booted under KVM: no hosted
+    # runner exists for it, and ZFS lives in the kernel, so a container
+    # would test the host's ZFS instead. The script asserts that `zfs
+    # version` reports 2.4.x for both userland and kmod, and enforces the
+    # skip budget in ci/expected-skips.txt.
+    name: real ZFS 2.4 (Ubuntu 26.10 VM)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: go
+        uses: ./.github/actions/setup-go
+        with:
+          # its own namespace: CGO_ENABLED=0 test builds share nothing with
+          # the test job's -race builds
+          cache-name: real-zfs
+      - name: enable kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+      - name: install qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils
+          # the cloud image signing key ships in ubuntu-keyring on 24.04
+          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+      - name: resolve the cloud image
+        # the provisioned-guest cache is keyed by the image's sha256 (the
+        # script verifies it against the gpg-signed list) and the script
+        id: image
+        run: |
+          f=stonking-server-cloudimg-amd64.img
+          sum=$(curl -fsSL --retry 3 https://cloud-images.ubuntu.com/stonking/current/SHA256SUMS | awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }')
+          test -n "$sum"
+          echo "key=zfsvm-stonking-$sum-${{ hashFiles('ci/real-zfs-vm.sh') }}" >>"$GITHUB_OUTPUT"
+      - name: restore the provisioned guest
+        id: guest
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/zfsvm-cache
+          key: ${{ steps.image.outputs.key }}
+      - name: test (Ubuntu 26.10, real zfs 2.4)
+        env:
+          ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+        run: ci/real-zfs-vm.sh stonking current 2.4
+      - name: check for a stored guest
+        id: stored
+        if: always() && steps.guest.outputs.cache-hit != 'true'
+        run: test -f "$RUNNER_TEMP/zfsvm-cache/ok" && echo "ok=1" >>"$GITHUB_OUTPUT" || true
+      - name: save the provisioned guest
+        # also after a test failure: provisioning succeeded, and the version
+        # checks run again on every warm boot
+        if: always() && steps.stored.outputs.ok == '1'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/zfsvm-cache
+          key: ${{ steps.image.outputs.key }}
+      - name: save Go caches (when the restore missed)
+        if: steps.go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go.outputs.cache-key }}
+      - name: upload VM console and test logs
+        if: failure() || cancelled() # a timeout cancels the job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: real-zfs-vm-logs
+          path: |
+            ${{ runner.temp }}/zfsvm/*.log
+            ${{ runner.temp }}/zfsvm/user-data
+          if-no-files-found: ignore
+          retention-days: 14

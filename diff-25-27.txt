@@ -1,0 +1,85 @@
+iscsi.extent.create:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+iscsi.extent.query:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+iscsi.extent.update:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+iscsi.global.config:
+  + result.direct_config: boolean | null
+  + result.mode: number
+nvmet.namespace.create:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+nvmet.namespace.query:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+pool.dataset.create:
+  - result.comments: PoolDatasetEntryProperty
+  - result.managedby: PoolDatasetEntryProperty
+  - result.quota_critical: PoolDatasetEntryProperty
+  - result.quota_warning: PoolDatasetEntryProperty
+  - result.refquota_critical: PoolDatasetEntryProperty
+  - result.refquota_warning: PoolDatasetEntryProperty
+  + result.tier?: TierInfo | null
+  ~ result.user_properties: Record<string, unknown>?  ->  PoolDatasetEntryUserProperties?
+pool.dataset.get_instance:
+  - result.comments: PoolDatasetEntryProperty
+  - result.managedby: PoolDatasetEntryProperty
+  - result.quota_critical: PoolDatasetEntryProperty
+  - result.quota_warning: PoolDatasetEntryProperty
+  - result.refquota_critical: PoolDatasetEntryProperty
+  - result.refquota_warning: PoolDatasetEntryProperty
+  + result.tier?: TierInfo | null
+  ~ result.user_properties: Record<string, unknown>?  ->  PoolDatasetEntryUserProperties?
+pool.dataset.query:
+  - result.comments: PoolDatasetEntryProperty
+  - result.managedby: PoolDatasetEntryProperty
+  - result.quota_critical: PoolDatasetEntryProperty
+  - result.quota_warning: PoolDatasetEntryProperty
+  - result.refquota_critical: PoolDatasetEntryProperty
+  - result.refquota_warning: PoolDatasetEntryProperty
+  + result.tier?: TierInfo | null
+  ~ result.user_properties: Record<string, unknown>?  ->  PoolDatasetEntryUserProperties?
+pool.dataset.update:
+  - result.comments: PoolDatasetEntryProperty
+  - result.managedby: PoolDatasetEntryProperty
+  - result.quota_critical: PoolDatasetEntryProperty
+  - result.quota_warning: PoolDatasetEntryProperty
+  - result.refquota_critical: PoolDatasetEntryProperty
+  - result.refquota_warning: PoolDatasetEntryProperty
+  + result.tier?: TierInfo | null
+  ~ result.user_properties: Record<string, unknown>?  ->  PoolDatasetEntryUserProperties?
+pool.snapshot.create:
+  + param data.suspend_vms?: boolean
+sharing.nfs.create:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+  + result.tier?: TierInfo | null
+sharing.nfs.query:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+  + result.tier?: TierInfo | null
+sharing.nfs.update:
+  + result.dataset: string | null
+  + result.relative_path: string | null
+  + result.tier?: TierInfo | null
+sharing.smb.create:
+  ~ param data.options: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null?  ->  LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null?
+  + result.dataset: string | null
+  ~ result.options: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null?  ->  LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null?
+  + result.relative_path: string | null
+  + result.tier?: TierInfo | null
+sharing.smb.query:
+  + result.dataset: string | null
+  ~ result.options: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null?  ->  LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null?
+  + result.relative_path: string | null
+  + result.tier?: TierInfo | null
+sharing.smb.update:
+  ~ param data.options: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null?  ->  LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null?
+  + result.dataset: string | null
+  ~ result.options: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null?  ->  LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null?
+  + result.relative_path: string | null
+  + result.tier?: TierInfo | null

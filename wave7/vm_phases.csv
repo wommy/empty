@@ -1,0 +1,27 @@
+run_number,job_id,phase,start_utc,seconds,source
+19,122015961497,SHA256SUMS+gpgv,04:52:42.46,1.0,job log timestamps
+19,122015961497,image download+sha256,04:52:43.46,7.6,job log timestamps
+19,122015961497,qemu-img resize+ssh-keygen+seed,04:52:51.02,4.3,job log timestamps
+19,122015961497,boot+cloud-init apt (go build overlapped),04:52:55.29,50.4,job log timestamps
+19,122015961497,version+nfs prechecks,04:53:45.65,1.2,job log timestamps
+19,122015961497,scp+zpool+endpoint tests (4 pkgs then),04:53:46.81,8.8,job log timestamps
+19,122015961497,csi-sanity mount,04:53:55.64,5.0,job log timestamps
+19,122015961497,csi-sanity block,04:54:00.63,5.3,job log timestamps
+19,122015961497,check-skips,04:54:05.92,0.4,job log timestamps
+21,122018286210,SHA256SUMS+gpgv,04:57:26.16,0.8,job log timestamps
+21,122018286210,image download+sha256,04:57:26.98,6.2,job log timestamps
+21,122018286210,qemu-img resize+ssh-keygen+seed,04:57:33.21,5.1,job log timestamps
+21,122018286210,boot+cloud-init apt (go build overlapped),04:57:38.29,49.1,job log timestamps (guest uptime at cloud-init finish 35.97s)
+21,122018286210,NFS precheck FAILED (CI bug),04:58:27.41,1.0,job log timestamps
+22,122019067393,SHA256SUMS+gpgv,05:00:10.45,0.7,job log timestamps
+22,122019067393,image download+sha256 (877 MB),05:00:11.19,5.5,job log timestamps
+22,122019067393,qemu-img resize+ssh-keygen+seed,05:00:16.70,1.8,job log timestamps
+22,122019067393,boot+cloud-init apt (go build overlapped),05:00:18.53,61.4,job log timestamps
+22,122019067393,version+nfs prechecks,05:01:19.91,1.9,job log timestamps
+22,122019067393,scp+zpool+list+endpoint tests,05:01:21.82,11.5,job log timestamps
+22,122019067393,csi-sanity mount (44 specs),05:01:33.32,6.6,job log timestamps
+22,122019067393,csi-sanity block (44 specs),05:01:39.88,6.0,job log timestamps
+22,122019067393,check-skips,05:01:45.89,0.9,job log timestamps
+19,122015961497,apt download 19.0 MB (slow mirror),04:49:18.62,198,apt 'Fetched 19.0 MB in 3min 18s (96.0 kB/s)'
+14,122009579916,apt download 46.7 MB (slow mirror),04:27:31,591,apt 'Fetched 46.7 MB in 9min 51s (78.9 kB/s)'
+22,122019067393,apt download 19.0 MB (normal),05:00:02,3,apt 'Fetched 19.0 MB in 3s (7481 kB/s)'

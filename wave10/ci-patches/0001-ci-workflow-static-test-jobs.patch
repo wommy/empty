@@ -1,0 +1,199 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 574e4d6..eb68028 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -16,8 +16,7 @@ concurrency:
+ 
+ env:
+   # go.mod's `go` line is 1.27.0 and its toolchain line 1.27.3: install
+-  # 1.27.3 directly and never switch, or the restored cache and the
+-  # switched toolchain collide (tar "Failed to restore" in every job)
++  # 1.27.3 directly and never switch (the setup-go action also sets this)
+   GOTOOLCHAIN: local
+ 
+ defaults:
+@@ -25,76 +24,100 @@ defaults:
+     shell: bash # -eo pipefail, so `| tee` does not hide a failure
+ 
+ jobs:
+-  unit:
++  # ADR 0005: a PR is green or red within 60s. Two jobs run in parallel next
++  # to the real-ZFS VM, each sized to a ~45s critical path:
++  #   static  gofmt, tidy, vet, buf lint, gen drift, fuzz seed corpus
++  #   test    the simulator suite under -race
++  # Go comes from the sha256-pinned tarball in .github/actions/setup-go, and
++  # every job restores a Go build/module cache that main saves after a push.
++  # Exploratory fuzzing, scale tests and the FSM explorer run in nightly.yml.
++  static:
+     runs-on: ubuntu-24.04
+-    timeout-minutes: 15
++    timeout-minutes: 5
++    env:
++      # buf is a prebuilt release binary, checksum-pinned, not a go.mod tool:
++      # its dependency tree would take part in this module's version
++      # selection (grpc, protobuf, x/...), and compiling it through `go run`
++      # cost 53s. The protoc plugins are go.mod tools (buf.gen.yaml runs `go
++      # tool ...`), so they always match the protobuf/grpc versions in go.sum.
++      BUF_VERSION: v1.47.2
++      BUF_SHA256: 39716cfe0185df3cba21f66ec739620ffb6876c48b2da4338a8c68c290c9b116 # buf-Linux-x86_64.tar.gz
+     steps:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+           persist-credentials: false
+-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
++      - name: start buf download
++        run: |
++          rm -f "$RUNNER_TEMP/buf.tgz.done"
++          setsid nohup bash -c 'curl -fsSL --retry 3 -o "$1/buf.tgz" "https://github.com/bufbuild/buf/releases/download/$2/buf-Linux-x86_64.tar.gz" && touch "$1/buf.tgz.done"' _ "$RUNNER_TEMP" "$BUF_VERSION" >/dev/null 2>&1 &
++      - uses: ./.github/actions/setup-go
+         with:
+-          go-version: 1.27.3
+-          cache-dependency-path: go.sum # key: unit
++          cache-name: static
++      - name: toolchain matches go.mod
++        run: |
++          want=$(awk '$1 == "toolchain" { print $2 }' go.mod)
++          test "$(go env GOVERSION)" = "$want" || { echo "::error::go is $(go env GOVERSION), go.mod toolchain is $want"; exit 1; }
++      - name: install buf (sha256-pinned)
++        run: |
++          for _ in $(seq 120); do [ -e "$RUNNER_TEMP/buf.tgz.done" ] && break; sleep 0.5; done
++          test -e "$RUNNER_TEMP/buf.tgz.done" || { echo "::error::buf download did not finish"; exit 1; }
++          echo "$BUF_SHA256  $RUNNER_TEMP/buf.tgz" | sha256sum -c -
++          mkdir -p "$HOME/buf"
++          tar -xzf "$RUNNER_TEMP/buf.tgz" -C "$HOME/buf" --strip-components=1
++          echo "$HOME/buf/bin" >> "$GITHUB_PATH"
+       - name: gofmt
+         run: test -z "$(gofmt -l . | tee /dev/stderr)"
+       - name: go.mod and go.sum tidy
+         run: go mod tidy -diff
+       - name: vet
+         run: go vet ./...
+-      - name: test (simulator)
+-        run: go test -race -count=1 ./...
+-
+-  fuzz:
+-    # each target in parallel, off the unit job's critical path
+-    runs-on: ubuntu-24.04
+-    timeout-minutes: 6
+-    strategy:
+-      fail-fast: false
+-      matrix:
+-        target:
+-          - { name: FuzzCreateConverges, pkg: ./internal/endpoint }
+-          - { name: FuzzReconcileSafe, pkg: ./internal/endpoint }
+-          - { name: FuzzParseColumns, pkg: ./internal/zfs }
+-          - { name: FuzzClassify, pkg: ./internal/zfs }
+-    steps:
+-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+-        with:
+-          persist-credentials: false
+-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
++      - name: buf lint
++        run: buf lint
++      - name: generated code up to date
++        run: |
++          buf generate
++          test -z "$(gofmt -l gen | tee /dev/stderr)"
++          git diff --exit-code -- gen/
++          test -z "$(git status --porcelain -- gen | tee /dev/stderr)"
++      - name: fuzz seed corpus (every target replays its seeds and testdata/fuzz)
++        # `go test ./...` in the test job replays these too; this step makes
++        # it explicit and fails if a Fuzz function exists that did not pass.
++        run: |
++          want=$(grep -rhoE '^func Fuzz[A-Za-z0-9_]+' --include='*_test.go' . | awk '{ print $2 }' | sort)
++          pkgs=$(grep -rlE '^func Fuzz[A-Za-z0-9_]+' --include='*_test.go' . | xargs -n1 dirname | sort -u)
++          test -n "$want" || { echo "::error::no fuzz targets found"; exit 1; }
++          go test -count=1 -run '^Fuzz' -v $pkgs | tee "$RUNNER_TEMP/seed.log"
++          got=$(grep -oE '^--- PASS: Fuzz[A-Za-z0-9_]+' "$RUNNER_TEMP/seed.log" | awk '{ print $3 }' | sort)
++          test "$want" = "$got" || { echo "::error::fuzz targets that did not pass their seeds:"; diff <(echo "$want") <(echo "$got") || true; exit 1; }
++      - name: save Go caches (main only)
++        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
++        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+         with:
+-          go-version: 1.27.3
+-          cache: false # the unit job owns the build cache
+-      - name: fuzz ${{ matrix.target.name }}
+-        run: go test -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime 30s -fuzzminimizetime 10s ${{ matrix.target.pkg }}
++          path: |
++            ~/.cache/go-build
++            ~/go/pkg/mod
++          key: go1.27.3-static-${{ hashFiles('go.sum') }}-${{ github.sha }}
+ 
+-  proto:
++  test:
+     runs-on: ubuntu-24.04
+-    timeout-minutes: 10
+-    env:
+-      # buf is run at a pinned version rather than added as a go.mod tool:
+-      # its large dependency tree would take part in this module's version
+-      # selection (grpc, protobuf, x/...). `go run pkg@version` is verified
+-      # against sum.golang.org and leaves no stale binary on PATH. The
+-      # protoc plugins are go.mod tools (buf.gen.yaml runs `go tool ...`),
+-      # so they always match the protobuf/grpc versions in go.sum.
+-      BUF: go run github.com/bufbuild/buf/cmd/buf@v1.47.2
++    timeout-minutes: 5
+     steps:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+           persist-credentials: false
+-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
++      - uses: ./.github/actions/setup-go
+         with:
+-          go-version: 1.27.3
+-          cache: false # buf's modules once took over the shared cache key
+-      - name: buf lint
+-        run: $BUF lint
+-      - name: generated code up to date
+-        run: |
+-          $BUF generate
+-          test -z "$(gofmt -l gen | tee /dev/stderr)"
+-          git diff --exit-code -- gen/
+-          test -z "$(git status --porcelain -- gen | tee /dev/stderr)"
++          cache-name: test
++      - name: test (simulator)
++        run: go test -race -count=1 ./...
++      - name: save Go caches (main only)
++        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
++        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
++        with:
++          path: |
++            ~/.cache/go-build
++            ~/go/pkg/mod
++          key: go1.27.3-test-${{ hashFiles('go.sum') }}-${{ github.sha }}
+ 
+   real-zfs:
+     # The real-ZFS gate: the endpoint contract tests and csi-sanity
+@@ -112,14 +135,11 @@ jobs:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+           persist-credentials: false
+-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
++      - uses: ./.github/actions/setup-go
+         with:
+-          go-version: 1.27.3
+-          # a second file in the hash gives this job its own key: its
+-          # CGO_ENABLED=0 test builds share nothing with the unit job's
+-          cache-dependency-path: |
+-            go.sum
+-            ci/real-zfs-vm.sh
++          # its own namespace: CGO_ENABLED=0 test builds share nothing with
++          # the test job's -race builds
++          cache-name: real-zfs
+       - name: enable kvm
+         run: |
+           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+@@ -134,6 +154,14 @@ jobs:
+           test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+       - name: test (Ubuntu 26.10, real zfs 2.4)
+         run: ci/real-zfs-vm.sh stonking current 2.4
++      - name: save Go caches (main only)
++        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
++        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
++        with:
++          path: |
++            ~/.cache/go-build
++            ~/go/pkg/mod
++          key: go1.27.3-real-zfs-${{ hashFiles('go.sum') }}-${{ github.sha }}
+       - name: upload VM console and test logs
+         if: failure() || cancelled() # a timeout cancels the job
+         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

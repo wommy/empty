@@ -1,0 +1,56 @@
+=== code:create (x26)
+# generated: seed25
+zfs create -p -o refreservation=21474836480 $R/b
+step 1 `zfs create -p -o refreservation=21474836480 $R/b`: code differs
+  A: 1 cannot create 'zfsep-test/zd/s0/b': out of space
+  B: 0 
+
+=== code:destroy (x103)
+# generated: seed3
+zfs destroy -R $R/v@s2
+step 1 `zfs destroy -R $R/v@s2`: code differs
+  A: 1 cannot open 'zfsep-test/zd/s0/v': dataset does not exist
+  B: 2 invalid option 'R'
+
+=== code:set (x2)
+# generated: seed147
+zfs create $R/a
+zfs set refreservation=21474836480 acltype=posix $R/a
+step 2 `zfs set refreservation=21474836480 acltype=posix $R/a`: code differs
+  A: 1 cannot set property for 'zfsep-test/zd/s0/a': size is greater than available space
+  B: 0 
+
+=== proj:snapshot:acltype (x2)
+# generated: seed51
+zfs create -p -o zd:b=y $R/a/x
+zfs snapshot -r $R/a@s2
+step 2 `zfs snapshot -r $R/a@s2`: proj differs
+  A: $R/a/x@s2	acltype	off	default
+     $R/a/x@s2	atime	-	-
+     $R/a/x@s2	canmount	-	-
+     $R/a/x@s2	compression	-	-
+     $R/a/x@s2	copies	-	-
+     $R/a/x@s2	dedup	-	-
+     $R/a/x@s2	defer_destroy	off	-
+     $R/a/x@s2	logbias	-	-
+     $R/a/x@s2	mounted	-	-
+     $R/a/x@s2	mountpoint	-	-
+     $R/a/x@s2	origin	-	-
+     $R/a/x@s2	quota	-	-
+     $R/a/x@s2	recordsize	-	-
+     $R/a/x@s2	refquota	-	-
+     $R/a/x@s2	refreservation	-	-
+     $R/a/x@s2	relatime	-	-
+     $R/a/x@s2	reservation	-	-
+     $R/a/x@s2	sharenfs	-	-
+     $R/a/x@s2	snapdir	-	-
+     $R/a/x@s2	sync	-	-
+     $R/a/x@s2	type	snapshot	-
+     $R/a/x@s2	userrefs	0	-
+     $R/a/x@s2	volblocksize	-	-
+     $R/a/x@s2	volsize	-	-
+     $R/a/x@s2	xattr	sa	default
+     $R/a/x@s2	zd:a	-	-
+     $R/a/x@s2	zd:b	y	inherited from $R/a/x
+  B: 
+

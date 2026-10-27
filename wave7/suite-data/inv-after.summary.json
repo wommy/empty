@@ -1,0 +1,11 @@
+{
+ "total_stmts": 1813,
+ "sim_stmts": 1575,
+ "real_reachable_stmts": 1385,
+ "tests": 98,
+ "mismatch_runs_on_vs_skiplist": [],
+ "vm_pkgs": [
+  "endpoint",
+  "csi"
+ ]
+}

@@ -1,0 +1,12 @@
+pass 13.83  <- before, VM-like (GOMAXPROCS=2, default parallel)
+pass 7.051  <- after, same tests, parallel=2
+pass 1.881  <- after, same tests, parallel=8
+pass 5.561  <- after + property round trip, parallel=8
+pass 5.672  <- after + crash table, parallel=8
+pass 9.333  <- after, everything, parallel=8
+pass 13.872  <- before, VM-like (GOMAXPROCS=2, default parallel)
+pass 7.482  <- after, same tests, parallel=2
+pass 2.091  <- after, same tests, parallel=8
+pass 6.323  <- after + property round trip, parallel=8
+pass 6.855  <- after + crash table, parallel=8
+pass 11.044  <- after, everything, parallel=8

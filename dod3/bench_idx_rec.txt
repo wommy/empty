@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/wommy/empty/internal/endpoint
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+BenchmarkIndexes/10k/build-maps-4         	       3	   4856593 ns/op	  449696 B/op	    5128 allocs/op
+BenchmarkIndexes/10k/SnapshotsOf-map-4    	       3	      2159 ns/op
+BenchmarkIndexes/10k/SnapshotsOf-range-4  	       3	      8435 ns/op
+BenchmarkIndexes/110k/build-maps-4        	       3	  33449416 ns/op	 4246544 B/op	   51098 allocs/op
+BenchmarkIndexes/110k/SnapshotsOf-map-4   	       3	      1387 ns/op
+BenchmarkIndexes/110k/SnapshotsOf-range-4 	       3	      7764 ns/op
+BenchmarkPlanReconcile/vols=1000-4        	       3	  70202409 ns/op	49907242 B/op	  751576 allocs/op
+BenchmarkPlanReconcile/vols=4000-4        	       3	1542441570 ns/op	776602904 B/op	12006105 allocs/op
+BenchmarkPlanReconcile/vols=16000-4       	       3	31001592193 ns/op	12332532520 B/op	192024182 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	112.083s

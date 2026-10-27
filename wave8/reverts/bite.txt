@@ -1,0 +1,16 @@
+== D07
+    modelrun_test.go:1323: mask D07 still bites (554ms)
+--- PASS: TestModelMasksStillBite (0.55s)
+    --- PASS: TestModelMasksStillBite/D07 (0.55s)
+PASS
+== OWN-12
+    modelrun_test.go:1323: mask OWN-12 still bites (8.835s)
+--- PASS: TestModelMasksStillBite (8.84s)
+    --- PASS: TestModelMasksStillBite/OWN-12 (8.84s)
+PASS
+== HOLD-REPLAN
+    modelrun_test.go:1323: mask HOLD-REPLAN still bites (44.796s)
+--- PASS: TestModelMasksStillBite (44.80s)
+    --- PASS: TestModelMasksStillBite/HOLD-REPLAN (44.80s)
+PASS
+== GAP-RECRACE

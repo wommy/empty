@@ -1,0 +1,14 @@
+=== code:promote (x1)
+# generated: seed678
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs promote $R/x
+zfs snapshot $R/a@s1
+zfs promote $R/a
+step 6 `zfs promote $R/a`: code differs
+  A: 1 cannot promote 'zfsep-test/zd/s0/a': conflicting snapshot 's1' from parent 'zfsep-test/zd/s0/x@s1'
+  B: 0 
+
+known: map[create-vol-resv-auto:38]
+model step success by verb: @sendrecv 80/1387 clone 140/2720 create 5396/7871 destroy 457/3182 hold 112/1286 inherit 364/1884 promote 25/1347 release 1/642 rename 165/1111 set 978/4370 snapshot 1969/4162

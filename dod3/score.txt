@@ -1,0 +1,27 @@
+ALL extracted strings: 811
+  classified (Kind != unknown): 45/811 = 5.5%
+IN-SCOPE (reachable from the 9 zfs subcommands used): 245
+  classified (Kind != unknown): 32/245 = 13.1%
+  correct endpoint code: 111/245 = 45.3%
+IN-SCOPE DECISIVE (intended Kind != Internal): 162
+  classified to intended code: 28/162 = 17.3%
+  type II (unclassified -> Internal): 130
+  type I (wrong decisive Kind): 3
+  classified but unmapped (Kind known, code Internal): 1
+  of which need a NEW Kind: 18
+by intended kind (in-scope decisive): correct/total
+  InvalidProperty  10/93
+  Unavailable      4/20
+  Unsupported      0/13
+  Permission       0/9
+  Busy             3/6
+  Exists           3/5
+  NotFound         3/3
+  ParentNotFound   0/3
+  HasClones        2/2
+  KeyUnavailable   0/2
+  ReadOnly         0/2
+  NoSpace          2/2
+  HasChildren      1/1
+  Held             0/1
+unlabeled (excluded): 117  out-of-scope: 566

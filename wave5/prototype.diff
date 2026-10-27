@@ -1,0 +1,1749 @@
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/coverage_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/coverage_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/coverage_test.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/coverage_test.go	2026-10-27 04:58:49.253473786 +0000
+@@ -25,10 +25,9 @@
+ 		t.Fatal("the zero table covers nothing")
+ 	}
+ 
+-	if _, err := pl.PlanDeleteVolume(partial, "b"); code(err) != Internal {
+-		t.Errorf("delete uncovered: %v", err)
+-	}
+-	if plan, err := pl.PlanDeleteVolume(newPartialTable(nil, "b"), "b"); err != nil || len(plan) != 0 {
++	// PlanDeleteVolume, PlanCreateSnapshot and PlanReconcile take a
++	// FullTable: a partial one does not compile (TestBadStatesDoNotCompile)
++	if plan, err := pl.PlanDeleteVolume(FullTable{NewTable(nil)}, "b"); err != nil || len(plan) != 0 {
+ 		t.Errorf("delete covered missing: %v %v", plan, err)
+ 	}
+ 	if _, err := pl.PlanDeleteSnapshot(partial, "b@s"); code(err) != Internal {
+@@ -43,14 +42,6 @@
+ 	if _, err := pl.PlanCreateVolume(partial, CreateVolumeRequest{Name: "a2", SourceVolumeID: "c"}); code(err) != Internal {
+ 		t.Errorf("create from uncovered source: %v", err)
+ 	}
+-	// snapshot names are global: even the source volume's own table is not
+-	// enough to know the name is free
+-	if _, _, err := pl.PlanCreateSnapshot(partial, "s", "a"); code(err) != Internal {
+-		t.Errorf("snapshot on a partial table: %v", err)
+-	}
+-	if _, err := pl.PlanReconcile(partial, Desired{}); code(err) != Internal {
+-		t.Errorf("reconcile on a partial table: %v", err)
+-	}
+ 	if _, _, err := pl.PlanUnpublishExport(partial, nil, "b", "h"); code(err) != Internal {
+ 		t.Errorf("unpublish uncovered: %v", err)
+ 	}
+@@ -66,10 +57,10 @@
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if tab, err := e.scan(ctx, ""); err != nil || !tab.Whole() {
++	if tab, err := e.scanAll(ctx); err != nil || !tab.Whole() {
+ 		t.Fatalf("whole scan: %v", err)
+ 	}
+-	if tab, err := e.scan(ctx, "x"); err != nil || tab.Whole() || !tab.Covers("x") || tab.Covers("y") {
++	if tab, err := e.scanVolume(ctx, "x"); err != nil || tab.Whole() || !tab.Covers("x") || tab.Covers("y") {
+ 		t.Fatalf("volume scan: %+v %v", tab, err)
+ 	}
+ 	if tab, err := e.scanFor(ctx, "x", "y@s", ""); err != nil || tab.Whole() || !tab.Covers("x") || !tab.Covers("y") || tab.Covers("z") {
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/endpoint.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/endpoint.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/endpoint.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/endpoint.go	2026-10-27 04:58:25.007869137 +0000
+@@ -411,7 +411,7 @@
+ 		if _, err := volumeID(vol); err != nil {
+ 			continue // invalid ids simply have no rows; planners report them
+ 		}
+-		t, err := e.scan(ctx, vol)
++		t, err := e.scanVolume(ctx, vol)
+ 		if err != nil {
+ 			return Table{}, err
+ 		}
+@@ -422,7 +422,7 @@
+ }
+ 
+ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
+-	t, err := e.scan(ctx, id)
++	t, err := e.scanVolume(ctx, id)
+ 	if err != nil {
+ 		return Volume{}, err
+ 	}
+@@ -450,7 +450,7 @@
+ 	}
+ 	defer release()
+ 	// clones of this volume's snapshots live elsewhere under the parent
+-	t, err := e.scan(ctx, "")
++	t, err := e.scanAll(ctx)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -471,7 +471,7 @@
+ 		return Volume{}, err
+ 	}
+ 	defer release()
+-	t, err := e.scan(ctx, volID)
++	t, err := e.scanVolume(ctx, volID)
+ 	if err != nil {
+ 		return Volume{}, err
+ 	}
+@@ -500,7 +500,7 @@
+ 	if _, err := issuedVolumeID(volID); err != nil {
+ 		return Volume{}, err
+ 	}
+-	t, err := e.scan(ctx, volID)
++	t, err := e.scanVolume(ctx, volID)
+ 	if err != nil {
+ 		return Volume{}, err
+ 	}
+@@ -536,13 +536,13 @@
+ 
+ // ListVolumes pages through managed, committed volumes ordered by id.
+ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToken string) ([]Volume, string, error) {
+-	t, err := e.scan(ctx, "")
++	t, err := e.scanAll(ctx)
+ 	if err != nil {
+ 		return nil, "", err
+ 	}
+ 	var vols []Volume
+ 	for r := range t.Volumes() {
+-		if r.OwnedVolume() && r.Committed {
++		if r.Own == VolCommitted {
+ 			vols = append(vols, volumeView(r))
+ 		}
+ 	}
+@@ -558,7 +558,7 @@
+ 	}
+ 	defer release()
+ 	// names are global, so the whole parent is the input
+-	t, err := e.scan(ctx, "")
++	t, err := e.scanAll(ctx)
+ 	if err != nil {
+ 		return Snapshot{}, err
+ 	}
+@@ -569,23 +569,24 @@
+ 	if err := e.apply(ctx, plan); err != nil {
+ 		return Snapshot{}, err
+ 	}
++	after := t.Table
+ 	if len(plan) > 0 {
+-		if t, err = e.scan(ctx, sourceVolumeID); err != nil {
++		if after, err = e.scanVolume(ctx, sourceVolumeID); err != nil {
+ 			return Snapshot{}, err
+ 		}
+ 	}
+-	row, ok := t.Get(id)
+-	if !ok {
+-		return Snapshot{}, errorf(Internal, "snapshot %s vanished after creation", id)
++	row, ok := after.Get(id)
++	if !ok || row.Own != SnapCSI {
++		return Snapshot{}, errorf(Aborted, "snapshot %s vanished or changed owner after creation", id)
+ 	}
+-	return snapshotView(t, row), nil
++	return snapshotView(after, row), nil
+ }
+ 
+ // ListSnapshots filters by snapshot id and/or source volume and pages.
+ // Snapshots pending deferred destruction are already deleted as far as CSI
+ // is concerned.
+ func (e *Endpoint) ListSnapshots(ctx context.Context, snapshotID, sourceVolumeID string, maxEntries int, startingToken string) ([]Snapshot, string, error) {
+-	t, err := e.scan(ctx, "")
++	t, err := e.scanAll(ctx)
+ 	if err != nil {
+ 		return nil, "", err
+ 	}
+@@ -594,7 +595,7 @@
+ 		if !r.OwnedSnapshot() || r.Deferred {
+ 			continue
+ 		}
+-		s := snapshotView(t, r)
++		s := snapshotView(t.Table, r)
+ 		if (snapshotID != "" && s.ID != snapshotID) || (sourceVolumeID != "" && s.SourceVolumeID != sourceVolumeID) {
+ 			continue
+ 		}
+@@ -616,7 +617,7 @@
+ 		return err
+ 	}
+ 	defer release()
+-	t, err := e.scan(ctx, vol)
++	t, err := e.scanVolume(ctx, vol)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -675,7 +676,7 @@
+ 		return "", err
+ 	}
+ 	defer release()
+-	t, err := e.scan(ctx, volID)
++	t, err := e.scanVolume(ctx, volID)
+ 	if err != nil {
+ 		return "", err
+ 	}
+@@ -722,7 +723,7 @@
+ 		return err
+ 	}
+ 	defer release()
+-	t, err := e.scan(ctx, volID)
++	t, err := e.scanVolume(ctx, volID)
+ 	if err != nil {
+ 		return err
+ 	}
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/export_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/export_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/export_test.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/export_test.go	2026-10-27 04:58:49.256998197 +0000
+@@ -153,7 +153,7 @@
+ 			row: vol("a", func(r *Row) { r.Type, r.Volsize, r.ShareNFS = zfs.TypeVolume, 1<<30, "-" })},
+ 		{name: "unmounted", c: c1, code: FailedPrecondition,
+ 			row: fsv("a", func(r *Row) { r.Mounted, r.Mount = false, "none" })},
+-		{name: "unmanaged", c: c1, code: NotFound, row: fsv("a", func(r *Row) { r.Managed = false })},
++		{name: "unmanaged", c: c1, code: NotFound, row: fsv("a", func(r *Row) { r.Own = Foreign })},
+ 		{name: "missing", c: c1, code: NotFound, row: fsv("b", nil)},
+ 	}
+ 	for _, tc := range cases {
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/impossible_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/impossible_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/impossible_test.go	1970-01-01 00:00:00.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/impossible_test.go	2026-10-27 05:07:22.167526661 +0000
+@@ -0,0 +1,296 @@
++package endpoint
++
++// Tests for wave5/impossible-types.md: the states the redesign removes
++// either no longer compile (TestBadStatesDoNotCompile) or no longer get
++// past decode (TestDecodeRejects*), and the one place state is built is
++// table.go (TestOnlyTableGoBuildsState).
++
++import (
++	"context"
++	"encoding/json"
++	"go/ast"
++	"go/parser"
++	"go/token"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"github.com/wommy/empty/internal/zfs"
++)
++
++// ---- ownership: one classifier, total over the marker space ---------------
++
++// The predicates the fix builder wrote (A1-4), kept here as the reference
++// the enum must agree with.
++func oldOwnedVolume(typ zfs.Type, id string, m markers) bool {
++	return typ != zfs.TypeSnapshot && m.managed && (m.volName == "" || m.volName == id)
++}
++
++func oldOwnedSnapshot(typ zfs.Type, id string, m markers) bool {
++	vol, _, _ := strings.Cut(id, "@")
++	return typ == zfs.TypeSnapshot && m.managed && m.snapName != "" && (m.snapSrc == "" || m.snapSrc == vol)
++}
++
++func TestClassifyIsTotalAndAgreesWithThePredicates(t *testing.T) {
++	type shape struct {
++		typ zfs.Type
++		id  string
++	}
++	shapes := []shape{
++		{zfs.TypeFilesystem, "a"}, {zfs.TypeVolume, "a"},
++		{zfs.TypeSnapshot, "a@s"}, {zfs.TypeSnapshot, "a@" + cloneSourceSnapshotPrefix + "b"},
++	}
++	n := 0
++	for _, sh := range shapes {
++		for _, managed := range []bool{false, true} {
++			for _, success := range []bool{false, true} {
++				for _, volName := range []string{"", "a", "other"} {
++					for _, snapName := range []string{"", "s"} {
++						for _, snapSrc := range []string{"", "a", "other"} {
++							n++
++							m := markers{managed, success, volName, snapName, snapSrc}
++							o := classify(sh.typ, sh.id, m)
++							isSnap := sh.typ == zfs.TypeSnapshot
++							switch o {
++							case VolUncommitted, VolCommitted:
++								if isSnap {
++									t.Fatalf("%v %+v: snapshot classified %s", sh, m, o)
++								}
++								if (o == VolCommitted) != success {
++									t.Fatalf("%v %+v: %s disagrees with provision_success", sh, m, o)
++								}
++							case SnapCSI, SnapCloneSource:
++								if !isSnap {
++									t.Fatalf("%v %+v: volume classified %s", sh, m, o)
++								}
++							case Foreign:
++							default:
++								t.Fatalf("%v %+v: unnamed Own %d", sh, m, o)
++							}
++							if got, want := o == VolUncommitted || o == VolCommitted, oldOwnedVolume(sh.typ, sh.id, m); got != want {
++								t.Fatalf("%v %+v: owned volume %v, predicate %v", sh, m, got, want)
++							}
++							if got, want := o == SnapCSI, oldOwnedSnapshot(sh.typ, sh.id, m); got != want {
++								t.Fatalf("%v %+v: CSI snapshot %v, predicate %v", sh, m, got, want)
++							}
++							// the one deliberate change: a clone-source name with
++							// a local managed marker is not "internal" (staged
++							// PlanDeleteVolume destroyed it with -r while reconcile
++							// kept it as a CSI snapshot); it is Foreign
++							if o == SnapCloneSource && (m.managed || m.snapName != "") {
++								t.Fatalf("%v %+v: marked snapshot classified as an unmarked clone source", sh, m)
++							}
++						}
++					}
++				}
++			}
++		}
++	}
++	if n != 4*2*2*3*2*3 {
++		t.Fatal(n)
++	}
++	if (Row{}).Own != Foreign {
++		t.Fatal("the zero Row must be Foreign")
++	}
++}
++
++// ---- decode: the parse boundary -------------------------------------------
++
++type cannedRunner struct{ out string }
++
++func (c cannedRunner) Run(context.Context, string, ...string) ([]byte, error) {
++	return []byte(c.out), nil
++}
++
++// zget prints `zfs get -Hp` output for datasets: every requested column,
++// "-" unless set. extra is appended raw (forged lines).
++func zget(n props, sets map[string]map[string][2]string, order []string, extra string) string {
++	var b strings.Builder
++	for _, ds := range order {
++		for _, p := range n.columns() {
++			v, ok := sets[ds][p]
++			if !ok {
++				v = [2]string{"-", "-"}
++			}
++			b.WriteString(ds + "\t" + p + "\t" + v[0] + "\t" + v[1] + "\n")
++		}
++	}
++	return b.String() + extra
++}
++
++func cannedEndpoint(t *testing.T, out string) *Endpoint {
++	t.Helper()
++	ep, err := New(zfs.New(cannedRunner{out}), Config{Parent: "tank/v"})
++	if err != nil {
++		t.Fatal(err)
++	}
++	return ep
++}
++
++func baseRows(n props) (map[string]map[string][2]string, []string) {
++	fs := func() map[string][2]string {
++		return map[string][2]string{"type": {"filesystem", "-"}, "creation": {"1700000000", "-"}}
++	}
++	sets := map[string]map[string][2]string{"tank/v": fs(), "tank/v/a": fs()}
++	for k, v := range map[string][2]string{
++		n.managed(): {"true", "local"}, n.success(): {"true", "local"}, n.volumeName(): {"a", "local"},
++	} {
++		sets["tank/v/a"][k] = v
++	}
++	return sets, []string{"tank/v", "tank/v/a"}
++}
++
++func TestDecodeRejectsWhatZfsNeverPrints(t *testing.T) {
++	n := props{DefaultPropertyPrefix}
++	sets, order := baseRows(n)
++	if vols, _, err := cannedEndpoint(t, zget(n, sets, order, "")).ListVolumes(context.Background(), 0, ""); err != nil || len(vols) != 1 {
++		t.Fatalf("control: %v %v", vols, err)
++	}
++	forge := func(ds string, kv ...string) string {
++		var b strings.Builder
++		for i := 0; i < len(kv); i += 2 {
++			b.WriteString(ds + "\t" + kv[i] + "\t" + kv[i+1] + "\tlocal\n")
++		}
++		return b.String()
++	}
++	for name, extra := range map[string]string{
++		// a newline in a user property value prints lines for a name that
++		// does not exist; nothing collides, so parseColumns accepts them
++		"phantom snapshot-named volume": forge("tank/v/a@ghost", n.managed(), "true", n.success(), "true"),
++		"phantom volume without type":   forge("tank/v/ghost", n.managed(), "true", n.success(), "true"),
++		"filesystem with @":             forge("tank/v/b@x", "type", "filesystem", "creation", "1700000000"),
++		"snapshot without @":            forge("tank/v/b", "type", "snapshot", "creation", "1700000000"),
++		"bookmark":                      forge("tank/v/a#b", "type", "bookmark", "creation", "1700000000"),
++		"volsize not a number":          forge("tank/v/z", "type", "volume", "creation", "1700000000", "volsize", "12x"),
++	} {
++		_, _, err := cannedEndpoint(t, zget(n, sets, order, extra)).ListVolumes(context.Background(), 0, "")
++		if CodeOf(err) != Internal {
++			t.Errorf("%s: want the scan refused (Internal), got %v", name, err)
++		}
++	}
++}
++
++// Columns a type does not have stay zero, even when a user property of
++// that name is set locally on the row (zfs allows user properties on
++// snapshots, and any property name on any dataset).
++func TestDecodeZeroesColumnsTheTypeDoesNotHave(t *testing.T) {
++	n := props{DefaultPropertyPrefix}
++	sets, order := baseRows(n)
++	sets["tank/v/a"][n.snapshotName()] = [2]string{"stray", "local"}
++	sets["tank/v/a@s"] = map[string][2]string{
++		"type": {"snapshot", "-"}, "creation": {"1700000001", "-"},
++		n.managed(): {"true", "local"}, n.snapshotName(): {"s", "local"},
++		n.volumeName(): {"a", "local"}, n.nfsClients(): {"10.0.0.1=rw", "local"},
++		"compression": {"lz4", "local"}, "refquota": {"1024", "local"}, "mountpoint": {"/x", "local"},
++	}
++	order = append(order, "tank/v/a@s")
++	tab, err := cannedEndpoint(t, zget(n, sets, order, "")).scanAll(context.Background())
++	if err != nil {
++		t.Fatal(err)
++	}
++	a, _ := tab.Get("a")
++	s, _ := tab.Get("a@s")
++	if a.Own != VolCommitted || a.SnapshotName != "" {
++		t.Errorf("volume: %+v", a)
++	}
++	if s.Own != SnapCSI || s.VolumeName != "" || s.NFSClientsSet || s.Local != (LocalProps{}) || s.Refquota != 0 || s.Mount != "" {
++		t.Errorf("snapshot carries volume columns: %+v", s)
++	}
++}
++
++// ---- construction: only table.go builds production state ------------------
++
++// Row, FullTable and whole-coverage Tables are built only in table.go
++// (decode, scanAll, afterDestroy). Go's privacy boundary is the package,
++// so within it this test is what makes "parse once" hold: a planner that
++// fabricates a Row, or promotes a partial table to a FullTable, fails here.
++func TestOnlyTableGoBuildsState(t *testing.T) {
++	fset := token.NewFileSet()
++	files, _ := filepath.Glob("*.go")
++	for _, f := range files {
++		if strings.HasSuffix(f, "_test.go") || f == "table.go" {
++			continue
++		}
++		af, err := parser.ParseFile(fset, f, nil, 0)
++		if err != nil {
++			t.Fatal(err)
++		}
++		ast.Inspect(af, func(n ast.Node) bool {
++			switch x := n.(type) {
++			case *ast.CompositeLit:
++				if id, ok := x.Type.(*ast.Ident); ok && (id.Name == "Row" || id.Name == "FullTable") && len(x.Elts) > 0 {
++					t.Errorf("%s: %s literal outside table.go", fset.Position(x.Pos()), id.Name)
++				}
++			case *ast.CallExpr:
++				if id, ok := x.Fun.(*ast.Ident); ok && id.Name == "NewTable" {
++					t.Errorf("%s: NewTable (whole coverage) outside table.go", fset.Position(x.Pos()))
++				}
++			}
++			return true
++		})
++	}
++}
++
++// ---- compile-time: removed states do not compile --------------------------
++
++// Each snippet is a state the old shapes allowed. They are added to the
++// package with `go build -overlay`, so the real compiler is the judge.
++func TestBadStatesDoNotCompile(t *testing.T) {
++	if testing.Short() {
++		t.Skip("runs the go command")
++	}
++	bad := []struct{ code, want string }{
++		{`var _ = Row{Managed: true}`, "unknown field Managed"},
++		{`func _(r Row) bool { return r.Committed }`, "r.Committed undefined"},
++		{`func _(t Table) { Planner{}.PlanDeleteVolume(t, "a") }`, "cannot use t (variable of struct type Table) as FullTable value"},
++		{`func _(t Table) { Planner{}.PlanCreateSnapshot(t, "s", "a") }`, "cannot use t (variable of struct type Table) as FullTable value"},
++		{`func _(t Table) { Planner{}.PlanReconcile(t, Desired{}) }`, "cannot use t (variable of struct type Table) as FullTable value"},
++		{`func _(e *Endpoint) { e.scan(nil, "") }`, "e.scan undefined"},
++		{`func _(t Table) { Planner{}.sizeOps("a", Row{}, CreateVolumeRequest{}, 0) }`, "cannot use Row{} (value of struct type Row) as sizing value"},
++	}
++	var src strings.Builder
++	src.WriteString("package endpoint\n")
++	for _, b := range bad {
++		src.WriteString(b.code + "\n")
++	}
++	out, err := buildWith(t, src.String())
++	if err == nil {
++		t.Fatal("the bad states compiled")
++	}
++	for _, b := range bad {
++		if !strings.Contains(out, b.want) {
++			t.Errorf("%s: want %q in:\n%s", b.code, b.want, out)
++		}
++	}
++	// control: the same harness accepts the intended shapes
++	good := "package endpoint\n" +
++		`func _(t FullTable) { Planner{}.PlanDeleteVolume(t, "a"); Planner{}.PlanDeleteSnapshot(t.Table, "a@s") }` + "\n" +
++		`func _(r Row) bool { return r.Own == VolCommitted }` + "\n"
++	if out, err := buildWith(t, good); err != nil {
++		t.Fatalf("control did not compile: %v\n%s", err, out)
++	}
++}
++
++func buildWith(t *testing.T, src string) (string, error) {
++	t.Helper()
++	dir := t.TempDir()
++	pkg, err := filepath.Abs(".")
++	if err != nil {
++		t.Fatal(err)
++	}
++	file := filepath.Join(dir, "zz_overlay.go")
++	if err := os.WriteFile(file, []byte(src), 0o600); err != nil {
++		t.Fatal(err)
++	}
++	ov, _ := json.Marshal(map[string]map[string]string{"Replace": {filepath.Join(pkg, "zz_overlay.go"): file}})
++	ovFile := filepath.Join(dir, "overlay.json")
++	if err := os.WriteFile(ovFile, ov, 0o600); err != nil {
++		t.Fatal(err)
++	}
++	cmd := exec.Command("go", "build", "-gcflags=-e", "-overlay="+ovFile, ".")
++	cmd.Dir = pkg
++	b, err := cmd.CombinedOutput()
++	return string(b), err
++}
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/layout_bench_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/layout_bench_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/layout_bench_test.go	1970-01-01 00:00:00.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/layout_bench_test.go	2026-10-27 05:02:11.171709253 +0000
+@@ -0,0 +1,231 @@
++package endpoint
++
++// Layout options for wave5/impossible-types.md, measured on the dod3 10k
++// fixture (501 filesystems, 500 zvols, 9000 snapshots):
++//
++//	flat    today's Row: one fat struct for every kind
++//	split   kind-split arrays: []VolRow and []SnapRow, each holding only its
++//	        kind's columns; snapshots-of-volume is a contiguous range found
++//	        by binary search instead of a map of index slices
++//	ptr     Row{common; Vol *volCols; Snap *snapCols}: optional groups
++//
++// Run: ZFS_FIXTURE=.../dod3/fixture.10k go test -run x -bench Layout -benchmem
++
++import (
++	"context"
++	"os"
++	"slices"
++	"strings"
++	"testing"
++	"unsafe"
++
++	"github.com/wommy/empty/internal/zfs"
++)
++
++type volRow struct {
++	Name, ID                         string
++	Kind                             VolumeKind
++	Own                              Own
++	Volsize, Refquota, Refres, BlkSz uint64
++	Origin, Mount                    string
++	Creation                         int64
++	Local                            LocalProps
++	ShareNFS, NFSClients             string
++	ShareNFSLocal, Mounted, NFSSet   bool
++	VolumeName, SourceType, SourceID string
++}
++
++type snapRow struct {
++	Name, ID                     string
++	Own                          Own
++	Deferred                     bool
++	Volsize                      uint64
++	Creation                     int64
++	SnapshotName, SnapshotSource string
++}
++
++type splitTable struct {
++	vols   []volRow
++	snaps  []snapRow
++	clones map[string][]int
++}
++
++func newSplit(rows []Row) splitTable {
++	var t splitTable
++	for _, r := range rows {
++		if r.Type == zfs.TypeSnapshot {
++			t.snaps = append(t.snaps, snapRow{r.Name, r.ID, r.Own, r.Deferred, r.Volsize, r.Creation, r.SnapshotName, r.SnapshotSource})
++		} else {
++			t.vols = append(t.vols, volRow{r.Name, r.ID, r.Kind(), r.Own, r.Volsize, r.Refquota, r.Refres, r.BlockSz, r.Origin, r.Mount,
++				r.Creation, r.Local, r.ShareNFS, r.NFSClients, r.ShareNFSLocal, r.Mounted, r.NFSClientsSet, r.VolumeName, r.SourceType, r.SourceID})
++		}
++	}
++	slices.SortFunc(t.vols, func(a, b volRow) int { return strings.Compare(a.ID, b.ID) })
++	slices.SortFunc(t.snaps, func(a, b snapRow) int { return strings.Compare(a.ID, b.ID) })
++	t.clones = map[string][]int{}
++	for i, v := range t.vols {
++		if v.Origin != "" {
++			t.clones[v.Origin] = append(t.clones[v.Origin], i)
++		}
++	}
++	return t
++}
++
++// snapshotsOf: in ID order, every id with the prefix "<vol>@" is
++// contiguous, so a volume's snapshots are one sub-slice: binary search for
++// the first id >= "<vol>@", then extend while the prefix holds. No map.
++func (t splitTable) snapshotsOf(vol string) []snapRow {
++	p := vol + "@"
++	lo, _ := slices.BinarySearchFunc(t.snaps, p, func(s snapRow, p string) int { return strings.Compare(s.ID, p) })
++	hi := lo
++	for hi < len(t.snaps) && strings.HasPrefix(t.snaps[hi].ID, p) {
++		hi++
++	}
++	return t.snaps[lo:hi]
++}
++
++type volCols struct {
++	Refquota, Refres, BlkSz          uint64
++	Origin, Mount                    string
++	Local                            LocalProps
++	ShareNFS, NFSClients             string
++	ShareNFSLocal, Mounted, NFSSet   bool
++	VolumeName, SourceType, SourceID string
++}
++
++type snapCols struct {
++	Deferred                     bool
++	SnapshotName, SnapshotSource string
++}
++
++type ptrRow struct {
++	Name, ID string
++	Type     zfs.Type
++	Own      Own
++	Volsize  uint64
++	Creation int64
++	Vol      *volCols
++	Snap     *snapCols
++}
++
++func newPtr(rows []Row) []ptrRow {
++	out := make([]ptrRow, len(rows))
++	for i, r := range rows {
++		p := ptrRow{Name: r.Name, ID: r.ID, Type: r.Type, Own: r.Own, Volsize: r.Volsize, Creation: r.Creation}
++		if r.Type == zfs.TypeSnapshot {
++			p.Snap = &snapCols{r.Deferred, r.SnapshotName, r.SnapshotSource}
++		} else {
++			p.Vol = &volCols{r.Refquota, r.Refres, r.BlockSz, r.Origin, r.Mount, r.Local, r.ShareNFS, r.NFSClients, r.ShareNFSLocal, r.Mounted, r.NFSClientsSet, r.VolumeName, r.SourceType, r.SourceID}
++		}
++		out[i] = p
++	}
++	slices.SortFunc(out, func(a, b ptrRow) int { return strings.Compare(a.ID, b.ID) })
++	return out
++}
++
++func fixtureEndpoint(b *testing.B) *Endpoint {
++	path := os.Getenv("ZFS_FIXTURE")
++	if path == "" {
++		b.Skip("set ZFS_FIXTURE to dod3/fixture.10k")
++	}
++	out, err := os.ReadFile(path)
++	if err != nil {
++		b.Fatal(err)
++	}
++	ep, err := New(zfs.New(cannedRunner{string(out)}), Config{Parent: "tank/k8s/vols", PropertyPrefix: "democratic-csi"})
++	if err != nil {
++		b.Fatal(err)
++	}
++	return ep
++}
++
++func BenchmarkLayout(b *testing.B) {
++	ep := fixtureEndpoint(b)
++	full, err := ep.scanAll(context.Background())
++	if err != nil {
++		b.Fatal(err)
++	}
++	rows := slices.Collect(full.All())
++	var vols []string
++	for r := range full.Volumes() {
++		vols = append(vols, r.ID)
++	}
++	b.Logf("rows=%d vols=%d sizeof Row=%d volRow=%d snapRow=%d ptrRow=%d volCols=%d snapCols=%d",
++		len(rows), len(vols), unsafe.Sizeof(Row{}), unsafe.Sizeof(volRow{}), unsafe.Sizeof(snapRow{}),
++		unsafe.Sizeof(ptrRow{}), unsafe.Sizeof(volCols{}), unsafe.Sizeof(snapCols{}))
++
++	b.Run("build/flat", func(b *testing.B) {
++		for b.Loop() {
++			_ = NewTable(slices.Clone(rows))
++		}
++	})
++	b.Run("build/split", func(b *testing.B) {
++		for b.Loop() {
++			_ = newSplit(rows)
++		}
++	})
++	b.Run("build/ptr", func(b *testing.B) {
++		for b.Loop() {
++			_ = newPtr(rows)
++		}
++	})
++
++	flat, split := NewTable(slices.Clone(rows)), newSplit(rows)
++	// a DeleteVolume-shaped read for every volume: its snapshots' ownership
++	b.Run("snapsOf-all-vols/flat", func(b *testing.B) {
++		for b.Loop() {
++			n := 0
++			for _, v := range vols {
++				for s := range flat.SnapshotsOf(v) {
++					if s.Own == SnapCSI && !s.Deferred {
++						n++
++					}
++				}
++			}
++		}
++	})
++	b.Run("snapsOf-all-vols/split", func(b *testing.B) {
++		for b.Loop() {
++			n := 0
++			for _, v := range vols {
++				for _, s := range split.snapshotsOf(v) {
++					if s.Own == SnapCSI && !s.Deferred {
++						n++
++					}
++				}
++			}
++		}
++	})
++	// a ListSnapshots/PlanCreateSnapshot-shaped scan of every snapshot
++	b.Run("scan-snaps/flat", func(b *testing.B) {
++		for b.Loop() {
++			n := 0
++			for r := range flat.All() {
++				if r.Own == SnapCSI && r.SnapshotName == "x" {
++					n++
++				}
++			}
++		}
++	})
++	b.Run("scan-snaps/split", func(b *testing.B) {
++		for b.Loop() {
++			n := 0
++			for _, s := range split.snaps {
++				if s.Own == SnapCSI && s.SnapshotName == "x" {
++					n++
++				}
++			}
++		}
++	})
++}
++
++// BenchmarkScanAllFixture: zfs get output to FullTable, the request path's
++// fixed cost, to set the layout numbers against.
++func BenchmarkScanAllFixture(b *testing.B) {
++	ep := fixtureEndpoint(b)
++	for b.Loop() {
++		if _, err := ep.scanAll(context.Background()); err != nil {
++			b.Fatal(err)
++		}
++	}
++}
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/plan.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/plan.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/plan.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/plan.go	2026-10-27 05:11:46.015728055 +0000
+@@ -162,16 +162,21 @@
+ 	}
+ 
+ 	if row, ok := t.Get(id); ok {
+-		if !row.Managed {
++		switch row.Own {
++		case Foreign:
++			if row.VolumeName != "" && row.VolumeName != r.Name {
++				return nil, errorf(AlreadyExists, "dataset %s belongs to volume %q", row.Name, row.VolumeName)
++			}
+ 			return nil, errorf(AlreadyExists, "dataset %s exists and is not managed", row.Name)
+-		}
+-		if row.VolumeName != "" && row.VolumeName != r.Name {
+-			return nil, errorf(AlreadyExists, "dataset %s belongs to volume %q", row.Name, row.VolumeName)
++		case SnapCSI, SnapCloneSource:
++			// a volume id has no '@'; decode never classifies such a row so
++			return nil, errorf(Internal, "row %s is %s under a volume id", row.Name, row.Own)
++		case VolUncommitted, VolCommitted:
+ 		}
+ 		if row.Kind() != r.Kind || row.SourceType != srcType || row.SourceID != srcID {
+ 			return nil, errorf(AlreadyExists, "volume %s exists as %s from %q %q", id, row.Kind(), row.SourceType, row.SourceID)
+ 		}
+-		if !row.Committed {
++		if row.Own == VolUncommitted {
+ 			if sizeErr != nil {
+ 				return nil, sizeErr
+ 			}
+@@ -179,7 +184,7 @@
+ 			if bs, ok := props[volblocksizeProp]; ok && u64(row.BlockSz) != bs {
+ 				return nil, errorf(AlreadyExists, "volume %s exists with volblocksize %d, requested %s", id, row.BlockSz, bs)
+ 			}
+-			plan := p.sizeOps(id, row, r, size)
++			plan := p.sizeOps(id, sizingOf(row), r, size)
+ 			if set := propSet(row, props); len(set) > 0 {
+ 				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: set})
+ 			}
+@@ -221,7 +226,7 @@
+ 		// a foreign dataset is not ours to clone (ADR 0003)
+ 		snap, ok := t.Get(r.SourceSnapshotID)
+ 		src, srcOK := t.Get(vol)
+-		if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.OwnedVolume() || !src.Committed {
++		if !ok || snap.Own != SnapCSI || snap.Deferred || !srcOK || src.Own != VolCommitted {
+ 			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
+ 		}
+ 		if src.Kind() != r.Kind {
+@@ -236,7 +241,7 @@
+ 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, srcID
+ 		plan = Plan{{Kind: OpClone, Source: snap.Name, Target: p.full(id), Props: own}}
+ 		// filesystem clones start without refquota or refreservation
+-		plan = append(plan, p.sizeOps(id, Row{Type: kindType(r.Kind), Volsize: snap.Volsize}, r, size)...)
++		plan = append(plan, p.sizeOps(id, sizing{Volsize: snap.Volsize}, r, size)...)
+ 	case r.SourceVolumeID != "":
+ 		srcID, err := volumeID(r.SourceVolumeID)
+ 		if err != nil {
+@@ -245,7 +250,7 @@
+ 		// only a committed volume the endpoint owns: cloning anything else
+ 		// would snapshot, and pin, a dataset that is not ours
+ 		src, ok := t.Get(srcID)
+-		if !ok || !src.OwnedVolume() || !src.Committed {
++		if !ok || src.Own != VolCommitted {
+ 			return nil, errorf(NotFound, "source volume %s not found", srcID)
+ 		}
+ 		if src.Kind() != r.Kind {
+@@ -266,11 +271,9 @@
+ 			{Kind: OpSnapshot, Target: internal, OkExists: true},
+ 			{Kind: OpClone, Source: internal, Target: p.full(id), Props: own},
+ 		}
+-		base := src
+ 		// a clone starts with neither the source's refquota nor its
+ 		// refreservation; size from what the clone really has
+-		base.Refquota, base.Refres = 0, 0
+-		plan = append(plan, p.sizeOps(id, base, r, size)...)
++		plan = append(plan, p.sizeOps(id, sizing{Volsize: src.Volsize}, r, size)...)
+ 	case r.Kind == Block:
+ 		// thick zvols: zfs create -V sets refreservation to zvol_auto_resv
+ 		// (volsize plus metadata) and keeps it in step with volsize; setting
+@@ -325,9 +328,16 @@
+ 	return nil
+ }
+ 
++// sizing is the part of a volume sizeOps converges from: a real row's, or
++// what a fresh clone starts with. It is not a Row, so no planner fabricates
++// rows that decode never produced.
++type sizing struct{ Volsize, Refquota, Refres uint64 }
++
++func sizingOf(r Row) sizing { return sizing{r.Volsize, r.Refquota, r.Refres} }
++
+ // sizeOps converges an owned-but-uncommitted (or freshly cloned) volume to
+ // the requested size and reservation. It never shrinks.
+-func (p Planner) sizeOps(id string, row Row, r CreateVolumeRequest, want uint64) Plan {
++func (p Planner) sizeOps(id string, row sizing, r CreateVolumeRequest, want uint64) Plan {
+ 	set := map[string]string{}
+ 	if r.Kind == Block {
+ 		if want > row.Volsize {
+@@ -374,7 +384,7 @@
+ // A volume with snapshots the endpoint did not cut is refused too, unless
+ // DestroyForeignSnapshots: `zfs destroy -r` would take them, and they are
+ // not the endpoint's (ADR 0003).
+-func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
++func (p Planner) PlanDeleteVolume(t FullTable, volID string) (Plan, error) {
+ 	id, err := issuedVolumeID(volID)
+ 	if err != nil {
+ 		return nil, err
+@@ -391,11 +401,23 @@
+ 	}
+ 	var foreign []string
+ 	for s := range t.SnapshotsOf(id) {
+-		if s.SnapshotName != "" && !s.Deferred {
+-			return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
+-		}
+-		if s.SnapshotName == "" && !s.Deferred && !internalCloneSource(s) {
+-			foreign = append(foreign, s.ID)
++		if s.Deferred {
++			// already deleted as far as CSI is concerned; clones checked below
++		} else {
++			switch s.Own {
++			case SnapCSI:
++				return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
++			case SnapCloneSource:
++				// released with the volume (-r); its clones are checked below
++			case Foreign:
++				if s.SnapshotName != "" {
++					// a CSI name on a snapshot we did not cut (recv'd copy)
++					return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
++				}
++				foreign = append(foreign, s.ID)
++			case VolUncommitted, VolCommitted:
++				return nil, errorf(Internal, "row %s is %s under a snapshot id", s.Name, s.Own)
++			}
+ 		}
+ 		for c := range t.ClonesOf(s.Name) {
+ 			if !strings.HasPrefix(c.Name, row.Name+"/") {
+@@ -414,14 +436,6 @@
+ 	return plan, nil
+ }
+ 
+-// internalCloneSource reports whether s is the snapshot a volume-to-volume
+-// clone hangs off: cut by the endpoint, unmarked, under a reserved name
+-// (PlanCreateSnapshot refuses that prefix for CSI names).
+-func internalCloneSource(s Row) bool {
+-	_, name, _ := strings.Cut(s.ID, "@")
+-	return strings.HasPrefix(name, cloneSourceSnapshotPrefix)
+-}
+-
+ // PlanExpandVolume grows to at least capacity; shrinking is a no-op.
+ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64) (Plan, Row, error) {
+ 	id, err := issuedVolumeID(volID)
+@@ -464,7 +478,7 @@
+ 
+ // PlanCreateSnapshot: CSI snapshot names are global; the same name on the
+ // same volume is done, on another volume AlreadyExists.
+-func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, error) {
++func (p Planner) PlanCreateSnapshot(t FullTable, name, volID string) (Plan, string, error) {
+ 	vol, err := issuedVolumeID(volID)
+ 	if err != nil {
+ 		return nil, "", err
+@@ -481,12 +495,10 @@
+ 		// carry even a hashed component within CSI's limit
+ 		return nil, "", errorf(InvalidArgument, "volume id %q too long to address snapshots within 128 bytes", vol)
+ 	}
+-	// snapshot names are global: only the whole parent says one is free
+-	if err := t.mustBeWhole("CreateSnapshot"); err != nil {
+-		return nil, "", err
+-	}
++	// snapshot names are global: only the whole parent (FullTable) says
++	// one is free
+ 	for r := range t.All() {
+-		if r.OwnedSnapshot() && r.SnapshotName == name && !r.Deferred {
++		if r.Own == SnapCSI && r.SnapshotName == name && !r.Deferred {
+ 			if r.ID == id {
+ 				return nil, id, nil
+ 			}
+@@ -499,7 +511,7 @@
+ 	}
+ 	if r, ok := t.Get(id); ok {
+ 		// a snapshot of that name we do not own, or one pending deletion
+-		return nil, "", errorf(AlreadyExists, "snapshot %s exists (managed=%v deferred=%v)", id, r.Managed, r.Deferred)
++		return nil, "", errorf(AlreadyExists, "snapshot %s exists (%s, deferred=%v)", id, r.Own, r.Deferred)
+ 	}
+ 	return Plan{{Kind: OpSnapshot, Target: p.full(id), Props: map[string]string{
+ 		p.Names.managed():        "true",
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/plan_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/plan_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/plan_test.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/plan_test.go	2026-10-27 04:58:49.262264833 +0000
+@@ -13,7 +13,7 @@
+ var pl = Planner{Parent: "tank/v", Names: props{"democratic-csi"}, VolBlockSize: 16384}
+ 
+ func vol(id string, mut func(*Row)) Row {
+-	r := Row{Name: "tank/v/" + id, ID: id, Type: zfs.TypeFilesystem, Managed: true, Committed: true, VolumeName: id}
++	r := Row{Name: "tank/v/" + id, ID: id, Type: zfs.TypeFilesystem, Own: VolCommitted, VolumeName: id}
+ 	if mut != nil {
+ 		mut(&r)
+ 	}
+@@ -21,7 +21,7 @@
+ }
+ 
+ func snap(id string, mut func(*Row)) Row {
+-	r := Row{Name: "tank/v/" + id, ID: id, Type: zfs.TypeSnapshot, Managed: true, SnapshotName: id[len(id)-1:]}
++	r := Row{Name: "tank/v/" + id, ID: id, Type: zfs.TypeSnapshot, Own: SnapCSI, SnapshotName: id[len(id)-1:]}
+ 	if mut != nil {
+ 		mut(&r)
+ 	}
+@@ -58,7 +58,7 @@
+ 		vol("src", func(r *Row) { r.Type, r.Volsize, r.Refres = zfs.TypeVolume, 1<<30, 1<<30 }),
+ 		snap("src@s", func(r *Row) { r.Volsize = 1 << 30 }),
+ 		vol("dst", func(r *Row) {
+-			r.Type, r.Volsize, r.Committed = zfs.TypeVolume, 1<<30, false
++			r.Type, r.Volsize, r.Own = zfs.TypeVolume, 1<<30, VolUncommitted
+ 			r.SourceType, r.SourceID = "snapshot", "src@s"
+ 		}),
+ 	})
+@@ -74,7 +74,7 @@
+ 
+ func TestPlanCreateRefusesForeignAndIncompatible(t *testing.T) {
+ 	tab := NewTable([]Row{
+-		vol("foreign", func(r *Row) { r.Managed = false }),
++		vol("foreign", func(r *Row) { r.Own = Foreign }),
+ 		vol("small", func(r *Row) { r.Refquota = 10 }),
+ 		vol("thin", func(r *Row) { r.Type, r.Volsize = zfs.TypeVolume, 16384 }),
+ 	})
+@@ -115,26 +115,26 @@
+ 		snap("a@s", nil),
+ 		vol("b", nil),
+ 		// an internal clone-source snapshot carries no ownership of its own
+-		snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++		snap("b@volume-source-for-volume-c", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 		vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
+ 		snap("d@x", func(r *Row) { r.Deferred = true }),
+ 		vol("d", nil),
+ 	})
+-	if _, err := pl.PlanDeleteVolume(tab, "a"); code(err) != FailedPrecondition {
++	if _, err := pl.PlanDeleteVolume(FullTable{tab}, "a"); code(err) != FailedPrecondition {
+ 		t.Fatalf("snapshotted: %v", err)
+ 	}
+-	if _, err := pl.PlanDeleteVolume(tab, "b"); code(err) != FailedPrecondition {
++	if _, err := pl.PlanDeleteVolume(FullTable{tab}, "b"); code(err) != FailedPrecondition {
+ 		t.Fatalf("cloned: %v", err)
+ 	}
+-	plan, err := pl.PlanDeleteVolume(tab, "c")
++	plan, err := pl.PlanDeleteVolume(FullTable{tab}, "c")
+ 	if err != nil || len(plan) != 2 || !plan[1].Defer || plan[1].Target != "tank/v/b@volume-source-for-volume-c" {
+ 		t.Fatalf("clone delete %+v %v", plan, err)
+ 	}
+ 	// a deferred (already deleted) snapshot does not block its volume
+-	if plan, err := pl.PlanDeleteVolume(tab, "d"); err != nil || len(plan) != 1 {
++	if plan, err := pl.PlanDeleteVolume(FullTable{tab}, "d"); err != nil || len(plan) != 1 {
+ 		t.Fatalf("deferred %+v %v", plan, err)
+ 	}
+-	if plan, err := pl.PlanDeleteVolume(tab, "gone"); err != nil || plan != nil {
++	if plan, err := pl.PlanDeleteVolume(FullTable{tab}, "gone"); err != nil || plan != nil {
+ 		t.Fatalf("missing %+v %v", plan, err)
+ 	}
+ }
+@@ -157,7 +157,7 @@
+ // review H1: the internal prefix cannot be claimed by a CSI snapshot
+ func TestPlanSnapshotReservedPrefix(t *testing.T) {
+ 	tab := NewTable([]Row{vol("a", nil)})
+-	if _, _, err := pl.PlanCreateSnapshot(tab, "volume-source-for-volume-x", "a"); code(err) != InvalidArgument {
++	if _, _, err := pl.PlanCreateSnapshot(FullTable{tab}, "volume-source-for-volume-x", "a"); code(err) != InvalidArgument {
+ 		t.Fatal(err)
+ 	}
+ }
+@@ -168,16 +168,16 @@
+ 	long := strings.Repeat("a", 128)
+ 	for _, name := range []string{long, "snap with spaces", "ünïcode"} {
+ 		tab := NewTable([]Row{vol("pvc-0123456789", nil)})
+-		plan, id, err := pl.PlanCreateSnapshot(tab, name, "pvc-0123456789")
++		plan, id, err := pl.PlanCreateSnapshot(FullTable{tab}, name, "pvc-0123456789")
+ 		if err != nil || len(plan) != 1 || len(id) > 128 || !zfs.ValidSnapshot("tank/v/"+id) {
+ 			t.Fatalf("%q: plan %+v id %q err %v", name, plan, id, err)
+ 		}
+ 		done := NewTable([]Row{vol("pvc-0123456789", nil), snap(id, func(r *Row) { r.SnapshotName = name })})
+-		if again, id2, err := pl.PlanCreateSnapshot(done, name, "pvc-0123456789"); err != nil || again != nil || id2 != id {
++		if again, id2, err := pl.PlanCreateSnapshot(FullTable{done}, name, "pvc-0123456789"); err != nil || again != nil || id2 != id {
+ 			t.Fatalf("%q: retry plan %+v id %q err %v", name, again, id2, err)
+ 		}
+ 	}
+-	if _, _, err := pl.PlanCreateSnapshot(NewTable([]Row{vol("a", nil)}), strings.Repeat("a", 129), "a"); code(err) != InvalidArgument {
++	if _, _, err := pl.PlanCreateSnapshot(FullTable{NewTable([]Row{vol("a", nil)})}, strings.Repeat("a", 129), "a"); code(err) != InvalidArgument {
+ 		t.Fatalf("129 bytes: %v", err)
+ 	}
+ }
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/props_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/props_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/props_test.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/props_test.go	2026-10-27 04:58:49.264990672 +0000
+@@ -201,11 +201,11 @@
+ func TestPlanCreatePropertiesConvergeUncommitted(t *testing.T) {
+ 	tab := NewTable([]Row{
+ 		vol("fs", func(r *Row) {
+-			r.Committed, r.Refquota = false, 1<<20
++			r.Own, r.Refquota = VolUncommitted, 1<<20
+ 			r.Local[propCompression], r.Local[propAtime] = "lz4", "off"
+ 		}),
+ 		vol("z", func(r *Row) {
+-			r.Committed, r.Type, r.Volsize, r.Refres, r.BlockSz = false, zfs.TypeVolume, 1<<20, 2<<20, 16384
++			r.Own, r.Type, r.Volsize, r.Refres, r.BlockSz = VolUncommitted, zfs.TypeVolume, 1<<20, 2<<20, 16384
+ 		}),
+ 	})
+ 	plan, err := pl.PlanCreateVolume(tab, CreateVolumeRequest{Name: "fs", CapacityBytes: 1 << 20,
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/reconcile.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/reconcile.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/reconcile.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/reconcile.go	2026-10-27 05:11:46.019728056 +0000
+@@ -106,12 +106,9 @@
+ // Volume deletions are planned to a fixpoint: a volume blocked only by a
+ // clone that is itself collected goes in the same plan, after the clone, so
+ // reconciling the result again plans nothing.
+-func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
+-	// everything not wanted is collected: only the whole parent says what
+-	// exists
+-	if err := t.mustBeWhole("reconcile"); err != nil {
+-		return ReconcilePlan{}, err
+-	}
++func (p Planner) PlanReconcile(t FullTable, d Desired) (ReconcilePlan, error) {
++	// everything not wanted is collected: only the whole parent (FullTable)
++	// says what exists
+ 	var out ReconcilePlan
+ 	want := map[string]bool{}
+ 	for _, id := range d.VolumeIDs {
+@@ -132,11 +129,16 @@
+ 	}
+ 	var pending []candidate
+ 	for r := range t.Volumes() {
+-		if !r.OwnedVolume() || want[r.ID] {
++		if want[r.ID] {
+ 			continue
+ 		}
+-		reason := ReasonUncommitted
+-		if r.Committed {
++		var reason string
++		switch r.Own {
++		case Foreign, SnapCSI, SnapCloneSource:
++			continue
++		case VolUncommitted:
++			reason = ReasonUncommitted
++		case VolCommitted:
+ 			if len(want) == 0 {
+ 				skip(r.ID, SkipEmptyDesired)
+ 				continue
+@@ -152,7 +154,6 @@
+ 
+ 	// Deleting a volume only removes blockers of others, so each round
+ 	// plans every volume deletable against the previous round's table.
+-	rows := slices.Collect(t.All())
+ 	cur := t
+ 	for len(pending) > 0 {
+ 		var blocked []candidate
+@@ -187,10 +188,7 @@
+ 		if len(plans) == 0 {
+ 			break
+ 		}
+-		for _, plan := range plans {
+-			rows = simulateDestroy(rows, plan)
+-		}
+-		cur = NewTable(slices.Clone(rows))
++		cur = cur.afterDestroy(plans...)
+ 		pending = blocked
+ 	}
+ 	for _, c := range pending {
+@@ -201,13 +199,11 @@
+ 
+ 	// clone-source snapshots whose clone is gone, on volumes that stay
+ 	for r := range cur.All() {
+-		vol, name, ok := strings.Cut(r.ID, "@")
+-		if !ok || !strings.HasPrefix(name, cloneSourceSnapshotPrefix) || r.SnapshotName != "" || r.Deferred {
++		// a CSI snapshot by ownership, whatever its name, is never one
++		if r.Own != SnapCloneSource || r.Deferred {
+ 			continue
+ 		}
+-		if r.Managed {
+-			continue // a CSI snapshot by ownership, whatever its name
+-		}
++		vol, name, _ := strings.Cut(r.ID, "@")
+ 		if hasAny(cur.ClonesOf(r.Name)) {
+ 			continue // in use
+ 		}
+@@ -324,7 +320,7 @@
+ 	if d.MinAge <= 0 {
+ 		d.MinAge = DefaultReconcileMinAge
+ 	}
+-	t, err := e.scan(ctx, "")
++	t, err := e.scanAll(ctx)
+ 	if err != nil {
+ 		return ReconcilePlan{}, err
+ 	}
+@@ -352,7 +348,7 @@
+ 	}
+ 	defer release()
+ 
+-	if t, err = e.scan(ctx, ""); err != nil {
++	if t, err = e.scanAll(ctx); err != nil {
+ 		return ReconcilePlan{}, err
+ 	}
+ 	d.Now, d.held = e.cfg.Now(), held
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/reconcile_fuzz_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/reconcile_fuzz_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/reconcile_fuzz_test.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/reconcile_fuzz_test.go	2026-10-27 04:58:56.164622023 +0000
+@@ -114,7 +114,7 @@
+ 		if err != nil {
+ 			t.Fatal(err)
+ 		}
+-		before, err := ep.scan(ctx, "")
++		before, err := ep.scanAll(ctx)
+ 		if err != nil {
+ 			t.Fatal(err)
+ 		}
+@@ -144,7 +144,7 @@
+ 				t.Fatalf("%s: op %+v", a.Target, a.Op)
+ 			}
+ 			if row.Type == zfs.TypeSnapshot {
+-				if row.Managed || row.SnapshotName != "" {
++				if row.Own != SnapCloneSource || row.SnapshotName != "" {
+ 					t.Fatalf("%s: a CSI snapshot is targeted", a.Target)
+ 				}
+ 				if !strings.Contains(a.Target, "@"+cloneSourceSnapshotPrefix) {
+@@ -153,13 +153,13 @@
+ 				continue
+ 			}
+ 			switch {
+-			case !row.Managed:
++			case !row.OwnedVolume():
+ 				t.Fatalf("%s: unowned volume targeted", a.Target)
+ 			case isWanted[a.Target]:
+ 				t.Fatalf("%s: desired volume targeted", a.Target)
+ 			case time.Unix(now, 0).Sub(time.Unix(row.Creation, 0)) < time.Hour:
+ 				t.Fatalf("%s: young volume targeted", a.Target)
+-			case len(want) == 0 && row.Committed:
++			case len(want) == 0 && row.Own == VolCommitted:
+ 				t.Fatalf("%s: committed volume collected on an empty desired set", a.Target)
+ 			}
+ 			for s := range before.SnapshotsOf(a.Target) {
+@@ -169,7 +169,7 @@
+ 			}
+ 		}
+ 
+-		after, err := ep.scan(ctx, "")
++		after, err := ep.scanAll(ctx)
+ 		if err != nil {
+ 			t.Fatal(err)
+ 		}
+@@ -177,7 +177,7 @@
+ 			vol, _, _ := strings.Cut(r.ID, "@")
+ 			keep := r.SnapshotName != "" || isWanted[vol] && r.Type != zfs.TypeSnapshot
+ 			if r.Type != zfs.TypeSnapshot {
+-				keep = keep || !r.Managed || csiSnapped(before, r.ID)
++				keep = keep || !r.OwnedVolume() || csiSnapped(before.Table, r.ID)
+ 			}
+ 			if _, ok := after.Get(r.ID); keep && !ok {
+ 				t.Fatalf("%s was destroyed (plan %+v)", r.ID, done)
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/reconcile_test.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/reconcile_test.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/reconcile_test.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/reconcile_test.go	2026-10-27 04:58:49.268683250 +0000
+@@ -47,7 +47,7 @@
+ 
+ func TestPlanReconcile(t *testing.T) {
+ 	young := func(r *Row) { r.Creation = recNow - 60 }
+-	uncommitted := func(r *Row) { r.Committed = false }
++	uncommitted := func(r *Row) { r.Own = VolUncommitted }
+ 	cases := []struct {
+ 		name  string
+ 		rows  []Row
+@@ -97,13 +97,13 @@
+ 		},
+ 		{
+ 			name:  "unknown creation is never old",
+-			rows:  []Row{vol("a", func(r *Row) { r.Committed, r.Creation = false, -1 })},
++			rows:  []Row{vol("a", func(r *Row) { r.Own, r.Creation = VolUncommitted, -1 })},
+ 			want:  desired(),
+ 			skips: []string{"a:" + SkipNoCreation},
+ 		},
+ 		{
+ 			name: "unowned datasets are invisible",
+-			rows: []Row{vol("x", func(r *Row) { r.Managed, r.Committed = false, false }), vol("a", nil)},
++			rows: []Row{vol("x", func(r *Row) { r.Own = Foreign }), vol("a", nil)},
+ 			want: desired("a"),
+ 		},
+ 		{
+@@ -117,7 +117,7 @@
+ 			rows: []Row{
+ 				vol("a", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-a" }),
+ 				vol("b", nil),
+-				snap("b@volume-source-for-volume-a", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++				snap("b@volume-source-for-volume-a", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 			},
+ 			want:  desired("a"),
+ 			skips: []string{"b:volume b has dependent clone a"},
+@@ -127,7 +127,7 @@
+ 			rows: []Row{
+ 				vol("a", nil),
+ 				vol("b", nil),
+-				snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++				snap("b@volume-source-for-volume-c", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 				vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
+ 			},
+ 			want: desired("a"),
+@@ -142,7 +142,7 @@
+ 			rows: []Row{
+ 				vol("a", nil),
+ 				vol("b", nil),
+-				snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++				snap("b@volume-source-for-volume-c", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 				vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c"; young(r) }),
+ 			},
+ 			want:  desired("a"),
+@@ -152,7 +152,7 @@
+ 			name: "orphan clone-source snapshot on a desired volume",
+ 			rows: []Row{
+ 				vol("a", nil),
+-				snap("a@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++				snap("a@volume-source-for-volume-gone", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 			},
+ 			want: desired("a"),
+ 			acts: []string{"a@volume-source-for-volume-gone:" + ReasonOrphanCloneSource},
+@@ -161,7 +161,7 @@
+ 			name: "clone-source snapshot in use is kept",
+ 			rows: []Row{
+ 				vol("a", nil),
+-				snap("a@volume-source-for-volume-b", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++				snap("a@volume-source-for-volume-b", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 				vol("b", func(r *Row) { r.Origin = "tank/v/a@volume-source-for-volume-b" }),
+ 			},
+ 			want: desired("a", "b"),
+@@ -177,8 +177,8 @@
+ 		{
+ 			name: "clone-source snapshot on an unowned volume is reported only",
+ 			rows: []Row{
+-				vol("x", func(r *Row) { r.Managed = false }),
+-				snap("x@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++				vol("x", func(r *Row) { r.Own = Foreign }),
++				snap("x@volume-source-for-volume-gone", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 			},
+ 			want:  desired("a"),
+ 			skips: []string{"a:" + SkipDesiredMissing, "x@volume-source-for-volume-gone:" + SkipUnmanagedSource},
+@@ -187,7 +187,7 @@
+ 			name: "young clone-source snapshot may be mid-clone",
+ 			rows: []Row{
+ 				vol("a", nil),
+-				snap("a@volume-source-for-volume-b", func(r *Row) { r.Managed, r.SnapshotName = false, ""; young(r) }),
++				snap("a@volume-source-for-volume-b", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, ""; young(r) }),
+ 			},
+ 			want:  desired("a"),
+ 			skips: []string{"a@volume-source-for-volume-b:" + SkipTooYoung},
+@@ -197,7 +197,7 @@
+ 			rows: []Row{
+ 				vol("a", nil),
+ 				vol("b", nil),
+-				snap("b@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++				snap("b@volume-source-for-volume-gone", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 			},
+ 			want: desired("a"),
+ 			acts: []string{"b:" + ReasonUndesired},
+@@ -212,7 +212,7 @@
+ 	for _, c := range cases {
+ 		t.Run(c.name, func(t *testing.T) {
+ 			tab := table(c.rows...)
+-			plan, err := pl.PlanReconcile(tab, c.want)
++			plan, err := pl.PlanReconcile(FullTable{tab}, c.want)
+ 			if err != nil {
+ 				t.Fatal(err)
+ 			}
+@@ -235,12 +235,12 @@
+ func TestPlanReconcileLocksEveryTarget(t *testing.T) {
+ 	tab := table(
+ 		vol("a", nil),
+-		snap("a@volume-source-for-volume-gone", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++		snap("a@volume-source-for-volume-gone", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 		vol("b", nil),
+-		snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++		snap("b@volume-source-for-volume-c", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 		vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
+ 	)
+-	plan, err := pl.PlanReconcile(tab, desired("a"))
++	plan, err := pl.PlanReconcile(FullTable{tab}, desired("a"))
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+@@ -261,12 +261,12 @@
+ 	tab := table(
+ 		vol("a", nil),
+ 		vol("b", nil),
+-		snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
++		snap("b@volume-source-for-volume-c", func(r *Row) { r.Own, r.SnapshotName = SnapCloneSource, "" }),
+ 		vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
+ 	)
+ 	d := desired("a")
+ 	d.held = map[string]bool{"b": true}
+-	plan, err := pl.PlanReconcile(tab, d)
++	plan, err := pl.PlanReconcile(FullTable{tab}, d)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+diff -ruN -x 'zz_*' /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/table.go /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/table.go
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/h9/internal/endpoint/table.go	2026-10-27 05:03:42.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/types-copy/internal/endpoint/table.go	2026-10-27 05:14:07.472778903 +0000
+@@ -2,6 +2,7 @@
+ 
+ import (
+ 	"context"
++	"fmt"
+ 	"iter"
+ 	"slices"
+ 	"strconv"
+@@ -13,13 +14,17 @@
+ // Row is one dataset or snapshot under the parent, decoded once from
+ // `zfs get -Hp` into typed columns. Everything the planners decide on is
+ // here; nothing downstream reads property strings.
++//
++// Production rows come only from decodeColumns, which checks the row
++// against its type and zeroes the columns its type does not have
++// (TestOnlyTableGoBuildsState). Tests still write rows as literals.
+ type Row struct {
+ 	Name     string // full zfs name
+ 	ID       string // name relative to the parent: "<vol>" or "<vol>@<snap>"
+ 	Type     zfs.Type
+-	Volsize  uint64
+-	Refquota uint64
+-	Refres   uint64
++	Volsize  uint64 // zvols and their snapshots
++	Refquota uint64 // filesystems
++	Refres   uint64 // refreservation: filesystems and zvols
+ 	BlockSz  uint64 // volblocksize (zvols)
+ 	Origin   string // full name of the clone origin snapshot, "" if none
+ 	Creation int64
+@@ -36,15 +41,94 @@
+ 	NFSClients    string // locally set desired client list (export.go)
+ 	NFSClientsSet bool
+ 
+-	// ownership, from user properties
+-	Managed        bool
+-	Committed      bool // provision_success
+-	VolumeName     string
+-	SourceType     string
+-	SourceID       string
+-	SnapshotName   string
+-	SnapshotSource string
+-}
++	// Own is what the endpoint may do with the row, decided once in
++	// decode from the markers below. The markers stay as data for views
++	// and messages; no planner decides on them.
++	Own Own
++
++	VolumeName     string // volumes
++	SourceType     string // volumes
++	SourceID       string // volumes
++	SnapshotName   string // snapshots
++	SnapshotSource string // snapshots
++}
++
++// Own is the endpoint's relation to a row. It replaces the managed and
++// provision_success booleans, whose combinations (committed but foreign,
++// managed but naming another volume, a managed snapshot without a CSI name)
++// every planner had to re-check, and did not all check alike.
++//
++// The zero value is Foreign: a Row literal, a phantom or anything decode
++// could not place is never acted on.
++type Own uint8
++
++const (
++	// Foreign: not ours. No local managed marker, or markers that name
++	// another volume or snapshot (a recv'd or renamed copy, ADR 0003).
++	Foreign Own = iota
++	// VolUncommitted: a volume we created whose provision never finished.
++	VolUncommitted
++	// VolCommitted: a provisioned volume.
++	VolCommitted
++	// SnapCSI: a CSI snapshot we cut.
++	SnapCSI
++	// SnapCloneSource: the internal "<vol>@volume-source-for-volume-<id>"
++	// snapshot a volume-to-volume clone hangs off. It carries no markers
++	// (the baseline cuts it bare), so it is ours by name only; reconcile
++	// also requires its volume to be ours.
++	SnapCloneSource
++)
++
++func (o Own) String() string {
++	switch o {
++	case Foreign:
++		return "foreign"
++	case VolUncommitted:
++		return "uncommitted"
++	case VolCommitted:
++		return "committed"
++	case SnapCSI:
++		return "csi-snapshot"
++	case SnapCloneSource:
++		return "clone-source"
++	}
++	return "Own(" + strconv.Itoa(int(o)) + ")"
++}
++
++// markers are the ownership properties as set locally on one row.
++type markers struct {
++	managed, success           bool
++	volName, snapName, snapSrc string
++}
++
++// classify decides Own for a row of type typ with id, from its local
++// markers. It is the only place ownership is decided.
++func classify(typ zfs.Type, id string, m markers) Own {
++	vol, name, isSnap := strings.Cut(id, "@")
++	if typ != zfs.TypeSnapshot || !isSnap {
++		if typ == zfs.TypeSnapshot || isSnap || !m.managed || (m.volName != "" && m.volName != id) {
++			return Foreign
++		}
++		if m.success {
++			return VolCommitted
++		}
++		return VolUncommitted
++	}
++	switch {
++	case m.managed && m.snapName != "" && (m.snapSrc == "" || m.snapSrc == vol):
++		return SnapCSI
++	case !m.managed && m.snapName == "" && strings.HasPrefix(name, cloneSourceSnapshotPrefix):
++		return SnapCloneSource
++	}
++	return Foreign
++}
++
++// OwnedVolume reports whether r is a volume the endpoint owns, committed
++// or not.
++func (r Row) OwnedVolume() bool { return r.Own == VolUncommitted || r.Own == VolCommitted }
++
++// OwnedSnapshot reports whether r is a CSI snapshot the endpoint cut.
++func (r Row) OwnedSnapshot() bool { return r.Own == SnapCSI }
+ 
+ // Capacity is the volume's size: volsize for zvols (and their snapshots),
+ // refquota for filesystems (0 = unlimited).
+@@ -63,24 +147,6 @@
+ 	return Filesystem
+ }
+ 
+-// OwnedVolume reports whether r is a volume the endpoint owns: marked
+-// managed on the dataset itself and, where the volume-name marker is set,
+-// marked for this id. A copy made with `zfs send | recv` or a renamed
+-// dataset carries another volume's name and is not this volume (ADR 0003).
+-func (r Row) OwnedVolume() bool {
+-	return r.Type != zfs.TypeSnapshot && r.Managed && (r.VolumeName == "" || r.VolumeName == r.ID)
+-}
+-
+-// OwnedSnapshot reports whether r is a CSI snapshot the endpoint cut: a
+-// managed snapshot with a CSI name whose source marker, where set, is the
+-// volume it hangs off. Administrators' and internal clone-source snapshots
+-// carry no CSI name.
+-func (r Row) OwnedSnapshot() bool {
+-	vol, _, _ := strings.Cut(r.ID, "@")
+-	return r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != "" &&
+-		(r.SnapshotSource == "" || r.SnapshotSource == vol)
+-}
+-
+ // Table is an immutable, ID-sorted set of rows with secondary indexes built
+ // once: snapshots by volume and clones by origin. Planners only read it.
+ //
+@@ -88,16 +154,36 @@
+ // volumes it was read for. A row missing from a table means "not there"
+ // only for what the table covers; planners that conclude from absence
+ // check coverage (mustCover) instead of reading "not scanned" as "gone".
++// Planners that need the whole parent take a FullTable, so that
++// requirement is in their signature rather than a runtime check.
+ type Table struct {
+ 	rows        []Row
+ 	snapsOfVol  map[string][]int // volume id -> snapshot rows
+ 	clonesOfSrc map[string][]int // origin snapshot full name -> clone rows
+-	whole       bool             // every volume under the parent was read
++	whole       bool             // every volume under the parent was read (set only via FullTable)
+ 	covered     map[string]bool  // else: the volumes that were read
+ }
+ 
++// FullTable is a Table read from the whole parent in one scan: a row
++// missing from it is missing from ZFS. scanAll and afterDestroy are its
++// only producers in production (TestOnlyTableGoBuildsState); a one-volume
++// Table does not convert, so "not read" cannot pass for "not there". Its
++// embedded Table is the same data, usable wherever a partial one is.
++type FullTable struct{ Table }
++
++// afterDestroy is t as it would be once plans' destroys ran (reconcile's
++// fixpoint): still the whole parent.
++func (t FullTable) afterDestroy(plans ...Plan) FullTable {
++	rows := slices.Clone(t.rows)
++	for _, p := range plans {
++		rows = simulateDestroy(rows, p)
++	}
++	return FullTable{NewTable(rows)}
++}
++
+ // NewTable sorts rows by ID and indexes them; they are everything under
+-// the parent (whole coverage). rows is taken over.
++// the parent (whole coverage). rows is taken over. Production code calls it
++// only in table.go, to build a FullTable; tests use it freely.
+ func NewTable(rows []Row) Table {
+ 	t := newPartialTable(rows)
+ 	t.whole = true
+@@ -148,14 +234,6 @@
+ 	return nil
+ }
+ 
+-// mustBeWhole refuses a table that does not cover the whole parent.
+-func (t Table) mustBeWhole(what string) error {
+-	if !t.whole {
+-		return errorf(Internal, "%s needs a scan of the whole parent", what)
+-	}
+-	return nil
+-}
+-
+ // Len is the number of rows.
+ func (t Table) Len() int { return len(t.rows) }
+ 
+@@ -209,10 +287,16 @@
+ }
+ 
+ // decodeColumns turns a columnar scan into rows: each column is located
+-// once, then every dataset is a straight read of its cells. It fails the
+-// whole scan on a number zfs could not have printed, or a zvol whose size
+-// breaks OpenZFS's own rules (volsize > 0, a multiple of volblocksize):
+-// read as 0, such a size would let Expand plan a shrink.
++// once, then every dataset is a straight read of its cells.
++//
++// It is the parse boundary. A row whose type is not one this scan asked
++// for, whose name disagrees with its type ('@' if and only if a snapshot),
++// whose numeric columns do not parse, or a zvol whose size breaks OpenZFS's
++// rules (32bc4ec) fails the whole scan: zfs -Hp never
++// prints such a row, so it is forged or misparsed output, and planners make
++// destructive decisions from this table (as with the duplicate-line check
++// in zfs.parseColumns). Columns a type does not have are left zero, so no
++// planner can read a snapshot's quota or a filesystem's volsize.
+ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
+ 	j := func(p string) int { return c.Col(p) }
+ 	cType, cVolsize, cBlock, cRefquota, cRefres := j("type"), j("volsize"), j("volblocksize"), j("refquota"), j("refreservation")
+@@ -226,13 +310,13 @@
+ 	cShare, cMounted, cClients := j("sharenfs"), j("mounted"), j(n.nfsClients())
+ 
+ 	rows := make([]Row, 0, len(c.Names))
+-	var bad error
+ 	for i, name := range c.Names {
+ 		cell := func(k int) zfs.Prop { return c.Cell(i, k) }
++		var bad error
+ 		u := func(k int) uint64 {
+ 			v, err := cell(k).Uint()
+ 			if err != nil && bad == nil {
+-				bad = errorf(Internal, "scan: %s: unparsable number %q: %v", name, cell(k).Value, err)
++				bad = fmt.Errorf("%s: %s=%q is not a number", name, c.Props[k], cell(k).Value)
+ 			}
+ 			return v
+ 		}
+@@ -244,91 +328,118 @@
+ 			}
+ 			return ""
+ 		}
++		typ := zfs.Type(cell(cType).Value)
++		switch typ {
++		case zfs.TypeFilesystem, zfs.TypeVolume, zfs.TypeSnapshot:
++		case zfs.TypeBookmark: // -t never lists them
++			return nil, fmt.Errorf("%s: type %q: not a dataset this scan lists", name, typ)
++		default: // "-": no type line was printed for this name
++			return nil, fmt.Errorf("%s: type %q: not a dataset this scan lists", name, typ)
++		}
++		if strings.Contains(name, "@") != (typ == zfs.TypeSnapshot) {
++			return nil, fmt.Errorf("%s: name does not match type %s", name, typ)
++		}
+ 		r := Row{
+-			Name:           name,
+-			ID:             strings.TrimPrefix(name, parent+"/"),
+-			Type:           zfs.Type(cell(cType).Value),
+-			Volsize:        u(cVolsize),
+-			Refquota:       u(cRefquota),
+-			Refres:         u(cRefres),
+-			BlockSz:        u(cBlock),
+-			Origin:         userValue(cell(cOrigin)),
+-			Deferred:       cell(cDefer).Value == "on",
+-			Mount:          userValue(cell(cMount)),
+-			Managed:        own(cManaged) == "true",
+-			Committed:      own(cSuccess) == "true",
+-			VolumeName:     own(cVolName),
+-			SourceType:     own(cSrcType),
+-			SourceID:       own(cSrcID),
+-			SnapshotName:   own(cSnapName),
+-			SnapshotSource: own(cSnapSrc),
+-			ShareNFS:       userValue(cell(cShare)),
+-			ShareNFSLocal:  cell(cShare).Local(),
+-			Mounted:        cell(cMounted).Value == "yes",
+-			NFSClients:     own(cClients),
+-			NFSClientsSet:  cell(cClients).Local(),
+-		}
+-		for k, col := range cLocal {
+-			// only local values: an inherited compression is the parent's
+-			// choice, not this volume's, and must not satisfy a request
+-			r.Local[k] = own(col)
++			Name: name,
++			ID:   strings.TrimPrefix(name, parent+"/"),
++			Type: typ,
+ 		}
+ 		if v, err := strconv.ParseInt(cell(cCreation).Value, 10, 64); err == nil {
+-			r.Creation = v
++			r.Creation = v // else 0: reconcile skips rows of unknown age
++		}
++		m := markers{managed: own(cManaged) == "true", success: own(cSuccess) == "true"}
++		switch typ {
++		case zfs.TypeSnapshot:
++			r.Volsize = u(cVolsize) // a zvol snapshot's size; 0 for filesystems
++			r.Deferred = cell(cDefer).Value == "on"
++			r.SnapshotName, r.SnapshotSource = own(cSnapName), own(cSnapSrc)
++			m.snapName, m.snapSrc = r.SnapshotName, r.SnapshotSource
++		case zfs.TypeVolume:
++			r.Volsize, r.BlockSz, r.Refres = u(cVolsize), u(cBlock), u(cRefres)
++			// OpenZFS's own rules (zvol.c), 32bc4ec: read as 0, a size would
++			// let Expand plan a shrink
++			if (r.Volsize == 0 || r.BlockSz == 0 || r.Volsize%r.BlockSz != 0) && bad == nil {
++				bad = fmt.Errorf("%s: zvol volsize %d / volblocksize %d breaks OpenZFS's own invariants", name, r.Volsize, r.BlockSz)
++			}
++		case zfs.TypeFilesystem:
++			r.Refquota, r.Refres = u(cRefquota), u(cRefres)
++			r.Mount = userValue(cell(cMount))
++			r.ShareNFS, r.ShareNFSLocal = userValue(cell(cShare)), cell(cShare).Local()
++			r.Mounted = cell(cMounted).Value == "yes"
++			r.NFSClients, r.NFSClientsSet = own(cClients), cell(cClients).Local()
++		case zfs.TypeBookmark: // refused above
++		}
++		if typ != zfs.TypeSnapshot {
++			r.Origin = userValue(cell(cOrigin))
++			r.VolumeName, r.SourceType, r.SourceID = own(cVolName), own(cSrcType), own(cSrcID)
++			m.volName = r.VolumeName
++			for k, col := range cLocal {
++				// only local values: an inherited compression is the parent's
++				// choice, not this volume's, and must not satisfy a request
++				r.Local[k] = own(col)
++			}
+ 		}
+-		if r.Type == zfs.TypeVolume && (r.Volsize == 0 || r.BlockSz == 0 || r.Volsize%r.BlockSz != 0) && bad == nil {
+-			bad = errorf(Internal, "scan: %s: zvol volsize %d / volblocksize %d breaks OpenZFS's own invariants", name, r.Volsize, r.BlockSz)
++		if bad != nil {
++			return nil, bad
+ 		}
++		r.Own = classify(typ, r.ID, m)
+ 		rows = append(rows, r)
+ 	}
+-	if bad != nil {
+-		return nil, bad
+-	}
+ 	return rows, nil
+ }
+ 
+-// scan reads the parent's volumes and snapshots in one zfs call; with only
+-// set, that one volume and its snapshots. The parent itself and anything
+-// deeper than a volume are dropped.
+-func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
+-	root, depth := e.cfg.Parent, 1 // parent/vol and parent/vol@snap
+-	if only != "" {
+-		root, depth = e.dataset(only), 0 // vol and vol@snap
++// scanVolume reads one volume and its snapshots in one zfs call. The
++// result covers only that volume.
++func (e *Endpoint) scanVolume(ctx context.Context, id string) (Table, error) {
++	rows, err := e.scanRoot(ctx, e.dataset(id), 0, false)
++	if err != nil {
++		return Table{}, err
++	}
++	return newPartialTable(rows, id), nil
++}
++
++// scanAll reads every volume and snapshot under the parent in one zfs call.
++func (e *Endpoint) scanAll(ctx context.Context) (FullTable, error) {
++	rows, err := e.scanRoot(ctx, e.cfg.Parent, 1, true)
++	if err != nil {
++		return FullTable{}, err
+ 	}
++	return FullTable{NewTable(rows)}, nil
++}
++
++// scanRoot reads root to depth (parent/vol and parent/vol@snap at most).
++// The parent itself and anything deeper than a volume are dropped.
++func (e *Endpoint) scanRoot(ctx context.Context, root string, depth int, isParent bool) ([]Row, error) {
+ 	cols, err := e.zfs.ListColumns(ctx, root, zfs.ListOptions{
+ 		Types: []zfs.Type{zfs.TypeFilesystem, zfs.TypeVolume, zfs.TypeSnapshot},
+ 		Depth: depth,
+ 		Props: e.names.columns(),
+ 	})
+ 	if err != nil {
+-		if only == "" && zfs.IsNotFound(err) {
++		if isParent && zfs.IsNotFound(err) {
+ 			// the root is the parent itself: missing or its pool exported
+-			return Table{}, parentUnavailable(e.cfg.Parent, err)
++			return nil, parentUnavailable(e.cfg.Parent, err)
+ 		}
+-		if only != "" && zfs.IsNotFound(err) {
++		if zfs.IsNotFound(err) {
+ 			// zfs says "dataset does not exist" for an exported pool too:
+ 			// only an existing parent makes a missing volume truly absent
+ 			ok, perr := e.zfs.Exists(ctx, e.cfg.Parent)
+ 			if perr == nil && ok {
+-				return newPartialTable(nil, only), nil
++				return nil, nil
+ 			}
+-			return Table{}, parentUnavailable(e.cfg.Parent, err)
++			return nil, parentUnavailable(e.cfg.Parent, err)
+ 		}
+-		return Table{}, zfsErr(err, "scan "+root)
++		return nil, zfsErr(err, "scan "+root)
+ 	}
+ 	rows, err := e.names.decodeColumns(e.cfg.Parent, cols)
+ 	if err != nil {
+-		return Table{}, err
++		return nil, &Error{Code: Internal, Msg: "scan " + root + ": refusing output zfs would not print", Err: err}
+ 	}
+-	rows = slices.DeleteFunc(rows, func(r Row) bool {
++	return slices.DeleteFunc(rows, func(r Row) bool {
+ 		if !strings.HasPrefix(r.Name, e.cfg.Parent+"/") {
+ 			return true // the parent and its own snapshots (pool-root parents)
+ 		}
+ 		vol, _, _ := strings.Cut(r.ID, "@")
+ 		return vol == "" || strings.Contains(vol, "/")
+-	})
+-	if only != "" {
+-		return newPartialTable(rows, only), nil
+-	}
+-	return NewTable(rows), nil
++	}), nil
+ }

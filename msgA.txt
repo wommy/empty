@@ -1,0 +1,33 @@
+export: IPv4 CIDR clients only, compared by network, with a floor
+
+Hostnames are refused: nfs-utils resolves a name on every exportfs -ra
+(any sharenfs change, zfs share -a, an nfs-server reload) and silently
+drops one it cannot resolve, so DNS trouble revoked exports with nothing
+to restore them (adv4 F1). Every client is written as a masked IPv4 CIDR
+with an explicit /N, /32 included: nfs-utils treats it as a subnet,
+keeps it verbatim, never resolves it and never merges it with hostname
+clients (F2). IPv6 is not accepted yet.
+
+- clients and etab entries compare by normalized netip.Prefix; a name
+  or bare address in etab never matches, and the hostname prefix rule in
+  Lookup is gone (F3)
+- a new client overlapping an exported network is FailedPrecondition:
+  nfs-utils applies the first matching line, so both modes cannot hold
+- Publish refuses /0, host bits, inet_aton spellings and networks
+  broader than Config.NFSMinPrefix (default /16) (F5)
+- an etab line with no leading ro/rw is served in an unknown mode, so
+  Publish cannot verify it and Unpublish still sees it (F13)
+- decodeClients refuses duplicate and overlapping entries; clients sort
+  by a stable total order (address, length, mode) (F14)
+- the property limit is 8191 bytes (ZFS_MAXPROPLEN-1), checked on
+  sharenfs and the encoded nfs_clients value (F7)
+- table: canmount and a received-sharenfs flag. The planners already
+  use them (a received sharenfs is foreign; an unmounted canmount=on
+  volume can be published) and treat a malformed id as no volume; the
+  endpoint wiring and its tests follow in later commits
+
+The adv4 proof tests are ported, inverted to assert the fixed behavior.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
+

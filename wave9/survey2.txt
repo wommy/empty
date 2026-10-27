@@ -1,0 +1,6 @@
+=== proj:create:compression (x400)
+# generated: seed0
+step 0 `zfs create -p $R`: proj differs
+  A: $R	compression	lz4	inherited from zfsep-test
+  B: $R	compression	on	default
+

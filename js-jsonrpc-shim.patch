@@ -1,0 +1,3904 @@
+diff --git a/package-lock.json b/package-lock.json
+index 7579a70..f11badf 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -34,7 +34,10 @@
+         "yargs": "^17.0.1"
+       },
+       "devDependencies": {
+-        "eslint": "^8.10.0"
++        "@types/node": "^22.20.5",
++        "@types/ws": "^8.18.2",
++        "eslint": "^8.10.0",
++        "typescript": "5.9"
+       }
+     },
+     "node_modules/@codefresh-io/docker-reference": {
+@@ -352,6 +355,21 @@
+         "openid-client": "^5.3.0"
+       }
+     },
++    "node_modules/@kubernetes/client-node/node_modules/@types/node": {
++      "version": "18.19.130",
++      "resolved": "https://registry.npmjs.org/@types/node/-/node-18.19.130.tgz",
++      "integrity": "sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==",
++      "license": "MIT",
++      "dependencies": {
++        "undici-types": "~5.26.4"
++      }
++    },
++    "node_modules/@kubernetes/client-node/node_modules/undici-types": {
++      "version": "5.26.5",
++      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz",
++      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==",
++      "license": "MIT"
++    },
+     "node_modules/@nodelib/fs.scandir": {
+       "version": "2.1.5",
+       "resolved": "https://registry.npmjs.org/@nodelib/fs.scandir/-/fs.scandir-2.1.5.tgz",
+@@ -511,12 +529,12 @@
+       "license": "MIT"
+     },
+     "node_modules/@types/node": {
+-      "version": "18.19.86",
+-      "resolved": "https://registry.npmjs.org/@types/node/-/node-18.19.86.tgz",
+-      "integrity": "sha512-fifKayi175wLyKyc5qUfyENhQ1dCNI1UNjp653d8kuYcPQN5JhX3dGuP/XmvPTg/xRBn1VTLpbmi+H/Mr7tLfQ==",
++      "version": "22.20.5",
++      "resolved": "https://registry.npmjs.org/@types/node/-/node-22.20.5.tgz",
++      "integrity": "sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==",
+       "license": "MIT",
+       "dependencies": {
+-        "undici-types": "~5.26.4"
++        "undici-types": "~6.21.0"
+       }
+     },
+     "node_modules/@types/request": {
+@@ -544,9 +562,9 @@
+       "license": "MIT"
+     },
+     "node_modules/@types/ws": {
+-      "version": "8.18.1",
+-      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.1.tgz",
+-      "integrity": "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==",
++      "version": "8.18.2",
++      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.2.tgz",
++      "integrity": "sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==",
+       "license": "MIT",
+       "dependencies": {
+         "@types/node": "*"
+@@ -574,7 +592,6 @@
+       "integrity": "sha512-OvQ/2pUDKmgfCg++xsTX1wGxfTaszcHVcTctW4UJB4hibJx2HXxxO5UmVgyjMa+ZDsiaf5wWLXYpRWMmBI0QHg==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "bin": {
+         "acorn": "bin/acorn"
+       },
+@@ -1623,7 +1640,6 @@
+       "deprecated": "This version is no longer supported. Please see https://eslint.org/version-support for other options.",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@eslint-community/eslint-utils": "^4.2.0",
+         "@eslint-community/regexpp": "^4.6.1",
+@@ -3892,7 +3908,6 @@
+       "resolved": "https://registry.npmjs.org/picomatch/-/picomatch-4.0.3.tgz",
+       "integrity": "sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==",
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=12"
+       },
+@@ -5101,6 +5116,20 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
++    "node_modules/typescript": {
++      "version": "5.9.3",
++      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
++      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "bin": {
++        "tsc": "bin/tsc",
++        "tsserver": "bin/tsserver"
++      },
++      "engines": {
++        "node": ">=14.17"
++      }
++    },
+     "node_modules/uglify-js": {
+       "version": "3.19.3",
+       "resolved": "https://registry.npmjs.org/uglify-js/-/uglify-js-3.19.3.tgz",
+@@ -5139,9 +5168,9 @@
+       "license": "MIT"
+     },
+     "node_modules/undici-types": {
+-      "version": "5.26.5",
+-      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz",
+-      "integrity": "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==",
++      "version": "6.21.0",
++      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz",
++      "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==",
+       "license": "MIT"
+     },
+     "node_modules/unique-filename": {
+@@ -5427,7 +5456,6 @@
+       "resolved": "https://registry.npmjs.org/ws/-/ws-8.18.1.tgz",
+       "integrity": "sha512-RKW2aJZMXeMxVpnZ6bck+RswznaxmzdULiBr6KY7XkTnW8uvt0iT9H5DkHUChXrc+uurzwa0rVI16n/Xzjdz1w==",
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=10.0.0"
+       },
+diff --git a/package.json b/package.json
+index 9d46d56..021aaad 100644
+--- a/package.json
++++ b/package.json
+@@ -43,6 +43,9 @@
+     "yargs": "^17.0.1"
+   },
+   "devDependencies": {
+-    "eslint": "^8.10.0"
++    "@types/node": "^22.20.5",
++    "@types/ws": "^8.18.2",
++    "eslint": "^8.10.0",
++    "typescript": "5.9"
+   }
+ }
+diff --git a/src/driver/freenas/http/index.js b/src/driver/freenas/http/index.js
+index cafd6ff..cf4c938 100644
+--- a/src/driver/freenas/http/index.js
++++ b/src/driver/freenas/http/index.js
+@@ -3,13 +3,67 @@ const http = require("http");
+ const https = require("https");
+ const URI = require("uri-js");
+ const { axios_request, stringify } = require("../../../utils/general");
++const { JsonRpcClient, compareApiVersions } = require("../jsonrpc/client");
++const { RestOverJsonRpc } = require("../jsonrpc/rest_shim");
+ const USER_AGENT = "democratic-csi-driver";
+ 
++// REST is removed in TrueNAS 26
++const REST_REMOVED_API_VERSION = "v26.0.0";
++
+ class Client {
+   constructor(options = {}) {
+     this.options = JSON.parse(JSON.stringify(options));
+     this.logger = console;
+     this.options.apiVersion = 2;
++    // rest | jsonrpc | auto (jsonrpc when the server no longer serves REST)
++    this.options.transport = this.options.transport || "auto";
++  }
++
++  getJsonRpcClient() {
++    if (!this.jsonRpcClient) {
++      this.jsonRpcClient = new JsonRpcClient({
++        host: this.options.host,
++        port: this.options.port,
++        protocol: this.options.protocol,
++        apiKey: this.options.apiKey,
++        username: this.options.username,
++        password: this.options.password,
++        allowInsecure: this.options.allowInsecure,
++        logger: this.logger,
++      });
++    }
++    return this.jsonRpcClient;
++  }
++
++  /**
++   * @returns {Promise<RestOverJsonRpc|null>} null when REST should be used
++   */
++  async getJsonRpcShim() {
++    if (this.jsonRpcShim !== undefined) {
++      return this.jsonRpcShim;
++    }
++    let useJsonRpc = this.options.transport == "jsonrpc";
++    if (this.options.transport == "auto") {
++      try {
++        const newest = await this.getJsonRpcClient().getServerApiVersion();
++        useJsonRpc =
++          !!newest && compareApiVersions(newest, REST_REMOVED_API_VERSION) >= 0;
++      } catch (err) {
++        // pre-25.04 servers have no /api/versions; stay on REST
++        this.logger.debug("TRUENAS API VERSION PROBE FAILED: " + err.message);
++        useJsonRpc = false;
++      }
++    }
++    if (useJsonRpc) {
++      await this.getJsonRpcClient().assertSupportedServer();
++      this.options.apiVersion = 2;
++      this.jsonRpcShim = new RestOverJsonRpc(this.getJsonRpcClient(), {
++        logger: this.logger,
++      });
++    } else {
++      this.jsonRpcShim = null;
++    }
++    return this.jsonRpcShim;
+   }
+ 
+   getHttpAgent() {
+@@ -148,6 +202,10 @@ class Client {
+ 
+   async get(endpoint, data, options = {}) {
+     const client = this;
++    const shim = await this.getJsonRpcShim();
++    if (shim) {
++      return shim.get(endpoint, data);
++    }
+     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
+       endpoint += "/";
+     }
+@@ -170,6 +228,10 @@ class Client {
+ 
+   async post(endpoint, data, options = {}) {
+     const client = this;
++    const shim = await this.getJsonRpcShim();
++    if (shim) {
++      return shim.post(endpoint, data);
++    }
+     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
+       endpoint += "/";
+     }
+@@ -193,6 +255,10 @@ class Client {
+ 
+   async put(endpoint, data, options = {}) {
+     const client = this;
++    const shim = await this.getJsonRpcShim();
++    if (shim) {
++      return shim.put(endpoint, data);
++    }
+     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
+       endpoint += "/";
+     }
+@@ -216,6 +282,10 @@ class Client {
+ 
+   async delete(endpoint, data, options = {}) {
+     const client = this;
++    const shim = await this.getJsonRpcShim();
++    if (shim) {
++      return shim.delete(endpoint, data);
++    }
+     if (this.options.apiVersion == 1 && !endpoint.endsWith("/")) {
+       endpoint += "/";
+     }
+diff --git a/src/driver/freenas/jsonrpc/client.js b/src/driver/freenas/jsonrpc/client.js
+new file mode 100644
+index 0000000..6b4794c
+--- /dev/null
++++ b/src/driver/freenas/jsonrpc/client.js
+@@ -0,0 +1,456 @@
++// @ts-check
++const http = require("http");
++const https = require("https");
++const WebSocket = require("ws");
++
++/** @typedef {import("../../../types/truenas").MethodName} MethodName */
++/**
++ * @template {MethodName} M
++ * @typedef {import("../../../types/truenas").Params<M>} Params
++ */
++/**
++ * @template {MethodName} M
++ * @typedef {import("../../../types/truenas").Result<M>} Result
++ */
++
++/**
++ * @typedef {object} JsonRpcClientOptions
++ * @property {string} host
++ * @property {number|string} [port]
++ * @property {"http"|"https"} [protocol]
++ * @property {string} [apiKey]
++ * @property {string} [username]
++ * @property {string} [password]
++ * @property {boolean} [allowInsecure]
++ * @property {number} [requestTimeout] ms, per call
++ * @property {number} [pingInterval] ms, 0 disables
++ * @property {number} [maxInFlight] concurrent calls per connection
++ * @property {Console|{debug: Function, info: Function, warn: Function, error: Function}} [logger]
++ */
++
++// the oldest API this transport is written against; REST is removed in 26
++const MIN_API_VERSION = "v25.10.0";
++
++// middlewared ErrnoMixin.ENOTAUTHENTICATED
++const ERRNO_NOT_AUTHENTICATED = 207;
++
++// truenas_api_client.jsonrpc.JSONRPCError
++const TRUENAS_TOO_MANY_CONCURRENT_CALLS = -32000;
++
++// middleware serves each connection through SoftHardSemaphore(10, 20) and
++// rejects past the hard limit; stay under the soft limit instead
++const DEFAULT_MAX_IN_FLIGHT = 8;
++
++class JsonRpcError extends Error {
++  /**
++   * @param {string} method
++   * @param {{code: number, message: string, data?: any}} error
++   */
++  constructor(method, error) {
++    const data = error.data || {};
++    super(`${method}: ${data.reason || error.message}`);
++    this.name = "JsonRpcError";
++    this.method = method;
++    this.code = error.code;
++    /** @type {string|undefined} e.g. ENOENT, EINVAL, EEXIST */
++    this.errname = data.errname;
++    /** @type {number|undefined} */
++    this.errno = data.error;
++    /** @type {string|undefined} */
++    this.reason = data.reason;
++    /** validation errors: [[attribute, message, errno], ...] */
++    this.extra = data.extra;
++  }
++
++  get tooManyConcurrentCalls() {
++    return this.code === TRUENAS_TOO_MANY_CONCURRENT_CALLS;
++  }
++
++  /**
++   * errnos of the individual validation failures; ValidationErrors arrive as
++   * EINVAL with the specific errno (EEXIST, ENOENT, ...) per field in extra
++   * @returns {number[]}
++   */
++  get fieldErrnos() {
++    if (!Array.isArray(this.extra)) return [];
++    return this.extra
++      .filter((e) => Array.isArray(e) && typeof e[2] === "number")
++      .map((e) => e[2]);
++  }
++
++  get notAuthenticated() {
++    return (
++      this.errno === ERRNO_NOT_AUTHENTICATED ||
++      this.errname === "ENOTAUTHENTICATED" ||
++      String(this.message).toUpperCase().includes("ENOTAUTHENTICATED")
++    );
++  }
++}
++
++class ConnectionError extends Error {
++  /** @param {string} message */
++  constructor(message) {
++    super(message);
++    this.name = "ConnectionError";
++  }
++}
++
++/**
++ * compare "v25.10.0" style versions numerically; RC/BETA suffixes sort with
++ * their numeric prefix
++ * @param {string} a
++ * @param {string} b
++ */
++function compareApiVersions(a, b) {
++  const pa = String(a).replace(/^v/, "").split(/[.-]/).map(Number);
++  const pb = String(b).replace(/^v/, "").split(/[.-]/).map(Number);
++  for (let i = 0; i < 3; i++) {
++    const d = (pa[i] || 0) - (pb[i] || 0);
++    if (d) return d;
++  }
++  return 0;
++}
++
++class JsonRpcClient {
++  /** @param {JsonRpcClientOptions} options */
++  constructor(options) {
++    this.options = {
++      requestTimeout: 60 * 1000,
++      pingInterval: 30 * 1000,
++      maxInFlight: DEFAULT_MAX_IN_FLIGHT,
++      ...options,
++    };
++    this.inFlight = 0;
++    /** @type {Array<() => void>} */
++    this.waiters = [];
++    this.logger = this.options.logger || console;
++    /** @type {WebSocket|null} */
++    this.ws = null;
++    /** @type {Promise<WebSocket>|null} */
++    this.connecting = null;
++    this.nextId = 1;
++    /** @type {Map<number, {method: string, resolve: Function, reject: Function, timer: NodeJS.Timeout}>} */
++    this.pending = new Map();
++    /** @type {NodeJS.Timeout|null} */
++    this.pingTimer = null;
++    /** @type {string[]|null} */
++    this.supportedVersions = null;
++    this.closed = false;
++  }
++
++  getProtocol() {
++    if (this.options.protocol) return this.options.protocol;
++    return String(this.options.port || "").includes("443") ? "https" : "http";
++  }
++
++  getOrigin() {
++    const port = this.options.port ? `:${this.options.port}` : "";
++    return `${this.options.host}${port}`;
++  }
++
++  getUrl() {
++    const scheme = this.getProtocol() == "https" ? "wss" : "ws";
++    // the server's native API; truenas-csi found the older-version compat
++    // adapters unreliable, so callers branch on the reported version instead
++    return `${scheme}://${this.getOrigin()}/api/current`;
++  }
++
++  /**
++   * GET /api/versions (plain HTTP, unauthenticated)
++   * @returns {Promise<string[]>}
++   */
++  async getSupportedVersions() {
++    if (this.supportedVersions) return this.supportedVersions;
++    const mod = this.getProtocol() == "https" ? https : http;
++    const url = `${this.getProtocol()}://${this.getOrigin()}/api/versions`;
++    const body = await new Promise((resolve, reject) => {
++      const req = mod.get(
++        url,
++        { rejectUnauthorized: !this.options.allowInsecure, timeout: 10 * 1000 },
++        (res) => {
++          let data = "";
++          res.on("data", (c) => (data += c));
++          res.on("end", () => {
++            if (res.statusCode != 200) {
++              reject(new ConnectionError(`GET ${url}: HTTP ${res.statusCode}`));
++            } else {
++              resolve(data);
++            }
++          });
++        }
++      );
++      req.on("timeout", () => req.destroy(new ConnectionError(`GET ${url}: timeout`)));
++      req.on("error", reject);
++    });
++    const versions = JSON.parse(body);
++    if (!Array.isArray(versions)) {
++      throw new ConnectionError(`GET ${url}: unexpected response`);
++    }
++    this.supportedVersions = versions.map(String);
++    return this.supportedVersions;
++  }
++
++  /** newest API version the server advertises */
++  async getServerApiVersion() {
++    const versions = await this.getSupportedVersions();
++    return versions.slice().sort(compareApiVersions).pop();
++  }
++
++  async assertSupportedServer() {
++    const newest = await this.getServerApiVersion();
++    if (!newest || compareApiVersions(newest, MIN_API_VERSION) < 0) {
++      throw new ConnectionError(
++        `TrueNAS JSON-RPC transport requires API ${MIN_API_VERSION} or newer (server advertises: ${(
++          this.supportedVersions || []
++        ).join(", ")})`
++      );
++    }
++  }
++
++  /** @returns {Promise<WebSocket>} */
++  async connect() {
++    if (this.closed) throw new ConnectionError("client closed");
++    if (this.ws && this.ws.readyState === WebSocket.OPEN) return this.ws;
++    if (!this.connecting) {
++      this.connecting = this._connect().finally(() => {
++        this.connecting = null;
++      });
++    }
++    return this.connecting;
++  }
++
++  /** @returns {Promise<WebSocket>} */
++  async _connect() {
++    const url = this.getUrl();
++    this.logger.debug("truenas jsonrpc connecting: %s", url);
++    /** @type {WebSocket} */
++    const ws = await new Promise((resolve, reject) => {
++      const sock = new WebSocket(url, {
++        rejectUnauthorized: !this.options.allowInsecure,
++        handshakeTimeout: 15 * 1000,
++        // large query results (datasets with many snapshots)
++        maxPayload: 64 * 1024 * 1024,
++      });
++      sock.once("open", () => resolve(sock));
++      sock.once("error", reject);
++    });
++    ws.on("message", (raw) => this._onMessage(raw));
++    ws.on("close", () => this._onClose(ws, "connection closed"));
++    ws.on("error", (err) => {
++      this.logger.warn("truenas jsonrpc socket error: %s", err.message);
++    });
++    this.ws = ws;
++    try {
++      await this._authenticate(ws);
++    } catch (err) {
++      ws.terminate();
++      this._onClose(ws, "authentication failed");
++      throw err;
++    }
++    this._startPing(ws);
++    return ws;
++  }
++
++  /** @param {WebSocket} ws */
++  async _authenticate(ws) {
++    const { apiKey, username, password } = this.options;
++    let ok;
++    if (apiKey) {
++      ok = await this._send(ws, "auth.login_with_api_key", [apiKey]);
++    } else if (username && password) {
++      ok = await this._send(ws, "auth.login", [username, password]);
++    } else {
++      throw new ConnectionError("truenas jsonrpc: apiKey or username/password required");
++    }
++    if (ok !== true) {
++      throw new ConnectionError("truenas jsonrpc: authentication rejected");
++    }
++  }
++
++  /** @param {WebSocket} ws */
++  _startPing(ws) {
++    if (!this.options.pingInterval) return;
++    this._stopPing();
++    // an API call rather than a protocol ping: it exercises the session too
++    this.pingTimer = setInterval(() => {
++      if (ws !== this.ws) return this._stopPing();
++      this._send(ws, "core.ping", [], 10 * 1000).catch((err) => {
++        this.logger.warn("truenas jsonrpc ping failed, dropping connection: %s", err.message);
++        ws.terminate();
++      });
++    }, this.options.pingInterval);
++    this.pingTimer.unref();
++  }
++
++  _stopPing() {
++    if (this.pingTimer) clearInterval(this.pingTimer);
++    this.pingTimer = null;
++  }
++
++  /**
++   * @param {WebSocket} ws
++   * @param {string} reason
++   */
++  _onClose(ws, reason) {
++    if (ws !== this.ws) return;
++    this.ws = null;
++    this._stopPing();
++    for (const [id, p] of this.pending) {
++      clearTimeout(p.timer);
++      p.reject(new ConnectionError(`${p.method}: ${reason}`));
++      this.pending.delete(id);
++    }
++  }
++
++  /** @param {WebSocket.RawData} raw */
++  _onMessage(raw) {
++    let msg;
++    try {
++      msg = JSON.parse(raw.toString());
++    } catch (err) {
++      this.logger.warn("truenas jsonrpc: unparseable message");
++      return;
++    }
++    // notifications (collection_update etc) carry no id
++    if (msg.id === undefined || msg.id === null) return;
++    const p = this.pending.get(msg.id);
++    if (!p) return;
++    this.pending.delete(msg.id);
++    clearTimeout(p.timer);
++    if (msg.error) {
++      p.reject(new JsonRpcError(p.method, msg.error));
++    } else {
++      p.resolve(msg.result);
++    }
++  }
++
++  /**
++   * @param {WebSocket} ws
++   * @param {string} method
++   * @param {unknown[]} params
++   * @param {number} [timeout]
++   * @returns {Promise<any>}
++   */
++  _send(ws, method, params, timeout = this.options.requestTimeout) {
++    return new Promise((resolve, reject) => {
++      const id = this.nextId++;
++      const timer = setTimeout(() => {
++        if (this.pending.delete(id)) {
++          reject(new ConnectionError(`${method}: timeout after ${timeout}ms`));
++        }
++      }, timeout);
++      this.pending.set(id, { method, resolve, reject, timer });
++      ws.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }), (err) => {
++        if (err && this.pending.delete(id)) {
++          clearTimeout(timer);
++          reject(new ConnectionError(`${method}: ${err.message}`));
++        }
++      });
++    });
++  }
++
++  async _acquire() {
++    if (this.inFlight < (this.options.maxInFlight || DEFAULT_MAX_IN_FLIGHT)) {
++      this.inFlight++;
++      return;
++    }
++    await new Promise((resolve) => this.waiters.push(() => resolve(undefined)));
++  }
++
++  _release() {
++    const next = this.waiters.shift();
++    if (next) {
++      next(); // hand the slot over
++    } else {
++      this.inFlight--;
++    }
++  }
++
++  /**
++   * Call a JSON-RPC method. Re-authenticates once if the server reports the
++   * session expired while the socket stayed open.
++   *
++   * @template {MethodName} M
++   * @param {M} method
++   * @param {Params<M>} params
++   * @returns {Promise<Result<M>>}
++   */
++  async call(method, params) {
++    return this.callUntyped(method, /** @type {unknown[]} */ (params));
++  }
++
++  /**
++   * Untyped escape hatch for methods outside the generated table.
++   *
++   * @param {string} method
++   * @param {unknown[]} [params]
++   * @returns {Promise<any>}
++   */
++  async callUntyped(method, params = []) {
++    await this._acquire();
++    try {
++      return await this._callOnce(method, params);
++    } finally {
++      this._release();
++    }
++  }
++
++  /**
++   * @param {string} method
++   * @param {unknown[]} params
++   */
++  async _callOnce(method, params) {
++    const ws = await this.connect();
++    try {
++      return await this._sendRetryingBusy(ws, method, params);
++    } catch (err) {
++      if (err instanceof JsonRpcError && err.notAuthenticated) {
++        this.logger.info("truenas jsonrpc session expired, re-authenticating");
++        try {
++          await this._authenticate(ws);
++        } catch (authErr) {
++          // drop the socket so the next call starts clean instead of looping
++          ws.terminate();
++          throw authErr;
++        }
++        return await this._sendRetryingBusy(ws, method, params);
++      }
++      throw err;
++    }
++  }
++
++  /**
++   * other clients share the server's limit, so back off on rejection too
++   * @param {WebSocket} ws
++   * @param {string} method
++   * @param {unknown[]} params
++   */
++  async _sendRetryingBusy(ws, method, params) {
++    for (let attempt = 0; ; attempt++) {
++      try {
++        return await this._send(ws, method, params);
++      } catch (err) {
++        if (!(err instanceof JsonRpcError && err.tooManyConcurrentCalls) || attempt >= 5) {
++          throw err;
++        }
++        await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
++      }
++    }
++  }
++
++  close() {
++    this.closed = true;
++    this._stopPing();
++    if (this.ws) {
++      const ws = this.ws;
++      this._onClose(ws, "client closed");
++      ws.close();
++    }
++  }
++}
++
++module.exports.JsonRpcClient = JsonRpcClient;
++module.exports.JsonRpcError = JsonRpcError;
++module.exports.ConnectionError = ConnectionError;
++module.exports.compareApiVersions = compareApiVersions;
++module.exports.MIN_API_VERSION = MIN_API_VERSION;
+diff --git a/src/driver/freenas/jsonrpc/rest_shim.js b/src/driver/freenas/jsonrpc/rest_shim.js
+new file mode 100644
+index 0000000..75aa80b
+--- /dev/null
++++ b/src/driver/freenas/jsonrpc/rest_shim.js
+@@ -0,0 +1,308 @@
++// @ts-check
++/**
++ * Serves the REST v2.0 `Client` surface (get/post/put/delete resolving to
++ * {statusCode, body}) over the TrueNAS JSON-RPC API, so the existing
++ * accessors in ../http/api.js, ../api.js and ../ssh.js keep working on
++ * TrueNAS 26+ where REST no longer exists.
++ *
++ * REST v2.0 was itself generated from middleware methods, so the mapping is
++ * mechanical:
++ *
++ *   GET    /a/b              -> a.b.query(filters, options)   (or a.b if a.b is a method)
++ *   GET    /a/b/id/<id>      -> a.b.get_instance(id, options)
++ *   POST   /a/b              -> a.b.create(body)
++ *   POST   /a/b/<verb>       -> a.b.<verb>(...body)
++ *   PUT    /a/b/id/<id>      -> a.b.update(id, body)
++ *   DELETE /a/b/id/<id>      -> a.b.delete(id, ...body)
++ *
++ * Object bodies become positional params using the parameter names generated
++ * from middleware (src/types/truenas/methods.json). Accessors should migrate
++ * to JsonRpcClient.call() directly; this shim is the bridge, not the target.
++ */
++const { JsonRpcError, ConnectionError } = require("./client");
++const METHODS = require("../../../types/truenas/methods.json");
++
++/** @typedef {{statusCode: number, body: any}} RestResponse */
++
++// methods the generated table does not cover but REST v2 callers reach
++/** @type {Record<string, string[]>} */
++const EXTRA_PARAMS = {
++  "system.version": [],
++  "system.info": [],
++  "core.get_jobs": ["filters", "options"],
++};
++
++// REST v1 / pre-SCALE spellings still referenced in the accessors
++/** @type {Record<string, string>} */
++const RESOURCE_ALIASES = {
++  "sharing.cifs": "sharing.smb",
++};
++
++// GET on these resources is a config()/plain call, not query()
++const CONFIG_RESOURCES = new Set(["iscsi.global", "nvmet.global", "nfs", "smb", "ssh"]);
++
++/**
++ * newest generated param table not newer than the server
++ * @param {string|undefined} serverVersion
++ */
++function paramTable(serverVersion) {
++  const versions = Object.keys(METHODS).sort();
++  let pick = versions[versions.length - 1];
++  if (serverVersion) {
++    for (const v of versions) {
++      if (v.localeCompare(serverVersion, undefined, { numeric: true }) <= 0) pick = v;
++    }
++  }
++  return /** @type {Record<string, string[]>} */ (METHODS[pick]);
++}
++
++/**
++ * REST query strings were strings on the wire; middleware models are strict
++ * @param {unknown} v
++ */
++function coerce(v) {
++  if (typeof v !== "string") return v;
++  if (v === "true") return true;
++  if (v === "false") return false;
++  if (/^-?\d+$/.test(v)) return Number(v);
++  if (/^[[{]/.test(v)) {
++    try {
++      return JSON.parse(v);
++    } catch (e) {
++      return v;
++    }
++  }
++  return v;
++}
++
++/**
++ * split REST GET params into JSON-RPC (filters, options)
++ * @param {Record<string, unknown>|null|undefined} data
++ */
++function queryArgs(data) {
++  /** @type {unknown[]} */
++  const filters = [];
++  /** @type {Record<string, any>} */
++  const options = {};
++  for (const [k, raw] of Object.entries(data || {})) {
++    const v = coerce(raw);
++    if (k === "limit" || k === "offset") {
++      options[k] = Number(v);
++    } else if (k === "count" || k === "get") {
++      options[k] = Boolean(v);
++    } else if (k === "sort") {
++      options.order_by = String(v).split(",");
++    } else if (k.startsWith("extra.")) {
++      options.extra = options.extra || {};
++      options.extra[k.slice(6)] = v;
++    } else {
++      filters.push([k, "=", v]);
++    }
++  }
++  return { filters, options };
++}
++
++/**
++ * @param {string} endpoint
++ * @returns {{resource: string, id?: string, verb?: string}}
++ */
++function parseEndpoint(endpoint) {
++  const path = String(endpoint).split("?")[0].replace(/^\/+|\/+$/g, "");
++  const segs = path.split("/").filter(Boolean);
++  const idx = segs.indexOf("id");
++  if (idx >= 0) {
++    return {
++      resource: segs.slice(0, idx).join("."),
++      id: segs.length > idx + 1 ? decodeURIComponent(segs[idx + 1]) : undefined,
++      verb: segs.length > idx + 2 ? segs.slice(idx + 2).join("_") : undefined,
++    };
++  }
++  return { resource: segs.join(".") };
++}
++
++/**
++ * map an object body onto positional params; single-param methods take the
++ * body whole (REST v2 did the same)
++ * @param {string[]} names
++ * @param {unknown} body
++ */
++function positional(names, body) {
++  if (body === undefined || body === null) return [];
++  if (Array.isArray(body)) return body;
++  if (names.length <= 1 || typeof body !== "object") return [body];
++  const obj = /** @type {Record<string, unknown>} */ (body);
++  if (!names.some((n) => n in obj)) {
++    // REST v2 sent the remaining options as the body (e.g. delete options)
++    return [body];
++  }
++  const out = names.map((n) => obj[n]);
++  while (out.length && out[out.length - 1] === undefined) out.pop();
++  return out;
++}
++
++/**
++ * JSON-RPC error -> the REST v2 status the accessors were written against.
++ * Their contract (recovered from every httpClient call site):
++ *   GET    not found      -> 404
++ *   POST   already exists -> 422, body mentions "already exists"
++ *   DELETE not found      -> 422, body mentions "does not exist"
++ * JSON-RPC reports these as errnames, so the text is normalized to match.
++ *
++ * @param {unknown} err
++ * @param {"get"|"post"|"put"|"delete"} verb
++ * @returns {RestResponse}
++ */
++function errorResponse(err, verb) {
++  if (!(err instanceof JsonRpcError)) throw err;
++  let message = String(err.reason || err.message);
++  const text = message.toLowerCase();
++  const fieldErrnos = err.fieldErrnos;
++  const notFound =
++    err.errname === "ENOENT" ||
++    fieldErrnos.includes(2) ||
++    err.code === -6 ||
++    /instancenotfound|does not exist|not found/.test(text);
++  const exists =
++    err.errname === "EEXIST" || fieldErrnos.includes(17) || /already exists/.test(text);
++
++  let statusCode = 500;
++  if (notFound) {
++    statusCode = verb == "get" ? 404 : 422;
++    if (!/does not exist/.test(text)) message += " (does not exist)";
++  } else if (exists) {
++    statusCode = 422;
++    if (!/already exists/.test(text)) message += " (already exists)";
++  } else if (err.errname === "EINVAL" || Array.isArray(err.extra)) {
++    statusCode = 422;
++  }
++  return {
++    statusCode,
++    body: { message, errname: err.errname, extra: err.extra },
++  };
++}
++
++class RestOverJsonRpc {
++  /**
++   * @param {import("./client").JsonRpcClient} rpc
++   * @param {{logger?: any}} [options]
++   */
++  constructor(rpc, options = {}) {
++    this.rpc = rpc;
++    this.logger = options.logger || rpc.logger;
++  }
++
++  async params() {
++    let version;
++    try {
++      version = await this.rpc.getServerApiVersion();
++    } catch (e) {
++      version = undefined;
++    }
++    return { ...EXTRA_PARAMS, ...paramTable(version) };
++  }
++
++  /**
++   * @param {"get"|"post"|"put"|"delete"} verb
++   * @param {string} method
++   * @param {unknown[]} params
++   * @returns {Promise<RestResponse>}
++   */
++  async invoke(verb, method, params) {
++    this.logger.debug("TRUENAS JSONRPC CALL: %s %j", method, params);
++    try {
++      const result = await this.rpc.callUntyped(method, params);
++      return { statusCode: 200, body: result };
++    } catch (err) {
++      if (err instanceof ConnectionError) throw err;
++      const res = errorResponse(err, verb);
++      this.logger.debug("TRUENAS JSONRPC ERROR: %s %d %j", method, res.statusCode, res.body);
++      return res;
++    }
++  }
++
++  /**
++   * @param {string} resource
++   */
++  resolve(resource) {
++    return RESOURCE_ALIASES[resource] || resource;
++  }
++
++  /**
++   * @param {string} endpoint
++   * @param {Record<string, unknown>|null} [data]
++   */
++  async get(endpoint, data) {
++    const { resource, id } = parseEndpoint(endpoint);
++    const res = this.resolve(resource);
++    const table = await this.params();
++    const { filters, options } = queryArgs(data);
++    if (id !== undefined) {
++      return this.invoke("get", `${res}.get_instance`, [coerceId(id), options]);
++    }
++    if (CONFIG_RESOURCES.has(res)) {
++      return this.invoke("get", `${res}.config`, []);
++    }
++    if (table[res]) {
++      // a method in its own right, e.g. system.version, core.get_jobs
++      return this.invoke("get", res, table[res].length ? [filters, options] : []);
++    }
++    return this.invoke("get", `${res}.query`, [filters, options]);
++  }
++
++  /**
++   * @param {string} endpoint
++   * @param {unknown} [data]
++   */
++  async post(endpoint, data) {
++    const { resource, id, verb } = parseEndpoint(endpoint);
++    const res = this.resolve(resource);
++    const table = await this.params();
++    if (id !== undefined) {
++      // POST /a/b/id/<id>/<verb>
++      const method = `${res}.${verb}`;
++      return this.invoke("post", method, [coerceId(id), ...positional((table[method] || []).slice(1), data)]);
++    }
++    const method = table[res] ? res : `${res}.create`;
++    return this.invoke("post", method, positional(table[method] || ["data"], data));
++  }
++
++  /**
++   * @param {string} endpoint
++   * @param {unknown} [data]
++   */
++  async put(endpoint, data) {
++    const { resource, id } = parseEndpoint(endpoint);
++    const res = this.resolve(resource);
++    if (id === undefined) {
++      // PUT on a config resource
++      return this.invoke("put", `${res}.update`, [data]);
++    }
++    return this.invoke("put", `${res}.update`, [coerceId(id), data]);
++  }
++
++  /**
++   * @param {string} endpoint
++   * @param {unknown} [data]
++   */
++  async delete(endpoint, data) {
++    const { resource, id } = parseEndpoint(endpoint);
++    const res = this.resolve(resource);
++    const table = await this.params();
++    const method = `${res}.delete`;
++    return this.invoke("delete", method, [coerceId(id), ...positional((table[method] || []).slice(1), data)]);
++  }
++}
++
++/**
++ * numeric ids (shares, targets, extents) are ints; dataset/snapshot ids are names
++ * @param {string|undefined} id
++ */
++function coerceId(id) {
++  return id !== undefined && /^\d+$/.test(id) ? Number(id) : id;
++}
++
++module.exports.RestOverJsonRpc = RestOverJsonRpc;
++module.exports.parseEndpoint = parseEndpoint;
++module.exports.queryArgs = queryArgs;
++module.exports.positional = positional;
++module.exports.errorResponse = errorResponse;
+diff --git a/src/types/truenas/index.d.ts b/src/types/truenas/index.d.ts
+new file mode 100644
+index 0000000..f8fca58
+--- /dev/null
++++ b/src/types/truenas/index.d.ts
+@@ -0,0 +1,16 @@
++// GENERATED by tools/truenas-typegen.py -- do not edit by hand.
++
++import type * as v25_10_0 from "./v25_10_0";
++import type * as v27_0_0 from "./v27_0_0";
++
++export interface MethodsByVersion {
++  "v25.10.0": v25_10_0.Methods;
++  "v27.0.0": v27_0_0.Methods;
++}
++export type ApiVersion = keyof MethodsByVersion;
++/** methods present in every generated version, typed by the newest */
++export type Methods = v27_0_0.Methods;
++export type MethodName = keyof Methods;
++export type Params<M extends MethodName> = Methods[M]["params"];
++export type Result<M extends MethodName> = Methods[M]["result"];
++export type { QueryFilter, QueryOptions } from "./v27_0_0";
+diff --git a/src/types/truenas/methods.json b/src/types/truenas/methods.json
+new file mode 100644
+index 0000000..0c49236
+--- /dev/null
++++ b/src/types/truenas/methods.json
+@@ -0,0 +1,366 @@
++{
++  "v25.10.0": {
++    "auth.login": [
++      "username",
++      "password",
++      "otp_token"
++    ],
++    "auth.login_with_api_key": [
++      "api_key"
++    ],
++    "core.get_jobs": [
++      "filters",
++      "options"
++    ],
++    "core.job_wait": [
++      "id"
++    ],
++    "filesystem.chown": [
++      "filesystem_chown"
++    ],
++    "filesystem.setperm": [
++      "filesystem_setperm"
++    ],
++    "iscsi.extent.create": [
++      "iscsi_extent_create"
++    ],
++    "iscsi.extent.delete": [
++      "id",
++      "remove",
++      "force"
++    ],
++    "iscsi.extent.query": [
++      "filters",
++      "options"
++    ],
++    "iscsi.extent.update": [
++      "id",
++      "iscsi_extent_update"
++    ],
++    "iscsi.global.config": [],
++    "iscsi.target.create": [
++      "iscsi_target_create"
++    ],
++    "iscsi.target.delete": [
++      "id",
++      "force",
++      "delete_extents"
++    ],
++    "iscsi.target.query": [
++      "filters",
++      "options"
++    ],
++    "iscsi.target.update": [
++      "id",
++      "iscsi_target_update"
++    ],
++    "iscsi.targetextent.create": [
++      "iscsi_target_to_extent_create"
++    ],
++    "iscsi.targetextent.delete": [
++      "id",
++      "force"
++    ],
++    "iscsi.targetextent.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.namespace.create": [
++      "nvmet_namespace_create"
++    ],
++    "nvmet.namespace.delete": [
++      "id",
++      "options"
++    ],
++    "nvmet.namespace.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.port.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.port_subsys.create": [
++      "nvmet_port_subsys_create"
++    ],
++    "nvmet.port_subsys.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.subsys.create": [
++      "nvmet_subsys_create"
++    ],
++    "nvmet.subsys.delete": [
++      "id",
++      "options"
++    ],
++    "nvmet.subsys.query": [
++      "filters",
++      "options"
++    ],
++    "pool.dataset.create": [
++      "data"
++    ],
++    "pool.dataset.delete": [
++      "id",
++      "options"
++    ],
++    "pool.dataset.destroy_snapshots": [
++      "name",
++      "snapshots"
++    ],
++    "pool.dataset.get_instance": [
++      "id",
++      "options"
++    ],
++    "pool.dataset.query": [
++      "filters",
++      "options"
++    ],
++    "pool.dataset.update": [
++      "id",
++      "data"
++    ],
++    "pool.snapshot.clone": [
++      "data"
++    ],
++    "pool.snapshot.create": [
++      "data"
++    ],
++    "pool.snapshot.delete": [
++      "id",
++      "options"
++    ],
++    "pool.snapshot.get_instance": [
++      "id",
++      "options"
++    ],
++    "pool.snapshot.query": [
++      "filters",
++      "options"
++    ],
++    "pool.snapshot.update": [
++      "id",
++      "data"
++    ],
++    "replication.run_onetime": [
++      "replication_run_onetime"
++    ],
++    "service.reload": [
++      "service",
++      "options"
++    ],
++    "sharing.nfs.create": [
++      "data"
++    ],
++    "sharing.nfs.delete": [
++      "id"
++    ],
++    "sharing.nfs.query": [
++      "filters",
++      "options"
++    ],
++    "sharing.nfs.update": [
++      "id",
++      "data"
++    ],
++    "sharing.smb.create": [
++      "data"
++    ],
++    "sharing.smb.delete": [
++      "id"
++    ],
++    "sharing.smb.query": [
++      "filters",
++      "options"
++    ],
++    "sharing.smb.update": [
++      "id",
++      "data"
++    ],
++    "system.info": [],
++    "system.version": []
++  },
++  "v27.0.0": {
++    "auth.login": [
++      "username",
++      "password",
++      "otp_token"
++    ],
++    "auth.login_with_api_key": [
++      "api_key"
++    ],
++    "core.get_jobs": [
++      "filters",
++      "options"
++    ],
++    "core.job_wait": [
++      "id"
++    ],
++    "filesystem.chown": [
++      "filesystem_chown"
++    ],
++    "filesystem.setperm": [
++      "filesystem_setperm"
++    ],
++    "iscsi.extent.create": [
++      "iscsi_extent_create"
++    ],
++    "iscsi.extent.delete": [
++      "id",
++      "remove",
++      "force"
++    ],
++    "iscsi.extent.query": [
++      "filters",
++      "options"
++    ],
++    "iscsi.extent.update": [
++      "id",
++      "iscsi_extent_update"
++    ],
++    "iscsi.global.config": [],
++    "iscsi.target.create": [
++      "iscsi_target_create"
++    ],
++    "iscsi.target.delete": [
++      "id",
++      "force",
++      "delete_extents"
++    ],
++    "iscsi.target.query": [
++      "filters",
++      "options"
++    ],
++    "iscsi.target.update": [
++      "id",
++      "iscsi_target_update"
++    ],
++    "iscsi.targetextent.create": [
++      "iscsi_target_to_extent_create"
++    ],
++    "iscsi.targetextent.delete": [
++      "id",
++      "force"
++    ],
++    "iscsi.targetextent.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.namespace.create": [
++      "nvmet_namespace_create"
++    ],
++    "nvmet.namespace.delete": [
++      "id",
++      "options"
++    ],
++    "nvmet.namespace.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.port.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.port_subsys.create": [
++      "nvmet_port_subsys_create"
++    ],
++    "nvmet.port_subsys.query": [
++      "filters",
++      "options"
++    ],
++    "nvmet.subsys.create": [
++      "nvmet_subsys_create"
++    ],
++    "nvmet.subsys.delete": [
++      "id",
++      "options"
++    ],
++    "nvmet.subsys.query": [
++      "filters",
++      "options"
++    ],
++    "pool.dataset.create": [
++      "data"
++    ],
++    "pool.dataset.delete": [
++      "id",
++      "options"
++    ],
++    "pool.dataset.destroy_snapshots": [
++      "name",
++      "snapshots"
++    ],
++    "pool.dataset.get_instance": [
++      "id",
++      "options"
++    ],
++    "pool.dataset.query": [
++      "filters",
++      "options"
++    ],
++    "pool.dataset.update": [
++      "id",
++      "data"
++    ],
++    "pool.snapshot.clone": [
++      "data"
++    ],
++    "pool.snapshot.create": [
++      "data"
++    ],
++    "pool.snapshot.delete": [
++      "id",
++      "options"
++    ],
++    "pool.snapshot.get_instance": [
++      "id",
++      "options"
++    ],
++    "pool.snapshot.query": [
++      "filters",
++      "options"
++    ],
++    "pool.snapshot.update": [
++      "id",
++      "data"
++    ],
++    "replication.run_onetime": [
++      "replication_run_onetime"
++    ],
++    "service.reload": [
++      "service",
++      "options"
++    ],
++    "sharing.nfs.create": [
++      "data"
++    ],
++    "sharing.nfs.delete": [
++      "id"
++    ],
++    "sharing.nfs.query": [
++      "filters",
++      "options"
++    ],
++    "sharing.nfs.update": [
++      "id",
++      "data"
++    ],
++    "sharing.smb.create": [
++      "data"
++    ],
++    "sharing.smb.delete": [
++      "id"
++    ],
++    "sharing.smb.query": [
++      "filters",
++      "options"
++    ],
++    "sharing.smb.update": [
++      "id",
++      "data"
++    ],
++    "system.info": [],
++    "system.version": []
++  }
++}
+diff --git a/src/types/truenas/v25_10_0.d.ts b/src/types/truenas/v25_10_0.d.ts
+new file mode 100644
+index 0000000..e6a4c8d
+--- /dev/null
++++ b/src/types/truenas/v25_10_0.d.ts
+@@ -0,0 +1,931 @@
++// GENERATED by tools/truenas-typegen.py from truenas/middleware
++// src/middlewared/middlewared/api/v25_10_0 -- do not edit by hand.
++
++export type QueryFilter = [string, string, unknown] | ["OR", QueryFilter[]] | unknown[];
++export interface QueryOptions {
++  extra?: Record<string, unknown>;
++  order_by?: string[];
++  select?: (string | unknown[])[];
++  count?: boolean;
++  get?: boolean;
++  offset?: number;
++  limit?: number;
++  force_sql_filters?: boolean;
++}
++
++export type ApiVersion = "v25.10.0";
++
++export interface Methods {
++  "auth.login": { params: [username: string, password: string, otp_token?: string | null]; result: boolean };
++  "auth.login_with_api_key": { params: [api_key: string]; result: boolean };
++  "core.get_jobs": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: CoreGetJobsItem[] | CoreGetJobsItem | number };
++  "core.job_wait": { params: [id: number]; result: unknown };
++  "filesystem.chown": { params: [filesystem_chown: FilesystemChownArgs]; result: null };
++  "filesystem.setperm": { params: [filesystem_setperm: FilesystemSetpermArgs]; result: null };
++  "iscsi.extent.create": { params: [iscsi_extent_create: IscsiExtentCreate]; result: iSCSITargetExtentEntry };
++  "iscsi.extent.delete": { params: [id: number, remove?: boolean, force?: boolean]; result: true };
++  "iscsi.extent.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: iSCSITargetExtentEntry[] | iSCSITargetExtentEntry | number };
++  "iscsi.extent.update": { params: [id: number, iscsi_extent_update: IscsiExtentUpdate]; result: iSCSITargetExtentEntry };
++  "iscsi.global.config": { params: []; result: ISCSIGlobalEntry };
++  "iscsi.target.create": { params: [iscsi_target_create: IscsiTargetCreate]; result: iSCSITargetEntry };
++  "iscsi.target.delete": { params: [id: number, force?: boolean, delete_extents?: boolean]; result: true };
++  "iscsi.target.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: iSCSITargetEntry[] | iSCSITargetEntry | number };
++  "iscsi.target.update": { params: [id: number, iscsi_target_update: IscsiTargetUpdate]; result: iSCSITargetEntry };
++  "iscsi.targetextent.create": { params: [iscsi_target_to_extent_create: IscsiTargetToExtentCreate]; result: iSCSITargetToExtentEntry };
++  "iscsi.targetextent.delete": { params: [id: number, force?: boolean]; result: true };
++  "iscsi.targetextent.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: iSCSITargetToExtentEntry[] | iSCSITargetToExtentEntry | number };
++  "nvmet.namespace.create": { params: [nvmet_namespace_create: NVMetNamespaceCreate]; result: NVMetNamespaceEntry };
++  "nvmet.namespace.delete": { params: [id: number, options?: NVMetNamespaceDeleteOptions]; result: true };
++  "nvmet.namespace.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetNamespaceEntry[] | NVMetNamespaceEntry | number };
++  "nvmet.port.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetPortEntry[] | NVMetPortEntry | number };
++  "nvmet.port_subsys.create": { params: [nvmet_port_subsys_create: NVMetPortSubsysCreate]; result: NVMetPortSubsysEntry };
++  "nvmet.port_subsys.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetPortSubsysEntry[] | NVMetPortSubsysEntry | number };
++  "nvmet.subsys.create": { params: [nvmet_subsys_create: NVMetSubsysCreate]; result: NVMetSubsysEntry };
++  "nvmet.subsys.delete": { params: [id: number, options?: NVMetSubsysDeleteOptions]; result: true };
++  "nvmet.subsys.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetSubsysEntry[] | NVMetSubsysEntry | number };
++  "pool.dataset.create": { params: [data: PoolDatasetCreateFilesystem | PoolDatasetCreateVolume]; result: PoolDatasetEntry };
++  "pool.dataset.delete": { params: [id: string, options?: PoolDatasetDeleteOptions]; result: null | true };
++  "pool.dataset.destroy_snapshots": { params: [name: string, snapshots: PoolDatasetDestroySnapshotsArgsSnapshots]; result: string[] };
++  "pool.dataset.get_instance": { params: [id: string | number, options?: QueryOptions]; result: PoolDatasetEntry };
++  "pool.dataset.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: PoolDatasetEntry[] | PoolDatasetEntry | number };
++  "pool.dataset.update": { params: [id: string, data: PoolDatasetUpdate]; result: PoolDatasetEntry };
++  "pool.snapshot.clone": { params: [data: PoolSnapshotCloneArgs]; result: true };
++  "pool.snapshot.create": { params: [data: PoolSnapshotCreateWithName | PoolSnapshotCreateWithSchema]; result: PoolSnapshotCreateUpdateEntry };
++  "pool.snapshot.delete": { params: [id: string, options?: PoolSnapshotDeleteOptions]; result: true };
++  "pool.snapshot.get_instance": { params: [id: string | number, options?: QueryOptions]; result: PoolSnapshotEntry };
++  "pool.snapshot.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: PoolSnapshotEntry[] | PoolSnapshotEntry | number };
++  "pool.snapshot.update": { params: [id: string, data: PoolSnapshotUpdate]; result: PoolSnapshotCreateUpdateEntry };
++  "replication.run_onetime": { params: [replication_run_onetime: ReplicationRunOnetimeArgs]; result: null };
++  "service.reload": { params: [service: string, options?: ServiceOptions]; result: boolean };
++  "sharing.nfs.create": { params: [data: NfsShareCreate]; result: SharingNFSEntry };
++  "sharing.nfs.delete": { params: [id: number]; result: true };
++  "sharing.nfs.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: SharingNFSEntry[] | SharingNFSEntry | number };
++  "sharing.nfs.update": { params: [id: number, data: NfsShareUpdate]; result: SharingNFSEntry };
++  "sharing.smb.create": { params: [data: SmbShareCreate]; result: SharingSMBEntry };
++  "sharing.smb.delete": { params: [id: number]; result: true };
++  "sharing.smb.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: SharingSMBEntry[] | SharingSMBEntry | number };
++  "sharing.smb.update": { params: [id: number, data: SmbShareUpdate]; result: SharingSMBEntry };
++  "system.info": { params: []; result: SystemInfoResult };
++  "system.version": { params: []; result: string };
++}
++
++export interface CoreGetJobsItem {
++  id: number;
++  message_ids: unknown[];
++  method: string;
++  arguments: unknown[];
++  transient: boolean;
++  description: string | null;
++  abortable: boolean;
++  logs_path: string | null;
++  logs_excerpt: string | null;
++  progress: CoreGetJobsItemProgress;
++  result: unknown;
++  result_encoding_error: unknown;
++  error: string | null;
++  exception: string | null;
++  exc_info: CoreGetJobsItemExcInfo | null;
++  state: string;
++  time_started: unknown;
++  time_finished: unknown;
++  credentials: CoreGetJobsItemCredentials | null;
++}
++
++export interface CoreGetJobsItemCredentials {
++  type: string;
++  data: Record<string, unknown>;
++}
++
++export interface CoreGetJobsItemExcInfo {
++  repr: string | null;
++  type: string | null;
++  errno: number | null;
++  extra: unknown;
++}
++
++export interface CoreGetJobsItemProgress {
++  percent: number | null;
++  description: string | null;
++  extra: unknown;
++}
++
++export interface CronModel {
++  minute?: string;
++  hour?: string;
++  dom?: string;
++  month?: string;
++  dow?: string;
++}
++
++export interface DefaultOpt {
++  purpose: ;
++  aapl_name_mangling?: boolean;
++}
++
++export interface ExternalOpt {
++  purpose: ;
++  remote_path: string[];
++}
++
++export interface FilesystemChownArgs {
++  path: string;
++  uid?: number | null;
++  user?: string | null;
++  gid?: number | null;
++  group?: string | null;
++  options?: FilesystemChownOptions;
++}
++
++export interface FilesystemChownOptions {
++  recursive?: boolean;
++  traverse?: boolean;
++}
++
++export interface FilesystemSetpermArgs {
++  path: string;
++  uid?: number | null;
++  user?: string | null;
++  gid?: number | null;
++  group?: string | null;
++  mode?: string | null;
++  options?: FilesystemSetpermOptions;
++}
++
++export interface FilesystemSetpermOptions {
++  recursive?: boolean;
++  traverse?: boolean;
++  stripacl?: boolean;
++}
++
++export interface ISCSIGlobalEntry {
++  id: number;
++  basename: string;
++  isns_servers: string[];
++  listen_port?: number;
++  pool_avail_threshold?: number | null;
++  alua: boolean;
++  iser: boolean;
++}
++
++export interface IscsiExtentCreate {
++  name: string;
++  type?: "DISK" | "FILE";
++  disk?: string | null;
++  serial?: string | null;
++  path?: string | null;
++  filesize?: string | number;
++  blocksize?: 512 | 1024 | 2048 | 4096;
++  pblocksize?: boolean;
++  avail_threshold?: number | null;
++  comment?: string;
++  insecure_tpc?: boolean;
++  xen?: boolean;
++  rpm?: "UNKNOWN" | "SSD" | "5400" | "7200" | "10000" | "15000";
++  ro?: boolean;
++  enabled?: boolean;
++  product_id?: string | null;
++}
++
++export interface IscsiExtentUpdate {
++  name?: string;
++  type?: "DISK" | "FILE";
++  disk?: string | null;
++  serial?: string | null;
++  path?: string | null;
++  filesize?: string | number;
++  blocksize?: 512 | 1024 | 2048 | 4096;
++  pblocksize?: boolean;
++  avail_threshold?: number | null;
++  comment?: string;
++  insecure_tpc?: boolean;
++  xen?: boolean;
++  rpm?: "UNKNOWN" | "SSD" | "5400" | "7200" | "10000" | "15000";
++  ro?: boolean;
++  enabled?: boolean;
++  product_id?: string | null;
++}
++
++export interface IscsiGroup {
++  portal: number;
++  initiator?: number | null;
++  authmethod?: "NONE" | "CHAP" | "CHAP_MUTUAL";
++  auth?: number | null;
++}
++
++export interface IscsiTargetCreate {
++  name: string;
++  alias?: string | null;
++  mode?: "ISCSI" | "FC" | "BOTH";
++  groups?: IscsiGroup[];
++  auth_networks?: string[];
++  iscsi_parameters?: IscsiTargetParameters | null;
++}
++
++export interface IscsiTargetParameters {
++  QueuedCommands?: 32 | 128 | null;
++}
++
++export interface IscsiTargetToExtentCreate {
++  target: number;
++  lunid?: number | null;
++  extent: number;
++}
++
++export interface IscsiTargetUpdate {
++  name?: string;
++  alias?: string | null;
++  mode?: "ISCSI" | "FC" | "BOTH";
++  groups?: IscsiGroup[];
++  auth_networks?: string[];
++  iscsi_parameters?: IscsiTargetParameters | null;
++}
++
++export interface KeychainCredentialEntry {
++  id: number;
++  name: string;
++  type: "SSH_KEY_PAIR" | "SSH_CREDENTIALS";
++  attributes: SSHKeyPair | SSHCredentials;
++}
++
++export interface LegacyOpt {
++  purpose: ;
++  recyclebin?: boolean;
++  path_suffix?: string | null;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++  guestok?: boolean;
++  streams?: boolean;
++  durablehandle?: boolean;
++  shadowcopy?: boolean;
++  fsrvp?: boolean;
++  home?: boolean;
++  acl?: boolean;
++  afp?: boolean;
++  timemachine?: boolean;
++  timemachine_quota?: number;
++  aapl_name_mangling?: boolean;
++  vuid?: string | null;
++  auxsmbconf?: string;
++}
++
++export interface MultiprotocolOpt {
++  purpose: ;
++  aapl_name_mangling?: boolean;
++}
++
++export interface NVMetNamespaceCreate {
++  nsid?: number | null;
++  device_type: "ZVOL" | "FILE";
++  device_path: string;
++  filesize?: number | null;
++  enabled?: boolean;
++  subsys_id: number;
++}
++
++export interface NVMetNamespaceDeleteOptions {
++  remove?: boolean;
++}
++
++export interface NVMetNamespaceEntry {
++  id: number;
++  nsid?: number | null;
++  subsys: NVMetSubsysEntry;
++  device_type: "ZVOL" | "FILE";
++  device_path: string;
++  filesize?: number | null;
++  device_uuid: string;
++  device_nguid: string;
++  enabled?: boolean;
++  locked: boolean | null;
++}
++
++export interface NVMetPortEntry {
++  id: number;
++  index: number;
++  addr_trtype: "TCP" | "RDMA" | "FC";
++  addr_trsvcid: number | string | null;
++  addr_traddr: string;
++  addr_adrfam: "IPV4" | "IPV6" | "FC";
++  inline_data_size?: number | null;
++  max_queue_size?: number | null;
++  pi_enable?: boolean | null;
++  enabled?: boolean;
++}
++
++export interface NVMetPortSubsysCreate {
++  port_id: number;
++  subsys_id: number;
++}
++
++export interface NVMetPortSubsysEntry {
++  id: number;
++  port: NVMetPortEntry;
++  subsys: NVMetSubsysEntry;
++}
++
++export interface NVMetSubsysCreate {
++  name: string;
++  subnqn?: string | null;
++  allow_any_host?: boolean;
++  pi_enable?: boolean | null;
++  qid_max?: number | null;
++  ieee_oui?: string | null;
++  ana?: boolean | null;
++}
++
++export interface NVMetSubsysDeleteOptions {
++  force?: boolean;
++}
++
++export interface NVMetSubsysEntry {
++  id: number;
++  name: string;
++  subnqn?: string | null;
++  serial: string;
++  allow_any_host?: boolean;
++  pi_enable?: boolean | null;
++  qid_max?: number | null;
++  ieee_oui?: string | null;
++  ana?: boolean | null;
++  hosts?: number[] | null;
++  namespaces?: number[] | null;
++  ports?: number[] | null;
++}
++
++export interface NfsShareCreate {
++  path: string;
++  aliases?: string[];
++  comment?: string;
++  networks?: string[];
++  hosts?: string[];
++  ro?: boolean;
++  maproot_user?: string | null;
++  maproot_group?: string | null;
++  mapall_user?: string | null;
++  mapall_group?: string | null;
++  security?: ("SYS" | "KRB5" | "KRB5I" | "KRB5P")[];
++  enabled?: boolean;
++  expose_snapshots?: boolean;
++}
++
++export interface NfsShareUpdate {
++  path?: string;
++  aliases?: string[];
++  comment?: string;
++  networks?: string[];
++  hosts?: string[];
++  ro?: boolean;
++  maproot_user?: string | null;
++  maproot_group?: string | null;
++  mapall_user?: string | null;
++  mapall_group?: string | null;
++  security?: ("SYS" | "KRB5" | "KRB5I" | "KRB5P")[];
++  enabled?: boolean;
++  expose_snapshots?: boolean;
++}
++
++export interface PoolCreateEncryptionOptions {
++  generate_key?: boolean;
++  pbkdf2iters?: number;
++  algorithm?: "AES-128-CCM" | "AES-192-CCM" | "AES-256-CCM" | "AES-128-GCM" | "AES-192-GCM" | "AES-256-GCM";
++  passphrase?: string | null;
++  key?: string | null;
++}
++
++export interface PoolDatasetCreateFilesystem {
++  name: string;
++  comments?: string;
++  sync?: "STANDARD" | "ALWAYS" | "DISABLED" | "INHERIT";
++  snapdev?: "HIDDEN" | "VISIBLE" | "INHERIT";
++  compression?: "ON" | "OFF" | "LZ4" | "GZIP" | "GZIP-1" | "GZIP-9" | "ZSTD" | "ZSTD-FAST" | "ZLE" | "LZJB" | "ZSTD-1" | "ZSTD-2" | "ZSTD-3" | "ZSTD-4" | "ZSTD-5" | "ZSTD-6" | "ZSTD-7" | "ZSTD-8" | "ZSTD-9" | "ZSTD-10" | "ZSTD-11" | "ZSTD-12" | "ZSTD-13" | "ZSTD-14" | "ZSTD-15" | "ZSTD-16" | "ZSTD-17" | "ZSTD-18" | "ZSTD-19" | "ZSTD-FAST-1" | "ZSTD-FAST-2" | "ZSTD-FAST-3" | "ZSTD-FAST-4" | "ZSTD-FAST-5" | "ZSTD-FAST-6" | "ZSTD-FAST-7" | "ZSTD-FAST-8" | "ZSTD-FAST-9" | "ZSTD-FAST-10" | "ZSTD-FAST-20" | "ZSTD-FAST-30" | "ZSTD-FAST-40" | "ZSTD-FAST-50" | "ZSTD-FAST-60" | "ZSTD-FAST-70" | "ZSTD-FAST-80" | "ZSTD-FAST-90" | "ZSTD-FAST-100" | "ZSTD-FAST-500" | "ZSTD-FAST-1000" | "INHERIT";
++  exec?: "ON" | "OFF" | "INHERIT";
++  managedby?: string;
++  quota_warning?: number | "INHERIT";
++  quota_critical?: number | "INHERIT";
++  refquota_warning?: number | "INHERIT";
++  refquota_critical?: number | "INHERIT";
++  reservation?: number;
++  refreservation?: number;
++  special_small_block_size?: number | "INHERIT";
++  copies?: number | "INHERIT";
++  snapdir?: "DISABLED" | "VISIBLE" | "HIDDEN" | "INHERIT";
++  deduplication?: "ON" | "VERIFY" | "OFF" | "INHERIT";
++  checksum?: "ON" | "OFF" | "FLETCHER2" | "FLETCHER4" | "SHA256" | "SHA512" | "SKEIN" | "EDONR" | "BLAKE3" | "INHERIT";
++  readonly?: "ON" | "OFF" | "INHERIT";
++  share_type?: "GENERIC" | "MULTIPROTOCOL" | "NFS" | "SMB" | "APPS";
++  encryption_options?: PoolCreateEncryptionOptions;
++  encryption?: boolean;
++  inherit_encryption?: boolean;
++  user_properties?: PoolDatasetCreateUserProperty[];
++  create_ancestors?: boolean;
++  type?: "FILESYSTEM";
++  aclmode?: "PASSTHROUGH" | "RESTRICTED" | "DISCARD" | "INHERIT";
++  acltype?: "OFF" | "NFSV4" | "POSIX" | "INHERIT";
++  atime?: "ON" | "OFF" | "INHERIT";
++  casesensitivity?: "SENSITIVE" | "INSENSITIVE" | "INHERIT";
++  quota?: number | 0 | null;
++  refquota?: number | 0 | null;
++  recordsize?: string;
++}
++
++export interface PoolDatasetCreateUserProperty {
++  key: string;
++  value: string;
++}
++
++export interface PoolDatasetCreateVolume {
++  name: string;
++  comments?: string;
++  sync?: "STANDARD" | "ALWAYS" | "DISABLED" | "INHERIT";
++  snapdev?: "HIDDEN" | "VISIBLE" | "INHERIT";
++  compression?: "ON" | "OFF" | "LZ4" | "GZIP" | "GZIP-1" | "GZIP-9" | "ZSTD" | "ZSTD-FAST" | "ZLE" | "LZJB" | "ZSTD-1" | "ZSTD-2" | "ZSTD-3" | "ZSTD-4" | "ZSTD-5" | "ZSTD-6" | "ZSTD-7" | "ZSTD-8" | "ZSTD-9" | "ZSTD-10" | "ZSTD-11" | "ZSTD-12" | "ZSTD-13" | "ZSTD-14" | "ZSTD-15" | "ZSTD-16" | "ZSTD-17" | "ZSTD-18" | "ZSTD-19" | "ZSTD-FAST-1" | "ZSTD-FAST-2" | "ZSTD-FAST-3" | "ZSTD-FAST-4" | "ZSTD-FAST-5" | "ZSTD-FAST-6" | "ZSTD-FAST-7" | "ZSTD-FAST-8" | "ZSTD-FAST-9" | "ZSTD-FAST-10" | "ZSTD-FAST-20" | "ZSTD-FAST-30" | "ZSTD-FAST-40" | "ZSTD-FAST-50" | "ZSTD-FAST-60" | "ZSTD-FAST-70" | "ZSTD-FAST-80" | "ZSTD-FAST-90" | "ZSTD-FAST-100" | "ZSTD-FAST-500" | "ZSTD-FAST-1000" | "INHERIT";
++  exec?: "ON" | "OFF" | "INHERIT";
++  managedby?: string;
++  quota_warning?: number | "INHERIT";
++  quota_critical?: number | "INHERIT";
++  refquota_warning?: number | "INHERIT";
++  refquota_critical?: number | "INHERIT";
++  reservation?: number;
++  refreservation?: number;
++  special_small_block_size?: number | "INHERIT";
++  copies?: number | "INHERIT";
++  snapdir?: "DISABLED" | "VISIBLE" | "HIDDEN" | "INHERIT";
++  deduplication?: "ON" | "VERIFY" | "OFF" | "INHERIT";
++  checksum?: "ON" | "OFF" | "FLETCHER2" | "FLETCHER4" | "SHA256" | "SHA512" | "SKEIN" | "EDONR" | "BLAKE3" | "INHERIT";
++  readonly?: "ON" | "OFF" | "INHERIT";
++  share_type?: "GENERIC" | "MULTIPROTOCOL" | "NFS" | "SMB" | "APPS";
++  encryption_options?: PoolCreateEncryptionOptions;
++  encryption?: boolean;
++  inherit_encryption?: boolean;
++  user_properties?: PoolDatasetCreateUserProperty[];
++  create_ancestors?: boolean;
++  type?: "VOLUME";
++  force_size?: boolean;
++  sparse?: boolean;
++  volsize: number;
++  volblocksize?: "512" | "512B" | "1K" | "2K" | "4K" | "8K" | "16K" | "32K" | "64K" | "128K";
++}
++
++export interface PoolDatasetDeleteOptions {
++  recursive?: boolean;
++  force?: boolean;
++}
++
++export interface PoolDatasetDestroySnapshotsArgsSnapshotSpec {
++  start?: string | null;
++  end?: string | null;
++}
++
++export interface PoolDatasetDestroySnapshotsArgsSnapshots {
++  all?: boolean;
++  recursive?: boolean;
++  snapshots?: (PoolDatasetDestroySnapshotsArgsSnapshotSpec | string)[];
++}
++
++export interface PoolDatasetEntry {
++  id?: string;
++  type?: string;
++  name?: string;
++  pool?: string;
++  encrypted?: boolean;
++  encryption_root?: string | null;
++  key_loaded?: boolean | null;
++  children?: unknown[];
++  user_properties?: Record<string, unknown>;
++  locked?: boolean;
++  comments?: PoolDatasetEntryProperty;
++  quota_warning?: PoolDatasetEntryProperty;
++  quota_critical?: PoolDatasetEntryProperty;
++  refquota_warning?: PoolDatasetEntryProperty;
++  refquota_critical?: PoolDatasetEntryProperty;
++  managedby?: PoolDatasetEntryProperty;
++  deduplication?: PoolDatasetEntryProperty;
++  aclmode?: PoolDatasetEntryProperty;
++  acltype?: PoolDatasetEntryProperty;
++  xattr?: PoolDatasetEntryProperty;
++  atime?: PoolDatasetEntryProperty;
++  casesensitivity?: PoolDatasetEntryProperty;
++  checksum?: PoolDatasetEntryProperty;
++  exec?: PoolDatasetEntryProperty;
++  sync?: PoolDatasetEntryProperty;
++  compression?: PoolDatasetEntryProperty;
++  compressratio?: PoolDatasetEntryProperty;
++  origin?: PoolDatasetEntryProperty;
++  quota?: PoolDatasetEntryProperty;
++  refquota?: PoolDatasetEntryProperty;
++  reservation?: PoolDatasetEntryProperty;
++  refreservation?: PoolDatasetEntryProperty;
++  copies?: PoolDatasetEntryProperty;
++  snapdir?: PoolDatasetEntryProperty;
++  readonly?: PoolDatasetEntryProperty;
++  recordsize?: PoolDatasetEntryProperty;
++  sparse?: PoolDatasetEntryProperty;
++  volsize?: PoolDatasetEntryProperty;
++  volblocksize?: PoolDatasetEntryProperty;
++  key_format?: PoolDatasetEntryProperty;
++  encryption_algorithm?: PoolDatasetEntryProperty;
++  used?: PoolDatasetEntryProperty;
++  usedbychildren?: PoolDatasetEntryProperty;
++  usedbydataset?: PoolDatasetEntryProperty;
++  usedbyrefreservation?: PoolDatasetEntryProperty;
++  usedbysnapshots?: PoolDatasetEntryProperty;
++  available?: PoolDatasetEntryProperty;
++  special_small_block_size?: PoolDatasetEntryProperty;
++  pbkdf2iters?: PoolDatasetEntryProperty;
++  creation?: PoolDatasetEntryProperty;
++  snapdev?: PoolDatasetEntryProperty;
++  mountpoint?: string | null;
++  [key: string]: unknown;
++}
++
++export interface PoolDatasetEntryProperty {
++  parsed?: unknown;
++  rawvalue?: string | null;
++  value?: string | null;
++  source?: string | null;
++  source_info?: unknown;
++}
++
++export interface PoolDatasetUpdate {
++  comments?: string;
++  sync?: "STANDARD" | "ALWAYS" | "DISABLED" | "INHERIT";
++  snapdev?: "HIDDEN" | "VISIBLE" | "INHERIT";
++  compression?: "ON" | "OFF" | "LZ4" | "GZIP" | "GZIP-1" | "GZIP-9" | "ZSTD" | "ZSTD-FAST" | "ZLE" | "LZJB" | "ZSTD-1" | "ZSTD-2" | "ZSTD-3" | "ZSTD-4" | "ZSTD-5" | "ZSTD-6" | "ZSTD-7" | "ZSTD-8" | "ZSTD-9" | "ZSTD-10" | "ZSTD-11" | "ZSTD-12" | "ZSTD-13" | "ZSTD-14" | "ZSTD-15" | "ZSTD-16" | "ZSTD-17" | "ZSTD-18" | "ZSTD-19" | "ZSTD-FAST-1" | "ZSTD-FAST-2" | "ZSTD-FAST-3" | "ZSTD-FAST-4" | "ZSTD-FAST-5" | "ZSTD-FAST-6" | "ZSTD-FAST-7" | "ZSTD-FAST-8" | "ZSTD-FAST-9" | "ZSTD-FAST-10" | "ZSTD-FAST-20" | "ZSTD-FAST-30" | "ZSTD-FAST-40" | "ZSTD-FAST-50" | "ZSTD-FAST-60" | "ZSTD-FAST-70" | "ZSTD-FAST-80" | "ZSTD-FAST-90" | "ZSTD-FAST-100" | "ZSTD-FAST-500" | "ZSTD-FAST-1000" | "INHERIT";
++  exec?: "ON" | "OFF" | "INHERIT";
++  managedby?: string;
++  quota_warning?: number | "INHERIT";
++  quota_critical?: number | "INHERIT";
++  refquota_warning?: number | "INHERIT";
++  refquota_critical?: number | "INHERIT";
++  reservation?: number;
++  refreservation?: number;
++  special_small_block_size?: number | "INHERIT";
++  copies?: number | "INHERIT";
++  snapdir?: "DISABLED" | "VISIBLE" | "HIDDEN" | "INHERIT";
++  deduplication?: "ON" | "VERIFY" | "OFF" | "INHERIT";
++  checksum?: "ON" | "OFF" | "FLETCHER2" | "FLETCHER4" | "SHA256" | "SHA512" | "SKEIN" | "EDONR" | "BLAKE3" | "INHERIT";
++  readonly?: "ON" | "OFF" | "INHERIT";
++  user_properties?: PoolDatasetCreateUserProperty[];
++  create_ancestors?: boolean;
++  aclmode?: "PASSTHROUGH" | "RESTRICTED" | "DISCARD" | "INHERIT";
++  acltype?: "OFF" | "NFSV4" | "POSIX" | "INHERIT";
++  atime?: "ON" | "OFF" | "INHERIT";
++  quota?: number | 0 | null;
++  refquota?: number | 0 | null;
++  recordsize?: string;
++  force_size?: boolean;
++  volsize?: number;
++  user_properties_update?: PoolDatasetUpdateUserProperty[];
++}
++
++export interface PoolDatasetUpdateUserProperty {
++  key: string;
++  value?: string;
++  remove?: boolean;
++}
++
++export interface PoolSnapshotCloneArgs {
++  snapshot: string;
++  dataset_dst: string;
++  dataset_properties?: Record<string, unknown>;
++}
++
++export interface PoolSnapshotCreateUpdateEntry {
++  id: string;
++  properties: Record<string, PoolSnapshotEntryPropertyFields>;
++  pool: string;
++  name: string;
++  type: "SNAPSHOT";
++  snapshot_name: string;
++  dataset: string;
++  createtxg: string;
++}
++
++export interface PoolSnapshotCreateWithName {
++  dataset: string;
++  recursive?: boolean;
++  exclude?: string[];
++  vmware_sync?: boolean;
++  properties?: Record<string, unknown>;
++  name: string;
++}
++
++export interface PoolSnapshotCreateWithSchema {
++  dataset: string;
++  recursive?: boolean;
++  exclude?: string[];
++  vmware_sync?: boolean;
++  properties?: Record<string, unknown>;
++  naming_schema: string;
++}
++
++export interface PoolSnapshotDeleteOptions {
++  defer?: boolean;
++  recursive?: boolean;
++}
++
++export interface PoolSnapshotEntry {
++  id: string;
++  properties: Record<string, PoolSnapshotEntryPropertyFields>;
++  pool: string;
++  name: string;
++  type: "SNAPSHOT";
++  snapshot_name: string;
++  dataset: string;
++  createtxg: string;
++  holds?: PoolSnapshotHoldTag;
++  retention?: PoolSnapshotRetentionPST | PoolSnapshotRetentionProperty | null;
++}
++
++export interface PoolSnapshotEntryPropertyFields {
++  value: string;
++  rawvalue: string;
++  source: "NONE" | "DEFAULT" | "LOCAL" | "TEMPORARY" | "INHERITED" | "RECEIVED";
++  parsed: unknown;
++}
++
++export interface PoolSnapshotHoldTag {
++  truenas?: number;
++}
++
++export interface PoolSnapshotRetentionPST {
++  datetime: unknown;
++  source: "periodic_snapshot_task";
++  periodic_snapshot_task_id: number;
++}
++
++export interface PoolSnapshotRetentionProperty {
++  datetime: unknown;
++  source: "property";
++}
++
++export interface PoolSnapshotTaskCron {
++  minute?: string;
++  hour?: string;
++  dom?: string;
++  month?: string;
++  dow?: string;
++  begin?: string;
++  end?: string;
++}
++
++export interface PoolSnapshotTaskDBEntry {
++  dataset: string;
++  recursive?: boolean;
++  lifetime_value?: number;
++  lifetime_unit?: "HOUR" | "DAY" | "WEEK" | "MONTH" | "YEAR";
++  enabled?: boolean;
++  exclude?: string[];
++  naming_schema?: string;
++  allow_empty?: boolean;
++  schedule?: PoolSnapshotTaskCron;
++  id: number;
++  state: string;
++}
++
++export interface PoolSnapshotUpdate {
++  user_properties_update?: PoolSnapshotUserPropertyUpdate[];
++  user_properties_remove?: string[];
++}
++
++export interface PoolSnapshotUserPropertyUpdate {
++  key: string;
++  value: string;
++}
++
++export interface PrivateDatasetOpt {
++  purpose: ;
++  dataset_naming_schema?: string | null;
++  auto_quota?: number;
++  aapl_name_mangling?: boolean;
++}
++
++export interface ReplicationLifetimeModel {
++  schedule: CronModel;
++  lifetime_value: number;
++  lifetime_unit: "HOUR" | "DAY" | "WEEK" | "MONTH" | "YEAR";
++}
++
++export interface ReplicationRunOnetimeArgs {
++  direction: "PUSH" | "PULL";
++  transport: "SSH" | "SSH+NETCAT" | "LOCAL";
++  ssh_credentials?: number | null;
++  netcat_active_side?: "LOCAL" | "REMOTE" | null;
++  netcat_active_side_listen_address?: string | null;
++  netcat_active_side_port_min?: number | null;
++  netcat_active_side_port_max?: number | null;
++  netcat_passive_side_connect_address?: string | null;
++  sudo?: boolean;
++  source_datasets: string[];
++  target_dataset: string;
++  recursive: boolean;
++  exclude?: string[];
++  properties?: boolean;
++  properties_exclude?: string[];
++  properties_override?: Record<string, string>;
++  replicate?: boolean;
++  encryption?: boolean;
++  encryption_inherit?: boolean | null;
++  encryption_key?: string | null;
++  encryption_key_format?: "HEX" | "PASSPHRASE" | null;
++  encryption_key_location?: string | null;
++  periodic_snapshot_tasks?: number[];
++  naming_schema?: string[];
++  also_include_naming_schema?: string[];
++  name_regex?: string | null;
++  restrict_schedule?: ReplicationTimeCronModel | null;
++  allow_from_scratch?: boolean;
++  readonly?: "SET" | "REQUIRE" | "IGNORE";
++  hold_pending_snapshots?: boolean;
++  retention_policy: "SOURCE" | "CUSTOM" | "NONE";
++  lifetime_value?: number | null;
++  lifetime_unit?: "HOUR" | "DAY" | "WEEK" | "MONTH" | "YEAR" | null;
++  lifetimes?: ReplicationLifetimeModel[];
++  compression?: "LZ4" | "PIGZ" | "PLZIP" | null;
++  speed_limit?: number | null;
++  large_block?: boolean;
++  embed?: boolean;
++  compressed?: boolean;
++  retries?: number;
++  logging_level?: "DEBUG" | "INFO" | "WARNING" | "ERROR" | null;
++  exclude_mountpoint_property?: boolean;
++  only_from_scratch?: boolean;
++  mount?: boolean;
++}
++
++export interface ReplicationTimeCronModel {
++  minute?: string;
++  hour?: string;
++  dom?: string;
++  month?: string;
++  dow?: string;
++  begin?: string;
++  end?: string;
++}
++
++export interface SSHCredentials {
++  host: string;
++  port?: number;
++  username?: string;
++  private_key: number;
++  remote_host_key: string;
++  connect_timeout?: number;
++}
++
++export interface SSHKeyPair {
++  private_key?: string | null;
++  public_key?: string | null;
++}
++
++export interface ServiceOptions {
++  ha_propagate?: boolean;
++  silent?: boolean;
++  timeout?: number | null;
++}
++
++export interface SharingNFSEntry {
++  id: number;
++  path: string;
++  aliases?: string[];
++  comment?: string;
++  networks?: string[];
++  hosts?: string[];
++  ro?: boolean;
++  maproot_user?: string | null;
++  maproot_group?: string | null;
++  mapall_user?: string | null;
++  mapall_group?: string | null;
++  security?: ("SYS" | "KRB5" | "KRB5I" | "KRB5P")[];
++  enabled?: boolean;
++  locked: boolean | null;
++  expose_snapshots?: boolean;
++}
++
++export interface SharingSMBEntry {
++  id: number;
++  purpose?: ;
++  name: string;
++  path: string | "EXTERNAL";
++  enabled?: boolean;
++  comment?: string;
++  readonly?: boolean;
++  browsable?: boolean;
++  access_based_share_enumeration?: boolean;
++  locked: boolean | null;
++  audit?: SmbAuditConfig;
++  options?: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null;
++}
++
++export interface SmbAuditConfig {
++  enable?: boolean;
++  watch_list?: string[];
++  ignore_list?: string[];
++}
++
++export interface SmbShareCreate {
++  purpose?: ;
++  name: string;
++  path: string | "EXTERNAL";
++  enabled?: boolean;
++  comment?: string;
++  readonly?: boolean;
++  browsable?: boolean;
++  access_based_share_enumeration?: boolean;
++  audit?: SmbAuditConfig;
++  options?: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null;
++}
++
++export interface SmbShareUpdate {
++  purpose?: ;
++  name?: string;
++  path?: string | "EXTERNAL";
++  enabled?: boolean;
++  comment?: string;
++  readonly?: boolean;
++  browsable?: boolean;
++  access_based_share_enumeration?: boolean;
++  audit?: SmbAuditConfig;
++  options?: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | null;
++}
++
++export interface SystemInfoResult {
++  version: string;
++  buildtime: unknown;
++  hostname: string;
++  physmem: number;
++  model: string;
++  cores: number;
++  physical_cores: number;
++  loadavg: unknown[];
++  uptime: string;
++  uptime_seconds: number;
++  system_serial: string | null;
++  system_product: string | null;
++  system_product_version: string | null;
++  license: Record<string, unknown> | null;
++  boottime: unknown;
++  datetime: unknown;
++  timezone: string;
++  system_manufacturer: string | null;
++  ecc_memory: boolean;
++}
++
++export interface TimeLockedOpt {
++  purpose: ;
++  grace_period?: number;
++  aapl_name_mangling?: boolean;
++}
++
++export interface TimeMachineOpt {
++  purpose: ;
++  timemachine_quota?: number;
++  auto_snapshot?: boolean;
++  auto_dataset_creation?: boolean;
++  dataset_naming_schema?: string | null;
++  vuid?: string | null;
++}
++
++export interface VeeamRepositoryOpt {
++  purpose: ;
++}
++
++export interface iSCSITargetEntry {
++  id: number;
++  name: string;
++  alias?: string | null;
++  mode?: "ISCSI" | "FC" | "BOTH";
++  groups?: IscsiGroup[];
++  auth_networks?: string[];
++  rel_tgt_id: number;
++  iscsi_parameters?: IscsiTargetParameters | null;
++}
++
++export interface iSCSITargetExtentEntry {
++  id: number;
++  name: string;
++  type?: "DISK" | "FILE";
++  disk?: string | null;
++  serial?: string | null;
++  path?: string | null;
++  filesize?: string | number;
++  blocksize?: 512 | 1024 | 2048 | 4096;
++  pblocksize?: boolean;
++  avail_threshold?: number | null;
++  comment?: string;
++  naa: string;
++  insecure_tpc?: boolean;
++  xen?: boolean;
++  rpm?: "UNKNOWN" | "SSD" | "5400" | "7200" | "10000" | "15000";
++  ro?: boolean;
++  enabled?: boolean;
++  vendor: string;
++  product_id?: string | null;
++  locked: boolean | null;
++}
++
++export interface iSCSITargetToExtentEntry {
++  id: number;
++  target: number;
++  lunid: number;
++  extent: number;
++}
+diff --git a/src/types/truenas/v27_0_0.d.ts b/src/types/truenas/v27_0_0.d.ts
+new file mode 100644
+index 0000000..cbde695
+--- /dev/null
++++ b/src/types/truenas/v27_0_0.d.ts
+@@ -0,0 +1,981 @@
++// GENERATED by tools/truenas-typegen.py from truenas/middleware
++// src/middlewared/middlewared/api/v27_0_0 -- do not edit by hand.
++
++export type QueryFilter = [string, string, unknown] | ["OR", QueryFilter[]] | unknown[];
++export interface QueryOptions {
++  extra?: Record<string, unknown>;
++  order_by?: string[];
++  select?: (string | unknown[])[];
++  count?: boolean;
++  get?: boolean;
++  offset?: number;
++  limit?: number;
++  force_sql_filters?: boolean;
++}
++
++export type ApiVersion = "v27.0.0";
++
++export interface Methods {
++  "auth.login": { params: [username: string, password: string, otp_token?: string | null]; result: boolean };
++  "auth.login_with_api_key": { params: [api_key: string]; result: boolean };
++  "core.get_jobs": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: CoreGetJobsItem[] | CoreGetJobsItem | number };
++  "core.job_wait": { params: [id: number]; result: unknown };
++  "filesystem.chown": { params: [filesystem_chown: FilesystemChownArgs]; result: null };
++  "filesystem.setperm": { params: [filesystem_setperm: FilesystemSetpermArgs]; result: null };
++  "iscsi.extent.create": { params: [iscsi_extent_create: IscsiExtentCreate]; result: iSCSITargetExtentEntry };
++  "iscsi.extent.delete": { params: [id: number, remove?: boolean, force?: boolean]; result: true };
++  "iscsi.extent.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: iSCSITargetExtentEntry[] | iSCSITargetExtentEntry | number };
++  "iscsi.extent.update": { params: [id: number, iscsi_extent_update: IscsiExtentUpdate]; result: iSCSITargetExtentEntry };
++  "iscsi.global.config": { params: []; result: ISCSIGlobalEntry };
++  "iscsi.target.create": { params: [iscsi_target_create: IscsiTargetCreate]; result: iSCSITargetEntry };
++  "iscsi.target.delete": { params: [id: number, force?: boolean, delete_extents?: boolean]; result: true };
++  "iscsi.target.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: iSCSITargetEntry[] | iSCSITargetEntry | number };
++  "iscsi.target.update": { params: [id: number, iscsi_target_update: IscsiTargetUpdate]; result: iSCSITargetEntry };
++  "iscsi.targetextent.create": { params: [iscsi_target_to_extent_create: IscsiTargetToExtentCreate]; result: iSCSITargetToExtentEntry };
++  "iscsi.targetextent.delete": { params: [id: number, force?: boolean]; result: true };
++  "iscsi.targetextent.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: iSCSITargetToExtentEntry[] | iSCSITargetToExtentEntry | number };
++  "nvmet.namespace.create": { params: [nvmet_namespace_create: NVMetNamespaceCreate]; result: NVMetNamespaceEntry };
++  "nvmet.namespace.delete": { params: [id: number, options?: NVMetNamespaceDeleteOptions]; result: true };
++  "nvmet.namespace.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetNamespaceEntry[] | NVMetNamespaceEntry | number };
++  "nvmet.port.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetPortEntry[] | NVMetPortEntry | number };
++  "nvmet.port_subsys.create": { params: [nvmet_port_subsys_create: NVMetPortSubsysCreate]; result: NVMetPortSubsysEntry };
++  "nvmet.port_subsys.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetPortSubsysEntry[] | NVMetPortSubsysEntry | number };
++  "nvmet.subsys.create": { params: [nvmet_subsys_create: NVMetSubsysCreate]; result: NVMetSubsysEntry };
++  "nvmet.subsys.delete": { params: [id: number, options?: NVMetSubsysDeleteOptions]; result: true };
++  "nvmet.subsys.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: NVMetSubsysEntry[] | NVMetSubsysEntry | number };
++  "pool.dataset.create": { params: [data: PoolDatasetCreateFilesystem | PoolDatasetCreateVolume]; result: PoolDatasetEntry };
++  "pool.dataset.delete": { params: [id: string, options?: PoolDatasetDeleteOptions]; result: null | true };
++  "pool.dataset.destroy_snapshots": { params: [name: string, snapshots: PoolDatasetDestroySnapshotsArgsSnapshots]; result: string[] };
++  "pool.dataset.get_instance": { params: [id: string | number, options?: QueryOptions]; result: PoolDatasetEntry };
++  "pool.dataset.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: PoolDatasetEntry[] | PoolDatasetEntry | number };
++  "pool.dataset.update": { params: [id: string, data: PoolDatasetUpdate]; result: PoolDatasetEntry };
++  "pool.snapshot.clone": { params: [data: PoolSnapshotCloneArgs]; result: true };
++  "pool.snapshot.create": { params: [data: PoolSnapshotCreateWithName | PoolSnapshotCreateWithSchema]; result: PoolSnapshotCreateUpdateEntry };
++  "pool.snapshot.delete": { params: [id: string, options?: PoolSnapshotDeleteOptions]; result: true };
++  "pool.snapshot.get_instance": { params: [id: string | number, options?: QueryOptions]; result: PoolSnapshotEntry };
++  "pool.snapshot.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: PoolSnapshotEntry[] | PoolSnapshotEntry | number };
++  "pool.snapshot.update": { params: [id: string, data: PoolSnapshotUpdate]; result: PoolSnapshotCreateUpdateEntry };
++  "replication.run_onetime": { params: [replication_run_onetime: ReplicationRunOnetimeArgs]; result: null };
++  "service.reload": { params: [service: string, options?: ServiceOptions]; result: boolean };
++  "sharing.nfs.create": { params: [data: NfsShareCreate]; result: SharingNFSEntry };
++  "sharing.nfs.delete": { params: [id: number]; result: true };
++  "sharing.nfs.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: SharingNFSEntry[] | SharingNFSEntry | number };
++  "sharing.nfs.update": { params: [id: number, data: NfsShareUpdate]; result: SharingNFSEntry };
++  "sharing.smb.create": { params: [data: SmbShareCreate]; result: SharingSMBEntry };
++  "sharing.smb.delete": { params: [id: number]; result: true };
++  "sharing.smb.query": { params: [filters?: QueryFilter[], options?: QueryOptions]; result: SharingSMBEntry[] | SharingSMBEntry | number };
++  "sharing.smb.update": { params: [id: number, data: SmbShareUpdate]; result: SharingSMBEntry };
++  "system.info": { params: []; result: SystemInfoResult };
++  "system.version": { params: []; result: string };
++}
++
++export interface CoreGetJobsItem {
++  id: number;
++  message_ids: unknown[];
++  method: string;
++  arguments: unknown[];
++  transient: boolean;
++  description: string | null;
++  abortable: boolean;
++  logs_path: string | null;
++  logs_excerpt: string | null;
++  progress: CoreGetJobsItemProgress;
++  result: unknown;
++  result_encoding_error: unknown;
++  error: string | null;
++  exception: string | null;
++  exc_info: CoreGetJobsItemExcInfo | null;
++  state: string;
++  time_started: unknown;
++  time_finished: unknown;
++  credentials: CoreGetJobsItemCredentials | null;
++}
++
++export interface CoreGetJobsItemCredentials {
++  type: string;
++  data: Record<string, unknown>;
++}
++
++export interface CoreGetJobsItemExcInfo {
++  repr: string | null;
++  type: string | null;
++  errno: number | null;
++  errname: string | null;
++  extra: unknown;
++}
++
++export interface CoreGetJobsItemProgress {
++  percent: number | null;
++  description: string | null;
++  extra: unknown;
++}
++
++export interface CronModel {
++  minute?: string;
++  hour?: string;
++  dom?: string;
++  month?: string;
++  dow?: string;
++}
++
++export interface DefaultOpt {
++  purpose: ;
++  aapl_name_mangling?: boolean;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++}
++
++export interface ExternalOpt {
++  purpose: ;
++  remote_path: string[];
++}
++
++export interface FCPStorageOpt {
++  purpose: ;
++  aapl_name_mangling?: true;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++}
++
++export interface FilesystemChownArgs {
++  path: string;
++  uid?: number | null;
++  user?: string | null;
++  gid?: number | null;
++  group?: string | null;
++  options?: FilesystemChownOptions;
++}
++
++export interface FilesystemChownOptions {
++  recursive?: boolean;
++  traverse?: boolean;
++}
++
++export interface FilesystemSetpermArgs {
++  path: string;
++  uid?: number | null;
++  user?: string | null;
++  gid?: number | null;
++  group?: string | null;
++  mode?: string | null;
++  options?: FilesystemSetpermOptions;
++}
++
++export interface FilesystemSetpermOptions {
++  recursive?: boolean;
++  traverse?: boolean;
++  stripacl?: boolean;
++}
++
++export interface ISCSIGlobalEntry {
++  id: number;
++  basename: string;
++  isns_servers: string[];
++  listen_port?: number;
++  pool_avail_threshold?: number | null;
++  alua: boolean;
++  iser: boolean;
++  direct_config: boolean | null;
++  mode: number;
++}
++
++export interface IscsiExtentCreate {
++  name: string;
++  type?: "DISK" | "FILE";
++  disk?: string | null;
++  serial?: string | null;
++  path?: string | null;
++  filesize?: string | number;
++  blocksize?: 512 | 1024 | 2048 | 4096;
++  pblocksize?: boolean;
++  avail_threshold?: number | null;
++  comment?: string;
++  insecure_tpc?: boolean;
++  xen?: boolean;
++  rpm?: "UNKNOWN" | "SSD" | "5400" | "7200" | "10000" | "15000";
++  ro?: boolean;
++  enabled?: boolean;
++  product_id?: string | null;
++}
++
++export interface IscsiExtentUpdate {
++  name?: string;
++  type?: "DISK" | "FILE";
++  disk?: string | null;
++  serial?: string | null;
++  path?: string | null;
++  filesize?: string | number;
++  blocksize?: 512 | 1024 | 2048 | 4096;
++  pblocksize?: boolean;
++  avail_threshold?: number | null;
++  comment?: string;
++  insecure_tpc?: boolean;
++  xen?: boolean;
++  rpm?: "UNKNOWN" | "SSD" | "5400" | "7200" | "10000" | "15000";
++  ro?: boolean;
++  enabled?: boolean;
++  product_id?: string | null;
++}
++
++export interface IscsiGroup {
++  portal: number;
++  initiator?: number | null;
++  authmethod?: "NONE" | "CHAP" | "CHAP_MUTUAL";
++  auth?: number | null;
++}
++
++export interface IscsiTargetCreate {
++  name: string;
++  alias?: string | null;
++  mode?: "ISCSI" | "FC" | "BOTH";
++  groups?: IscsiGroup[];
++  auth_networks?: string[];
++  iscsi_parameters?: IscsiTargetParameters | null;
++}
++
++export interface IscsiTargetParameters {
++  QueuedCommands?: 32 | 128 | null;
++}
++
++export interface IscsiTargetToExtentCreate {
++  target: number;
++  lunid?: number | null;
++  extent: number;
++}
++
++export interface IscsiTargetUpdate {
++  name?: string;
++  alias?: string | null;
++  mode?: "ISCSI" | "FC" | "BOTH";
++  groups?: IscsiGroup[];
++  auth_networks?: string[];
++  iscsi_parameters?: IscsiTargetParameters | null;
++}
++
++export interface KeychainCredentialEntry {
++  id: number;
++  name: string;
++  type: "SSH_KEY_PAIR" | "SSH_CREDENTIALS";
++  attributes: SSHKeyPair | SSHCredentials;
++}
++
++export interface LegacyOpt {
++  purpose: ;
++  recyclebin?: boolean;
++  path_suffix?: string | null;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++  guestok?: boolean;
++  streams?: boolean;
++  durablehandle?: boolean;
++  shadowcopy?: boolean;
++  fsrvp?: boolean;
++  home?: boolean;
++  acl?: boolean;
++  afp?: boolean;
++  timemachine?: boolean;
++  timemachine_quota?: number;
++  aapl_name_mangling?: boolean;
++  vuid?: string | null;
++  auxsmbconf?: string;
++}
++
++export interface MultiprotocolOpt {
++  purpose: ;
++  aapl_name_mangling?: boolean;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++}
++
++export interface NVMetNamespaceCreate {
++  nsid?: number | null;
++  device_type: "ZVOL" | "FILE";
++  device_path: string;
++  filesize?: number | null;
++  enabled?: boolean;
++  subsys_id: number;
++}
++
++export interface NVMetNamespaceDeleteOptions {
++  remove?: boolean;
++}
++
++export interface NVMetNamespaceEntry {
++  id: number;
++  nsid?: number | null;
++  subsys: NVMetSubsysEntry;
++  device_type: "ZVOL" | "FILE";
++  device_path: string;
++  dataset: string | null;
++  relative_path: string | null;
++  filesize?: number | null;
++  device_uuid: string;
++  device_nguid: string;
++  enabled?: boolean;
++  locked: boolean | null;
++}
++
++export interface NVMetPortEntry {
++  id: number;
++  index: number;
++  addr_trtype: "TCP" | "RDMA" | "FC";
++  addr_trsvcid: number | string | null;
++  addr_traddr: string;
++  addr_adrfam: "IPV4" | "IPV6" | "FC";
++  inline_data_size?: number | null;
++  max_queue_size?: number | null;
++  pi_enable?: boolean | null;
++  enabled?: boolean;
++}
++
++export interface NVMetPortSubsysCreate {
++  port_id: number;
++  subsys_id: number;
++}
++
++export interface NVMetPortSubsysEntry {
++  id: number;
++  port: NVMetPortEntry;
++  subsys: NVMetSubsysEntry;
++}
++
++export interface NVMetSubsysCreate {
++  name: string;
++  subnqn?: string | null;
++  allow_any_host?: boolean;
++  pi_enable?: boolean | null;
++  qid_max?: number | null;
++  ieee_oui?: string | null;
++  ana?: boolean | null;
++}
++
++export interface NVMetSubsysDeleteOptions {
++  force?: boolean;
++}
++
++export interface NVMetSubsysEntry {
++  id: number;
++  name: string;
++  subnqn?: string | null;
++  serial: string;
++  allow_any_host?: boolean;
++  pi_enable?: boolean | null;
++  qid_max?: number | null;
++  ieee_oui?: string | null;
++  ana?: boolean | null;
++  hosts?: number[] | null;
++  namespaces?: number[] | null;
++  ports?: number[] | null;
++}
++
++export interface NfsShareCreate {
++  path: string;
++  aliases?: string[];
++  comment?: string;
++  networks?: string[];
++  hosts?: string[];
++  ro?: boolean;
++  maproot_user?: string | null;
++  maproot_group?: string | null;
++  mapall_user?: string | null;
++  mapall_group?: string | null;
++  security?: ("SYS" | "KRB5" | "KRB5I" | "KRB5P")[];
++  enabled?: boolean;
++  expose_snapshots?: boolean;
++}
++
++export interface NfsShareUpdate {
++  path?: string;
++  aliases?: string[];
++  comment?: string;
++  networks?: string[];
++  hosts?: string[];
++  ro?: boolean;
++  maproot_user?: string | null;
++  maproot_group?: string | null;
++  mapall_user?: string | null;
++  mapall_group?: string | null;
++  security?: ("SYS" | "KRB5" | "KRB5I" | "KRB5P")[];
++  enabled?: boolean;
++  expose_snapshots?: boolean;
++}
++
++export interface PoolCreateEncryptionOptions {
++  generate_key?: boolean;
++  pbkdf2iters?: number;
++  passphrase?: string | null;
++  key?: string | null;
++}
++
++export interface PoolDatasetCreateFilesystem {
++  name: string;
++  comments?: string;
++  sync?: "STANDARD" | "ALWAYS" | "DISABLED" | "INHERIT";
++  snapdev?: "HIDDEN" | "VISIBLE" | "INHERIT";
++  compression?: "ON" | "OFF" | "LZ4" | "GZIP" | "GZIP-1" | "GZIP-9" | "ZSTD" | "ZSTD-FAST" | "ZLE" | "LZJB" | "ZSTD-1" | "ZSTD-2" | "ZSTD-3" | "ZSTD-4" | "ZSTD-5" | "ZSTD-6" | "ZSTD-7" | "ZSTD-8" | "ZSTD-9" | "ZSTD-10" | "ZSTD-11" | "ZSTD-12" | "ZSTD-13" | "ZSTD-14" | "ZSTD-15" | "ZSTD-16" | "ZSTD-17" | "ZSTD-18" | "ZSTD-19" | "ZSTD-FAST-1" | "ZSTD-FAST-2" | "ZSTD-FAST-3" | "ZSTD-FAST-4" | "ZSTD-FAST-5" | "ZSTD-FAST-6" | "ZSTD-FAST-7" | "ZSTD-FAST-8" | "ZSTD-FAST-9" | "ZSTD-FAST-10" | "ZSTD-FAST-20" | "ZSTD-FAST-30" | "ZSTD-FAST-40" | "ZSTD-FAST-50" | "ZSTD-FAST-60" | "ZSTD-FAST-70" | "ZSTD-FAST-80" | "ZSTD-FAST-90" | "ZSTD-FAST-100" | "ZSTD-FAST-500" | "ZSTD-FAST-1000" | "INHERIT";
++  exec?: "ON" | "OFF" | "INHERIT";
++  managedby?: string;
++  quota_warning?: number | "INHERIT";
++  quota_critical?: number | "INHERIT";
++  refquota_warning?: number | "INHERIT";
++  refquota_critical?: number | "INHERIT";
++  reservation?: number;
++  refreservation?: number;
++  special_small_block_size?: number | "INHERIT";
++  copies?: number | "INHERIT";
++  snapdir?: "DISABLED" | "VISIBLE" | "HIDDEN" | "INHERIT";
++  deduplication?: "ON" | "VERIFY" | "OFF" | "INHERIT";
++  checksum?: "ON" | "OFF" | "FLETCHER2" | "FLETCHER4" | "SHA256" | "SHA512" | "SKEIN" | "EDONR" | "BLAKE3" | "INHERIT";
++  readonly?: "ON" | "OFF" | "INHERIT";
++  share_type?: "GENERIC" | "MULTIPROTOCOL" | "NFS" | "SMB" | "APPS";
++  encryption_options?: PoolCreateEncryptionOptions;
++  encryption?: boolean;
++  inherit_encryption?: boolean;
++  user_properties?: PoolDatasetCreateUserProperty[];
++  create_ancestors?: boolean;
++  type?: "FILESYSTEM";
++  aclmode?: "PASSTHROUGH" | "RESTRICTED" | "DISCARD" | "INHERIT";
++  acltype?: "OFF" | "NFSV4" | "POSIX" | "INHERIT";
++  atime?: "ON" | "OFF" | "INHERIT";
++  casesensitivity?: "SENSITIVE" | "INSENSITIVE" | "INHERIT";
++  quota?: number | 0 | null;
++  refquota?: number | 0 | null;
++  recordsize?: string;
++}
++
++export interface PoolDatasetCreateUserProperty {
++  key: string;
++  value: string;
++}
++
++export interface PoolDatasetCreateVolume {
++  name: string;
++  comments?: string;
++  sync?: "STANDARD" | "ALWAYS" | "DISABLED" | "INHERIT";
++  snapdev?: "HIDDEN" | "VISIBLE" | "INHERIT";
++  compression?: "ON" | "OFF" | "LZ4" | "GZIP" | "GZIP-1" | "GZIP-9" | "ZSTD" | "ZSTD-FAST" | "ZLE" | "LZJB" | "ZSTD-1" | "ZSTD-2" | "ZSTD-3" | "ZSTD-4" | "ZSTD-5" | "ZSTD-6" | "ZSTD-7" | "ZSTD-8" | "ZSTD-9" | "ZSTD-10" | "ZSTD-11" | "ZSTD-12" | "ZSTD-13" | "ZSTD-14" | "ZSTD-15" | "ZSTD-16" | "ZSTD-17" | "ZSTD-18" | "ZSTD-19" | "ZSTD-FAST-1" | "ZSTD-FAST-2" | "ZSTD-FAST-3" | "ZSTD-FAST-4" | "ZSTD-FAST-5" | "ZSTD-FAST-6" | "ZSTD-FAST-7" | "ZSTD-FAST-8" | "ZSTD-FAST-9" | "ZSTD-FAST-10" | "ZSTD-FAST-20" | "ZSTD-FAST-30" | "ZSTD-FAST-40" | "ZSTD-FAST-50" | "ZSTD-FAST-60" | "ZSTD-FAST-70" | "ZSTD-FAST-80" | "ZSTD-FAST-90" | "ZSTD-FAST-100" | "ZSTD-FAST-500" | "ZSTD-FAST-1000" | "INHERIT";
++  exec?: "ON" | "OFF" | "INHERIT";
++  managedby?: string;
++  quota_warning?: number | "INHERIT";
++  quota_critical?: number | "INHERIT";
++  refquota_warning?: number | "INHERIT";
++  refquota_critical?: number | "INHERIT";
++  reservation?: number;
++  refreservation?: number;
++  special_small_block_size?: number | "INHERIT";
++  copies?: number | "INHERIT";
++  snapdir?: "DISABLED" | "VISIBLE" | "HIDDEN" | "INHERIT";
++  deduplication?: "ON" | "VERIFY" | "OFF" | "INHERIT";
++  checksum?: "ON" | "OFF" | "FLETCHER2" | "FLETCHER4" | "SHA256" | "SHA512" | "SKEIN" | "EDONR" | "BLAKE3" | "INHERIT";
++  readonly?: "ON" | "OFF" | "INHERIT";
++  share_type?: "GENERIC" | "MULTIPROTOCOL" | "NFS" | "SMB" | "APPS";
++  encryption_options?: PoolCreateEncryptionOptions;
++  encryption?: boolean;
++  inherit_encryption?: boolean;
++  user_properties?: PoolDatasetCreateUserProperty[];
++  create_ancestors?: boolean;
++  type?: "VOLUME";
++  force_size?: boolean;
++  sparse?: boolean;
++  volsize: number;
++  volblocksize?: "512" | "512B" | "1K" | "2K" | "4K" | "8K" | "16K" | "32K" | "64K" | "128K";
++}
++
++export interface PoolDatasetDeleteOptions {
++  recursive?: boolean;
++  force?: boolean;
++}
++
++export interface PoolDatasetDestroySnapshotsArgsSnapshotSpec {
++  start?: string | null;
++  end?: string | null;
++}
++
++export interface PoolDatasetDestroySnapshotsArgsSnapshots {
++  all?: boolean;
++  recursive?: boolean;
++  snapshots?: (PoolDatasetDestroySnapshotsArgsSnapshotSpec | string)[];
++}
++
++export interface PoolDatasetEntry {
++  id?: string;
++  type?: string;
++  name?: string;
++  pool?: string;
++  encrypted?: boolean;
++  encryption_root?: string | null;
++  key_loaded?: boolean | null;
++  children?: unknown[];
++  user_properties?: PoolDatasetEntryUserProperties;
++  locked?: boolean;
++  tier?: TierInfo | null;
++  deduplication?: PoolDatasetEntryProperty;
++  aclmode?: PoolDatasetEntryProperty;
++  acltype?: PoolDatasetEntryProperty;
++  xattr?: PoolDatasetEntryProperty;
++  atime?: PoolDatasetEntryProperty;
++  casesensitivity?: PoolDatasetEntryProperty;
++  checksum?: PoolDatasetEntryProperty;
++  exec?: PoolDatasetEntryProperty;
++  sync?: PoolDatasetEntryProperty;
++  compression?: PoolDatasetEntryProperty;
++  compressratio?: PoolDatasetEntryProperty;
++  origin?: PoolDatasetEntryProperty;
++  quota?: PoolDatasetEntryProperty;
++  refquota?: PoolDatasetEntryProperty;
++  reservation?: PoolDatasetEntryProperty;
++  refreservation?: PoolDatasetEntryProperty;
++  copies?: PoolDatasetEntryProperty;
++  snapdir?: PoolDatasetEntryProperty;
++  readonly?: PoolDatasetEntryProperty;
++  recordsize?: PoolDatasetEntryProperty;
++  sparse?: PoolDatasetEntryProperty;
++  volsize?: PoolDatasetEntryProperty;
++  volblocksize?: PoolDatasetEntryProperty;
++  key_format?: PoolDatasetEntryProperty;
++  encryption_algorithm?: PoolDatasetEntryProperty;
++  used?: PoolDatasetEntryProperty;
++  usedbychildren?: PoolDatasetEntryProperty;
++  usedbydataset?: PoolDatasetEntryProperty;
++  usedbyrefreservation?: PoolDatasetEntryProperty;
++  usedbysnapshots?: PoolDatasetEntryProperty;
++  available?: PoolDatasetEntryProperty;
++  special_small_block_size?: PoolDatasetEntryProperty;
++  pbkdf2iters?: PoolDatasetEntryProperty;
++  creation?: PoolDatasetEntryProperty;
++  snapdev?: PoolDatasetEntryProperty;
++  mountpoint?: string | null;
++  [key: string]: unknown;
++}
++
++export interface PoolDatasetEntryProperty {
++  parsed?: unknown;
++  rawvalue?: string | null;
++  value?: string | null;
++  source?: string | null;
++  source_info?: unknown;
++}
++
++export interface PoolDatasetEntryUserProperties {
++  comments?: PoolDatasetEntryProperty;
++  quota_warning?: PoolDatasetEntryProperty;
++  quota_critical?: PoolDatasetEntryProperty;
++  refquota_warning?: PoolDatasetEntryProperty;
++  refquota_critical?: PoolDatasetEntryProperty;
++  managedby?: PoolDatasetEntryProperty;
++  [key: string]: unknown;
++}
++
++export interface PoolDatasetUpdate {
++  comments?: string;
++  sync?: "STANDARD" | "ALWAYS" | "DISABLED" | "INHERIT";
++  snapdev?: "HIDDEN" | "VISIBLE" | "INHERIT";
++  compression?: "ON" | "OFF" | "LZ4" | "GZIP" | "GZIP-1" | "GZIP-9" | "ZSTD" | "ZSTD-FAST" | "ZLE" | "LZJB" | "ZSTD-1" | "ZSTD-2" | "ZSTD-3" | "ZSTD-4" | "ZSTD-5" | "ZSTD-6" | "ZSTD-7" | "ZSTD-8" | "ZSTD-9" | "ZSTD-10" | "ZSTD-11" | "ZSTD-12" | "ZSTD-13" | "ZSTD-14" | "ZSTD-15" | "ZSTD-16" | "ZSTD-17" | "ZSTD-18" | "ZSTD-19" | "ZSTD-FAST-1" | "ZSTD-FAST-2" | "ZSTD-FAST-3" | "ZSTD-FAST-4" | "ZSTD-FAST-5" | "ZSTD-FAST-6" | "ZSTD-FAST-7" | "ZSTD-FAST-8" | "ZSTD-FAST-9" | "ZSTD-FAST-10" | "ZSTD-FAST-20" | "ZSTD-FAST-30" | "ZSTD-FAST-40" | "ZSTD-FAST-50" | "ZSTD-FAST-60" | "ZSTD-FAST-70" | "ZSTD-FAST-80" | "ZSTD-FAST-90" | "ZSTD-FAST-100" | "ZSTD-FAST-500" | "ZSTD-FAST-1000" | "INHERIT";
++  exec?: "ON" | "OFF" | "INHERIT";
++  managedby?: string;
++  quota_warning?: number | "INHERIT";
++  quota_critical?: number | "INHERIT";
++  refquota_warning?: number | "INHERIT";
++  refquota_critical?: number | "INHERIT";
++  reservation?: number;
++  refreservation?: number;
++  special_small_block_size?: number | "INHERIT";
++  copies?: number | "INHERIT";
++  snapdir?: "DISABLED" | "VISIBLE" | "HIDDEN" | "INHERIT";
++  deduplication?: "ON" | "VERIFY" | "OFF" | "INHERIT";
++  checksum?: "ON" | "OFF" | "FLETCHER2" | "FLETCHER4" | "SHA256" | "SHA512" | "SKEIN" | "EDONR" | "BLAKE3" | "INHERIT";
++  readonly?: "ON" | "OFF" | "INHERIT";
++  user_properties?: PoolDatasetCreateUserProperty[];
++  create_ancestors?: boolean;
++  aclmode?: "PASSTHROUGH" | "RESTRICTED" | "DISCARD" | "INHERIT";
++  acltype?: "OFF" | "NFSV4" | "POSIX" | "INHERIT";
++  atime?: "ON" | "OFF" | "INHERIT";
++  quota?: number | 0 | null;
++  refquota?: number | 0 | null;
++  recordsize?: string;
++  force_size?: boolean;
++  volsize?: number;
++  user_properties_update?: PoolDatasetUpdateUserProperty[];
++}
++
++export interface PoolDatasetUpdateUserProperty {
++  key: string;
++  value?: string;
++  remove?: boolean;
++}
++
++export interface PoolSnapshotCloneArgs {
++  snapshot: string;
++  dataset_dst: string;
++  dataset_properties?: Record<string, unknown>;
++}
++
++export interface PoolSnapshotCreateUpdateEntry {
++  id: string;
++  properties: Record<string, PoolSnapshotEntryPropertyFields>;
++  pool: string;
++  name: string;
++  type: "SNAPSHOT";
++  snapshot_name: string;
++  dataset: string;
++  createtxg: string;
++}
++
++export interface PoolSnapshotCreateWithName {
++  dataset: string;
++  recursive?: boolean;
++  exclude?: string[];
++  vmware_sync?: boolean;
++  suspend_vms?: boolean;
++  properties?: Record<string, unknown>;
++  name: string;
++}
++
++export interface PoolSnapshotCreateWithSchema {
++  dataset: string;
++  recursive?: boolean;
++  exclude?: string[];
++  vmware_sync?: boolean;
++  suspend_vms?: boolean;
++  properties?: Record<string, unknown>;
++  naming_schema: string;
++}
++
++export interface PoolSnapshotDeleteOptions {
++  defer?: boolean;
++  recursive?: boolean;
++}
++
++export interface PoolSnapshotEntry {
++  id: string;
++  properties: Record<string, PoolSnapshotEntryPropertyFields>;
++  pool: string;
++  name: string;
++  type: "SNAPSHOT";
++  snapshot_name: string;
++  dataset: string;
++  createtxg: string;
++  holds?: PoolSnapshotHoldTag;
++  retention?: PoolSnapshotRetentionPST | PoolSnapshotRetentionProperty | null;
++}
++
++export interface PoolSnapshotEntryPropertyFields {
++  value: string;
++  rawvalue: string;
++  source: "NONE" | "DEFAULT" | "LOCAL" | "TEMPORARY" | "INHERITED" | "RECEIVED";
++  parsed: unknown;
++}
++
++export interface PoolSnapshotHoldTag {
++  truenas?: number;
++}
++
++export interface PoolSnapshotRetentionPST {
++  datetime: unknown;
++  source: "periodic_snapshot_task";
++  periodic_snapshot_task_id: number;
++}
++
++export interface PoolSnapshotRetentionProperty {
++  datetime: unknown;
++  source: "property";
++}
++
++export interface PoolSnapshotTaskCron {
++  minute?: string;
++  hour?: string;
++  dom?: string;
++  month?: string;
++  dow?: string;
++  begin?: string;
++  end?: string;
++}
++
++export interface PoolSnapshotTaskDBEntry {
++  id: number;
++  dataset: string;
++  recursive?: boolean;
++  lifetime_value?: number;
++  lifetime_unit?: "HOUR" | "DAY" | "WEEK" | "MONTH" | "YEAR";
++  enabled?: boolean;
++  exclude?: string[];
++  naming_schema?: string;
++  allow_empty?: boolean;
++  schedule?: PoolSnapshotTaskCron;
++  state: string;
++}
++
++export interface PoolSnapshotUpdate {
++  user_properties_update?: PoolSnapshotUserPropertyUpdate[];
++  user_properties_remove?: string[];
++}
++
++export interface PoolSnapshotUserPropertyUpdate {
++  key: string;
++  value: string;
++}
++
++export interface PrivateDatasetOpt {
++  purpose: ;
++  dataset_naming_schema?: string | null;
++  auto_quota?: number;
++  aapl_name_mangling?: boolean;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++}
++
++export interface ReplicationLifetimeModel {
++  schedule: CronModel;
++  lifetime_value: number;
++  lifetime_unit: "HOUR" | "DAY" | "WEEK" | "MONTH" | "YEAR";
++}
++
++export interface ReplicationRunOnetimeArgs {
++  direction: "PUSH" | "PULL";
++  transport: "SSH" | "SSH+NETCAT" | "LOCAL";
++  ssh_credentials?: number | null;
++  netcat_active_side?: "LOCAL" | "REMOTE" | null;
++  netcat_active_side_listen_address?: string | null;
++  netcat_active_side_port_min?: number | null;
++  netcat_active_side_port_max?: number | null;
++  netcat_passive_side_connect_address?: string | null;
++  sudo?: boolean;
++  source_datasets: string[];
++  target_dataset: string;
++  recursive: boolean;
++  exclude?: string[];
++  properties?: boolean;
++  properties_exclude?: string[];
++  properties_override?: Record<string, string>;
++  replicate?: boolean;
++  encryption?: boolean;
++  encryption_inherit?: boolean | null;
++  encryption_key?: string | null;
++  encryption_key_format?: "HEX" | "PASSPHRASE" | null;
++  encryption_key_location?: string | null;
++  periodic_snapshot_tasks?: number[];
++  naming_schema?: string[];
++  also_include_naming_schema?: string[];
++  name_regex?: string | null;
++  restrict_schedule?: ReplicationTimeCronModel | null;
++  allow_from_scratch?: boolean;
++  readonly?: "SET" | "REQUIRE" | "IGNORE";
++  hold_pending_snapshots?: boolean;
++  retention_policy: "SOURCE" | "CUSTOM" | "NONE";
++  lifetime_value?: number | null;
++  lifetime_unit?: "HOUR" | "DAY" | "WEEK" | "MONTH" | "YEAR" | null;
++  lifetimes?: ReplicationLifetimeModel[];
++  compression?: "LZ4" | "PIGZ" | "PLZIP" | null;
++  speed_limit?: number | null;
++  large_block?: boolean;
++  embed?: boolean;
++  compressed?: boolean;
++  retries?: number;
++  logging_level?: "DEBUG" | "INFO" | "WARNING" | "ERROR" | null;
++  exclude_mountpoint_property?: boolean;
++  only_from_scratch?: boolean;
++  mount?: boolean;
++}
++
++export interface ReplicationTimeCronModel {
++  minute?: string;
++  hour?: string;
++  dom?: string;
++  month?: string;
++  dow?: string;
++  begin?: string;
++  end?: string;
++}
++
++export interface SSHCredentials {
++  host: string;
++  port?: number;
++  username?: string;
++  private_key: number;
++  remote_host_key: string;
++  connect_timeout?: number;
++}
++
++export interface SSHKeyPair {
++  private_key?: string | null;
++  public_key?: string | null;
++}
++
++export interface ServiceOptions {
++  ha_propagate?: boolean;
++  silent?: boolean;
++  timeout?: number | null;
++}
++
++export interface SharingNFSEntry {
++  id: number;
++  path: string;
++  dataset: string | null;
++  relative_path: string | null;
++  aliases?: string[];
++  comment?: string;
++  networks?: string[];
++  hosts?: string[];
++  ro?: boolean;
++  maproot_user?: string | null;
++  maproot_group?: string | null;
++  mapall_user?: string | null;
++  mapall_group?: string | null;
++  security?: ("SYS" | "KRB5" | "KRB5I" | "KRB5P")[];
++  enabled?: boolean;
++  locked: boolean | null;
++  expose_snapshots?: boolean;
++  tier?: TierInfo | null;
++}
++
++export interface SharingSMBEntry {
++  id: number;
++  purpose?: ;
++  name: string;
++  path: string | "EXTERNAL";
++  dataset: string | null;
++  relative_path: string | null;
++  enabled?: boolean;
++  comment?: string;
++  readonly?: boolean;
++  browsable?: boolean;
++  access_based_share_enumeration?: boolean;
++  locked: boolean | null;
++  audit?: SmbAuditConfig;
++  options?: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null;
++  tier?: TierInfo | null;
++}
++
++export interface SmbAuditConfig {
++  enable?: boolean;
++  watch_list?: string[];
++  ignore_list?: string[];
++}
++
++export interface SmbShareCreate {
++  purpose?: ;
++  name: string;
++  path: string | "EXTERNAL";
++  enabled?: boolean;
++  comment?: string;
++  readonly?: boolean;
++  browsable?: boolean;
++  access_based_share_enumeration?: boolean;
++  audit?: SmbAuditConfig;
++  options?: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null;
++}
++
++export interface SmbShareUpdate {
++  purpose?: ;
++  name?: string;
++  path?: string | "EXTERNAL";
++  enabled?: boolean;
++  comment?: string;
++  readonly?: boolean;
++  browsable?: boolean;
++  access_based_share_enumeration?: boolean;
++  audit?: SmbAuditConfig;
++  options?: LegacyOpt | DefaultOpt | TimeMachineOpt | MultiprotocolOpt | TimeLockedOpt | PrivateDatasetOpt | ExternalOpt | VeeamRepositoryOpt | FCPStorageOpt | null;
++}
++
++export interface SystemInfoResult {
++  version: string;
++  buildtime: unknown;
++  hostname: string;
++  physmem: number;
++  model: string;
++  cores: number;
++  physical_cores: number;
++  loadavg: unknown[];
++  uptime: string;
++  uptime_seconds: number;
++  system_serial: string | null;
++  system_product: string | null;
++  system_product_version: string | null;
++  license: Record<string, unknown> | null;
++  boottime: unknown;
++  datetime: unknown;
++  timezone: string;
++  system_manufacturer: string | null;
++  ecc_memory: boolean;
++}
++
++export interface TierInfo {
++  tier_type: "REGULAR" | "PERFORMANCE";
++  tier_job?: ZfsTierRewriteJobEntry | null;
++}
++
++export interface TimeLockedOpt {
++  purpose: ;
++  grace_period?: number;
++  aapl_name_mangling?: boolean;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++}
++
++export interface TimeMachineOpt {
++  purpose: ;
++  timemachine_quota?: number;
++  auto_snapshot?: boolean;
++  auto_dataset_creation?: boolean;
++  dataset_naming_schema?: string | null;
++  vuid?: string | null;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++}
++
++export interface VeeamRepositoryOpt {
++  purpose: ;
++  hostsallow?: string[];
++  hostsdeny?: string[];
++}
++
++export interface ZfsTierRewriteJobEntry {
++  tier_job_id: string;
++  dataset_name: string;
++  job_uuid: string;
++  status: "COMPLETE" | "RUNNING" | "QUEUED" | "CANCELLED" | "STOPPED" | "ERROR";
++}
++
++export interface iSCSITargetEntry {
++  id: number;
++  name: string;
++  alias?: string | null;
++  mode?: "ISCSI" | "FC" | "BOTH";
++  groups?: IscsiGroup[];
++  auth_networks?: string[];
++  rel_tgt_id: number;
++  iscsi_parameters?: IscsiTargetParameters | null;
++}
++
++export interface iSCSITargetExtentEntry {
++  id: number;
++  name: string;
++  type?: "DISK" | "FILE";
++  disk?: string | null;
++  serial?: string | null;
++  path?: string | null;
++  dataset: string | null;
++  relative_path: string | null;
++  filesize?: string | number;
++  blocksize?: 512 | 1024 | 2048 | 4096;
++  pblocksize?: boolean;
++  avail_threshold?: number | null;
++  comment?: string;
++  naa: string;
++  insecure_tpc?: boolean;
++  xen?: boolean;
++  rpm?: "UNKNOWN" | "SSD" | "5400" | "7200" | "10000" | "15000";
++  ro?: boolean;
++  enabled?: boolean;
++  vendor: string;
++  product_id?: string | null;
++  locked: boolean | null;
++}
++
++export interface iSCSITargetToExtentEntry {
++  id: number;
++  target: number;
++  lunid: number;
++  extent: number;
++}
+diff --git a/tools/truenas-typegen.py b/tools/truenas-typegen.py
+new file mode 100644
+index 0000000..ca279cd
+--- /dev/null
++++ b/tools/truenas-typegen.py
+@@ -0,0 +1,539 @@
++#!/usr/bin/env python3
++"""
++Generate TypeScript declarations for the TrueNAS JSON-RPC methods this driver
++uses, from the Pydantic API models in a truenas/middleware checkout.
++
++The models are read with `ast` only; nothing from middleware is imported or
++executed. Each API version directory (e.g. v25_10_0, v27_0_0) produces its own
++declaration file so callers can be typed against the version the server reports.
++
++usage:
++  python3 -I tools/truenas-typegen.py <middleware>/src/middlewared/middlewared/api \
++      --out src/types/truenas v25_10_0 v27_0_0
++  python3 -I tools/truenas-typegen.py <api dir> --diff v25_10_0 v27_0_0
++"""
++
++import argparse
++import ast
++import json
++import os
++import re
++import sys
++
++# JSON-RPC method -> (kind, model names). kinds:
++#   call:   explicit <Prefix>Args / <Prefix>Result models
++#   query:  generic query(filters, options) over <Entry>
++#   get:    generic get_instance(id, options) over <Entry>
++#   config: generic config() over <Entry>
++METHODS = {
++    "auth.login_with_api_key": ("call", "AuthLoginWithApiKey"),
++    "auth.login": ("call", "AuthLogin"),
++    "core.get_jobs": ("query", "CoreGetJobsItem"),
++    "core.job_wait": ("call", "CoreJobWait"),
++    "system.version": ("call", "SystemVersion"),
++    "system.info": ("call", "SystemInfo"),
++    "service.reload": ("call", "ServiceReload"),
++    "filesystem.setperm": ("call", "FilesystemSetperm"),
++    "filesystem.chown": ("call", "FilesystemChown"),
++    "replication.run_onetime": ("call", "ReplicationRunOnetime"),
++    "pool.dataset.query": ("query", "PoolDatasetEntry"),
++    "pool.dataset.get_instance": ("get", "PoolDatasetEntry"),
++    "pool.dataset.create": ("call", "PoolDatasetCreate"),
++    "pool.dataset.update": ("call", "PoolDatasetUpdate"),
++    "pool.dataset.delete": ("call", "PoolDatasetDelete"),
++    "pool.dataset.destroy_snapshots": ("call", "PoolDatasetDestroySnapshots"),
++    "pool.snapshot.query": ("query", "PoolSnapshotEntry"),
++    "pool.snapshot.get_instance": ("get", "PoolSnapshotEntry"),
++    "pool.snapshot.create": ("call", "PoolSnapshotCreate"),
++    "pool.snapshot.update": ("call", "PoolSnapshotUpdate"),
++    "pool.snapshot.delete": ("call", "PoolSnapshotDelete"),
++    "pool.snapshot.clone": ("call", "PoolSnapshotClone"),
++    "iscsi.global.config": ("config", "ISCSIGlobalEntry"),
++    "iscsi.extent.query": ("query", "iSCSITargetExtentEntry"),
++    "iscsi.extent.create": ("call", "iSCSITargetExtentCreate"),
++    "iscsi.extent.update": ("call", "iSCSITargetExtentUpdate"),
++    "iscsi.extent.delete": ("call", "iSCSITargetExtentDelete"),
++    "iscsi.target.query": ("query", "iSCSITargetEntry"),
++    "iscsi.target.create": ("call", "iSCSITargetCreate"),
++    "iscsi.target.update": ("call", "iSCSITargetUpdate"),
++    "iscsi.target.delete": ("call", "iSCSITargetDelete"),
++    "iscsi.targetextent.query": ("query", "iSCSITargetToExtentEntry"),
++    "iscsi.targetextent.create": ("call", "iSCSITargetToExtentCreate"),
++    "iscsi.targetextent.delete": ("call", "iSCSITargetToExtentDelete"),
++    "sharing.nfs.query": ("query", "SharingNFSEntry"),
++    "sharing.nfs.create": ("call", "SharingNFSCreate"),
++    "sharing.nfs.update": ("call", "SharingNFSUpdate"),
++    "sharing.nfs.delete": ("call", "SharingNFSDelete"),
++    "sharing.smb.query": ("query", "SharingSMBEntry"),
++    "sharing.smb.create": ("call", "SharingSMBCreate"),
++    "sharing.smb.update": ("call", "SharingSMBUpdate"),
++    "sharing.smb.delete": ("call", "SharingSMBDelete"),
++    "nvmet.subsys.query": ("query", "NVMetSubsysEntry"),
++    "nvmet.subsys.create": ("call", "NVMetSubsysCreate"),
++    "nvmet.subsys.delete": ("call", "NVMetSubsysDelete"),
++    "nvmet.port.query": ("query", "NVMetPortEntry"),
++    "nvmet.port_subsys.query": ("query", "NVMetPortSubsysEntry"),
++    "nvmet.port_subsys.create": ("call", "NVMetPortSubsysCreate"),
++    "nvmet.namespace.query": ("query", "NVMetNamespaceEntry"),
++    "nvmet.namespace.create": ("call", "NVMetNamespaceCreate"),
++    "nvmet.namespace.delete": ("call", "NVMetNamespaceDelete"),
++}
++
++PRIMITIVES = {
++    "str": "string",
++    "int": "number",
++    "float": "number",
++    "bool": "boolean",
++    "None": "null",
++    "NoneType": "null",
++    "Any": "unknown",
++    "object": "unknown",
++    "dict": "Record<string, unknown>",
++    "Dict": "Record<string, unknown>",
++    "list": "unknown[]",
++    "List": "unknown[]",
++    # datetime is encoded by middleware's JSON-RPC layer, not by Pydantic;
++    # left opaque rather than guessing the wire shape
++    "datetime": "unknown",
++    "date": "unknown",
++    "time": "unknown",
++}
++
++# middleware string-ish constrained types (api/base/types)
++STRINGY = re.compile(
++    r"^(NonEmptyString|LongString|LongNonEmptyString|EmailString|HttpUrl|"
++    r"UUID|IPvAnyAddress|IPv4Address|IPv6Address|IPvAnyNetwork|IPvAnyInterface|"
++    r"TimeString|UnixPerm|.*String|.*Name|.*Path|SNAPSHOT_NAME)$"
++)
++WRAPPERS = {"Annotated", "Secret", "Required", "NotRequired", "ClassVar", "Final"}
++SKIP_FIELDS = {"model_config"}
++
++
++class Version:
++    def __init__(self, api_dir, version):
++        self.version = version
++        self.classes = {}
++        self.aliases = {}
++        self.unresolved = set()
++        d = os.path.join(api_dir, version)
++        if not os.path.isdir(d):
++            raise SystemExit(f"no such api version directory: {d}")
++        # shared aliases (api/base/types) first, so version modules shadow them
++        base = os.path.join(api_dir, "base", "types")
++        if os.path.isdir(base):
++            for f in sorted(os.listdir(base)):
++                if f.endswith(".py"):
++                    self._load(os.path.join(base, f))
++        for f in sorted(os.listdir(d)):
++            if f.endswith(".py"):
++                self._load(os.path.join(d, f))
++
++    def _load(self, path):
++        tree = ast.parse(open(path, encoding="utf-8").read(), filename=path)
++        for node in tree.body:
++            if isinstance(node, ast.ClassDef):
++                self.classes[node.name] = node
++            elif (
++                isinstance(node, ast.Assign)
++                and len(node.targets) == 1
++                and isinstance(node.targets[0], ast.Name)
++                and node.targets[0].id != "__all__"
++            ):
++                self.aliases[node.targets[0].id] = node.value
++            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
++                if node.value is not None:
++                    self.aliases[node.target.id] = node.value
++
++
++class Emitter:
++    def __init__(self, v):
++        self.v = v
++        self.interfaces = {}  # name -> list[(field, ts, optional)]
++        self.pending = []
++
++    # ---- type expressions -------------------------------------------------
++
++    def ts(self, node, depth=0):
++        if depth > 40:
++            return "unknown"
++        if node is None:
++            return "unknown"
++        if isinstance(node, ast.Constant):
++            if node.value is None:
++                return "null"
++            if isinstance(node.value, str):
++                # forward reference
++                try:
++                    return self.ts(ast.parse(node.value, mode="eval").body, depth + 1)
++                except SyntaxError:
++                    return "unknown"
++            return json.dumps(node.value)
++        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
++            return self.union([self.ts(node.left, depth + 1), self.ts(node.right, depth + 1)])
++        if isinstance(node, ast.Attribute):
++            return self.name(node.attr, depth)
++        if isinstance(node, ast.Name):
++            return self.name(node.id, depth)
++        if isinstance(node, ast.Subscript):
++            base = node.value.attr if isinstance(node.value, ast.Attribute) else getattr(node.value, "id", "")
++            args = node.slice.elts if isinstance(node.slice, ast.Tuple) else [node.slice]
++            if base in WRAPPERS:
++                return self.ts(args[0], depth + 1)
++            if base == "Literal":
++                return self.union([json.dumps(a.value) for a in args if isinstance(a, ast.Constant)])
++            if base in ("Union",):
++                return self.union([self.ts(a, depth + 1) for a in args])
++            if base == "Optional":
++                return self.union([self.ts(args[0], depth + 1), "null"])
++            if base in ("list", "List", "set", "Set", "frozenset", "Sequence", "UniqueList"):
++                return self.array(self.ts(args[0], depth + 1))
++            if base in ("tuple", "Tuple"):
++                return self.array(self.union([self.ts(a, depth + 1) for a in args if not isinstance(a, ast.Constant)]) or "unknown")
++            if base in ("dict", "Dict", "Mapping"):
++                return f"Record<string, {self.ts(args[1], depth + 1) if len(args) > 1 else 'unknown'}>"
++            if base == "Excluded":
++                return "never"
++            return self.name(base, depth)
++        if isinstance(node, ast.Call):
++            # e.g. excluded_field(), conlist(...)
++            fn = getattr(node.func, "id", getattr(node.func, "attr", ""))
++            if fn == "excluded_field":
++                return "never"
++            return "unknown"
++        return "unknown"
++
++    def name(self, n, depth):
++        if n in PRIMITIVES:
++            return PRIMITIVES[n]
++        if n == "Excluded":
++            return "never"
++        if n in self.v.classes:
++            cls = self.v.classes[n]
++            if self.is_enum(cls):
++                return self.enum(cls)
++            self.require(n)
++            return n
++        if n in self.v.aliases:
++            return self.ts(self.v.aliases[n], depth + 1)
++        if STRINGY.match(n):
++            return "string"
++        self.v.unresolved.add(n)
++        return "unknown"
++
++    def is_enum(self, cls):
++        return any(getattr(b, "id", getattr(b, "attr", "")) in ("Enum", "StrEnum", "IntEnum") for b in cls.bases)
++
++    def enum(self, cls):
++        vals = [
++            json.dumps(s.value.value)
++            for s in cls.body
++            if isinstance(s, ast.Assign) and isinstance(s.value, ast.Constant)
++        ]
++        return self.union(vals) or "unknown"
++
++    @staticmethod
++    def union(parts):
++        out = []
++        for p in parts:
++            for q in p.split(" | ") if not p.startswith("Record<") and "(" not in p else [p]:
++                if q and q not in out and q != "never":
++                    out.append(q)
++        if "unknown" in out:
++            return "unknown"
++        return " | ".join(out)
++
++    @staticmethod
++    def array(t):
++        return f"({t})[]" if " | " in t else f"{t}[]"
++
++    # ---- models -------------------------------------------------------------
++
++    def require(self, n):
++        if n not in self.interfaces and n not in self.pending:
++            self.pending.append(n)
++
++    def fields(self, n, seen=None):
++        """resolved [(name, ts, optional)] including inherited, honoring Excluded"""
++        seen = seen or set()
++        if n in seen or n not in self.v.classes:
++            return []
++        seen.add(n)
++        cls = self.v.classes[n]
++        result = {}
++        for b in cls.bases:
++            bn = getattr(b, "id", getattr(b, "attr", None))
++            if bn and bn in self.v.classes:
++                for f in self.fields(bn, seen):
++                    result[f[0]] = f
++        for_update = any(
++            k.arg == "metaclass" and getattr(k.value, "id", "") == "ForUpdateMetaclass" for k in cls.keywords
++        )
++        for s in cls.body:
++            if not isinstance(s, ast.AnnAssign) or not isinstance(s.target, ast.Name):
++                continue
++            fname = s.target.id
++            if fname in SKIP_FIELDS:
++                continue
++            ann = ast.unparse(s.annotation)
++            if ann.startswith("ClassVar"):
++                continue
++            t = self.ts(s.annotation)
++            if t == "never" or (s.value is not None and "excluded_field" in ast.unparse(s.value)):
++                result.pop(fname, None)
++                result.pop(self.alias_of(s) or fname, None)
++                continue
++            optional = s.value is not None and not self.default_is_required(s.value)
++            name = self.alias_of(s) or fname
++            if fname != name:
++                result.pop(fname, None)
++            result[name] = (name, t, optional)
++        if self.allows_extra(cls):
++            result["[key: string]"] = ("[key: string]", "unknown", False)
++        if for_update:
++            return [(k, t, not k.startswith("[")) for k, (_, t, _o) in result.items()]
++        return list(result.values())
++
++    @staticmethod
++    def allows_extra(cls):
++        for s in cls.body:
++            if (
++                isinstance(s, ast.Assign)
++                and getattr(s.targets[0], "id", "") == "model_config"
++                and re.search(r"extra\s*=\s*['\"]allow['\"]", ast.unparse(s.value))
++            ):
++                return True
++        return False
++
++    @staticmethod
++    def alias_of(s):
++        if isinstance(s.value, ast.Call):
++            for k in s.value.keywords:
++                if k.arg in ("alias", "validation_alias") and isinstance(k.value, ast.Constant):
++                    return k.value.value
++        return None
++
++    @staticmethod
++    def default_is_required(v):
++        # Field(description=...) with no default / default_factory means required
++        if isinstance(v, ast.Call) and getattr(v.func, "id", "") == "Field":
++            has_default = any(k.arg in ("default", "default_factory") for k in v.keywords) or (
++                v.args and not (isinstance(v.args[0], ast.Constant) and v.args[0].value is Ellipsis)
++            )
++            return not has_default
++        return False
++
++    def decorator_arg(self, cls, name):
++        for d in cls.decorator_list:
++            if isinstance(d, ast.Call) and getattr(d.func, "id", "") == name and d.args:
++                return d.args[0].value
++        return None
++
++    def drain(self):
++        while self.pending:
++            n = self.pending.pop(0)
++            if n in self.interfaces:
++                continue
++            self.interfaces[n] = None  # guard recursion
++            self.interfaces[n] = self.fields(n)
++
++    # ---- methods ------------------------------------------------------------
++
++    def method(self, method, kind, model):
++        v = self.v
++        if kind in ("query", "get", "config"):
++            if model not in v.classes:
++                raise KeyError(model)
++            self.require(model)
++            if kind == "query":
++                return ["filters?: QueryFilter[]", "options?: QueryOptions"], f"{model}[] | {model} | number"
++            if kind == "get":
++                return ["id: string | number", "options?: QueryOptions"], model
++            return [], model
++        args, res = model + "Args", model + "Result"
++        if args not in v.classes or res not in v.classes:
++            raise KeyError(args if args not in v.classes else res)
++        acls = v.classes[args]
++        single = self.decorator_arg(acls, "single_argument_args")
++        if single:
++            self.require(args)
++            params = [f"{single}: {args}"]
++        else:
++            params = [f"{n}{'?' if o else ''}: {t}" for n, t, o in self.fields(args)]
++            # a required positional after an optional one is invalid TS; keep order, loosen
++            seen_opt = False
++            fixed = []
++            for p in params:
++                n, t = p.split(": ", 1)
++                if n.endswith("?"):
++                    seen_opt = True
++                elif seen_opt:
++                    n += "?"
++                fixed.append(f"{n}: {t}")
++            params = fixed
++        rfields = {n: t for n, t, _ in self.fields(res)}
++        rtype = rfields.get("result", "unknown")
++        if any(isinstance(d, ast.Name) and d.id == "single_argument_result" for d in v.classes[res].decorator_list):
++            rtype = res
++            self.require(res)
++        return params, rtype
++
++
++def generate(api_dir, version, strict):
++    v = Version(api_dir, version)
++    e = Emitter(v)
++    methods, missing = {}, {}
++    for m, (kind, model) in METHODS.items():
++        try:
++            methods[m] = e.method(m, kind, model)
++        except KeyError as err:
++            missing[m] = str(err)
++    e.drain()
++    if missing and strict:
++        raise SystemExit(f"{version}: missing models: {json.dumps(missing, indent=2)}")
++    return v, e, methods, missing
++
++
++def render(version, e, methods, missing):
++    dotted = version.lstrip("v").replace("_", ".")
++    out = [
++        "// GENERATED by tools/truenas-typegen.py from truenas/middleware",
++        f"// src/middlewared/middlewared/api/{version} -- do not edit by hand.",
++        "",
++        "export type QueryFilter = [string, string, unknown] | [\"OR\", QueryFilter[]] | unknown[];",
++        "export interface QueryOptions {",
++        "  extra?: Record<string, unknown>;",
++        "  order_by?: string[];",
++        "  select?: (string | unknown[])[];",
++        "  count?: boolean;",
++        "  get?: boolean;",
++        "  offset?: number;",
++        "  limit?: number;",
++        "  force_sql_filters?: boolean;",
++        "}",
++        "",
++        f'export type ApiVersion = "v{dotted}";',
++        "",
++        "export interface Methods {",
++    ]
++    for m in sorted(methods):
++        params, result = methods[m]
++        out.append(f'  "{m}": {{ params: [{", ".join(params)}]; result: {result} }};')
++    out.append("}")
++    if missing:
++        out.append("")
++        out.append("// methods with no models in this version:")
++        for m, why in sorted(missing.items()):
++            out.append(f"//   {m}: {why}")
++    for name in sorted(e.interfaces):
++        out.append("")
++        out.append(f"export interface {name} {{")
++        for fname, t, opt in e.interfaces[name] or []:
++            if fname.startswith("["):
++                out.append(f"  {fname}: unknown;")
++                continue
++            key = fname if re.match(r"^[A-Za-z_$][\w$]*$", fname) else json.dumps(fname)
++            out.append(f"  {key}{'?' if opt else ''}: {t};")
++        out.append("}")
++    return "\n".join(out) + "\n"
++
++
++def flatten(e, methods):
++    """method -> {path: (type, optional)}, one level into named models; for --diff"""
++    flat = {}
++    for m, (params, result) in methods.items():
++        d = {}
++        for p in params:
++            n, t = p.split(": ", 1)
++            d["param " + n.rstrip("?")] = (t, n.endswith("?"))
++            for model in re.findall(r"\b[A-Za-z]\w*\b", t):
++                for fn, ft, fo in e.interfaces.get(model) or []:
++                    d[f"param {n.rstrip('?')}.{fn}"] = (ft, fo)
++        d["result"] = (result, False)
++        for model in re.findall(r"\b[A-Za-z]\w*\b", result):
++            for fn, ft, fo in e.interfaces.get(model) or []:
++                d[f"result.{fn}"] = (ft, fo)
++        flat[m] = d
++    return flat
++
++
++def main():
++    ap = argparse.ArgumentParser()
++    ap.add_argument("api_dir")
++    ap.add_argument("versions", nargs="+")
++    ap.add_argument("--out")
++    ap.add_argument("--diff", action="store_true")
++    ap.add_argument("--strict", action="store_true")
++    a = ap.parse_args()
++
++    gens = {ver: generate(a.api_dir, ver, a.strict) for ver in a.versions}
++
++    if a.diff:
++        (va, (_, ea, ma, xa)), (vb, (_, eb, mb, xb)) = list(gens.items())[:2]
++        fa, fb = flatten(ea, ma), flatten(eb, mb)
++        for m in sorted(set(fa) | set(fb)):
++            if m not in fb:
++                print(f"{m}: REMOVED in {vb}")
++                continue
++            if m not in fa:
++                print(f"{m}: ADDED in {vb}")
++                continue
++            lines = []
++            for k in sorted(set(fa[m]) | set(fb[m])):
++                A, B = fa[m].get(k), fb[m].get(k)
++                if A == B:
++                    continue
++                if A is None:
++                    lines.append(f"  + {k}{'?' if B[1] else ''}: {B[0]}")
++                elif B is None:
++                    lines.append(f"  - {k}: {A[0]}")
++                else:
++                    lines.append(f"  ~ {k}: {A[0]}{'?' if A[1] else ''}  ->  {B[0]}{'?' if B[1] else ''}")
++            if lines:
++                print(f"{m}:")
++                print("\n".join(lines))
++        return
++
++    # runtime table: positional parameter names per method, used to map
++    # REST-style object bodies onto JSON-RPC positional params
++    param_names = {}
++    for ver, (v, e, methods, missing) in gens.items():
++        if v.unresolved:
++            print(f"{ver}: typed as unknown: {', '.join(sorted(v.unresolved))}", file=sys.stderr)
++        if missing:
++            print(f"{ver}: missing: {', '.join(sorted(missing))}", file=sys.stderr)
++        print(f"{ver}: {len(methods)} methods, {len(e.interfaces)} models", file=sys.stderr)
++        dotted = "v" + ver.lstrip("v").replace("_", ".")
++        param_names[dotted] = {
++            m: [p.split(": ", 1)[0].rstrip("?") for p in params] for m, (params, _) in sorted(methods.items())
++        }
++        if a.out:
++            os.makedirs(a.out, exist_ok=True)
++            with open(os.path.join(a.out, f"{ver}.d.ts"), "w") as fh:
++                fh.write(render(ver, e, methods, missing))
++
++    if a.out:
++        with open(os.path.join(a.out, "methods.json"), "w") as fh:
++            json.dump(param_names, fh, indent=2, sort_keys=True)
++            fh.write("\n")
++        vers = list(gens)
++        index = ["// GENERATED by tools/truenas-typegen.py -- do not edit by hand.", ""]
++        for ver in vers:
++            index.append(f'import type * as {ver} from "./{ver}";')
++        index.append("")
++        index.append("export interface MethodsByVersion {")
++        for ver in vers:
++            index.append(f'  "v{ver.lstrip("v").replace("_", ".")}": {ver}.Methods;')
++        index.append("}")
++        index.append("export type ApiVersion = keyof MethodsByVersion;")
++        index.append("/** methods present in every generated version, typed by the newest */")
++        index.append(f"export type Methods = {vers[-1]}.Methods;")
++        index.append("export type MethodName = keyof Methods;")
++        index.append('export type Params<M extends MethodName> = Methods[M]["params"];')
++        index.append('export type Result<M extends MethodName> = Methods[M]["result"];')
++        index.append(f"export type {{ QueryFilter, QueryOptions }} from \"./{vers[-1]}\";")
++        with open(os.path.join(a.out, "index.d.ts"), "w") as fh:
++            fh.write("\n".join(index) + "\n")
++
++
++if __name__ == "__main__":
++    main()

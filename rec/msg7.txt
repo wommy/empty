@@ -1,0 +1,15 @@
+Release a clone's origin only when it is provably ours
+
+Deleting a clone released any origin whose name contained
+@volume-source-for-volume-: one outside the parent (destroy -d outside
+the endpoint's tree, and a lock key no request takes), or one cut for
+another clone (adv4 F7, wave-5 R6). The origin is now released only
+when it is exactly <parent>/<src>@volume-source-for-volume-<this id>,
+src is an addressable volume the endpoint owns, and the snapshot is
+stamped for this clone or carries no ownership marker at all (legacy
+democratic-csi: the clone's origin, recorded by zfs, proves it). One
+rule, releasedOrigin, serves DeleteVolume and Reconcile's locks.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
+

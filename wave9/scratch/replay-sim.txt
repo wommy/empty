@@ -1,0 +1,222 @@
+=== RUN   TestNFSReplay
+    nfs_replay_test.go:147: needs a real pool (ZFS_TEST_POOL) and a running nfsd
+--- SKIP: TestNFSReplay (0.00s)
+=== RUN   TestNFSReplayOnSim
+    nfs_replay_test.go:215: # NFS replay: tank/nfsreplay/v (mountpoint /tank/nfsreplay/v)
+        
+        
+        ## off: sharenfs="off"
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## on: sharenfs="on"
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw,crossmnt)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## bare rw: sharenfs="rw"
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## bare ro: sharenfs="ro"
+          etab clients: *(ro)
+          verifier exposure: /tank/nfsreplay/v *(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=ro 10.9.9.9=ro
+        
+        ## one /32 rw: sharenfs="rw=10.0.0.5/32"
+          etab clients: 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## one /32 ro: sharenfs="ro=10.0.0.5/32"
+          etab clients: 10.0.0.5/32(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## one /16: sharenfs="rw=10.1.0.0/16"
+          etab clients: 10.1.0.0/16(rw)
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=rw 10.9.9.9=none
+        
+        ## canonical mix: sharenfs="rw=10.0.0.5/32:10.0.0.6/32,ro=10.1.0.0/16"
+          etab clients: 10.0.0.5/32(rw) 10.0.0.6/32(rw) 10.1.0.0/16(ro)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=ro 10.9.9.9=none
+        
+        ## same net rw then ro: sharenfs="rw=10.0.0.0/24,ro=10.0.0.0/24"
+          ref exportfs: duplicated export entries: 10.0.0.0/24:/tank/nfsreplay/v (flags 0x425 vs 0x424)
+          etab clients: 10.0.0.0/24(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/24(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## same net ro then rw: sharenfs="ro=10.0.0.0/24,rw=10.0.0.0/24"
+          ref exportfs: duplicated export entries: 10.0.0.0/24:/tank/nfsreplay/v (flags 0x424 vs 0x425)
+          etab clients: 10.0.0.0/24(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/24(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=none 10.9.9.9=none
+        
+        ## overlap same mode: sharenfs="rw=10.0.0.0/24:10.0.0.5/32"
+          etab clients: 10.0.0.0/24(rw) 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/24(rw); /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## ro inside rw: sharenfs="rw=10.0.0.0/16,ro=10.0.0.0/24"
+          etab clients: 10.0.0.0/16(rw) 10.0.0.0/24(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/16(rw); /tank/nfsreplay/v 10.0.0.0/24(ro)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## host bits set: sharenfs="rw=10.0.0.5/24"
+          etab clients: 10.0.0.5/24(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/24(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## prefix 024: sharenfs="rw=10.0.0.0/024"
+          etab clients: 10.0.0.0/024(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/024(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## prefix +24: sharenfs="rw=10.0.0.0/+24"
+          etab clients: 10.0.0.0/+24(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/+24(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## dotted mask: sharenfs="rw=10.0.0.0/255.255.255.0"
+          etab clients: 10.0.0.0/255.255.255.0(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/255.255.255.0(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## prefix 33: sharenfs="rw=10.0.0.0/33"
+          ref exportfs: Invalid IP address or prefix 10.0.0.0/33
+          ref exportfs: Invalid IP address or prefix 10.0.0.0/33
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## bare address: sharenfs="rw=10.0.0.5"
+          etab clients: 10.0.0.5(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## address and /32: sharenfs="rw=10.0.0.5:10.0.0.5/32"
+          etab clients: 10.0.0.5(rw) 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5(rw); /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## at subnet: sharenfs="rw=@10.0.0.0/8"
+          etab clients: 10.0.0.0/8(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.0/8(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## empty list: sharenfs="rw="
+          ref exportfs: /etc/exports.d/zfs.exports: No host name given with /tank/nfsreplay/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## trailing colon: sharenfs="rw=10.0.0.5/32:"
+          ref exportfs: /etc/exports.d/zfs.exports: No host name given with /tank/nfsreplay/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+          etab clients: 10.0.0.5/32(rw) *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw); /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## double colon: sharenfs="rw=10.0.0.5/32::10.0.0.6/32"
+          ref exportfs: /etc/exports.d/zfs.exports: No host name given with /tank/nfsreplay/v (sec=sys,rw,no_subtree_check,mountpoint), suggest *(sec=sys,rw,no_subtree_check,mountpoint) to avoid warning
+          etab clients: 10.0.0.5/32(rw) 10.0.0.6/32(rw) *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw); /tank/nfsreplay/v 10.0.0.5/32(rw); /tank/nfsreplay/v 10.0.0.6/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## star: sharenfs="rw=*"
+          etab clients: *(rw)
+          verifier exposure: /tank/nfsreplay/v *(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## unresolvable name: sharenfs="rw=node-a.invalid"
+          ref exportfs: Failed to resolve node-a.invalid
+          ref exportfs: Failed to resolve node-a.invalid
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## crossmnt: sharenfs="rw=10.0.0.5/32,crossmnt"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw,crossmnt)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## no_root_squash: sharenfs="rw=10.0.0.5/32,no_root_squash"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## root_mapping: sharenfs="ro=10.0.0.5/32,root_mapping=0"
+          etab clients: 10.0.0.5/32(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## sec krb5: sharenfs="sec=krb5,rw=10.0.0.5/32"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## sec switch: sharenfs="rw=10.0.0.5/32,sec=krb5,ro=10.1.0.0/16"
+          etab clients: 10.0.0.5/32(rw) 10.1.0.0/16(ro)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw); /tank/nfsreplay/v 10.1.0.0/16(ro)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## sec null: sharenfs="sec,rw=10.0.0.5/32"
+          ref exportfs: /etc/exports.d/zfs.exports: syntax error: bad option list
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## hash host: sharenfs="rw=#"
+          ref exportfs: /etc/exports.d/zfs.exports: No options for /tank/nfsreplay/v : suggest (sync) to avoid warning
+          etab clients: (ro)
+          verifier exposure: /tank/nfsreplay/v (ro)
+          mountd model: 10.0.0.5=ro 10.0.0.6=ro 10.1.2.3=ro 10.9.9.9=ro
+        
+        ## space in list: sharenfs="rw=10.0.0.5/32 10.0.0.6/32"
+          ref exportfs: /etc/exports.d/zfs.exports: No options for /tank/nfsreplay/v 10.0.0.5/32: suggest 10.0.0.5/32(sync) to avoid warning
+          etab clients: 10.0.0.5/32(ro) 10.0.0.6/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(ro); /tank/nfsreplay/v 10.0.0.6/32(rw)
+          mountd model: 10.0.0.5=ro 10.0.0.6=rw 10.1.2.3=none 10.9.9.9=none
+        
+        ## quote: sharenfs="rw=\"10.0.0.5/32"
+          ref exportfs: /etc/exports.d/zfs.exports: syntax error: bad option list
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## bad anonuid: sharenfs="anonuid=x,rw=10.0.0.5/32"
+          ref exportfs: /etc/exports.d/zfs.exports: /etc/exports.d/zfs.exports: bad anonuid "anonuid=x"
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## no hosts: sharenfs="sync"
+          etab clients: 
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## unknown key: sharenfs="bogus"
+          zfs set refused: []: exit 1: cannot set property for 'tank/nfsreplay/v': 'sharenfs' cannot be set to invalid options
+        
+        
+        ## empty: sharenfs=""
+          zfs set refused: []: exit 1: cannot set property for 'tank/nfsreplay/v': 'sharenfs' cannot be set to invalid options
+        
+        
+        ## ipv6 literal: sharenfs="rw=[::1]"
+          etab clients: ::1(rw)
+          verifier exposure: /tank/nfsreplay/v ::1(rw)
+          mountd model: 10.0.0.5=none 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## mountpoint option: sharenfs="rw=10.0.0.5/32,mountpoint=/nonexistent"
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay/v 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        ## parent on: sharenfs="rw=10.0.0.5/32" (parent "on")
+          etab clients: 10.0.0.5/32(rw)
+          verifier exposure: /tank/nfsreplay *(rw,crossmnt)
+          mountd model: 10.0.0.5=rw 10.0.0.6=rw 10.1.2.3=rw 10.9.9.9=rw
+        
+        ## parent subnet: sharenfs="rw=10.0.0.5/32" (parent "rw=@10.0.0.0/8")
+          etab clients: 10.0.0.5/32(rw)
+          mountd model: 10.0.0.5=rw 10.0.0.6=none 10.1.2.3=none 10.9.9.9=none
+        
+        42 cases, 0 failures, 0 ambiguities, 45ms
+        
+--- PASS: TestNFSReplayOnSim (0.05s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.136s

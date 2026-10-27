@@ -1,0 +1,161 @@
+cmd/zfs-csi/main_test.go	TestEndpointTargetIsAnAbsoluteSocketPath	10	keep	
+cmd/zfs-endpoint/main_test.go	TestStartupRefusals	34	keep	
+cmd/zfs-endpoint/main_test.go	TestStartupWaitsForTheParent	19	keep	
+cmd/zfs-endpoint/main_test.go	TestCheckVersion	14	keep	
+cmd/zfs-endpoint/main_test.go	TestServeHealthNotifyAndStop	49	keep	
+cmd/zfs-endpoint/main_test.go	TestLockParentIsExclusive	21	keep	
+cmd/zfs-endpoint/main_test.go	TestLockParentRefusesNestedParents	41	keep	
+internal/csi/controller_test.go	TestCapabilitiesAdvertised	23	keep	
+internal/csi/controller_test.go	TestExpandNodeExpansionRequired	45	keep	
+internal/csi/controller_test.go	TestParametersAndAccessChecks	52	keep	
+internal/csi/controller_test.go	TestNeverIssuedIDs	22	keep	
+internal/csi/controller_test.go	TestExpandUnlimitedFilesystem	13	keep	
+internal/csi/sanity_test.go	TestSanity	40	keep	
+internal/endpoint/adv4_export_test.go	TestAdv4_PrefixMatchUnpublishLivelock	16	keep	
+internal/endpoint/adv4_export_test.go	TestAdv4_PrefixMatchPublishFalseSuccess	10	keep	
+internal/endpoint/adv4_export_test.go	TestAdv4_AddressDedupPublishNeverVerifies	10	keep	
+internal/endpoint/adv4_export_test.go	TestAdv4_TwoSpellingsBypassModeConflict	16	keep	
+internal/endpoint/adv4_export_test.go	TestAdv4_ClientPolicyGaps	9	keep	
+internal/endpoint/adv4_test.go	TestAdv4CommitRaceDestroysJustProvisionedVolume	36	keep	
+internal/endpoint/adv4_test.go	TestAdv4TinyMinAgeInFlightCreate	17	keep	
+internal/endpoint/adv4_test.go	TestReconcileAgesFromCommit	14	keep	
+internal/endpoint/adv4_test.go	TestAdv4OneFailureStarvesAndHidesDestroys	20	keep	
+internal/endpoint/adv4_test.go	TestAdv4BusyDestroyAbortsRun	22	keep	
+internal/endpoint/adv4_test.go	TestReconcileSkipsSourceOfFailedClone	38	keep	
+internal/endpoint/adv4_test.go	TestAdv4OneBusyLockAbortsWholeRun	24	keep	
+internal/endpoint/adv4_test.go	TestAdv4PartialDesiredSetMassDeletes	23	keep	
+internal/endpoint/adv4_test.go	TestReconcileMaxDeletionsAndDigest	33	keep	
+internal/endpoint/adv4_test.go	TestAdv4UserSnapshotWithReservedPrefixCollected	12	keep	
+internal/endpoint/adv4_test.go	TestAdv4ReleasedOriginOutsideParent	31	replace	regress F6
+internal/endpoint/adv4_test.go	TestLegacyUnstampedOriginReleasedWithItsClone	14	rewrite	core never releases an unstamped origin (OWN-13): invert, or knownOpen with expiry
+internal/endpoint/adv4_test.go	TestCloneRefusesUnstampedReservedSnapshot	11	replace	TestCloneSourceIsOursOnlyByStamp
+internal/endpoint/apply_test.go	TestApplyRefusesAnUnknownOpKind	16	delete	sealed op.Op: no unknown kind is constructible
+internal/endpoint/apply_test.go	TestOpKindString	10	delete	kindNames table, exhaustive by array length
+internal/endpoint/clonesize_test.go	TestCloneLargerThanLimitIsOutOfRange	29	replace	TestCreateCells / regress
+internal/endpoint/clonesize_test.go	TestReserveRestoreIsIdempotent	30	replace	TestCreateCells idempotent repeat
+internal/endpoint/clonesize_test.go	TestCloneFailureAfterCloneConvergesToSameState	46	replace	TestCrashConvergence
+internal/endpoint/converge_test.go	FuzzCreateConverges	21	replace	TestCrashConvergence (exhaustive, not sampled)
+internal/endpoint/coverage_test.go	TestPlannersRequireACoveringTable	45	replace	Bind: ErrScope/ErrStale (TestBindNeedsTheScanLease)
+internal/endpoint/coverage_test.go	TestScanRecordsCoverage	17	delete	Scope is a field Parse sets; World has no other constructor
+internal/endpoint/dash_test.go	TestUserValueDash	15	replace	world_test tamper/ownership rows
+internal/endpoint/dash_test.go	TestLiteralDashMarkerIsAValue	28	replace	TestOwnershipIsDerivedOnce row (VN "-" -> Foreign)
+internal/endpoint/decode_test.go	TestDecodeRejectsImpossibleZvolSizes	34	replace	TestParseRejectsWhatZfsNeverPrints rows I7
+internal/endpoint/deleteorder_test.go	TestAdv4ChildDatasetsDestroyed	18	replace	TestDeleteCells child-dataset
+internal/endpoint/deleteorder_test.go	TestDeleteVolumeSparesChildDatasets	10	replace	TestDeleteCells child-dataset
+internal/endpoint/deleteorder_test.go	TestDeleteVolumeSparesSnapshotCutAfterScan	20	replace	TestRacingSnapshotStopsTheDestroy (golden)
+internal/endpoint/deleteorder_test.go	TestDeleteCloneInterruptedThenRetriedReleasesOrigin	31	replace	TestDeleteCells crash/retry + R1
+internal/endpoint/endpoint_test.go	TestCreateVolumeIdempotent	35	replace	TestCreateCells
+internal/endpoint/endpoint_test.go	TestCreateVolumeResumesInterruptedProvision	27	replace	TestCrashConvergence
+internal/endpoint/endpoint_test.go	TestNeverAdoptsOrDeletesUnmanaged	13	replace	TestCreateCells/TestDeleteCells Foreign rows
+internal/endpoint/endpoint_test.go	TestDeleteVolume	27	replace	TestDeleteCells
+internal/endpoint/endpoint_test.go	TestSnapshotLifecycleWithClones	59	keep	
+internal/endpoint/endpoint_test.go	TestCloneFromVolumeReleasesInternalSnapshot	25	replace	TestGoldenPlans + TestDeleteCells leak check
+internal/endpoint/endpoint_test.go	TestExpand	17	keep	
+internal/endpoint/endpoint_test.go	TestConcurrentCreatesSerialize	28	keep	
+internal/endpoint/endpoint_test.go	TestPagination	29	keep	
+internal/endpoint/endpoint_test.go	TestInheritedOwnershipIsNotOwnership	18	replace	TestOwnershipIsDerivedOnce
+internal/endpoint/endpoint_test.go	TestThickCloneRetryIsIdempotent	13	replace	TestCreateCells
+internal/endpoint/endpoint_test.go	TestCloneResizeFailureConverges	26	replace	TestCrashConvergence
+internal/endpoint/endpoint_test.go	TestMissingParentIsUnavailableNotAbsent	17	keep	
+internal/endpoint/endpoint_test.go	TestCreateVolumeProperties	77	keep	
+internal/endpoint/errors_test.go	TestZfsErrCodes	22	replace	ErrTable rows (single table, step 0)
+internal/endpoint/errors_test.go	TestCodeOfNeverReportsAFailureAsOK	5	replace	code.Refuse(OK) -> Internal; TestErrTableIsTotal
+internal/endpoint/export_contract_test.go	TestFileExportLifecycle	68	keep	
+internal/endpoint/export_contract_test.go	TestFileExportPreconditions	73	keep	
+internal/endpoint/export_contract_test.go	TestFileExportVerifiesKernelTable	34	keep	
+internal/endpoint/export_contract_test.go	TestFileExportRequiresNFSD	33	keep	
+internal/endpoint/export_contract_test.go	TestFileExportDroppedHost	30	keep	
+internal/endpoint/export_contract_test.go	TestFileExportResolvesSymlinks	34	keep	
+internal/endpoint/export_contract_test.go	TestFileExportUnmountedVolume	39	keep	
+internal/endpoint/export_contract_test.go	TestFileExportReceivedShareNFS	33	keep	
+internal/endpoint/export_contract_test.go	TestFileExportAdoptedVolumes	40	keep	
+internal/endpoint/export_test.go	TestParseClient	34	keep	
+internal/endpoint/export_test.go	TestCheckFloor	11	keep	
+internal/endpoint/export_test.go	TestShareNFSAndClientEncoding	35	keep	
+internal/endpoint/export_test.go	TestSortClientsIsTotal	7	keep	
+internal/endpoint/export_test.go	TestParseEtab	47	keep	
+internal/endpoint/export_test.go	TestPlanPublishExport	95	keep	
+internal/endpoint/export_test.go	TestExportSizeLimit	24	keep	
+internal/endpoint/export_test.go	TestPlanUnpublishExport	56	keep	
+internal/endpoint/export_test.go	TestExportConverges	44	keep	
+internal/endpoint/foreign_test.go	TestDeleteVolumeSparesForeignSnapshots	62	replace	TestDeleteCells sanoid rows
+internal/endpoint/foreign_test.go	TestDeleteVolumeAfterItsCloneIsGone	16	replace	TestDeleteCells
+internal/endpoint/opcodes_test.go	TestBusyIsMappedByOperation	31	replace	ErrTable[class][Busy]
+internal/endpoint/opcodes_test.go	TestUnknownFailureAfterAMutationIsRetryable	16	replace	ErrTable[*][Unknown][mutated]
+internal/endpoint/ownership_test.go	TestCloneSourcesMustBeOwned	47	replace	TestCloneSourceIsOursOnlyByStamp + TestSnapshotOwnership
+internal/endpoint/ownership_test.go	TestCloneNeverAdoptsARacingDataset	28	replace	TestGoldenPlans (clone TolNone) + ErrTable Exists
+internal/endpoint/ownership_test.go	TestVolumeNameMustMatchID	28	replace	TestOwnershipIsDerivedOnce
+internal/endpoint/ownership_test.go	TestReceivedCopyIsNotOwned	48	keep	
+internal/endpoint/ownership_test.go	TestReconcileSparesReceivedAndRenamed	30	keep	
+internal/endpoint/parent_test.go	TestMissingParentIsUnavailableForWholeScans	21	keep	
+internal/endpoint/plan_test.go	TestPlanCreateMalformedSourceIsNotFound	10	replace	req.ParseCreateVolume row
+internal/endpoint/plan_test.go	TestPlanCreateIsEmptyWhenSatisfied	7	replace	TestCreateCells (Committed x create: no ops)
+internal/endpoint/plan_test.go	TestPlanCreateConvergesUncommittedClone	18	replace	TestCrashConvergence
+internal/endpoint/plan_test.go	TestPlanCreateRefusesForeignAndIncompatible	17	replace	TestCreateCells (Foreign/Invalid cells)
+internal/endpoint/plan_test.go	TestPlanCreateHonorsLimitOnly	6	replace	TestCreateCells variants
+internal/endpoint/plan_test.go	TestPlanCreateThickZvolLeavesReservationToZFS	9	replace	golden plan row
+internal/endpoint/plan_test.go	TestPlanDeleteVolume	33	replace	TestDeleteCells
+internal/endpoint/plan_test.go	TestPlanExpand	13	keep	
+internal/endpoint/plan_test.go	TestPlanSnapshotReservedPrefix	6	keep	
+internal/endpoint/plan_test.go	TestPlanSnapshotLongAndUnusualNames	17	keep	
+internal/endpoint/plan_test.go	TestPlanCreateFilesystemsAreNotShared	16	replace	golden plan row (sharenfs=off)
+internal/endpoint/prefix_test.go	TestDefaultPropertyPrefixIsOurOwn	14	keep	
+internal/endpoint/prefix_test.go	TestPropertyPrefixIsValidated	13	replace	NewSchema row
+internal/endpoint/props_test.go	TestPlanCreatePropertiesDenyList	36	keep	
+internal/endpoint/props_test.go	TestValidatePropertyValues	63	keep	
+internal/endpoint/props_test.go	TestPlanCreateAppliesProperties	50	keep	
+internal/endpoint/props_test.go	TestPlanCreatePropertiesRetry	32	keep	
+internal/endpoint/props_test.go	TestPlanCreatePropertiesConvergeUncommitted	27	keep	
+internal/endpoint/reach_test.go	TestReachCapacityWrap	28	delete	req.Bytes: RoundUp cannot overflow
+internal/endpoint/reach_test.go	TestReachUncommittedServed	35	replace	FSM: Uncommitted is a State; List port reads State
+internal/endpoint/reach_test.go	TestReachOriginOutsideParent	27	replace	ReleasableOrigin rule; regress row F6
+internal/endpoint/reach_test.go	TestManagedWithoutNameIsNotOwned	15	replace	TestOwnershipIsDerivedOnce row
+internal/endpoint/reach_test.go	TestReachOutsideCloneWedgesReconcile	39	keep	
+internal/endpoint/reach_test.go	TestReachPlannerZeroBlockSize	6	delete	req.BlockSize zero value is 16384
+internal/endpoint/reconcile_contract_test.go	TestReconcileCollectsAbandonedCreate	34	keep	
+internal/endpoint/reconcile_contract_test.go	TestReconcileCollectsLeakedCloneSource	42	keep	
+internal/endpoint/reconcile_contract_test.go	TestReconcileAgainstDesiredSet	56	keep	
+internal/endpoint/reconcile_contract_test.go	TestReconcileLocksTargets	45	keep	
+internal/endpoint/reconcile_fuzz_test.go	FuzzReconcileSafe	274	keep	
+internal/endpoint/reconcile_test.go	TestPlanReconcile	222	keep	
+internal/endpoint/reconcile_test.go	TestPlanReconcileLocksEveryTarget	22	keep	
+internal/endpoint/reconcile_test.go	TestPlanReconcileHeldLimitsActions	18	keep	
+internal/endpoint/reconcile_test.go	TestSimulateDestroyReapsDeferredOrigins	17	keep	
+internal/endpoint/simulate_test.go	BenchmarkPlanReconcile	22	keep	
+internal/endpoint/simulate_test.go	TestSimulateDestroyAllEquivalent	45	keep	
+internal/lock/lock_test.go	TestDoneContextTakesNoFreeKey	11	keep	
+internal/lock/lock_test.go	TestWaitersAreServedInOrder	30	keep	
+internal/lock/lock_test.go	TestNoStarvation	31	keep	
+internal/lock/lock_test.go	TestCancelledWaitersLeaveNothingBehind	23	keep	
+internal/lock/lock_test.go	TestTryAcquire	34	keep	
+internal/server/daemon_test.go	TestConcurrentZFSIsBounded	15	keep	
+internal/server/daemon_test.go	TestShutdownDrainsInFlightCalls	36	keep	
+internal/server/daemon_test.go	TestShutdownWaitsForCancelledHandlers	26	keep	
+internal/server/daemon_test.go	TestShutdownInterrupt	15	keep	
+internal/server/daemon_test.go	TestRequestIDReachesTheAuditLog	47	keep	
+internal/server/daemon_test.go	TestMessageSizes	51	keep	
+internal/server/server_test.go	TestRoundTripAndCodes	58	keep	
+internal/server/server_test.go	TestReconcile	36	keep	
+internal/server/server_test.go	TestFileExport	40	keep	
+internal/unixsock/unixsock_test.go	TestListenIsOwnerOnly	15	keep	
+internal/unixsock/unixsock_test.go	TestListenRefusesALiveSocket	20	keep	
+internal/unixsock/unixsock_test.go	TestListenReplacesAStaleSocket	14	keep	
+internal/unixsock/unixsock_test.go	TestListenNeverDeletesANonSocket	26	keep	
+internal/unixsock/unixsock_test.go	TestListenRefusesAbstractAndRelativePaths	8	keep	
+internal/unixsock/unixsock_test.go	TestListenRefusesAnUnsafeDirectory	40	keep	
+internal/zfs/audit_test.go	TestAuditLogsOnlyMutations	31	keep	
+internal/zfs/fuzz_test.go	FuzzParseColumns	20	replace	goes with the -Hp parser (step 1); FuzzParse on the JSON decoder
+internal/zfs/fuzz_test.go	FuzzClassify	11	keep	
+internal/zfs/fuzz_test.go	TestParseColumnsRejectsForgedLines	11	replace	TestPhantomRowsCannotBeForged
+internal/zfs/runner_test.go	TestLimitBoundsConcurrentCommands	13	keep	
+internal/zfs/runner_test.go	TestLimitWaiterRespectsContext	29	keep	
+internal/zfs/runner_test.go	TestChildRunsInItsOwnProcessGroup	22	keep	
+internal/zfs/version_test.go	TestVersion	34	keep	
+internal/zfs/zfs_test.go	TestClassify	32	keep	
+internal/zfs/zfs_test.go	TestExistsDoesNotSwallowUnknownErrors	12	keep	
+internal/zfs/zfs_test.go	TestRejectsFlagLikeAndShellNames	11	keep	
+internal/zfs/zfs_test.go	TestLifecycleAgainstSim	57	keep	
+internal/zfs/zfs_test.go	TestKilledCommandIsInterrupted	19	keep	
+internal/zfs/zfs_test.go	TestSimPrintsIndexPropertiesLikeOpenZFS	33	keep	
+internal/zfs/zfs_test.go	TestPropLocalIsOnlyLocal	10	keep	
+internal/zfs/zfs_test.go	TestSetNoMountLeavesUnmounted	31	keep	

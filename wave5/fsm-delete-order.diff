@@ -1,0 +1,39 @@
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/fsm-copy-fix2/internal/endpoint/plan.go	2026-10-27 04:52:19.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/fsm-copy-fix2-exp/internal/endpoint/plan.go	2026-10-27 05:05:38.613672535 +0000
+@@ -407,11 +407,20 @@
+ 		return nil, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
+ 			id, strings.Join(foreign, ", "))
+ 	}
+-	plan := Plan{{Kind: OpDestroy, Target: row.Name, Recursive: true, OkMissing: true}}
++	// 1. release the internal clone source first, deferred: zfs keeps it
++	//    while the clone lives and reaps it with the clone, so no crash
++	//    point leaves an orphan that a retry (row gone) cannot see
++	// 2. destroy exactly the snapshots this plan judged, then the dataset
++	//    without -r: a snapshot cut since the scan (sanoid) fails the last
++	//    op ("has children") instead of being destroyed with it
++	var plan Plan
+ 	if strings.Contains(row.Origin, "@"+cloneSourceSnapshotPrefix) {
+ 		plan = append(plan, Op{Kind: OpDestroy, Target: row.Origin, Defer: true, OkMissing: true})
+ 	}
+-	return plan, nil
++	for s := range t.SnapshotsOf(id) {
++		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: s.Deferred, OkMissing: true})
++	}
++	return append(plan, Op{Kind: OpDestroy, Target: row.Name, OkMissing: true}), nil
+ }
+ 
+ // internalCloneSource reports whether s is the snapshot a volume-to-volume
+--- /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/fsm-copy-fix2/internal/endpoint/reconcile.go	2026-10-27 04:52:19.000000000 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave5/fsm-copy-fix2-exp/internal/endpoint/reconcile.go	2026-10-27 05:07:55.263085802 +0000
+@@ -164,9 +164,9 @@
+ 				continue
+ 			}
+ 			var acts []ReconcileAction
+-			for i, op := range plan {
++			for _, op := range plan {
+ 				a := ReconcileAction{Op: op, Target: p.rel(op.Target), Reason: c.reason, Volumes: []string{c.id}}
+-				if i > 0 { // the released clone-source origin
++				if op.Defer && !strings.HasPrefix(op.Target, p.full(c.id)+"@") { // the released clone-source origin
+ 					a.Reason = ReasonReleasedWithVolume
+ 					src, _, _ := strings.Cut(a.Target, "@")
+ 					a.Volumes = append(a.Volumes, src)

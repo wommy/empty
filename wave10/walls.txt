@@ -1,0 +1,4 @@
+plain-cold rc=0 wall=166.307504944
+plain-warm rc=0 wall=8.788580525
+race-cold rc=0 wall=338.421596027
+race-warm rc=0 wall=38.309847675

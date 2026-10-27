@@ -1,0 +1,30 @@
+goos: linux
+goarch: amd64
+pkg: github.com/wommy/empty/internal/endpoint
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+BenchmarkScanStages/10k/1-buffer-4         	       5	  52332187 ns/op	67108387 B/op	      18 allocs/op
+BenchmarkScanStages/10k/1-buffer-4         	       5	  49978410 ns/op	67108412 B/op	      18 allocs/op
+BenchmarkScanStages/10k/2-parseColumns-4   	       5	 118558609 ns/op	94839510 B/op	  270172 allocs/op
+BenchmarkScanStages/10k/2-parseColumns-4   	       5	 113715529 ns/op	94838465 B/op	  270171 allocs/op
+BenchmarkScanStages/10k/3-decodeColumns-4  	       5	   7271550 ns/op	 3924112 B/op	       4 allocs/op
+BenchmarkScanStages/10k/3-decodeColumns-4  	       5	   7014389 ns/op	 3924112 B/op	       4 allocs/op
+BenchmarkScanStages/10k/4-NewTable-4       	       5	  12945126 ns/op	  439032 B/op	    5023 allocs/op
+BenchmarkScanStages/10k/4-NewTable-4       	       5	  11731388 ns/op	  439032 B/op	    5023 allocs/op
+BenchmarkScanStages/10k/4a-sortOnly-4      	       5	   9539023 ns/op
+BenchmarkScanStages/10k/4a-sortOnly-4      	       5	  10087059 ns/op
+BenchmarkScanStages/10k/4b-sortPerm-4      	       5	   2471653 ns/op	   40960 B/op	       1 allocs/op
+BenchmarkScanStages/10k/4b-sortPerm-4      	       5	   2328012 ns/op	   40960 B/op	       1 allocs/op
+BenchmarkScanStages/110k/1-buffer-4        	       5	1123202798 ns/op	1073741366 B/op	      22 allocs/op
+BenchmarkScanStages/110k/1-buffer-4        	       5	 482052650 ns/op	1073741366 B/op	      22 allocs/op
+BenchmarkScanStages/110k/2-parseColumns-4  	       5	1699474141 ns/op	1082765038 B/op	 2970695 allocs/op
+BenchmarkScanStages/110k/2-parseColumns-4  	       5	1644251325 ns/op	1082775934 B/op	 2970696 allocs/op
+BenchmarkScanStages/110k/3-decodeColumns-4 	       5	  85756843 ns/op	43122832 B/op	       4 allocs/op
+BenchmarkScanStages/110k/3-decodeColumns-4 	       5	  83623955 ns/op	43122832 B/op	       4 allocs/op
+BenchmarkScanStages/110k/4-NewTable-4      	       5	 247978135 ns/op	 4048411 B/op	   50082 allocs/op
+BenchmarkScanStages/110k/4-NewTable-4      	       5	 301495432 ns/op	 4048414 B/op	   50082 allocs/op
+BenchmarkScanStages/110k/4a-sortOnly-4     	       5	 230247255 ns/op
+BenchmarkScanStages/110k/4a-sortOnly-4     	       5	 262191127 ns/op
+BenchmarkScanStages/110k/4b-sortPerm-4     	       5	  78709888 ns/op	  442368 B/op	       1 allocs/op
+BenchmarkScanStages/110k/4b-sortPerm-4     	       5	  82998282 ns/op	  442368 B/op	       1 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	42.784s

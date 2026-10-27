@@ -1,0 +1,12 @@
+mode: set
+github.com/wommy/empty/internal/unixsock/unixsock.go:26.2,26.63 1 1
+github.com/wommy/empty/internal/unixsock/unixsock.go:27.3,28.1 1 0
+github.com/wommy/empty/internal/unixsock/unixsock.go:29.2,30.9 2 1
+github.com/wommy/empty/internal/unixsock/unixsock.go:31.26,31.26 0 0
+github.com/wommy/empty/internal/unixsock/unixsock.go:33.3,33.18 1 0
+github.com/wommy/empty/internal/unixsock/unixsock.go:35.3,35.111 1 0
+github.com/wommy/empty/internal/unixsock/unixsock.go:37.3,37.71 1 1
+github.com/wommy/empty/internal/unixsock/unixsock.go:38.4,40.1 2 0
+github.com/wommy/empty/internal/unixsock/unixsock.go:41.3,41.64 1 1
+github.com/wommy/empty/internal/unixsock/unixsock.go:42.4,43.1 1 0
+github.com/wommy/empty/internal/unixsock/unixsock.go:45.2,48.15 4 1

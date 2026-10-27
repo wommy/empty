@@ -1,0 +1,26 @@
+goos: linux
+goarch: amd64
+pkg: github.com/wommy/empty/internal/endpoint
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+BenchmarkScanNarrow/110k/listVols/current-4         	       5	 137207254 ns/op	98394824 B/op	  110178 allocs/op
+BenchmarkScanNarrow/110k/listVols/current-4         	       5	 109008787 ns/op	98393779 B/op	  110177 allocs/op
+BenchmarkScanNarrow/110k/listVols/stream-4          	       5	  26279274 ns/op	20837680 B/op	      38 allocs/op
+BenchmarkScanNarrow/110k/listVols/stream-4          	       5	  26867862 ns/op	20837702 B/op	      38 allocs/op
+BenchmarkScanNarrow/110k/listSnaps/current-4        	       5	1668860732 ns/op	995878686 B/op	  820775 allocs/op
+BenchmarkScanNarrow/110k/listSnaps/current-4        	       5	1802160379 ns/op	995878606 B/op	  820774 allocs/op
+BenchmarkScanNarrow/110k/listSnaps/stream-4         	       5	 347897259 ns/op	239090379 B/op	   50169 allocs/op
+BenchmarkScanNarrow/110k/listSnaps/stream-4         	       5	 430703101 ns/op	239090379 B/op	   50169 allocs/op
+BenchmarkScanNarrow/110k/snapName/current-4         	       5	 957743786 ns/op	782421899 B/op	  550720 allocs/op
+BenchmarkScanNarrow/110k/snapName/current-4         	       5	 999043026 ns/op	782421963 B/op	  550720 allocs/op
+BenchmarkScanNarrow/110k/snapName/stream-4          	       5	 291565366 ns/op	238565838 B/op	   50164 allocs/op
+BenchmarkScanNarrow/110k/snapName/stream-4          	       5	 274636672 ns/op	238565816 B/op	   50164 allocs/op
+BenchmarkScanNarrow/110k/delete/current-4           	       5	1316694119 ns/op	1005069854 B/op	  820785 allocs/op
+BenchmarkScanNarrow/110k/delete/current-4           	       5	1135500211 ns/op	1005091691 B/op	  820787 allocs/op
+BenchmarkScanNarrow/110k/delete/stream-4            	       5	 348053997 ns/op	239090376 B/op	   50169 allocs/op
+BenchmarkScanNarrow/110k/delete/stream-4            	       5	 371973279 ns/op	239090376 B/op	   50169 allocs/op
+BenchmarkScanNarrow/110k/subtree/current-4          	       5	    265008 ns/op	  238508 B/op	     373 allocs/op
+BenchmarkScanNarrow/110k/subtree/current-4          	       5	    125482 ns/op	  238508 B/op	     373 allocs/op
+BenchmarkScanNarrow/110k/subtree/stream-4           	       5	    135190 ns/op	  342841 B/op	      26 allocs/op
+BenchmarkScanNarrow/110k/subtree/stream-4           	       5	    122953 ns/op	  342841 B/op	      26 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	54.592s

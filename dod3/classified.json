@@ -1,0 +1,4057 @@
+[
+ {
+  "id": "cmd/zfs/zfs_main.c:435",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:628",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:635",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:652",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:657",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:674",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:679",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:792",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:797",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:801",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:860",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:871",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:876",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:881",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1033",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1041",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1117",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1141",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1169",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1173",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1180",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1185",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1195",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1200",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1335",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1432",
+  "kind": "has children",
+  "code": 9
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1436",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1453",
+  "kind": "has dependent clones",
+  "code": 9
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1457",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1737",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1748",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1752",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1779",
+  "kind": "not found",
+  "code": 5
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1826",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1832",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1838",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1851",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1880",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1883",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:1886",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2073",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2098",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2250",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2273",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2283",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2290",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2327",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2366",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2373",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2383",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2389",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2512",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2523",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2527",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2537",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2543",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2549",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2551",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2559",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2564",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2727",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:2737",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3257",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3403",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3422",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3429",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3437",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3444",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3449",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3459",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3463",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3474",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3501",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3514",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3712",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3925",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3933",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3971",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3978",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3983",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:3993",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4046",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4095",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4106",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4111",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4116",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4121",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4127",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4133",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4180",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4187",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4192",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4217",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4241",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4249",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4258",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4262",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4266",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4271",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4274",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4279",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4283",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4287",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4291",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4295",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4329",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4332",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4369",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4373",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4403",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4436",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4447",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4451",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4519",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4523",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4547",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4558",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4563",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4566",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4577",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4586",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4675",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4686",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4713",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4797",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4847",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4889",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4893",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4908",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4911",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4926",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4940",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4946",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4952",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4958",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4970",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4977",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4986",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:4993",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5019",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5037",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5074",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5082",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5089",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5122",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5131",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5192",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5201",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5236",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5241",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5256",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5260",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5267",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5293",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:5309",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6582",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6590",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6605",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6615",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6676",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6695",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6707",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6910",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6937",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:6966",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7106",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7115",
+  "kind": "permission denied",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7138",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7140",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7155",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7157",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7166",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7185",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7215",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7230",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7242",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7271",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7296",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7368",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7387",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7389",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7439",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7457",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7462",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7472",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7487",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7492",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7558",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7607",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7684",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7688",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7693",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7700",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7711",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7715",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7728",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7749",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7751",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7754",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7769",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7772",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7812",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7817",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7857",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7976",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:7979",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8015",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8018",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8023",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8034",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8037",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8042",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8127",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8137",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8143",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8263",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8295",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8306",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8310",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8318",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8324",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8341",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8372",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8467",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8490",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8500",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8511",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8517",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8545",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8616",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8619",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8729",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8739",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8745",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8752",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8812",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8822",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8827",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8918",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8927",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8948",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8954",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8967",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8976",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8992",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:8997",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9004",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9011",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9016",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9021",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9028",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9034",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9039",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9052",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9076",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9083",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9106",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9124",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9131",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9140",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9176",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9232",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9241",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9293",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9300",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9309",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9314",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9370",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9378",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9410",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9431",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9518",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9558",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9562",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9603",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9607",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "cmd/zfs/zfs_main.c:9613",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:121",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:133",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:143",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:206",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:213",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:222",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:229",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:238",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:252",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:259",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:368",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:407",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:492",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:535",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:559",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:570",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:597",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:630",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:639",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:649",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:722",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:730",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:780",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:793",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:858",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:866",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:886",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:896",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1021",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1033",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1049",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1073",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1092",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1103",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1128",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1176",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1280",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1289",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1301",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1306",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1323",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1336",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1373",
+  "kind": "permission denied",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1377",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1382",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1386",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1391",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1396",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1448",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1457",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1469",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1474",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1484",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1496",
+  "kind": "permission denied",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1500",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1505",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1541",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1554",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1558",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1607",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1616",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1625",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1635",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1673",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1686",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1699",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1725",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1735",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1744",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1753",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1762",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1772",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1783",
+  "kind": "permission denied",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1787",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1791",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_crypto.c:1795",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:106",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:113",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:120",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:127",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:134",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:143",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:148",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:153",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:159",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:164",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:170",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:176",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:181",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:186",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:191",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:196",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:201",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:868",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:875",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:895",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:911",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:924",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:946",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:952",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:984",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:992",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:999",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1009",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1032",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1058",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1074",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1130",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1136",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1154",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1159",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1165",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1196",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1205",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1217",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1242",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1255",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1267",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1275",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1287",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1321",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1331",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1353",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1384",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1669",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1850",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1889",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:1901",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:2242",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3391",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3403",
+  "kind": "unavailable",
+  "code": 14
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3415",
+  "kind": "unavailable",
+  "code": 14
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3420",
+  "kind": "parent not found",
+  "code": 5
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3444",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3552",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3587",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3631",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3648",
+  "kind": "exists",
+  "code": 6
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3690",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3703",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3711",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3718",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3742",
+  "kind": "parent not found",
+  "code": 5
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3747",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3753",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3759",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3910",
+  "kind": "has dependent clones",
+  "code": 9
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:3921",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4008",
+  "kind": "parent not found",
+  "code": 5
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4013",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4042",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4048",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4065",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4072",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4177",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4353",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4359",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4445",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4458",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4474",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4481",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4493",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4530",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4562",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4567",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:4964",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:5085",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:5154",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:5216",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_dataset.c:5253",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_diff.c:778",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_diff.c:783",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_iter.c:540",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:431",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:460",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:481",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:499",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:528",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:543",
+  "kind": "busy",
+  "code": 9
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:546",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_mount.c:552",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:604",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:623",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:637",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:645",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:654",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:663",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:682",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:689",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:699",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:719",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:726",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:733",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:751",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:762",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:775",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:783",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:795",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:802",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:812",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:820",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:835",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:851",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:863",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:891",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:900",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:909",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:918",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1275",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1285",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1290",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1296",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1301",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1306",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1311",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1316",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1321",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1326",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1332",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1337",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1379",
+  "kind": "unavailable",
+  "code": 14
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1565",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1569",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1669",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1688",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1706",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1714",
+  "kind": "no space",
+  "code": 8
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1722",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1735",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1743",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1788",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1897",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1906",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1924",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1933",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1937",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1959",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:1967",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:2004",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:2485",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:2510",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:2515",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:2685",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:2905",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3566",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3598",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3891",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3899",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3906",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3926",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3953",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3956",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3960",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3964",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3968",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3972",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3981",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3986",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:3998",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4004",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4013",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4022",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4040",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4055",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4065",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4072",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4120",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4221",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4230",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4286",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4334",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4439",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4451",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4464",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4470",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4478",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4481",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4490",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:4546",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:6295",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_pool.c:6323",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:785",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:792",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:863",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:868",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:875",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1537",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1543",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1557",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1569",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1581",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1592",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1768",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1771",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1774",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1783",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1790",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1850",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1863",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1867",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1877",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1890",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1991",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:1996",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2130",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2138",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2145",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2358",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2682",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2701",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2709",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2720",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2803",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2810",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2817",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2822",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2842",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2901",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2926",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:2940",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:3911",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:3939",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:3952",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4183",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4200",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4217",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4314",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4334",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4398",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4408",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4585",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4613",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4631",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4670",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4773",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4782",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4788",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4812",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4820",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4828",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4838",
+  "kind": "has children",
+  "code": 9
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4873",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4883",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4904",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4914",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:4978",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5003",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5041",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5223",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5230",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5237",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5242",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5245",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5249",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5260",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5272",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5276",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5285",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5295",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5309",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5313",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5319",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5325",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5330",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5338",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5353",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5365",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5373",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5382",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5494",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5518",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5550",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5556",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5596",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5612",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5617",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_sendrecv.c:5632",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:83",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:85",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:87",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:89",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:92",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:94",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:96",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:99",
+  "kind": "busy",
+  "code": 9
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:101",
+  "kind": "exists",
+  "code": 6
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:103",
+  "kind": "not found",
+  "code": 5
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:105",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:107",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:109",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:112",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:114",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:117",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:119",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:121",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:123",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:125",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:127",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:129",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:132",
+  "kind": "unavailable",
+  "code": 14
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:134",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:136",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:138",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:141",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:143",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:145",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:147",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:149",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:151",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:153",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:155",
+  "kind": "permission denied",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:157",
+  "kind": "no space",
+  "code": 8
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:159",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:161",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:163",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:165",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:167",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:170",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:172",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:174",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:176",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:179",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:182",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:185",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:187",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:189",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:192",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:194",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:196",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:198",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:200",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:203",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:205",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:207",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:210",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:213",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:216",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:219",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:222",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:224",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:227",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:229",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:231",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:233",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:236",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:239",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:243",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:246",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:249",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:252",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:254",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:256",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:258",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:260",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:263",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:265",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:268",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:270",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:272",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:274",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:277",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:279",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:281",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:283",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:286",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:288",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:290",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:292",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:295",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:298",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:300",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:303",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:306",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:309",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:312",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:314",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:317",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:320",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:448",
+  "kind": "not found",
+  "code": 5
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:459",
+  "kind": "exists",
+  "code": 6
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:465",
+  "kind": "busy",
+  "code": 9
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:479",
+  "kind": "unavailable",
+  "code": 14
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:488",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:494",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:540",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:548",
+  "kind": "no space",
+  "code": 8
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:568",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:574",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:584",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:590",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:613",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:661",
+  "kind": "not found",
+  "code": 5
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:667",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:673",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:683",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:706",
+  "kind": "unavailable",
+  "code": 14
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:715",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:753",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:759",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:775",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:780",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1676",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1693",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1714",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1729",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1753",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1766",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1821",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1827",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1832",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1851",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1861",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1871",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1910",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1922",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1933",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1941",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:1992",
+  "kind": "invalid property",
+  "code": 3
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:2036",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:55",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:73",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:236",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:250",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:286",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:326",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:340",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_pool_os.c:349",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_util_os.c:259",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_util_os.c:263",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_util_os.c:267",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_util_os.c:271",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_util_os.c:275",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/os/linux/libzfs_util_os.c:279",
+  "kind": "unknown",
+  "code": 13
+ },
+ {
+  "id": "lib/libzfs/libzfs_util.c:0",
+  "kind": "unknown",
+  "code": 13
+ }
+]

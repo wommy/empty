@@ -1,0 +1,4 @@
+    zz_drift_test.go:12: B PlanDeleteVolume: plan=[{destroy tank/v/v  0 false true false map[] false true}] err=<nil>
+    zz_drift_test.go:14: B PlanReconcile (v desired): actions=0 skipped=[] err=<nil>
+    zz_drift_test.go:7: P classify(managed, no CSI name, clone-source prefix) = foreign
+    zz_drift_test.go:10: P PlanDeleteVolume: plan=[] err=volume v has snapshots the endpoint did not make: v@volume-source-for-volume-x (delete them, or run with -destroy-foreign-snapshots)

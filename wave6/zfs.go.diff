@@ -1,0 +1,83 @@
+--- head/internal/zfs/zfs.go	2026-10-27 04:48:40.000000000 +0000
++++ json-copy/internal/zfs/zfs.go	2026-10-27 04:55:27.445389555 +0000
+@@ -6,9 +6,11 @@
+ package zfs
+ 
+ import (
++	"bytes"
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"io"
+ 	"regexp"
+ 	"sort"
+ 	"strconv"
+@@ -384,9 +386,10 @@
+ 	return -1
+ }
+ 
+-// ListColumns is List in columnar form, including root itself. The whole
+-// output is parsed before anything is returned: callers plan destructive
+-// operations from it, so a partial result must never escape.
++// ListColumns is List in columnar form, including root itself. It reads
++// `zfs get -j -p` (OpenZFS 2.4, ADR 0004) and decodes it strictly: callers
++// plan destructive operations from it, so nothing is returned unless the
++// whole document decodes, every dataset has every property, and zfs exited 0.
+ func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*Columns, error) {
+ 	if !ValidDataset(root) {
+ 		return nil, &Error{Kind: KindInvalidProperty, Op: "list", Dataset: root, Stderr: "invalid name"}
+@@ -399,24 +402,48 @@
+ 	for i, t := range types {
+ 		ts[i] = string(t)
+ 	}
+-	args := []string{"get", "-Hp", "-o", "name,property,value,source", "-t", strings.Join(ts, ",")}
++	args := []string{"get", "-j", "-p", "-t", strings.Join(ts, ",")}
+ 	if o.Depth < 0 {
+ 		args = append(args, "-r")
+ 	} else {
+ 		args = append(args, "-d", strconv.Itoa(o.Depth+1))
+ 	}
+ 	args = append(args, strings.Join(o.Props, ","), root)
+-	out, err := c.run(ctx, "list", root, args...)
++	var cols *Columns
++	err := c.stream(ctx, "list", root, func(r io.Reader) (err error) {
++		cols, err = decodeGetJSON(r, o.Props)
++		return err
++	}, args...)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	cols, err := parseColumns(out, o.Props)
+-	if err != nil {
+-		return nil, &Error{Op: "list", Dataset: root, Err: err}
+-	}
+ 	return cols, nil
+ }
+ 
++// stream runs zfs and hands stdout to read; failures become *Error. An exit
++// status is classified from stderr; a read error is KindUnknown.
++func (c *Client) stream(ctx context.Context, op, dataset string, read func(io.Reader) error, args ...string) error {
++	var err error
++	if s, ok := c.Runner.(Streamer); ok {
++		err = s.Stream(ctx, c.bin(), args, read)
++	} else {
++		var out []byte
++		if out, err = c.Runner.Run(ctx, c.bin(), args...); err == nil {
++			err = read(bytes.NewReader(out))
++		}
++	}
++	if err == nil {
++		return nil
++	}
++	e := &Error{Op: op, Dataset: dataset, Err: err}
++	var ee *ExitError
++	if errors.As(err, &ee) {
++		e.Stderr = ee.Stderr
++		e.Kind = classify(ee.Stderr)
++	}
++	return e
++}
++
+ func parseColumns(out []byte, props []string) (*Columns, error) {
+ 	col := make(map[string]int, len(props))
+ 	for j, p := range props {

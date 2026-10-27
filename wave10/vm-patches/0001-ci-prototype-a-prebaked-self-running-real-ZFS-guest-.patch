@@ -1,0 +1,1080 @@
+From a4ed49a154d5fdc0c2155ca5ad8bfb71f5f1b0ba Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 27 Oct 2026 06:13:39 +0000
+Subject: [PATCH] ci: prototype a prebaked, self-running real-ZFS guest
+ (alternative A)
+
+Bake the guest once (ci/vm/bake.sh: OpenZFS + nfs-utils installed,
+cloud-init off, kernel/initrd for direct boot, extracted qemu), cache it
+by a hash of the bake inputs and rebake nightly (vm-image.yml). A run
+boots it in the background, fetches Go and builds the test binaries
+meanwhile, and the guest runs them from a 9p share as six parallel shards
+on tmpfs-backed pools, with no ssh. The host asserts zfs userland, kmod
+and /sys/module/zfs/version on every boot and runs check-skips on the
+merged shard logs.
+
+Prototype only: not run under KVM (no /dev/kvm where it was written).
+Superseded as the base by c73e40d's provisioned-guest cache; kept for
+reference on a local branch.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
+---
+ .github/workflows/ci.yml       |  77 ++++++--
+ .github/workflows/vm-image.yml |  59 ++++++
+ ci/fetch-go.sh                 |  19 ++
+ ci/real-zfs-vm.sh              | 328 ++++++++++++++++++++-------------
+ ci/vm/bake.sh                  | 120 ++++++++++++
+ ci/vm/guest-run.sh             | 115 ++++++++++++
+ ci/vm/image/bake-guest.sh      |  49 +++++
+ ci/vm/image/zfsci-boot         |  26 +++
+ ci/vm/image/zfsci.service      |  17 ++
+ ci/vm/test-weights.txt         | 120 ++++++++++++
+ 10 files changed, 781 insertions(+), 149 deletions(-)
+ create mode 100644 .github/workflows/vm-image.yml
+ create mode 100755 ci/fetch-go.sh
+ create mode 100755 ci/vm/bake.sh
+ create mode 100755 ci/vm/guest-run.sh
+ create mode 100755 ci/vm/image/bake-guest.sh
+ create mode 100755 ci/vm/image/zfsci-boot
+ create mode 100644 ci/vm/image/zfsci.service
+ create mode 100644 ci/vm/test-weights.txt
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 574e4d6..cc7f91e 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -102,38 +102,81 @@ jobs:
+     # supported version, what TrueNAS 27 ships), with nfs-server running so
+     # the file-export tests hit a real nfsd. Booted under KVM: no hosted
+     # runner exists for it, and ZFS lives in the kernel, so a container
+-    # would test the host's ZFS instead. The script asserts that `zfs
+-    # version` reports 2.4.x for both userland and kmod, and enforces the
+-    # skip budget in ci/expected-skips.txt.
++    # would test the host's ZFS instead.
++    #
++    # The guest is a prebaked bundle (ci/vm/bake.sh), cached under a hash of
++    # its inputs and rebaked nightly (vm-image.yml). It boots while the Go
++    # toolchain is fetched and the test binaries are built, and runs them in
++    # parallel shards on separate tmpfs-backed pools. Every boot still
++    # asserts that `zfs version` reports 2.4.x for userland and kmod (and
++    # that the loaded module agrees), and the skip budget, the test-list
++    # coverage and the csi-sanity spec floor are enforced on the merged logs.
+     name: real ZFS 2.4 (Ubuntu 26.10 VM)
+     runs-on: ubuntu-24.04
+-    timeout-minutes: 30
++    timeout-minutes: 10
++    env:
++      # the tarball actions/setup-go fetches for 1.27.3, pinned by checksum
++      GO_TARBALL_URL: https://github.com/actions/go-versions/releases/download/1.27.3-39437817176/go-1.27.3-linux-x64.tar.gz
++      GO_TARBALL_SHA256: d0fbe16a6a03fe5fbf5577ab36f95f0725af587820dca8a78e6edd4eb4e19fd6
+     steps:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+           persist-credentials: false
+-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+-        with:
+-          go-version: 1.27.3
+-          # a second file in the hash gives this job its own key: its
+-          # CGO_ENABLED=0 test builds share nothing with the unit job's
+-          cache-dependency-path: |
+-            go.sum
+-            ci/real-zfs-vm.sh
+       - name: enable kvm
+         run: |
+           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+           sudo udevadm control --reload-rules
+           sudo udevadm trigger --name-match=kvm
+           test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+-      - name: install qemu
++      # newest bake for these inputs; the exact key never matches (it ends
++      # in the bake's run id), so cache-matched-key tells hit from miss
++      - name: restore VM bundle
++        id: vm
++        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
++        with:
++          path: ${{ runner.temp }}/zfsvm-bundle
++          key: zfsvm-v1-ubuntu-24.04-stonking-${{ hashFiles('ci/vm/bake.sh', 'ci/vm/image/**') }}-none
++          restore-keys: zfsvm-v1-ubuntu-24.04-stonking-${{ hashFiles('ci/vm/bake.sh', 'ci/vm/image/**') }}-
++      - name: bake VM bundle (cache miss only, about 90s)
++        if: steps.vm.outputs.cache-matched-key == ''
+         run: |
+-          sudo apt-get update
+-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils
+           # the cloud image signing key ships in ubuntu-keyring on 24.04
+           test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
++          ci/vm/bake.sh stonking current 2.4 "$RUNNER_TEMP/zfsvm-bundle"
++      - name: save VM bundle
++        if: steps.vm.outputs.cache-matched-key == ''
++        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
++        with:
++          path: ${{ runner.temp }}/zfsvm-bundle
++          key: zfsvm-v1-ubuntu-24.04-stonking-${{ hashFiles('ci/vm/bake.sh', 'ci/vm/image/**') }}-${{ github.run_id }}
++      - name: boot VM, fetch Go (both in the background)
++        run: |
++          nohup ci/fetch-go.sh "$RUNNER_TEMP/go" >/dev/null 2>&1 &
++          ci/real-zfs-vm.sh boot "$RUNNER_TEMP/zfsvm-bundle"
++      # main saves under its commit; a PR restores main's newest, so only
++      # the packages it changed recompile
++      - name: restore Go build cache
++        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
++        with:
++          path: |
++            ~/go/pkg/mod
++            ~/.cache/go-build
++          key: go-zfsvm-${{ hashFiles('go.sum') }}-${{ github.sha }}
++          restore-keys: |
++            go-zfsvm-${{ hashFiles('go.sum') }}-
++            go-zfsvm-
++      - name: build test binaries (the guest starts on them)
++        run: ci/real-zfs-vm.sh build
+       - name: test (Ubuntu 26.10, real zfs 2.4)
+-        run: ci/real-zfs-vm.sh stonking current 2.4
++        run: ci/real-zfs-vm.sh wait 2.4
++      - name: save Go build cache
++        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
++        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
++        with:
++          path: |
++            ~/go/pkg/mod
++            ~/.cache/go-build
++          key: go-zfsvm-${{ hashFiles('go.sum') }}-${{ github.sha }}
+       - name: upload VM console and test logs
+         if: failure() || cancelled() # a timeout cancels the job
+         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+@@ -141,6 +184,6 @@ jobs:
+           name: real-zfs-vm-logs
+           path: |
+             ${{ runner.temp }}/zfsvm/*.log
+-            ${{ runner.temp }}/zfsvm/user-data
++            ${{ runner.temp }}/zfsvm/share/out/
+           if-no-files-found: ignore
+           retention-days: 14
+diff --git a/.github/workflows/vm-image.yml b/.github/workflows/vm-image.yml
+new file mode 100644
+index 0000000..1b42e24
+--- /dev/null
++++ b/.github/workflows/vm-image.yml
+@@ -0,0 +1,59 @@
++name: vm-image
++
++# Rebake the real-ZFS VM bundle (ci/vm/bake.sh) every night: the Ubuntu
++# 26.10 "current" image, its kernel and its OpenZFS SRUs move under an
++# unchanged bake script, and so does the runner image under the extracted
++# qemu. The ci workflow restores the newest bake for its inputs hash, and
++# bakes inline (about 90s, once) when there is none. A failed bake leaves
++# the previous bundle in place, opens an issue, and the ci job warns at 7
++# days and fails at 30.
++
++on:
++  schedule:
++    - cron: '41 3 * * *'
++  workflow_dispatch:
++
++permissions:
++  contents: read
++  issues: write
++
++concurrency:
++  group: vm-image
++  cancel-in-progress: false
++
++defaults:
++  run:
++    shell: bash
++
++jobs:
++  bake:
++    runs-on: ubuntu-24.04
++    timeout-minutes: 20
++    steps:
++      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
++        with:
++          persist-credentials: false
++      - name: enable kvm
++        run: |
++          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
++          sudo udevadm control --reload-rules
++          sudo udevadm trigger --name-match=kvm
++          test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
++      - name: bake (includes a boot-and-assert smoke test)
++        run: |
++          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
++          ci/vm/bake.sh stonking current 2.4 "$RUNNER_TEMP/zfsvm-bundle"
++      - name: save VM bundle
++        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
++        with:
++          path: ${{ runner.temp }}/zfsvm-bundle
++          key: zfsvm-v1-ubuntu-24.04-stonking-${{ hashFiles('ci/vm/bake.sh', 'ci/vm/image/**') }}-${{ github.run_id }}
++      - name: open an issue on failure
++        if: failure()
++        env:
++          GH_TOKEN: ${{ github.token }}
++          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
++        run: |
++          gh issue create --repo "$GITHUB_REPOSITORY" --label needs-triage \
++            --title "nightly VM bake failed ($(date -u +%F))" \
++            --body "The real-ZFS VM bake failed: $RUN_URL. PR CI keeps using the previous bundle; it warns after 7 days and fails after 30."
+diff --git a/ci/fetch-go.sh b/ci/fetch-go.sh
+new file mode 100755
+index 0000000..99d1361
+--- /dev/null
++++ b/ci/fetch-go.sh
+@@ -0,0 +1,19 @@
++#!/usr/bin/env bash
++# Fetch the pinned Go toolchain into <dest>, checksum-verified: the same
++# tarball actions/setup-go downloads, without its ~5s copy into the tool
++# cache. Run in the background while the VM boots; writes <dest>/.ok or
++# <dest>/.failed, and logs to <dest>.log.
++#
++# usage: GO_TARBALL_URL=... GO_TARBALL_SHA256=... ci/fetch-go.sh <dest>
++set -euo pipefail
++dest=${1:?destination}
++exec >"$dest.log" 2>&1
++rm -rf "$dest"
++mkdir -p "$dest"
++trap '[ -e "$dest/.ok" ] || touch "$dest/.failed"' EXIT
++curl -fsSL --retry 3 -o "$dest.tgz" "${GO_TARBALL_URL:?}"
++echo "${GO_TARBALL_SHA256:?}  $dest.tgz" | sha256sum -c -
++tar xzf "$dest.tgz" -C "$dest"
++rm -f "$dest.tgz"
++"$dest/bin/go" version
++touch "$dest/.ok"
+diff --git a/ci/real-zfs-vm.sh b/ci/real-zfs-vm.sh
+index cbff255..3c973d1 100755
+--- a/ci/real-zfs-vm.sh
++++ b/ci/real-zfs-vm.sh
+@@ -1,151 +1,215 @@
+ #!/usr/bin/env bash
+-# Run the endpoint contract tests against real ZFS inside an Ubuntu cloud
+-# image booted under KVM. GitHub has no runner for a non-LTS Ubuntu, and ZFS
++# Run the endpoint contract tests against real ZFS inside an Ubuntu 26.10
++# guest booted under KVM. GitHub has no runner for a non-LTS Ubuntu, and ZFS
+ # lives in the kernel, so a container would test the host's ZFS instead.
+ #
+-# usage: ci/real-zfs-vm.sh <ubuntu-series> [image-build] [openzfs-minor]
+-#   ci/real-zfs-vm.sh stonking current 2.4  # Ubuntu 26.10 RC track, OpenZFS 2.4.x
+-# Images come from the per-series tree (cloud-images.ubuntu.com/<series>/),
+-# whose files are named <series>-server-cloudimg-amd64.img; the releases/
+-# tree names them ubuntu-<version>-... instead. The image is verified
+-# against SHA256SUMS, itself verified with the Ubuntu cloud image key
+-# (/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg, from ubuntu-keyring).
+-# Both `zfs version` lines (userland and kmod) must be <openzfs-minor>.x.
++# The guest is a prebaked bundle (ci/vm/bake.sh: OpenZFS and nfs-utils
++# installed, cloud-init off, kernel and initrd for direct boot, an extracted
++# qemu), so a run is: boot it in the background, build the test binaries
++# while it boots, let the guest run them in parallel shards, check the logs.
++# The bundle is cached and therefore trusted for nothing: every boot records
++# `zfs version`, the module's own version and the kernel, and `wait` asserts
++# them here, on the host, from the files the guest wrote.
++#
++# usage:
++#   ci/real-zfs-vm.sh boot <bundle>           start the guest in the background
++#   ci/real-zfs-vm.sh build                   build the test binaries into the share
++#   ci/real-zfs-vm.sh wait <openzfs-minor>    wait for the guest, assert, check skips
++#   ci/real-zfs-vm.sh smoke <openzfs-minor> <bundle>   bake self-test (no Go)
++#
++# The guest and the host share $work/share over 9p: the host puts
++# guest-run.sh, the test weights and bin/*.test there and touches `ready`;
++# the guest (zfsci-boot, baked) runs guest-run.sh and writes out/.
+ set -euo pipefail
+ 
+-series=${1:?series, e.g. stonking}
+-build=${2:-current}
+-want=${3:-2.4}
++cmd=${1:?boot, build, wait or smoke}
+ work=${RUNNER_TEMP:-/tmp}/zfsvm
++share=$work/share
+ summary=${GITHUB_STEP_SUMMARY:-/dev/null}
+-keyring=/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+-# only packages whose tests reach a real pool through ZFS_TEST_POOL;
+-# internal/server and internal/zfs run on the simulator in the unit job
+-pkgs=(endpoint csi)
+-mkdir -p "$work"
+ cd "$(git rev-parse --show-toplevel)"
+ 
+-# image: verify the signed checksum list, then the image against it
+-base="https://cloud-images.ubuntu.com/$series/$build"
+-file="$series-server-cloudimg-amd64.img"
+-img="$work/$series.img"
+-curl -fsSL --retry 3 -o "$work/SHA256SUMS" "$base/SHA256SUMS"
+-curl -fsSL --retry 3 -o "$work/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg"
+-gpgv --keyring "$keyring" "$work/SHA256SUMS.gpg" "$work/SHA256SUMS"
+-sum=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
+-[ -n "$sum" ] || { echo "$file is not in $base/SHA256SUMS" >&2; exit 1; }
+-curl -fsSL --retry 3 -o "$img" "$base/$file"
+-echo "$sum  $img" | sha256sum -c -
+-qemu-img resize "$img" 20G
+-
+-ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
+-cat >"$work/user-data" <<EOF
+-#cloud-config
+-users:
+-  - name: ci
+-    sudo: ALL=(ALL) NOPASSWD:ALL
+-    shell: /bin/bash
+-    ssh_authorized_keys: [$(cat "$work/key.pub")]
+-package_update: true
+-packages: [zfsutils-linux, nfs-kernel-server]
+-runcmd:
+-  - [modprobe, zfs]
+-  - [systemctl, enable, --now, nfs-server]
+-EOF
+-cloud-localds "$work/seed.img" "$work/user-data"
+-
+-# boot first: the guest's apt install overlaps the test compile below
+-# -display none, not -nographic: QEMU refuses -nographic with -daemonize
+-qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -display none \
+-  -drive file="$img",if=virtio -drive file="$work/seed.img",if=virtio,format=raw \
+-  -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
+-  -serial file:"$work/console.log" -daemonize -pidfile "$work/qemu.pid"
+-
+-common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
+-vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
++since() { awk -v a="$1" -v b="$(date +%s.%N)" 'BEGIN { printf "%.1f", b - a }'; }
++prov() { sed -n "s/^$1=//p" "$share/out/provenance" 2>/dev/null | head -n 1; }
+ 
+-# on failure, show what the guest printed (console: boot errors) and, if it
+-# answers, cloud-init's own account (apt failures land there); the workflow
+-# uploads console.log as an artifact
+ diag() {
+   echo "--- guest console (tail) ---"
+   tail -n 80 "$work/console.log" 2>/dev/null || true
+-  echo "--- cloud-init (best effort) ---"
+-  timeout 60 ssh "${common[@]}" -p 2222 ci@127.0.0.1 \
+-    'cloud-init status --long; sudo tail -n 80 /var/log/cloud-init-output.log; sudo dmesg | grep -iE "zfs|spl|nfsd" | tail -n 20' || true
++  echo "--- qemu ---"
++  cat "$work/qemu.log" 2>/dev/null || true
++  echo "--- guest-run ---"
++  tail -n 80 "$share/out/guest.log" 2>/dev/null || true
++  echo "--- shards ---"
++  cat "$share/out/shards.txt" 2>/dev/null || true
+ }
+-trap 'rc=$?; [ $rc -eq 0 ] || diag; [ -f "$work/qemu.pid" ] && kill "$(cat "$work/qemu.pid")" 2>/dev/null; exit $rc' EXIT
+ 
+-# test binaries: static, so the VM needs no Go toolchain; built as the
+-# runner user, only the binaries run as root
+-for pkg in "${pkgs[@]}"; do
+-  CGO_ENABLED=0 go test -c -o "$work/$pkg.test" "./internal/$pkg"
+-done
++boot() {
++  local bundle=${1:?bundle directory}
++  local f
++  for f in base.qcow2 vmlinuz initrd.img cmdline provenance; do
++    [ -s "$bundle/$f" ] || { echo "::error::VM bundle incomplete: no $f in $bundle"; exit 1; }
++  done
++  rm -rf "$work"
++  mkdir -p "$share/bin" "$share/out"
++  cp ci/vm/guest-run.sh ci/vm/test-weights.txt "$share/"
++  echo "$bundle" >"$work/bundle"
+ 
+-up=
+-for _ in $(seq 1 90); do vm true 2>/dev/null && { up=1; break; }; sleep 5; done
+-[ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
+-# status exits non-zero on recoverable warnings; the version, module and
+-# nfsd checks below are the real gates
+-# wait for cloud-init by its marker file: `status --wait` dies with ssh 255
+-# when sshd restarts during the package install
+-done_=
+-for _ in $(seq 1 120); do vm 'test -e /var/lib/cloud/instance/boot-finished' 2>/dev/null && { done_=1; break; }; sleep 5; done
+-[ -n "$done_" ] || { echo "cloud-init never finished" >&2; exit 1; }
+-vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
++  # how old is the bake? A stale-but-2.4 image passes the version assert,
++  # so its age is reported, and a month-old one fails (the nightly bake is
++  # broken)
++  local baked age
++  baked=$(sed -n 's/^baked_at=//p' "$bundle/provenance")
++  age=$((($(date -u +%s) - ${baked:-0}) / 86400))
++  if [ "$age" -gt 30 ]; then
++    echo "::error::the VM bundle is $age days old: the nightly bake (vm-image workflow) is failing"
++    exit 1
++  elif [ "$age" -gt 7 ]; then
++    echo "::warning::the VM bundle is $age days old: check the nightly bake (vm-image workflow)"
++  fi
+ 
+-ver=$(vm 'zfs version 2>&1' || true) # a missing module fails below, with the output
+-echo "$ver"
+-serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
+-{
+-  echo "### real ZFS VM: $series/$build"
+-  echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
+-  echo "- kernel: \`$(vm 'uname -r')\`"
+-  echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
+-} >>"$summary"
+-grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
+-  || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
+-[ "$(sed -n 's/^zfs-kmod-//p' <<<"$ver")" = "$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")" ] \
+-  || { echo "userland and kmod versions differ:" >&2; echo "$ver" >&2; exit 1; }
+-# what the file-export tests need besides running nfsd threads. Only
+-# exportfs: libzfs creates /etc/exports.d on the first share, and
+-# exportfs writes /var/lib/nfs/etab when it first exports
+-vm 'sudo sh -c "command -v exportfs"' >/dev/null \
+-  || { echo "exportfs missing in the VM (nfs-kernel-server not installed?)" >&2; exit 1; }
+-vm 'ls -ld /etc/exports.d /var/lib/nfs/etab 2>&1 || true' # context for an export test failure
+-vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
+-  || { echo "nfs-server is not running in the VM" >&2; exit 1; }
++  # the bundle's own qemu, run in place; the apt fallback costs ~13s and
++  # happens when the runner image moved under the extracted libraries
++  local q=$bundle/qemu
++  local qemu=("$q/usr/bin/qemu-system-x86_64" -L "$q/usr/share/qemu" -L "$q/usr/share/seabios")
++  local envs=("LD_LIBRARY_PATH=$q/usr/lib/x86_64-linux-gnu" "QEMU_MODULE_DIR=$q/usr/lib/x86_64-linux-gnu/qemu")
++  if ! env "${envs[@]}" "${qemu[@]}" --version >/dev/null 2>&1; then
++    echo "::warning::the bundle's qemu does not run on this runner image; installing qemu from apt"
++    sudo apt-get update -qq
++    sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 >/dev/null
++    qemu=(qemu-system-x86_64)
++    envs=()
++  fi
++
++  # -nodefaults and the fixed MAC match the bake boot, so the guest's
++  # network config (written by cloud-init at bake time) still applies
++  setsid nohup env "${envs[@]}" "${qemu[@]}" \
++    -machine q35,accel=kvm -cpu host -smp "$(nproc)" -m 6144 \
++    -nodefaults -display none -no-reboot \
++    -kernel "$bundle/vmlinuz" -initrd "$bundle/initrd.img" \
++    -append "$(cat "$bundle/cmdline") console=ttyS0 zfsci=1" \
++    -drive file="$bundle/base.qcow2",if=virtio,format=qcow2,snapshot=on,cache=unsafe \
++    -virtfs local,path="$share",mount_tag=ci,security_model=none,id=ci \
++    -netdev user,id=n0 -device virtio-net-pci,netdev=n0,mac=52:54:00:12:34:56,romfile= \
++    -serial file:"$work/console.log" -pidfile "$work/qemu.pid" \
++    </dev/null >"$work/qemu.log" 2>&1 &
++  echo $! >"$work/qemu.launcher"
++  date +%s.%N >"$work/boot.t0"
++  echo "booting $(sed -n 's/^serial=//p' "$bundle/provenance") (baked ${age}d ago) in the background"
++}
++
++build() {
++  # the Go toolchain comes from ci/fetch-go.sh, started in the background
++  # by the workflow's boot step
++  local go=${GOROOT_FETCHED:-${RUNNER_TEMP:-/tmp}/go}
++  if [ -n "${RUNNER_TEMP:-}" ]; then
++    until [ -e "$go/.ok" ]; do
++      [ -e "$go/.failed" ] && { cat "$go.log" 2>/dev/null; echo "::error::fetching Go failed"; exit 1; }
++      sleep 0.1
++    done
++    export PATH=$go/bin:$PATH
++  fi
++  # static, so the guest needs no Go; one invocation builds both packages
++  # in parallel
++  CGO_ENABLED=0 go test -c -o "$share/bin/" ./internal/endpoint ./internal/csi
++  echo full >"$share/mode"
++  touch "$share/ready"
++}
+ 
+-bins=()
+-for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
+-scp "${common[@]}" -P 2222 "${bins[@]}" ci@127.0.0.1:
+-rc=0
+-vm 'set -eo pipefail
+-  # 10G on a 20G guest disk that also holds the OS: the sparse vdev must
+-  # not outgrow the filesystem under it, or the pool suspends on ENOSPC
+-  truncate -s 10G vdev0
+-  sudo zpool create -f -O compression=lz4 zfsep-test "$PWD/vdev0"
+-  env=(ZFS_TEST_POOL=zfsep-test ZFS_REQUIRE_REAL=1)
+-  rc=0
+-  t=(-test.count=1 -test.v -test.timeout=8m)
+-  ./endpoint.test -test.list ".*" >endpoint.list
+-  ./csi.test -test.list ".*" >csi.list
+-  sudo "${env[@]}" ./endpoint.test "${t[@]}" 2>&1 | tee endpoint.log || rc=$?
+-  # csi-sanity, Identity and Controller groups, for filesystems and zvols;
+-  # the non-sanity csi tests do not depend on the access type, run them once
+-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" 2>&1 | tee csi-mount.log || rc=$?
+-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run "^TestSanity\$" 2>&1 | tee csi-block.log || rc=$?
+-  sudo zpool destroy -f zfsep-test
+-  exit $rc' || rc=$?
++await() {
++  local pid
++  for _ in $(seq 1 50); do [ -s "$work/qemu.pid" ] && break; sleep 0.1; done
++  pid=$(cat "$work/qemu.pid" 2>/dev/null || cat "$work/qemu.launcher")
++  local deadline=$((SECONDS + 480))
++  until [ -e "$share/out/rc" ]; do
++    kill -0 "$pid" 2>/dev/null || { echo "::error::the VM exited before the guest wrote a result"; diag; exit 1; }
++    [ "$SECONDS" -lt "$deadline" ] || { echo "::error::the guest gave no result in 8 minutes"; diag; exit 1; }
++    sleep 0.1
++  done
++  kill "$pid" 2>/dev/null || true
++}
++
++assert_version() {
++  local want=$1 ver bundle
++  bundle=$(cat "$work/bundle")
++  ver=$(cat "$share/out/version.txt" 2>/dev/null || true)
++  echo "$ver"
++  local rc=0
++  # userland and kmod both <want>.x, and the same build
++  grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" ||
++    { echo "::error::expected OpenZFS $want.x userland and kmod, got: $(tr '\n' ' ' <<<"$ver")"; rc=1; }
++  local user kmod sysfs
++  user=$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")
++  kmod=$(sed -n 's/^zfs-kmod-//p' <<<"$ver")
++  sysfs=$(sed -n 's/^sysfs: //p' <<<"$ver")
++  [ -n "$kmod" ] && [ "$user" = "$kmod" ] || { echo "::error::userland ($user) and kmod ($kmod) versions differ"; rc=1; }
++  # the loaded module itself, not only what the tools report
++  [ -n "$sysfs" ] && [ "$sysfs" = "$kmod" ] || { echo "::error::/sys/module/zfs/version ($sysfs) is not the kmod zfs reports ($kmod)"; rc=1; }
++  # the kernel the bake recorded is the one that booted (direct kernel boot
++  # from the bundle; its modules are on the bundle's disk)
++  local kernel
++  kernel=$(sed -n 's/^kernel=//p' "$bundle/provenance")
++  grep -qxF "uname: $kernel" <<<"$ver" || { echo "::error::booted kernel is not the baked one ($kernel)"; rc=1; }
++  grep -q '^exportfs: /' <<<"$ver" || { echo "::error::exportfs missing in the VM (nfs-kernel-server not installed?)"; rc=1; }
++  local n
++  n=$(sed -n 's/^nfsd: //p' <<<"$ver")
++  [ "${n:-0}" -gt 0 ] || { echo "::error::nfs-server is not running in the VM"; rc=1; }
++  {
++    echo "### real ZFS VM: $(prov series)/$(prov build) (prebaked)"
++    echo "- image serial: \`$(prov serial)\`, sha256 \`$(prov image_sha256)\` (gpg-verified SHA256SUMS at bake)"
++    echo "- baked: $(date -u -d "@$(prov baked_at)" +%F) (inputs \`$(prov bake_inputs)\`)"
++    echo "- kernel: \`$kernel\`"
++    echo "- zfs version: \`$(grep '^zfs' <<<"$ver" | tr '\n' ' ')\` sysfs \`$sysfs\`"
++  } >>"$summary"
++  return $rc
++}
++
++wait_() {
++  local want=${1:-2.4}
++  trap 'rc=$?; [ $rc -eq 0 ] || diag; kill "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || true; exit $rc' EXIT
++  await
++  local t0
++  t0=$(cat "$work/boot.t0")
++  echo "guest finished $(since "$t0")s after boot start"
++  grep -h 'zfsci:' "$work/console.log" || true
++  cat "$share/out/shards.txt" 2>/dev/null || true
++  local rc=0
++  assert_version "$want" || rc=1
++  [ "$(cat "$share/out/rc")" = 0 ] || { echo "::error::the guest run failed (rc $(cat "$share/out/rc"))"; tail -n 40 "$share/out/guest.log"; rc=1; }
++
++  local o=$share/out
++  cat "$o"/endpoint.[0-9]*.log >"$work/endpoint.log" 2>/dev/null || rc=1
++  cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" 2>/dev/null || rc=1
++  cp "$o/csi-block.log" "$o/endpoint.list" "$o/csi.list" "$work/" 2>/dev/null || rc=1
++  {
++    echo "| leg | package | skips | skipped tests |"
++    echo "|---|---|---|---|"
++  } >>"$summary"
++  # the endpoint shards' logs together must cover endpoint.list; csi-mount
++  # (the non-sanity tests plus sanity on filesystems) must cover csi.list;
++  # csi-sanity spec floor: Identity + Controller specs run on the simulator
++  # (44 of 103 with csi-test v5.6); a regex or skip regression drops below it
++  ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
++  ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
++  ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
++  exit $rc
++}
++
++smoke() {
++  local want=${1:-2.4} bundle=${2:?bundle}
++  boot "$bundle"
++  echo smoke >"$share/mode"
++  touch "$share/ready"
++  trap 'rc=$?; [ $rc -eq 0 ] || diag; kill "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || true; exit $rc' EXIT
++  await
++  echo "smoke boot to result: $(since "$(cat "$work/boot.t0")")s"
++  grep -h 'zfsci:' "$work/console.log" || true
++  assert_version "$want"
++  [ "$(cat "$share/out/rc")" = 0 ] || { echo "::error::smoke pool create/destroy failed"; cat "$share/out/guest.log"; exit 1; }
++}
+ 
+-scp "${common[@]}" -P 2222 'ci@127.0.0.1:*.log' 'ci@127.0.0.1:*.list' "$work/" || rc=1
+-{
+-  echo "| leg | package | skips | skipped tests |"
+-  echo "|---|---|---|---|"
+-} >>"$summary"
+-# csi-sanity spec floor: Identity + Controller specs run on the simulator
+-# (44 of 103 with csi-test v5.6); a regex or skip regression drops below it
+-ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
+-ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
+-ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
+-exit $rc
++case $cmd in
++  boot) boot "${2:-}" ;;
++  build) build ;;
++  wait) wait_ "${2:-2.4}" ;;
++  smoke) smoke "${2:-2.4}" "${3:-}" ;;
++  *) echo "unknown command $cmd" >&2; exit 2 ;;
++esac
+diff --git a/ci/vm/bake.sh b/ci/vm/bake.sh
+new file mode 100755
+index 0000000..cd3fc81
+--- /dev/null
++++ b/ci/vm/bake.sh
+@@ -0,0 +1,120 @@
++#!/usr/bin/env bash
++# Bake the real-ZFS VM bundle: an Ubuntu cloud image with OpenZFS and
++# nfs-kernel-server already installed and cloud-init switched off, its kernel
++# and initrd for direct boot, and an extracted (not installed) qemu for the
++# host. ci/real-zfs-vm.sh boots it in a few seconds instead of provisioning a
++# fresh image with cloud-init on every run.
++#
++# usage: ci/vm/bake.sh <ubuntu-series> <image-build> <openzfs-minor> <out-dir>
++#   ci/vm/bake.sh stonking current 2.4 "$RUNNER_TEMP/zfsvm-bundle"
++#
++# Run it on a fresh ubuntu-24.04 runner, before qemu is installed: the qemu
++# tree in the bundle is exactly the packages apt adds to that runner image.
++# Needs /dev/kvm and sudo. The bundle is cached keyed by a hash of this
++# script and ci/vm/image/ (see the workflows), and rebaked nightly because
++# the series' "current" image moves. Nothing in it is trusted for validity:
++# every boot re-asserts the OpenZFS version (ci/vm/guest-run.sh, then
++# ci/real-zfs-vm.sh on the host).
++#
++# Bundle layout:
++#   base.qcow2   the provisioned disk, zstd-compressed qcow2, booted read-only
++#                (snapshot=on), so one bundle serves any number of runs
++#   vmlinuz, initrd.img, cmdline   for -kernel/-initrd/-append
++#   provenance   key=value: image serial and sha256, kernel, zfs versions,
++#                bake time, bake inputs hash
++#   qemu/        dpkg-deb -x of the qemu packages, run via LD_LIBRARY_PATH
++set -euo pipefail
++
++series=${1:?series, e.g. stonking}
++build=${2:-current}
++want=${3:-2.4}
++out=${4:?output directory}
++here=$(cd "$(dirname "$0")" && pwd)
++keyring=/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
++work=$(mktemp -d "${RUNNER_TEMP:-/tmp}/zfsbake.XXXXXX")
++rm -rf "$out"
++mkdir -p "$out" "$work/debs" "$work/share"
++t0=$SECONDS
++step() { echo "::notice::bake +$((SECONDS - t0))s: $*"; }
++
++# 1. qemu for the bundle: the packages apt would add on this runner image,
++# downloaded and extracted, then installed for the bake boot itself
++sudo apt-get update -qq
++mapfile -t debs < <(apt-get install -s --no-install-recommends qemu-system-x86 | awk '/^Inst /{ print $2 }')
++[ "${#debs[@]}" -gt 0 ] || { echo "qemu is already installed: bake on a fresh runner" >&2; exit 1; }
++(cd "$work/debs" && apt-get download "${debs[@]}")
++for d in "$work"/debs/*.deb; do dpkg-deb -x "$d" "$out/qemu"; done
++# absolute links (firmware into /usr/share/seabios, /usr/lib/ipxe) must
++# point inside the tree
++find "$out/qemu" -type l -lname '/*' -print0 | while IFS= read -r -d '' l; do
++  ln -sfn "$(realpath -m --relative-to="$(dirname "$l")" "$out/qemu$(readlink "$l")")" "$l"
++done
++q=$out/qemu
++if LD_LIBRARY_PATH=$q/usr/lib/x86_64-linux-gnu ldd "$q/usr/bin/qemu-system-x86_64" | grep 'not found'; then
++  echo "the extracted qemu misses libraries" >&2; exit 1
++fi
++sudo apt-get install -y -qq --no-install-recommends "$work"/debs/*.deb qemu-utils cloud-image-utils >/dev/null
++step "qemu extracted (${#debs[@]} packages)"
++
++# 2. the base image: verify the signed checksum list, then the image
++base="https://cloud-images.ubuntu.com/$series/$build"
++file="$series-server-cloudimg-amd64.img"
++curl -fsSL --retry 3 -o "$work/SHA256SUMS" "$base/SHA256SUMS"
++curl -fsSL --retry 3 -o "$work/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg"
++gpgv --keyring "$keyring" "$work/SHA256SUMS.gpg" "$work/SHA256SUMS"
++sum=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
++[ -n "$sum" ] || { echo "$file is not in $base/SHA256SUMS" >&2; exit 1; }
++curl -fsSL --retry 3 -o "$work/disk.qcow2" "$base/$file"
++echo "$sum  $work/disk.qcow2" | sha256sum -c -
++# room for the packages; the test pools live on a guest tmpfs, not here
++qemu-img resize -q "$work/disk.qcow2" 8G
++step "image verified"
++
++# 3. provision once with cloud-init: packages, the boot hook, the trims
++inputs=$(cat "$here/bake.sh" "$here"/image/* | sha256sum | cut -c1-16)
++cat >"$work/share/provenance.host" <<EOF
++series=$series
++build=$build
++image_sha256=$sum
++baked_at=$(date -u +%s)
++bake_inputs=$inputs
++EOF
++b64() { base64 -w0 "$here/image/$1"; }
++cat >"$work/user-data" <<EOF
++#cloud-config
++package_update: true
++packages: [zfsutils-linux, nfs-kernel-server]
++write_files:
++  - { path: /usr/local/sbin/zfsci-boot, permissions: '0755', encoding: b64, content: $(b64 zfsci-boot) }
++  - { path: /etc/systemd/system/zfsci.service, permissions: '0644', encoding: b64, content: $(b64 zfsci.service) }
++  - { path: /usr/local/sbin/zfsci-bake, permissions: '0755', encoding: b64, content: $(b64 bake-guest.sh) }
++runcmd:
++  - [/usr/local/sbin/zfsci-bake, "$want"]
++power_state: { mode: poweroff, condition: true }
++EOF
++cloud-localds "$work/seed.img" "$work/user-data"
++# same machine, NIC and MAC as ci/real-zfs-vm.sh, so the netplan config
++# cloud-init writes here matches at test time
++timeout 600 qemu-system-x86_64 -machine q35,accel=kvm -cpu host -smp "$(nproc)" -m 4096 \
++  -nodefaults -display none -no-reboot \
++  -drive file="$work/disk.qcow2",if=virtio,format=qcow2,discard=unmap,cache=unsafe \
++  -drive file="$work/seed.img",if=virtio,format=raw \
++  -virtfs local,path="$work/share",mount_tag=out,security_model=none,id=out \
++  -netdev user,id=n0 -device virtio-net-pci,netdev=n0,mac=52:54:00:12:34:56,romfile= \
++  -serial file:"$work/bake-console.log" ||
++  { tail -n 100 "$work/bake-console.log"; exit 1; }
++[ -e "$work/share/baked" ] || { echo "the guest did not finish baking" >&2; tail -n 150 "$work/bake-console.log"; exit 1; }
++step "provisioned"
++
++# 4. the bundle: zstd qcow2 (actions/cache would not compress it further;
++# the guest decompresses only the clusters it reads at boot)
++qemu-img convert -O qcow2 -c -o compression_type=zstd "$work/disk.qcow2" "$out/base.qcow2"
++cp "$work/share/vmlinuz" "$work/share/initrd.img" "$work/share/cmdline" "$work/share/provenance" "$out/"
++chmod 0644 "$out/vmlinuz" "$out/initrd.img"
++step "bundle $(du -sh "$out" | cut -f1)"
++cat "$out/provenance"
++rm -rf "$work"
++
++# 5. self-test: the bundle boots on its own qemu and is OpenZFS $want
++"$here/../real-zfs-vm.sh" smoke "$want" "$out"
++step "smoke test passed"
+diff --git a/ci/vm/guest-run.sh b/ci/vm/guest-run.sh
+new file mode 100755
+index 0000000..9a08176
+--- /dev/null
++++ b/ci/vm/guest-run.sh
+@@ -0,0 +1,115 @@
++#!/usr/bin/env bash
++# Runs inside the baked guest as root (zfsci-boot, from the host's 9p share at
++# /mnt/ci), once the host has built the test binaries into /mnt/ci/bin.
++# Records what the host asserts on (out/version.txt), then runs the real-pool
++# tests as concurrent shards, each on its own pool, and writes their -test.v
++# logs and -test.list output to out/. Pass or fail is decided on the host by
++# ci/real-zfs-vm.sh and ci/check-skips.sh, never here.
++#
++# usage: guest-run.sh full|smoke
++#   smoke: version facts and one pool create/destroy only (the bake self-test)
++set -uo pipefail
++mode=${1:-full}
++ci=/mnt/ci
++out=$ci/out
++mkdir -p "$out"
++up() { cut -d' ' -f1 /proc/uptime; }
++echo "guest-run start at uptime $(up)s"
++
++# the facts the host's version assert reads, gathered on every boot: the
++# image is cached, so this is what proves the kernel module and the
++# userland in this run are OpenZFS 2.4
++{
++  zfs version 2>&1
++  echo "sysfs: $(cat /sys/module/zfs/version 2>&1)"
++  echo "uname: $(uname -r)"
++  # shellcheck disable=SC1091
++  . /etc/os-release
++  echo "os: $VERSION_ID $VERSION_CODENAME"
++  echo "exportfs: $(command -v exportfs || echo missing)"
++} >"$out/version.txt"
++cp /etc/zfsci/provenance "$out/provenance"
++# nfs-server is ordered before us; poll briefly, never a fixed sleep
++n=0
++for _ in $(seq 1 300); do
++  n=$(cat /proc/fs/nfsd/threads 2>/dev/null || echo 0)
++  [ "$n" -gt 0 ] && break
++  sleep 0.1
++done
++echo "nfsd: $n" >>"$out/version.txt"
++ls -ld /etc/exports.d /var/lib/nfs/etab >"$out/nfs-context.txt" 2>&1
++
++# pools on a guest tmpfs: real vdevs to the real kmod, with no virtio disk or
++# host page cache in the txg sync path. Sparse 10G files; the tests write
++# little, and the tmpfs cap keeps a runaway write an ENOSPC, not an OOM
++vd=/run/zfsci
++mkdir -p "$vd"
++mount -t tmpfs -o size=70% zfsci "$vd"
++mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -O compression=lz4 "$1" "$vd/$1.vdev"; }
++
++rc=0
++if [ "$mode" = smoke ]; then
++  mkpool zsmoke && zfs create zsmoke/x && zpool destroy -f zsmoke || rc=1
++  echo "$rc" >"$out/rc.tmp" && mv "$out/rc.tmp" "$out/rc"
++  exit "$rc"
++fi
++
++# exec from tmpfs, not 9p
++mkdir -p "$vd/bin"
++cp "$ci"/bin/*.test "$vd/bin/"
++cd "$vd/bin" || exit 1
++./endpoint.test -test.list '.*' >"$out/endpoint.list"
++./csi.test -test.list '.*' >"$out/csi.list"
++
++# shard <list> <weights> <n>: "<shard> <test>" per top-level test; longest
++# first onto the lightest shard. The file-export tests stay in one shard:
++# they share the one nfsd and its export table
++shard() {
++  awk 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
++       /^Test/ { g = ($1 ~ /^TestFileExport/) ? "TestFileExport*" : $1
++                 wt[g] += ($1 in w) ? w[$1] : 0.1; m[g] = m[g] " " $1 }
++       END { for (g in wt) printf "%.3f%s\n", wt[g], m[g] }' "$2" "$1" |
++    sort -k1,1gr -k2,2 |
++    awk -v n="$3" '{ b = 0; for (i = 1; i < n; i++) if (load[i] + 0 < load[b] + 0) b = i
++                     load[b] += $1; for (j = 2; j <= NF; j++) print b, $j }'
++}
++ep_shards=3
++shard "$out/endpoint.list" "$ci/test-weights.txt" "$ep_shards" >"$out/endpoint.plan"
++
++t=(-test.count=1 -test.v -test.timeout=4m)
++pids=() names=()
++# run <name> <pool> <command...>: one shard, its own pool, in the background
++run() {
++  local name=$1 pool=$2
++  shift 2
++  mkpool "$pool" || { echo "zpool create $pool failed" >"$out/$name.log"; rc=1; return; }
++  (
++    s=$(up)
++    env ZFS_TEST_POOL="$pool" ZFS_REQUIRE_REAL=1 "$@" >"$out/$name.log" 2>&1
++    r=$?
++    echo "$name rc=$r start=$s end=$(up)" >>"$out/shards.txt"
++    exit $r
++  ) &
++  pids+=($!) names+=("$name")
++}
++for i in $(seq 0 $((ep_shards - 1))); do
++  re=$(awk -v s="$i" '$1 == s { printf "%s%s", sep, $2; sep = "|" }' "$out/endpoint.plan")
++  [ -n "$re" ] || continue
++  run "endpoint.$i" "zep$i" ./endpoint.test "${t[@]}" -test.run "^($re)\$"
++done
++# csi: the non-sanity tests do not depend on the access type and run once
++# (with mount, as before); csi-sanity runs for filesystems and for zvols
++run csi-other zcsi0 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.skip '^TestSanity$'
++run csi-mount zcsi1 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.run '^TestSanity$'
++run csi-block zcsi2 env CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run '^TestSanity$'
++
++for k in "${!pids[@]}"; do
++  wait "${pids[$k]}" || { echo "${names[$k]} failed"; rc=1; }
++done
++# a pool that will not export means a test left something busy
++for p in $(zpool list -H -o name); do
++  case $p in zep* | zcsi*) zpool destroy -f "$p" || { echo "zpool destroy $p failed"; rc=1; } ;; esac
++done
++echo "guest-run end at uptime $(up)s, rc $rc"
++echo "$rc" >"$out/rc.tmp" && mv "$out/rc.tmp" "$out/rc"
++exit "$rc"
+diff --git a/ci/vm/image/bake-guest.sh b/ci/vm/image/bake-guest.sh
+new file mode 100755
+index 0000000..2adee91
+--- /dev/null
++++ b/ci/vm/image/bake-guest.sh
+@@ -0,0 +1,49 @@
++#!/usr/bin/env bash
++# Runs once inside the guest during ci/vm/bake.sh (cloud-init runcmd, after
++# the packages are installed). Trims the boot, hands the kernel, initrd and
++# provenance to the host over 9p, and switches cloud-init off for good.
++set -euxo pipefail
++want=${1:?openzfs minor}
++
++modprobe zfs
++zfs version
++zfs version | grep -Eq "^zfs-kmod-${want//./\\.}\." || { echo "zfs kmod is not $want.x" >&2; exit 1; }
++for m in 9p 9pnet_virtio; do modprobe "$m"; done
++printf '%s\n' zfs 9p 9pnet_virtio >/etc/modules-load.d/zfsci.conf
++
++systemctl enable nfs-server.service zfsci.service
++# what a test boot never needs; purge or mask only what exists
++for p in snapd unattended-upgrades; do
++  if dpkg -s "$p" >/dev/null 2>&1; then apt-get purge -y -qq "$p"; fi
++done
++for u in apt-daily.timer apt-daily-upgrade.timer motd-news.timer man-db.timer \
++  e2scrub_all.timer fstrim.timer fwupd-refresh.timer update-notifier-download.timer \
++  ModemManager.service multipathd.service multipathd.socket lxd-installer.socket; do
++  if systemctl list-unit-files "$u" --no-legend | grep -q .; then systemctl mask "$u"; fi
++done
++apt-get clean
++rm -rf /var/lib/apt/lists/*
++
++mkdir -p /mnt/out
++mount -t 9p -o trans=virtio,version=9p2000.L,msize=524288 out /mnt/out
++k=$(uname -r)
++cp "/boot/vmlinuz-$k" /mnt/out/vmlinuz
++cp "/boot/initrd.img-$k" /mnt/out/initrd.img
++# the cloud image's own command line, minus the loader's BOOT_IMAGE
++sed -E 's/BOOT_IMAGE=[^ ]+ ?//' /proc/cmdline >/mnt/out/cmdline
++mkdir -p /etc/zfsci
++{
++  cat /mnt/out/provenance.host
++  echo "serial=$(sed -n 's/^serial: *//p' /etc/cloud/build.info)"
++  echo "kernel=$k"
++  zfs version | sed -n 's/^zfs-kmod-/zfs_kmod=/p; s/^zfs-\([0-9]\)/zfs=\1/p'
++} >/etc/zfsci/provenance
++cp /etc/zfsci/provenance /mnt/out/provenance
++
++# every later boot is a test boot: no cloud-init, a fresh machine-id
++touch /etc/cloud/cloud-init.disabled
++truncate -s 0 /etc/machine-id
++fstrim -av || true
++sync
++touch /mnt/out/baked
++umount /mnt/out
+diff --git a/ci/vm/image/zfsci-boot b/ci/vm/image/zfsci-boot
+new file mode 100755
+index 0000000..98a15eb
+--- /dev/null
++++ b/ci/vm/image/zfsci-boot
+@@ -0,0 +1,26 @@
++#!/bin/bash
++# Baked into the guest (ci/vm/bake.sh). On a boot with zfsci=1 on the kernel
++# command line: mount the host's 9p share, wait until the host has built the
++# test binaries, run the guest-run.sh the host put there (the PR's own copy,
++# not a baked one), then power off. The host reads the results from the
++# share; nothing here decides pass or fail.
++set -u
++say() { echo "zfsci: $*"; }
++mkdir -p /mnt/ci
++if ! mount -t 9p -o trans=virtio,version=9p2000.L,msize=524288 ci /mnt/ci; then
++  say "cannot mount the 9p share"
++  systemctl poweroff --no-block
++  exit 1
++fi
++say "up at $(cut -d' ' -f1 /proc/uptime)s, waiting for the test binaries"
++while [ ! -e /mnt/ci/ready ]; do sleep 0.1; done
++say "binaries ready at $(cut -d' ' -f1 /proc/uptime)s"
++mkdir -p /mnt/ci/out
++mode=$(cat /mnt/ci/mode 2>/dev/null || echo full)
++bash /mnt/ci/guest-run.sh "$mode" >/mnt/ci/out/guest.log 2>&1
++rc=$?
++# guest-run.sh writes out/rc as its last act; if it died first, say so
++[ -e /mnt/ci/out/rc ] || echo "$rc" >/mnt/ci/out/rc
++say "done (rc $(cat /mnt/ci/out/rc)) at $(cut -d' ' -f1 /proc/uptime)s"
++sync
++systemctl poweroff --no-block
+diff --git a/ci/vm/image/zfsci.service b/ci/vm/image/zfsci.service
+new file mode 100644
+index 0000000..4652765
+--- /dev/null
++++ b/ci/vm/image/zfsci.service
+@@ -0,0 +1,17 @@
++[Unit]
++Description=zfs-endpoint CI: run the tests from the host's 9p share
++ConditionKernelCommandLine=zfsci=1
++# nfsd threads and the zfs module must be up before any test runs; network
++# ordering keeps exportfs's name resolution as it was under cloud-init
++Wants=nfs-server.service network-online.target
++After=nfs-server.service network-online.target zfs-load-module.service systemd-modules-load.service
++
++[Service]
++Type=oneshot
++ExecStart=/usr/local/sbin/zfsci-boot
++StandardOutput=journal+console
++StandardError=journal+console
++TimeoutStartSec=infinity
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/ci/vm/test-weights.txt b/ci/vm/test-weights.txt
+new file mode 100644
+index 0000000..58c92d7
+--- /dev/null
++++ b/ci/vm/test-weights.txt
+@@ -0,0 +1,120 @@
++# Seconds each top-level endpoint test took on the real-ZFS VM: the time
++# cost of a test as data (ADR 0005). ci/vm/guest-run.sh shards the endpoint
++# binary by these weights (longest first, onto the lightest shard); a test
++# missing here weighs 0.1s. Only the balance depends on this file, never the
++# coverage: every listed test runs in exactly one shard, and
++# ci/check-skips.sh fails a test that neither passed nor skipped.
++#
++# Source: run 40456494050 (8cc52ef), one serial pass on a 10G file-backed
++# pool. Refresh with the durations from a newer run when shards drift apart.
++#
++# <test> <seconds>
++TestCreateVolumeProperties 1.27
++TestReconcileAgainstDesiredSet 0.68
++TestReserveRestoreIsIdempotent 0.57
++TestCloneSourcesMustBeOwned 0.46
++TestSnapshotLifecycleWithClones 0.43
++TestCloneLargerThanLimitIsOutOfRange 0.39
++TestReconcileCollectsLeakedCloneSource 0.36
++TestCloneFromVolumeReleasesInternalSnapshot 0.29
++TestThickCloneRetryIsIdempotent 0.29
++TestPagination 0.28
++TestFileExportLifecycle 0.26
++TestConcurrentCreatesSerialize 0.25
++TestDeleteVolumeAfterItsCloneIsGone 0.25
++TestSimulateDestroyAllEquivalent 0.25
++TestBusyIsMappedByOperation 0.24
++TestFileExportPreconditions 0.24
++TestDeleteVolume 0.23
++TestFileExportAdoptedVolumes 0.22
++TestCloneFailureAfterCloneConvergesToSameState 0.20
++TestExpand 0.17
++TestInheritedOwnershipIsNotOwnership 0.16
++TestCloneResizeFailureConverges 0.15
++TestCreateVolumeIdempotent 0.15
++TestCreateVolumeResumesInterruptedProvision 0.15
++TestDeleteVolumeSparesForeignSnapshots 0.15
++TestVolumeNameMustMatchID 0.15
++TestReconcileCollectsAbandonedCreate 0.14
++TestNeverAdoptsOrDeletesUnmanaged 0.10
++TestUnknownFailureAfterAMutationIsRetryable 0.07
++TestExportSizeLimit 0.06
++TestMissingParentIsUnavailableForWholeScans 0.06
++TestReconcileLocksTargets 0.06
++TestAdv4CommitRaceDestroysJustProvisionedVolume 0.05
++TestFileExportRequiresNFSD 0.05
++TestFileExportUnmountedVolume 0.05
++TestFileExportVerifiesKernelTable 0.05
++TestMissingParentIsUnavailableNotAbsent 0.05
++TestReconcileSparesReceivedAndRenamed 0.05
++TestFileExportDroppedHost 0.04
++TestFileExportReceivedShareNFS 0.04
++TestFileExportResolvesSymlinks 0.04
++TestReceivedCopyIsNotOwned 0.04
++TestAdv4PartialDesiredSetMassDeletes 0.01
++TestPlanPublishExport 0.01
++TestAdv4BusyDestroyAbortsRun 0.00
++TestAdv4ChildDatasetsDestroyed 0.00
++TestAdv4OneBusyLockAbortsWholeRun 0.00
++TestAdv4OneFailureStarvesAndHidesDestroys 0.00
++TestAdv4ReleasedOriginOutsideParent 0.00
++TestAdv4TinyMinAgeInFlightCreate 0.00
++TestAdv4UserSnapshotWithReservedPrefixCollected 0.00
++TestAdv4_AddressDedupPublishNeverVerifies 0.00
++TestAdv4_ClientPolicyGaps 0.00
++TestAdv4_PrefixMatchPublishFalseSuccess 0.00
++TestAdv4_PrefixMatchUnpublishLivelock 0.00
++TestAdv4_TwoSpellingsBypassModeConflict 0.00
++TestApplyRefusesAnUnknownOpKind 0.00
++TestCheckFloor 0.00
++TestCloneNeverAdoptsARacingDataset 0.00
++TestCloneRefusesUnstampedReservedSnapshot 0.00
++TestCodeOfNeverReportsAFailureAsOK 0.00
++TestDecodeRejectsImpossibleZvolSizes 0.00
++TestDefaultPropertyPrefixIsOurOwn 0.00
++TestDeleteCloneInterruptedThenRetriedReleasesOrigin 0.00
++TestDeleteVolumeSparesChildDatasets 0.00
++TestDeleteVolumeSparesSnapshotCutAfterScan 0.00
++TestExportConverges 0.00
++TestLegacyUnstampedOriginReleasedWithItsClone 0.00
++TestLiteralDashMarkerIsAValue 0.00
++TestManagedWithoutNameIsNotOwned 0.00
++TestOpKindString 0.00
++TestParseClient 0.00
++TestParseEtab 0.00
++TestPlanCreateAppliesProperties 0.00
++TestPlanCreateConvergesUncommittedClone 0.00
++TestPlanCreateFilesystemsAreNotShared 0.00
++TestPlanCreateHonorsLimitOnly 0.00
++TestPlanCreateIsEmptyWhenSatisfied 0.00
++TestPlanCreateMalformedSourceIsNotFound 0.00
++TestPlanCreatePropertiesConvergeUncommitted 0.00
++TestPlanCreatePropertiesDenyList 0.00
++TestPlanCreatePropertiesRetry 0.00
++TestPlanCreateRefusesForeignAndIncompatible 0.00
++TestPlanCreateThickZvolLeavesReservationToZFS 0.00
++TestPlanDeleteVolume 0.00
++TestPlanExpand 0.00
++TestPlanReconcile 0.00
++TestPlanReconcileHeldLimitsActions 0.00
++TestPlanReconcileLocksEveryTarget 0.00
++TestPlanSnapshotLongAndUnusualNames 0.00
++TestPlanSnapshotReservedPrefix 0.00
++TestPlanUnpublishExport 0.00
++TestPlannersRequireACoveringTable 0.00
++TestPropertyPrefixIsValidated 0.00
++TestReachCapacityWrap 0.00
++TestReachOriginOutsideParent 0.00
++TestReachOutsideCloneWedgesReconcile 0.00
++TestReachPlannerZeroBlockSize 0.00
++TestReachUncommittedServed 0.00
++TestReconcileAgesFromCommit 0.00
++TestReconcileMaxDeletionsAndDigest 0.00
++TestReconcileSkipsSourceOfFailedClone 0.00
++TestScanRecordsCoverage 0.00
++TestShareNFSAndClientEncoding 0.00
++TestSimulateDestroyReapsDeferredOrigins 0.00
++TestSortClientsIsTotal 0.00
++TestUserValueDash 0.00
++TestValidatePropertyValues 0.00
++TestZfsErrCodes 0.00
+-- 
+2.43.0
+

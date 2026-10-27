@@ -1,0 +1,27 @@
+lzc_create               EEXIST->FilesystemExists EINVAL->PropertyInvalid ENOENT->ParentNotFound ZFS_ERR_WRONG_PARENT->WrongParent
+lzc_clone                EEXIST->FilesystemExists EINVAL->PropertyInvalid ENOENT->DatasetNotFound EXDEV->PoolsDiffer
+lzc_rollback             EINVAL->NameInvalid ESRCH->SnapshotNotFound
+lzc_rollback_to          EEXIST->SnapshotNotLatest
+lzc_snapshot             EEXIST->SnapshotExists ENOENT->FilesystemNotFound
+lzc_destroy_snaps        EBUSY->SnapshotIsHeld EEXIST->SnapshotIsCloned ENOENT->PoolNotFound
+lzc_bookmark             EEXIST->BookmarkExists ENOENT->SnapshotNotFound ENOTSUP->BookmarkNotSupported
+lzc_get_bookmarks        ENOENT->FilesystemNotFound
+lzc_destroy_bookmarks    EINVAL->NameInvalid
+lzc_snaprange_space      ENOENT->SnapshotNotFound
+lzc_hold                 E2BIG->NameTooLong EBADF->BadHoldCleanupFD EEXIST->HoldExists ENOENT->FilesystemNotFound ENOTSUP->FeatureNotSupported EXDEV->PoolsDiffer
+lzc_release              E2BIG->NameTooLong ENOENT->HoldNotFound ENOTSUP->FeatureNotSupported EXDEV->PoolsDiffer
+lzc_get_holds            ENOENT->SnapshotNotFound ENOTSUP->FeatureNotSupported
+lzc_send                 ENOENT->SnapshotNotFound
+lzc_send_space           ENOENT->SnapshotNotFound
+lzc_receive              EACCES->EncryptionKeyNotLoaded EAGAIN->SuspendedPool EBUSY->DatasetBusy ECKSUM->BadStream EDQUOT->QuotaExceeded EEXIST->DatasetExists EINVAL->PropertyInvalid ENAMETOOLONG->NameTooLong ENODEV->StreamMismatch ENOSPC->NoSpace ENOTSUP->StreamFeatureNotSupported EROFS->ReadOnlyPool ETXTBSY->DestinationModified ZFS_ERR_WRONG_PARENT->WrongParent
+lzc_promote              EEXIST->SnapshotExists EINVAL->NotClone ENOENT->FilesystemNotFound ENOTSOCK->NotClone
+lzc_change_key           EACCES->EncryptionKeyNotLoaded EINVAL->PropertyInvalid ENOENT->FilesystemNotFound
+lzc_load_key             EACCES->EncryptionKeyInvalid EEXIST->EncryptionKeyAlreadyLoaded EINVAL->PropertyInvalid ENOENT->FilesystemNotFound
+lzc_unload_key           EACCES->EncryptionKeyNotLoaded EINVAL->PropertyInvalid ENOENT->FilesystemNotFound
+lzc_sync                 ENOENT->PoolNotFound
+lzc_reopen               ENOENT->PoolNotFound
+lzc_channel_program      ECHRNG->ZCPRuntimeError ENOENT->PoolNotFound ENOMEM->ZCPMemoryError ENOSPC->ZCPSpaceError EPERM->ZCPPermissionError ETIME->ZCPTimeout
+lzc_pool_checkpoint      ENOENT->PoolNotFound ZFS_ERR_CHECKPOINT_EXISTS->CheckpointExists ZFS_ERR_DEVRM_IN_PROGRESS->DeviceRemovalRunning ZFS_ERR_DISCARDING_CHECKPOINT->CheckpointDiscarding ZFS_ERR_NO_CHECKPOINT->CheckpointNotFound ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS->RaidzExpansionRunning ZFS_ERR_VDEV_TOO_BIG->DeviceTooBig
+lzc_pool_checkpoint_discard 
+lzc_rename               EEXIST->FilesystemExists ENOENT->FilesystemNotFound ZFS_ERR_WRONG_PARENT->WrongParent
+lzc_destroy              ENOENT->FilesystemNotFound

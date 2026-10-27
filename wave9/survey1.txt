@@ -1,0 +1,32 @@
+=== proj:create:acltype (x400)
+# generated: seed0
+step 0 `zfs create -p $R`: proj differs
+  A: $R	acltype	off	default
+     $R	atime	on	default
+     $R	canmount	on	default
+     $R	compression	lz4	inherited from zfsep-test
+     $R	copies	1	default
+     $R	dedup	off	default
+     $R	defer_destroy	-	-
+     $R	logbias	latency	default
+     $R	mounted	yes	-
+     $R	mountpoint	/$R	default
+     $R	origin	-	-
+     $R	quota	0	default
+     $R	recordsize	131072	default
+     $R	refquota	0	default
+     $R	refreservation	0	default
+     $R	relatime	on	default
+     $R	reservation	0	default
+     $R	sharenfs	off	default
+     $R	snapdir	hidden	default
+     $R	sync	standard	default
+     $R	type	filesystem	-
+     $R	userrefs	-	-
+     $R	volblocksize	-	-
+     $R	volsize	-	-
+     $R	xattr	sa	default
+     $R	zd:a	-	-
+     $R	zd:b	-	-
+  B: !get failed: bad property list: invalid property 'userrefs'
+

@@ -1,0 +1,16 @@
+    reach_test.go:60: ListVolumes = [a(filesystem) a@ghost(filesystem)], err = <nil>
+--- PASS: TestReachPhantomRowListed (0.00s)
+    reach_test.go:67: Kind=7 Reserve+Sparse, no capacity: plan=[{Kind:1 Target:tank/v/a Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:csi_volume_name:a democratic-csi:managed_resource:true] OkExists:false OkMissing:false} {Kind:5 Target:tank/v/a Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:provision_success:true] OkExists:false OkMissing:false}] err=<nil>
+--- PASS: TestReachVolumeKindOutOfRange (0.00s)
+    reach_test.go:72: recovered: runtime error: integer divide by zero
+--- PASS: TestReachZeroPlannerPanics (0.00s)
+    reach_test.go:81: plan=[{5 tank/v/a  0 false false false map[democratic-csi:nfs_clients:*=rw sharenfs:rw=*] false false}] err=<nil>
+--- PASS: TestReachUnparsedClient (0.00s)
+    reach_test.go:93: prefix "Bad Prefix": New err=<nil>; scan columns include "Bad Prefix:managed_resource,Bad Prefix:provision_success"
+    reach_test.go:93: prefix "a,type": New err=<nil>; scan columns include "a,type:managed_resource,a,type:provision_success"
+    reach_test.go:93: prefix "x:": New err=<nil>; scan columns include "x::managed_resource,x::provision_success"
+--- PASS: TestReachPropertyPrefix (0.00s)
+    reach_test.go:107: full: err=volume src has dependent clone other; partial: plan=[{6 tank/v/src  0 false true false map[] false true}] err=<nil>
+--- PASS: TestReachPartialTableDelete (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.006s

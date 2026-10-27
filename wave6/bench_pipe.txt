@@ -1,0 +1,18 @@
+goos: linux
+goarch: amd64
+pkg: github.com/wommy/empty/internal/zfs
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+BenchmarkPipe/10k/run+parseColumns-4         	       1	 452808911 ns/op	163165616 B/op	  270331 allocs/op
+BenchmarkPipe/10k/run+parseColumns-4         	       1	 332677151 ns/op	163164944 B/op	  270325 allocs/op
+BenchmarkPipe/10k/run+parseColumns-4         	       1	 282217880 ns/op	163169160 B/op	  270329 allocs/op
+BenchmarkPipe/10k/stream+jsontext-4          	       1	 203876801 ns/op	21723056 B/op	     261 allocs/op
+BenchmarkPipe/10k/stream+jsontext-4          	       1	 251210360 ns/op	21722976 B/op	     262 allocs/op
+BenchmarkPipe/10k/stream+jsontext-4          	       1	 270770512 ns/op	21722944 B/op	     260 allocs/op
+BenchmarkPipe/110k/run+parseColumns-4        	       1	4414990040 ns/op	2173504544 B/op	 2970875 allocs/op
+BenchmarkPipe/110k/run+parseColumns-4        	       1	2646416164 ns/op	2173612768 B/op	 2970881 allocs/op
+BenchmarkPipe/110k/run+parseColumns-4        	       1	2750559671 ns/op	2173339440 B/op	 2970861 allocs/op
+BenchmarkPipe/110k/stream+jsontext-4         	       1	3648683726 ns/op	295820832 B/op	     944 allocs/op
+BenchmarkPipe/110k/stream+jsontext-4         	       1	2863476335 ns/op	295766128 B/op	     939 allocs/op
+BenchmarkPipe/110k/stream+jsontext-4         	       1	2212184575 ns/op	295820608 B/op	     942 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/zfs	35.176s

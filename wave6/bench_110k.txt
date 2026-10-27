@@ -1,0 +1,21 @@
+goos: linux
+goarch: amd64
+pkg: github.com/wommy/empty/internal/zfs
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+BenchmarkScan/110k/text-parseColumns-4         	       1	3127403205 ns/op	 111.13 MB/s	1099402992 B/op	 2970713 allocs/op
+BenchmarkScan/110k/text-parseColumns-4         	       1	2303203599 ns/op	 150.89 MB/s	1099348480 B/op	 2970708 allocs/op
+BenchmarkScan/110k/text-parseColumns-4         	       1	2809185288 ns/op	 123.71 MB/s	1099621328 B/op	 2970727 allocs/op
+BenchmarkScan/110k/jsontext-stream-4           	       1	3729856548 ns/op	  73.63 MB/s	295892608 B/op	     840 allocs/op
+BenchmarkScan/110k/jsontext-stream-4           	       1	2951908093 ns/op	  93.04 MB/s	295783424 B/op	     832 allocs/op
+BenchmarkScan/110k/jsontext-stream-4           	       1	4278934062 ns/op	  64.18 MB/s	295674240 B/op	     824 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4              	       1	8944397873 ns/op	  30.70 MB/s	628469048 B/op	16117856 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4              	       1	9154236051 ns/op	  30.00 MB/s	628670720 B/op	16117640 allocs/op
+BenchmarkScan/110k/v2-unmarshal-4              	       1	9386703590 ns/op	  29.26 MB/s	627737808 B/op	16117557 allocs/op
+BenchmarkScan/110k/v1-token-4                  	       1	6221418734 ns/op	  44.14 MB/s	1192953720 B/op	48086111 allocs/op
+BenchmarkScan/110k/v1-token-4                  	       1	5578215344 ns/op	  49.23 MB/s	1192844552 B/op	48086103 allocs/op
+BenchmarkScan/110k/v1-token-4                  	       1	6496854019 ns/op	  42.27 MB/s	1193171848 B/op	48086127 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4              	       1	11634262509 ns/op	  23.61 MB/s	1701715488 B/op	16117640 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4              	       1	9723752219 ns/op	  28.24 MB/s	1701944704 B/op	16117644 allocs/op
+BenchmarkScan/110k/v1-unmarshal-4              	       1	7180534115 ns/op	  38.25 MB/s	1703780240 B/op	16117676 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/zfs	101.798s

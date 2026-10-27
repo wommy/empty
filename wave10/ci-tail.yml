@@ -1,0 +1,91 @@
+  real-zfs:
+    # The real-ZFS gate: the endpoint contract tests and csi-sanity
+    # (mount and block) against Ubuntu 26.10 (OpenZFS 2.4.x, the only
+    # supported version, what TrueNAS 27 ships), with nfs-server running so
+    # the file-export tests hit a real nfsd. Booted under KVM: no hosted
+    # runner exists for it, and ZFS lives in the kernel, so a container
+    # would test the host's ZFS instead.
+    #
+    # The guest is a prebaked bundle (ci/vm/bake.sh), cached under a hash of
+    # its inputs and rebaked nightly (vm-image.yml). It boots while the Go
+    # toolchain is fetched and the test binaries are built, and runs them in
+    # parallel shards on separate tmpfs-backed pools. Every boot still
+    # asserts that `zfs version` reports 2.4.x for userland and kmod (and
+    # that the loaded module agrees), and the skip budget, the test-list
+    # coverage and the csi-sanity spec floor are enforced on the merged logs.
+    name: real ZFS 2.4 (Ubuntu 26.10 VM)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # the tarball actions/setup-go fetches for 1.27.3, pinned by checksum
+      GO_TARBALL_URL: https://github.com/actions/go-versions/releases/download/1.27.3-39437817176/go-1.27.3-linux-x64.tar.gz
+      GO_TARBALL_SHA256: d0fbe16a6a03fe5fbf5577ab36f95f0725af587820dca8a78e6edd4eb4e19fd6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: enable kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+      # newest bake for these inputs; the exact key never matches (it ends
+      # in the bake's run id), so cache-matched-key tells hit from miss
+      - name: restore VM bundle
+        id: vm
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/zfsvm-bundle
+          key: zfsvm-v1-ubuntu-24.04-stonking-${{ hashFiles('ci/vm/bake.sh', 'ci/vm/image/**') }}-none
+          restore-keys: zfsvm-v1-ubuntu-24.04-stonking-${{ hashFiles('ci/vm/bake.sh', 'ci/vm/image/**') }}-
+      - name: bake VM bundle (cache miss only, about 90s)
+        if: steps.vm.outputs.cache-matched-key == ''
+        run: |
+          # the cloud image signing key ships in ubuntu-keyring on 24.04
+          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+          ci/vm/bake.sh stonking current 2.4 "$RUNNER_TEMP/zfsvm-bundle"
+      - name: save VM bundle
+        if: steps.vm.outputs.cache-matched-key == ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/zfsvm-bundle
+          key: zfsvm-v1-ubuntu-24.04-stonking-${{ hashFiles('ci/vm/bake.sh', 'ci/vm/image/**') }}-${{ github.run_id }}
+      - name: boot VM, fetch Go (both in the background)
+        run: |
+          nohup ci/fetch-go.sh "$RUNNER_TEMP/go" >/dev/null 2>&1 &
+          ci/real-zfs-vm.sh boot "$RUNNER_TEMP/zfsvm-bundle"
+      # main saves under its commit; a PR restores main's newest, so only
+      # the packages it changed recompile
+      - name: restore Go build cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-zfsvm-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-zfsvm-${{ hashFiles('go.sum') }}-
+            go-zfsvm-
+      - name: build test binaries (the guest starts on them)
+        run: ci/real-zfs-vm.sh build
+      - name: test (Ubuntu 26.10, real zfs 2.4)
+        run: ci/real-zfs-vm.sh wait 2.4
+      - name: save Go build cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-zfsvm-${{ hashFiles('go.sum') }}-${{ github.sha }}
+      - name: upload VM console and test logs
+        if: failure() || cancelled() # a timeout cancels the job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: real-zfs-vm-logs
+          path: |
+            ${{ runner.temp }}/zfsvm/*.log
+            ${{ runner.temp }}/zfsvm/share/out/
+          if-no-files-found: ignore
+          retention-days: 14

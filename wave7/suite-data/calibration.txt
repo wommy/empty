@@ -1,0 +1,18 @@
+{"n": 17, "intercept_s": 0.0494, "get_ms": 20.09, "mut_ms": 11.32, "r2": 0.591, "sum_real_s": 6.55}
+TestPagination                                     get= 12 mut=  7 real=1.03 model=0.37
+TestCreateVolumeProperties                         get= 35 mut= 12 real=0.93 model=0.89
+TestReconcileAgainstDesiredSet                     get= 29 mut= 19 real=0.76 model=0.85
+TestSnapshotLifecycleWithClones                    get= 22 mut= 11 real=0.68 model=0.62
+TestReconcileCollectsLeakedCloneSource             get= 12 mut=  9 real=0.36 model=0.39
+TestCloneFromVolumeReleasesInternalSnapshot        get= 12 mut= 10 real=0.33 model=0.40
+TestFileExportLifecycle                            get= 16 mut=  8 real=0.31 model=0.46
+TestThickCloneRetryIsIdempotent                    get= 10 mut=  7 real=0.30 model=0.33
+TestFileExportPreconditions                        get= 14 mut=  6 real=0.30 model=0.40
+TestFileExportAdoptedVolumes                       get=  4 mut=  7 real=0.25 model=0.21
+TestDeleteVolume                                   get= 11 mut=  6 real=0.23 model=0.34
+TestExpand                                         get=  9 mut=  4 real=0.21 model=0.28
+TestCreateVolumeResumesInterruptedProvision        get=  5 mut=  3 real=0.19 model=0.18
+TestInheritedOwnershipIsNotOwnership               get=  6 mut=  4 real=0.19 model=0.22
+TestCreateVolumeIdempotent                         get=  9 mut=  3 real=0.18 model=0.26
+TestReconcileCollectsAbandonedCreate               get=  7 mut=  3 real=0.17 model=0.22
+TestNeverAdoptsOrDeletesUnmanaged                  get=  3 mut=  2 real=0.13 model=0.13

@@ -1,0 +1,6 @@
+plain-w1 wall=22.003 user=8.044 sys=1.472 load_before=73.24 load_after=68.69 nproc=4
+plain-w2 wall=38.197 user=8.093 sys=1.508 load_before=68.69 load_after=68.89 nproc=4
+plain-w3 wall=53.711 user=12.520 sys=3.115 load_before=68.89 load_after=73.81 nproc=4
+race-w1 wall=107.280 user=18.441 sys=2.990 load_before=73.51 load_after=84.11 nproc=4
+race-w2 wall=33.639 user=18.212 sys=2.550 load_before=84.11 load_after=72.02 nproc=4
+done

@@ -1,0 +1,5 @@
+    zz_reach_test.go:11: partial (covers src only): plan=[{destroy tank/v/src  0 false true false map[] false true}] err=<nil>
+    zz_reach_test.go:13: whole: err=volume src has dependent clone other
+--- PASS: TestStagedPartialDelete (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	0.005s

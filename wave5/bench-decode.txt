@@ -1,0 +1,8 @@
+== staged
+BenchmarkDecodeOnly-4   	     100	  13727591 ns/op	 4325520 B/op	       4 allocs/op
+BenchmarkDecodeOnly-4   	      74	  17384287 ns/op	 4325521 B/op	       4 allocs/op
+BenchmarkDecodeOnly-4   	     100	  27068551 ns/op	 4325520 B/op	       4 allocs/op
+== types-copy
+BenchmarkDecodeOnly-4   	      72	  18414562 ns/op	 4325523 B/op	       4 allocs/op
+BenchmarkDecodeOnly-4   	      72	  30442756 ns/op	 4325523 B/op	       4 allocs/op
+BenchmarkDecodeOnly-4   	     100	  33182007 ns/op	 4325523 B/op	       4 allocs/op

@@ -1,0 +1,1342 @@
+[
+ {
+  "old_id": 333,
+  "old_line": 366,
+  "file": "internal/endpoint/plan.go",
+  "op": "CODE_INTERNAL",
+  "desc": "errorf code AlreadyExists becomes Internal",
+  "new": {
+   "id": 341,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 406,
+   "op": "CODE_INTERNAL",
+   "desc": "errorf code AlreadyExists becomes Internal",
+   "start": 15347,
+   "end": 15360,
+   "repl": "Internal"
+  },
+  "exact_line": true,
+  "old_line_text": "return errorf(AlreadyExists, \"volume %s exists with reserve=%v\", id, row.Refres > 0)"
+ },
+ {
+  "old_id": 187,
+  "old_line": 224,
+  "file": "internal/endpoint/plan.go",
+  "op": "OWNED_TRUE",
+  "desc": "ownership call `src.OwnedVolume()` replaced by true",
+  "new": {
+   "id": 367,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 446,
+   "op": "OWNED_TRUE",
+   "desc": "ownership call `src.OwnedVolume()` replaced by true",
+   "start": 17237,
+   "end": 17254,
+   "repl": "true"
+  },
+  "exact_line": false,
+  "old_line_text": "if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.OwnedVolume() || !src.Committed {"
+ },
+ {
+  "old_id": 298,
+  "old_line": 356,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `have == 0` replaced by false",
+  "new": {
+   "id": 306,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 396,
+   "op": "DROP_OPERAND",
+   "desc": "operand `have == 0` replaced by false",
+   "start": 14832,
+   "end": 14841,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if want > 0 && (have == 0 || have < want) {"
+ },
+ {
+  "old_id": 259,
+  "old_line": 321,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `src.Type != zfs.TypeVolume` replaced by false",
+  "new": {
+   "id": 267,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 361,
+   "op": "DROP_OPERAND",
+   "desc": "operand `src.Type != zfs.TypeVolume` replaced by false",
+   "start": 13710,
+   "end": 13736,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if src.Type != zfs.TypeVolume || u64(src.BlockSz) != bs {"
+ },
+ {
+  "old_id": 29,
+  "old_line": 108,
+  "file": "internal/endpoint/plan.go",
+  "op": "CODE_INTERNAL",
+  "desc": "errorf code InvalidArgument becomes Internal",
+  "new": {
+   "id": 39,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 129,
+   "op": "CODE_INTERNAL",
+   "desc": "errorf code InvalidArgument becomes Internal",
+   "start": 3916,
+   "end": 3931,
+   "repl": "Internal"
+  },
+  "exact_line": true,
+  "old_line_text": "return \"\", nil, errorf(InvalidArgument, \"at most one content source\")"
+ },
+ {
+  "old_id": 123,
+  "old_line": 169,
+  "file": "internal/endpoint/plan.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if row.VolumeName != \"\" && row.VolumeName != r.Name`: `return nil, errorf(AlreadyExists, \"dataset %s belongs to volume %q\", row.Name, row.VolumeName)` deleted",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "return nil, errorf(AlreadyExists, \"dataset %s belongs to volume %q\", row.Name, row.VolumeName)"
+ },
+ {
+  "old_id": 423,
+  "old_line": 472,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `name == \"\"` replaced by false",
+  "new": {
+   "id": 526,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 620,
+   "op": "DROP_OPERAND",
+   "desc": "operand `name == \"\"` replaced by false",
+   "start": 23570,
+   "end": 23580,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if name == \"\" || len(name) > 128 || strings.ContainsFunc(name, unicode.IsControl) {"
+ },
+ {
+  "old_id": 217,
+  "old_line": 252,
+  "file": "internal/endpoint/plan.go",
+  "op": "CODE_INTERNAL",
+  "desc": "errorf code InvalidArgument becomes Internal",
+  "new": {
+   "id": 196,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 256,
+   "op": "CODE_INTERNAL",
+   "desc": "errorf code InvalidArgument becomes Internal",
+   "start": 9479,
+   "end": 9494,
+   "repl": "Internal"
+  },
+  "exact_line": true,
+  "old_line_text": "return nil, errorf(InvalidArgument, \"source is %s, requested %s\", src.Kind(), r.Kind)"
+ },
+ {
+  "old_id": 478,
+  "old_line": 533,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `row.Deferred` replaced by false",
+  "new": {
+   "id": 580,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 681,
+   "op": "DROP_OPERAND",
+   "desc": "operand `row.Deferred` replaced by false",
+   "start": 26055,
+   "end": 26067,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if !ok || row.Deferred {"
+ },
+ {
+  "old_id": 31,
+  "old_line": 111,
+  "file": "internal/endpoint/plan.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if r.Kind == Block && r.CapacityBytes == 0 && r.SourceSnapshotID == \"\" && r.SourceVolumeID == \"\"`: `return \"\", nil, errorf(InvalidArgument, \"block volume needs a capacity\")` deleted",
+  "new": {
+   "id": 41,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 132,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if r.Kind == Block && r.CapacityBytes == 0 && r.SourceSnapshotID == \"\" && r.SourceVolumeID == \"\"`: `return \"\", nil, errorf(InvalidArgument, \"block volume needs a capacity\")` deleted",
+   "start": 4068,
+   "end": 4140,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "return \"\", nil, errorf(InvalidArgument, \"block volume needs a capacity\")"
+ },
+ {
+  "old_id": 23,
+  "old_line": 108,
+  "file": "internal/endpoint/plan.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if r.SourceSnapshotID != \"\" && r.SourceVolumeID != \"\"`: `return \"\", nil, errorf(InvalidArgument, \"at most one content source\")` deleted",
+  "new": {
+   "id": 33,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 129,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if r.SourceSnapshotID != \"\" && r.SourceVolumeID != \"\"`: `return \"\", nil, errorf(InvalidArgument, \"at most one content source\")` deleted",
+   "start": 3893,
+   "end": 3962,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "return \"\", nil, errorf(InvalidArgument, \"at most one content source\")"
+ },
+ {
+  "old_id": 73,
+  "old_line": 120,
+  "file": "internal/endpoint/plan.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if r.Kind == Filesystem && r.Sparse`: `return \"\", nil, errorf(InvalidArgument, \"sparse applies to zvols; filesystems are thin unless reserved\")` deleted",
+  "new": {
+   "id": 83,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 141,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if r.Kind == Filesystem && r.Sparse`: `return \"\", nil, errorf(InvalidArgument, \"sparse applies to zvols; filesystems are thin unless reserved\")` deleted",
+   "start": 4522,
+   "end": 4626,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "return \"\", nil, errorf(InvalidArgument, \"sparse applies to zvols; filesystems are thin unless reserved\")"
+ },
+ {
+  "old_id": 286,
+  "old_line": 343,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `row.Refres < want` replaced by true",
+  "new": {
+   "id": 294,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 383,
+   "op": "DROP_OPERAND",
+   "desc": "operand `row.Refres < want` replaced by true",
+   "start": 14457,
+   "end": 14474,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Reserve && row.Refres < want {"
+ },
+ {
+  "old_id": 96,
+  "old_line": 154,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `r.Kind == Filesystem` replaced by true",
+  "new": {
+   "id": 108,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 178,
+   "op": "DROP_OPERAND",
+   "desc": "operand `r.Kind == Filesystem` replaced by true",
+   "start": 6144,
+   "end": 6164,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Kind == Filesystem && size == 0 {"
+ },
+ {
+  "old_id": 190,
+  "old_line": 228,
+  "file": "internal/endpoint/plan.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if src.Kind() != r.Kind`: `return nil, errorf(InvalidArgument, \"source is %s, requested %s\", src.Kind(), r.Kind)` deleted",
+  "new": {
+   "id": 194,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 256,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if src.Kind() != r.Kind`: `return nil, errorf(InvalidArgument, \"source is %s, requested %s\", src.Kind(), r.Kind)` deleted",
+   "start": 9460,
+   "end": 9545,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "return nil, errorf(InvalidArgument, \"source is %s, requested %s\", src.Kind(), r.Kind)"
+ },
+ {
+  "old_id": 280,
+  "old_line": 340,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `want > row.Refquota` replaced by false",
+  "new": {
+   "id": 288,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 380,
+   "op": "DROP_OPERAND",
+   "desc": "operand `want > row.Refquota` replaced by false",
+   "start": 14381,
+   "end": 14400,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if want > 0 && (row.Refquota == 0 || want > row.Refquota) {"
+ },
+ {
+  "old_id": 105,
+  "old_line": 157,
+  "file": "internal/endpoint/plan.go",
+  "op": "REL_FLIP",
+  "desc": "n > r.LimitBytes  =>  > becomes >=",
+  "new": {
+   "id": 117,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 181,
+   "op": "REL_FLIP",
+   "desc": "n > r.LimitBytes  =>  > becomes >=",
+   "start": 6223,
+   "end": 6224,
+   "repl": ">="
+  },
+  "exact_line": true,
+  "old_line_text": "if r.LimitBytes > 0 && n > r.LimitBytes {"
+ },
+ {
+  "old_id": 238,
+  "old_line": 300,
+  "file": "internal/endpoint/plan.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `s.Type == zfs.TypeSnapshot` replaced by true",
+  "new": {
+   "id": 246,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 340,
+   "op": "DROP_OPERAND",
+   "desc": "operand `s.Type == zfs.TypeSnapshot` replaced by true",
+   "start": 13003,
+   "end": 13029,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "return s.Volsize, ok && s.Type == zfs.TypeSnapshot"
+ },
+ {
+  "old_id": 127,
+  "old_line": 168,
+  "file": "internal/endpoint/plan.go",
+  "op": "EQ_FLIP",
+  "desc": "row.VolumeName != \"\"  =>  != becomes ==",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "if row.VolumeName != \"\" && row.VolumeName != r.Name {"
+ },
+ {
+  "old_id": 399,
+  "old_line": 443,
+  "file": "internal/endpoint/plan.go",
+  "op": "CODE_INTERNAL",
+  "desc": "errorf code OutOfRange becomes Internal",
+  "new": {
+   "id": 502,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 591,
+   "op": "CODE_INTERNAL",
+   "desc": "errorf code OutOfRange becomes Internal",
+   "start": 22681,
+   "end": 22691,
+   "repl": "Internal"
+  },
+  "exact_line": true,
+  "old_line_text": "return nil, Row{}, errorf(OutOfRange, \"capacity %d exceeds limit %d\", want, limit)"
+ },
+ {
+  "old_id": 253,
+  "old_line": 309,
+  "file": "internal/endpoint/plan.go",
+  "op": "BOOL_FLIP",
+  "desc": "return 0, false  =>  return true",
+  "new": {
+   "id": 261,
+   "bucket": "plan.go",
+   "file": "internal/endpoint/plan.go",
+   "line": 349,
+   "op": "BOOL_FLIP",
+   "desc": "return 0, false  =>  return true",
+   "start": 13322,
+   "end": 13327,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "return 0, false"
+ },
+ {
+  "old_id": 767,
+  "old_line": 156,
+  "file": "internal/endpoint/props.go",
+  "op": "REL_FLIP",
+  "desc": "i > 9  =>  > becomes >=",
+  "new": {
+   "id": 976,
+   "bucket": "props.go",
+   "file": "internal/endpoint/props.go",
+   "line": 156,
+   "op": "REL_FLIP",
+   "desc": "i > 9  =>  > becomes >=",
+   "start": 5649,
+   "end": 5650,
+   "repl": ">="
+  },
+  "exact_line": true,
+  "old_line_text": "if i == 0 || i > 9 {"
+ },
+ {
+  "old_id": 718,
+  "old_line": 90,
+  "file": "internal/endpoint/props.go",
+  "op": "REL_FLIP",
+  "desc": "i <= 9  =>  <= becomes <",
+  "new": {
+   "id": 927,
+   "bucket": "props.go",
+   "file": "internal/endpoint/props.go",
+   "line": 90,
+   "op": "REL_FLIP",
+   "desc": "i <= 9  =>  <= becomes <",
+   "start": 2542,
+   "end": 2544,
+   "repl": "<"
+  },
+  "exact_line": true,
+  "old_line_text": "for i := 1; i <= 9; i++ {"
+ },
+ {
+  "old_id": 778,
+  "old_line": 172,
+  "file": "internal/endpoint/props.go",
+  "op": "BOOL_FLIP",
+  "desc": "return 0, false  =>  return true",
+  "new": {
+   "id": 987,
+   "bucket": "props.go",
+   "file": "internal/endpoint/props.go",
+   "line": 172,
+   "op": "BOOL_FLIP",
+   "desc": "return 0, false  =>  return true",
+   "start": 5979,
+   "end": 5984,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "return 0, false"
+ },
+ {
+  "old_id": 729,
+  "old_line": 112,
+  "file": "internal/endpoint/props.go",
+  "op": "BOOL_FLIP",
+  "desc": "field `fs: true` flipped to false",
+  "new": {
+   "id": 938,
+   "bucket": "props.go",
+   "file": "internal/endpoint/props.go",
+   "line": 112,
+   "op": "BOOL_FLIP",
+   "desc": "field `fs: true` flipped to false",
+   "start": 3503,
+   "end": 3507,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "\"dedup\":       {fs: true, zvol: true, canon: index(same(\"off\", \"on\", \"verify\"))},"
+ },
+ {
+  "old_id": 727,
+  "old_line": 111,
+  "file": "internal/endpoint/props.go",
+  "op": "BOOL_FLIP",
+  "desc": "field `fs: true` flipped to false",
+  "new": {
+   "id": 936,
+   "bucket": "props.go",
+   "file": "internal/endpoint/props.go",
+   "line": 111,
+   "op": "BOOL_FLIP",
+   "desc": "field `fs: true` flipped to false",
+   "start": 3418,
+   "end": 3422,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "\"logbias\":     {fs: true, zvol: true, canon: index(same(\"latency\", \"throughput\"))},"
+ },
+ {
+  "old_id": 775,
+  "old_line": 166,
+  "file": "internal/endpoint/props.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `suffix == \"B\"` replaced by false",
+  "new": {
+   "id": 984,
+   "bucket": "props.go",
+   "file": "internal/endpoint/props.go",
+   "line": 166,
+   "op": "DROP_OPERAND",
+   "desc": "operand `suffix == \"B\"` replaced by false",
+   "start": 5840,
+   "end": 5853,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "case suffix == \"\" || suffix == \"B\":"
+ },
+ {
+  "old_id": 579,
+  "old_line": 269,
+  "file": "internal/endpoint/reconcile.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `r.Name == origin` replaced by true",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "rows = slices.DeleteFunc(rows, func(r Row) bool { return r.Name == origin && r.Deferred })"
+ },
+ {
+  "old_id": 597,
+  "old_line": 278,
+  "file": "internal/endpoint/reconcile.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `strings.HasPrefix(r.Name, op.Target+\"/\")` replaced by false",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "op.Recursive && (strings.HasPrefix(r.Name, op.Target+\"@\") || strings.HasPrefix(r.Name, op.Target+\"/\"))"
+ },
+ {
+  "old_id": 602,
+  "old_line": 285,
+  "file": "internal/endpoint/reconcile.go",
+  "op": "REL_FLIP",
+  "desc": "i >= 0  =>  >= becomes >",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "if i := slices.IndexFunc(rows, func(r Row) bool { return r.Name == op.Target }); i >= 0 {"
+ },
+ {
+  "old_id": 568,
+  "old_line": 244,
+  "file": "internal/endpoint/reconcile.go",
+  "op": "REL_FLIP",
+  "desc": "d.Now.Sub(time.Unix(r.Creation, 0)) < d.MinAge  =>  < becomes <=",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "if d.Now.Sub(time.Unix(r.Creation, 0)) < d.MinAge {"
+ },
+ {
+  "old_id": 593,
+  "old_line": 278,
+  "file": "internal/endpoint/reconcile.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `op.Recursive` replaced by true",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "op.Recursive && (strings.HasPrefix(r.Name, op.Target+\"@\") || strings.HasPrefix(r.Name, op.Target+\"/\"))"
+ },
+ {
+  "old_id": 641,
+  "old_line": 80,
+  "file": "internal/endpoint/table.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `r.Type == zfs.TypeSnapshot` replaced by true",
+  "new": {
+   "id": 790,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 95,
+   "op": "DROP_OPERAND",
+   "desc": "operand `r.Type == zfs.TypeSnapshot` replaced by true",
+   "start": 3396,
+   "end": 3422,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "return r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != \"\" &&"
+ },
+ {
+  "old_id": 638,
+  "old_line": 80,
+  "file": "internal/endpoint/table.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `r.Type == zfs.TypeSnapshot && r.Managed` replaced by true",
+  "new": {
+   "id": 787,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 95,
+   "op": "DROP_OPERAND",
+   "desc": "operand `r.Type == zfs.TypeSnapshot && r.Managed` replaced by true",
+   "start": 3396,
+   "end": 3435,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "return r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != \"\" &&"
+ },
+ {
+  "old_id": 624,
+  "old_line": 71,
+  "file": "internal/endpoint/table.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `(r.VolumeName == \"\" || r.VolumeName == r.ID)` replaced by true",
+  "new": null,
+  "exact_line": false,
+  "old_line_text": "return r.Type != zfs.TypeSnapshot && r.Managed && (r.VolumeName == \"\" || r.VolumeName == r.ID)"
+ },
+ {
+  "old_id": 637,
+  "old_line": 80,
+  "file": "internal/endpoint/table.go",
+  "op": "ANDOR_SWAP",
+  "desc": "&& becomes || in: r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != \"\"",
+  "new": {
+   "id": 786,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 95,
+   "op": "ANDOR_SWAP",
+   "desc": "&& becomes || in: r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != \"\"",
+   "start": 3436,
+   "end": 3438,
+   "repl": "||"
+  },
+  "exact_line": true,
+  "old_line_text": "return r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != \"\" &&"
+ },
+ {
+  "old_id": 608,
+  "old_line": 52,
+  "file": "internal/endpoint/table.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `r.Volsize > 0` replaced by false",
+  "new": {
+   "id": 757,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 57,
+   "op": "DROP_OPERAND",
+   "desc": "operand `r.Volsize > 0` replaced by false",
+   "start": 1812,
+   "end": 1825,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Type == zfs.TypeVolume || r.Volsize > 0 {"
+ },
+ {
+  "old_id": 621,
+  "old_line": 60,
+  "file": "internal/endpoint/table.go",
+  "op": "REL_FLIP",
+  "desc": "r.Volsize > 0  =>  > becomes >=",
+  "new": {
+   "id": 770,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 65,
+   "op": "REL_FLIP",
+   "desc": "r.Volsize > 0  =>  > becomes >=",
+   "start": 2018,
+   "end": 2019,
+   "repl": ">="
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Type == zfs.TypeVolume || (r.Type == zfs.TypeSnapshot && r.Volsize > 0) {"
+ },
+ {
+  "old_id": 677,
+  "old_line": 178,
+  "file": "internal/endpoint/table.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `r.Type != zfs.TypeSnapshot` replaced by true",
+  "new": {
+   "id": 848,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 206,
+   "op": "DROP_OPERAND",
+   "desc": "operand `r.Type != zfs.TypeSnapshot` replaced by true",
+   "start": 7430,
+   "end": 7456,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Type != zfs.TypeSnapshot && !yield(r) {"
+ },
+ {
+  "old_id": 619,
+  "old_line": 60,
+  "file": "internal/endpoint/table.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `r.Volsize > 0` replaced by true",
+  "new": {
+   "id": 768,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 65,
+   "op": "DROP_OPERAND",
+   "desc": "operand `r.Volsize > 0` replaced by true",
+   "start": 2008,
+   "end": 2021,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Type == zfs.TypeVolume || (r.Type == zfs.TypeSnapshot && r.Volsize > 0) {"
+ },
+ {
+  "old_id": 620,
+  "old_line": 60,
+  "file": "internal/endpoint/table.go",
+  "op": "EQ_FLIP",
+  "desc": "r.Type == zfs.TypeSnapshot  =>  == becomes !=",
+  "new": {
+   "id": 769,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 65,
+   "op": "EQ_FLIP",
+   "desc": "r.Type == zfs.TypeSnapshot  =>  == becomes !=",
+   "start": 1985,
+   "end": 1987,
+   "repl": "!="
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Type == zfs.TypeVolume || (r.Type == zfs.TypeSnapshot && r.Volsize > 0) {"
+ },
+ {
+  "old_id": 606,
+  "old_line": 52,
+  "file": "internal/endpoint/table.go",
+  "op": "ANDOR_SWAP",
+  "desc": "|| becomes && in: r.Type == zfs.TypeVolume || r.Volsize > 0",
+  "new": {
+   "id": 755,
+   "bucket": "table.go",
+   "file": "internal/endpoint/table.go",
+   "line": 57,
+   "op": "ANDOR_SWAP",
+   "desc": "|| becomes && in: r.Type == zfs.TypeVolume || r.Volsize > 0",
+   "start": 1809,
+   "end": 1811,
+   "repl": "&&"
+  },
+  "exact_line": true,
+  "old_line_text": "if r.Type == zfs.TypeVolume || r.Volsize > 0 {"
+ },
+ {
+  "old_id": 882,
+  "old_line": 135,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_KIND",
+  "desc": "{KindNotFound, \"could not find any snapshots\"}: kind -> KindUnknown",
+  "new": {
+   "id": 1091,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 135,
+   "op": "PATTERN_KIND",
+   "desc": "{KindNotFound, \"could not find any snapshots\"}: kind -> KindUnknown",
+   "start": 3853,
+   "end": 3865,
+   "repl": "KindUnknown"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindNotFound, \"could not find any snapshots\"},"
+ },
+ {
+  "old_id": 916,
+  "old_line": 169,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_KIND",
+  "desc": "{KindUnavailable, \"pool i/o is currently suspended\"}: kind -> KindUnknown",
+  "new": {
+   "id": 1125,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 169,
+   "op": "PATTERN_KIND",
+   "desc": "{KindUnavailable, \"pool i/o is currently suspended\"}: kind -> KindUnknown",
+   "start": 5720,
+   "end": 5735,
+   "repl": "KindUnknown"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindUnavailable, \"pool i/o is currently suspended\"},"
+ },
+ {
+  "old_id": 867,
+  "old_line": 127,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindHasClones \"snapshot is cloned\" removed",
+  "new": {
+   "id": 1076,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 127,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindHasClones \"snapshot is cloned\" removed",
+   "start": 3518,
+   "end": 3555,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindHasClones, \"snapshot is cloned\"},"
+ },
+ {
+  "old_id": 899,
+  "old_line": 148,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindInvalidProperty \"invalid property\" removed",
+  "new": {
+   "id": 1108,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 148,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindInvalidProperty \"invalid property\" removed",
+   "start": 4509,
+   "end": 4550,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindInvalidProperty, \"invalid property\"},"
+ },
+ {
+  "old_id": 897,
+  "old_line": 147,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindInvalidProperty \"bad property\" removed",
+  "new": {
+   "id": 1106,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 147,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindInvalidProperty \"bad property\" removed",
+   "start": 4469,
+   "end": 4506,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindInvalidProperty, \"bad property\"},"
+ },
+ {
+  "old_id": 876,
+  "old_line": 132,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_KIND",
+  "desc": "{KindExists, \"pool or dataset exists\"}: kind -> KindUnknown",
+  "new": {
+   "id": 1085,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 132,
+   "op": "PATTERN_KIND",
+   "desc": "{KindExists, \"pool or dataset exists\"}: kind -> KindUnknown",
+   "start": 3725,
+   "end": 3735,
+   "repl": "KindUnknown"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindExists, \"pool or dataset exists\"},"
+ },
+ {
+  "old_id": 915,
+  "old_line": 168,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindUnavailable \"no such pool\" removed",
+  "new": {
+   "id": 1124,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 168,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindUnavailable \"no such pool\" removed",
+   "start": 5683,
+   "end": 5716,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindUnavailable, \"no such pool\"},"
+ },
+ {
+  "old_id": 881,
+  "old_line": 134,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindNotFound \"no such pool or dataset\" removed",
+  "new": {
+   "id": 1090,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 134,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindNotFound \"no such pool or dataset\" removed",
+   "start": 3808,
+   "end": 3849,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindNotFound, \"no such pool or dataset\"},"
+ },
+ {
+  "old_id": 856,
+  "old_line": 103,
+  "file": "internal/zfs/errors.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `t.Dataset == \"\"` replaced by true",
+  "new": {
+   "id": 1065,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 103,
+   "op": "DROP_OPERAND",
+   "desc": "operand `t.Dataset == \"\"` replaced by true",
+   "start": 2611,
+   "end": 2626,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "return t.Kind == e.Kind && t.Op == \"\" && t.Dataset == \"\""
+ },
+ {
+  "old_id": 887,
+  "old_line": 137,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindBusy \"pool or dataset is busy\" removed",
+  "new": {
+   "id": 1096,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 137,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindBusy \"pool or dataset is busy\" removed",
+   "start": 3933,
+   "end": 3970,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindBusy, \"pool or dataset is busy\"},"
+ },
+ {
+  "old_id": 850,
+  "old_line": 91,
+  "file": "internal/zfs/errors.go",
+  "op": "EQ_FLIP",
+  "desc": "msg == \"\"  =>  == becomes !=",
+  "new": {
+   "id": 1059,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 91,
+   "op": "EQ_FLIP",
+   "desc": "msg == \"\"  =>  == becomes !=",
+   "start": 2250,
+   "end": 2252,
+   "repl": "!="
+  },
+  "exact_line": true,
+  "old_line_text": "if msg == \"\" && e.Err != nil {"
+ },
+ {
+  "old_id": 914,
+  "old_line": 168,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_KIND",
+  "desc": "{KindUnavailable, \"no such pool\"}: kind -> KindUnknown",
+  "new": {
+   "id": 1123,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 168,
+   "op": "PATTERN_KIND",
+   "desc": "{KindUnavailable, \"no such pool\"}: kind -> KindUnknown",
+   "start": 5684,
+   "end": 5699,
+   "repl": "KindUnknown"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindUnavailable, \"no such pool\"},"
+ },
+ {
+  "old_id": 859,
+  "old_line": 103,
+  "file": "internal/zfs/errors.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `t.Op == \"\"` replaced by true",
+  "new": {
+   "id": 1068,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 103,
+   "op": "DROP_OPERAND",
+   "desc": "operand `t.Op == \"\"` replaced by true",
+   "start": 2597,
+   "end": 2607,
+   "repl": "true"
+  },
+  "exact_line": true,
+  "old_line_text": "return t.Kind == e.Kind && t.Op == \"\" && t.Dataset == \"\""
+ },
+ {
+  "old_id": 912,
+  "old_line": 166,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_KIND",
+  "desc": "{KindPermission, \"permission denied\"}: kind -> KindUnknown",
+  "new": {
+   "id": 1121,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 166,
+   "op": "PATTERN_KIND",
+   "desc": "{KindPermission, \"permission denied\"}: kind -> KindUnknown",
+   "start": 5571,
+   "end": 5585,
+   "repl": "KindUnknown"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindPermission, \"permission denied\"},"
+ },
+ {
+  "old_id": 877,
+  "old_line": 132,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindExists \"pool or dataset exists\" removed",
+  "new": {
+   "id": 1086,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 132,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindExists \"pool or dataset exists\" removed",
+   "start": 3724,
+   "end": 3762,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindExists, \"pool or dataset exists\"},"
+ },
+ {
+  "old_id": 894,
+  "old_line": 146,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_KIND",
+  "desc": "{KindInvalidProperty, \"invalid property value\"}: kind -> KindUnknown",
+  "new": {
+   "id": 1103,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 146,
+   "op": "PATTERN_KIND",
+   "desc": "{KindInvalidProperty, \"invalid property value\"}: kind -> KindUnknown",
+   "start": 4420,
+   "end": 4439,
+   "repl": "KindUnknown"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindInvalidProperty, \"invalid property value\"},"
+ },
+ {
+  "old_id": 873,
+  "old_line": 130,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_DROP",
+  "desc": "pattern entry KindParentNotFound \"no such parent\" removed",
+  "new": {
+   "id": 1082,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 130,
+   "op": "PATTERN_DROP",
+   "desc": "pattern entry KindParentNotFound \"no such parent\" removed",
+   "start": 3642,
+   "end": 3680,
+   "repl": "{KindUnknown, \"\\x00never\"}"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindParentNotFound, \"no such parent\"},"
+ },
+ {
+  "old_id": 896,
+  "old_line": 147,
+  "file": "internal/zfs/errors.go",
+  "op": "PATTERN_KIND",
+  "desc": "{KindInvalidProperty, \"bad property\"}: kind -> KindUnknown",
+  "new": {
+   "id": 1105,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 147,
+   "op": "PATTERN_KIND",
+   "desc": "{KindInvalidProperty, \"bad property\"}: kind -> KindUnknown",
+   "start": 4470,
+   "end": 4489,
+   "repl": "KindUnknown"
+  },
+  "exact_line": true,
+  "old_line_text": "{KindInvalidProperty, \"bad property\"},"
+ },
+ {
+  "old_id": 851,
+  "old_line": 91,
+  "file": "internal/zfs/errors.go",
+  "op": "EQ_FLIP",
+  "desc": "e.Err != nil  =>  != becomes ==",
+  "new": {
+   "id": 1060,
+   "bucket": "zfs/errors.go",
+   "file": "internal/zfs/errors.go",
+   "line": 91,
+   "op": "EQ_FLIP",
+   "desc": "e.Err != nil  =>  != becomes ==",
+   "start": 2265,
+   "end": 2267,
+   "repl": "=="
+  },
+  "exact_line": true,
+  "old_line_text": "if msg == \"\" && e.Err != nil {"
+ },
+ {
+  "old_id": 701,
+  "old_line": 280,
+  "file": "internal/endpoint/endpoint.go",
+  "op": "CODE_INTERNAL",
+  "desc": "assigned code NotFound becomes Internal",
+  "new": {
+   "id": 910,
+   "bucket": "errors.go",
+   "file": "internal/endpoint/endpoint.go",
+   "line": 315,
+   "op": "CODE_INTERNAL",
+   "desc": "assigned code NotFound becomes Internal",
+   "start": 11325,
+   "end": 11333,
+   "repl": "Internal"
+  },
+  "exact_line": true,
+  "old_line_text": "code = NotFound"
+ },
+ {
+  "old_id": 699,
+  "old_line": 275,
+  "file": "internal/endpoint/endpoint.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if err == nil`: `return nil` deleted",
+  "new": {
+   "id": 908,
+   "bucket": "errors.go",
+   "file": "internal/endpoint/endpoint.go",
+   "line": 310,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if err == nil`: `return nil` deleted",
+   "start": 11196,
+   "end": 11206,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "return nil"
+ },
+ {
+  "old_id": 691,
+  "old_line": 36,
+  "file": "internal/endpoint/errors.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if e.Err != nil`: `return fmt.Sprintf(\"%s: %v\", e.Msg, e.Err)` deleted",
+  "new": {
+   "id": 896,
+   "bucket": "errors.go",
+   "file": "internal/endpoint/errors.go",
+   "line": 36,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if e.Err != nil`: `return fmt.Sprintf(\"%s: %v\", e.Msg, e.Err)` deleted",
+   "start": 1048,
+   "end": 1090,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "return fmt.Sprintf(\"%s: %v\", e.Msg, e.Err)"
+ },
+ {
+  "old_id": 930,
+  "old_line": 445,
+  "file": "internal/zfs/zfs.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if len(f) != 3 || last <= len(f[0])+len(f[1])+1`: `return nil, fmt.Errorf(\"line %d: want 4 fields: %q\", i+1, line)` deleted",
+  "new": {
+   "id": 1139,
+   "bucket": "zfs/zfs.go:parseColumns",
+   "file": "internal/zfs/zfs.go",
+   "line": 460,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if len(f) != 3 || last <= len(f[0])+len(f[1])+1`: `return nil, fmt.Errorf(\"line %d: want 4 fields: %q\", i+1, line)` deleted",
+   "start": 14536,
+   "end": 14599,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "return nil, fmt.Errorf(\"line %d: want 4 fields: %q\", i+1, line)"
+ },
+ {
+  "old_id": 938,
+  "old_line": 459,
+  "file": "internal/zfs/zfs.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if !ok`: `continue` deleted",
+  "new": {
+   "id": 1147,
+   "bucket": "zfs/zfs.go:parseColumns",
+   "file": "internal/zfs/zfs.go",
+   "line": 474,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if !ok`: `continue` deleted",
+   "start": 14841,
+   "end": 14849,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "continue // a property we did not ask for"
+ },
+ {
+  "old_id": 932,
+  "old_line": 444,
+  "file": "internal/zfs/zfs.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `len(f) != 3` replaced by false",
+  "new": {
+   "id": 1141,
+   "bucket": "zfs/zfs.go:parseColumns",
+   "file": "internal/zfs/zfs.go",
+   "line": 459,
+   "op": "DROP_OPERAND",
+   "desc": "operand `len(f) != 3` replaced by false",
+   "start": 14486,
+   "end": 14497,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if len(f) != 3 || last <= len(f[0])+len(f[1])+1 {"
+ },
+ {
+  "old_id": 933,
+  "old_line": 444,
+  "file": "internal/zfs/zfs.go",
+  "op": "DROP_OPERAND",
+  "desc": "operand `last <= len(f[0])+len(f[1])+1` replaced by false",
+  "new": {
+   "id": 1142,
+   "bucket": "zfs/zfs.go:parseColumns",
+   "file": "internal/zfs/zfs.go",
+   "line": 459,
+   "op": "DROP_OPERAND",
+   "desc": "operand `last <= len(f[0])+len(f[1])+1` replaced by false",
+   "start": 14501,
+   "end": 14530,
+   "repl": "false"
+  },
+  "exact_line": true,
+  "old_line_text": "if len(f) != 3 || last <= len(f[0])+len(f[1])+1 {"
+ },
+ {
+  "old_id": 935,
+  "old_line": 444,
+  "file": "internal/zfs/zfs.go",
+  "op": "REL_FLIP",
+  "desc": "last <= len(f[0])+len(f[1])+1  =>  <= becomes <",
+  "new": {
+   "id": 1144,
+   "bucket": "zfs/zfs.go:parseColumns",
+   "file": "internal/zfs/zfs.go",
+   "line": 459,
+   "op": "REL_FLIP",
+   "desc": "last <= len(f[0])+len(f[1])+1  =>  <= becomes <",
+   "start": 14506,
+   "end": 14508,
+   "repl": "<"
+  },
+  "exact_line": true,
+  "old_line_text": "if len(f) != 3 || last <= len(f[0])+len(f[1])+1 {"
+ },
+ {
+  "old_id": 927,
+  "old_line": 440,
+  "file": "internal/zfs/zfs.go",
+  "op": "GUARD_DELETE",
+  "desc": "guard `if line == \"\"`: `continue` deleted",
+  "new": {
+   "id": 1136,
+   "bucket": "zfs/zfs.go:parseColumns",
+   "file": "internal/zfs/zfs.go",
+   "line": 455,
+   "op": "GUARD_DELETE",
+   "desc": "guard `if line == \"\"`: `continue` deleted",
+   "start": 14387,
+   "end": 14395,
+   "repl": "_ = 0"
+  },
+  "exact_line": true,
+  "old_line_text": "continue"
+ },
+ {
+  "old_id": 931,
+  "old_line": 444,
+  "file": "internal/zfs/zfs.go",
+  "op": "ANDOR_SWAP",
+  "desc": "|| becomes && in: len(f) != 3 || last <= len(f[0])+len(f[1])+1",
+  "new": {
+   "id": 1140,
+   "bucket": "zfs/zfs.go:parseColumns",
+   "file": "internal/zfs/zfs.go",
+   "line": 459,
+   "op": "ANDOR_SWAP",
+   "desc": "|| becomes && in: len(f) != 3 || last <= len(f[0])+len(f[1])+1",
+   "start": 14498,
+   "end": 14500,
+   "repl": "&&"
+  },
+  "exact_line": true,
+  "old_line_text": "if len(f) != 3 || last <= len(f[0])+len(f[1])+1 {"
+ }
+]

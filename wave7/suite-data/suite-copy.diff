@@ -1,0 +1,1576 @@
+diff --git a/internal/csi/controller_test.go b/internal/csi/controller_test.go
+index 48be825..70be087 100644
+--- a/internal/csi/controller_test.go
++++ b/internal/csi/controller_test.go
+@@ -25,6 +25,7 @@ func capability(block bool) *csi.VolumeCapability {
+ }
+ 
+ func TestCapabilitiesAdvertised(t *testing.T) {
++	t.Parallel()
+ 	c := &zcsi.Controller{EP: endpointClient(t)}
+ 	res, err := c.ControllerGetCapabilities(context.Background(), &csi.ControllerGetCapabilitiesRequest{})
+ 	if err != nil {
+@@ -51,6 +52,7 @@ func TestCapabilitiesAdvertised(t *testing.T) {
+ // Only a zvol carrying a filesystem needs the node to grow it; democratic-csi
+ // also asks for node expansion on raw block, which no node can act on.
+ func TestExpandNodeExpansionRequired(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	c := &zcsi.Controller{EP: endpointClient(t)}
+ 	for _, block := range []bool{true, false} {
+@@ -97,6 +99,7 @@ func TestExpandNodeExpansionRequired(t *testing.T) {
+ }
+ 
+ func TestParametersAndAccessChecks(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep := endpointClient(t)
+ 	c := &zcsi.Controller{EP: ep}
+@@ -153,6 +156,7 @@ func TestParametersAndAccessChecks(t *testing.T) {
+ // DeleteVolume of a missing volume MUST be OK (CSI); the other RPCs report
+ // NOT_FOUND, never INVALID_ARGUMENT (final for the resizer).
+ func TestNeverIssuedIDs(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	c := &zcsi.Controller{EP: endpointClient(t)}
+ 	long := strings.Repeat("x", 200)
+@@ -179,6 +183,7 @@ func TestNeverIssuedIDs(t *testing.T) {
+ // after expansion: an unlimited filesystem satisfies any request, so it
+ // reports the request, never 0.
+ func TestExpandUnlimitedFilesystem(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	c := &zcsi.Controller{EP: endpointClient(t)}
+ 	if _, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "free", VolumeCapabilities: []*csi.VolumeCapability{capability(false)}}); err != nil {
+diff --git a/internal/csi/main_test.go b/internal/csi/main_test.go
+new file mode 100644
+index 0000000..083010e
+--- /dev/null
++++ b/internal/csi/main_test.go
+@@ -0,0 +1,9 @@
++package csi_test
++
++import (
++	"testing"
++
++	"github.com/wommy/empty/internal/leakcheck"
++)
++
++func TestMain(m *testing.M) { leakcheck.Main(m) }
+diff --git a/internal/csi/sanity_test.go b/internal/csi/sanity_test.go
+index 6cbcb05..dc80c9b 100644
+--- a/internal/csi/sanity_test.go
++++ b/internal/csi/sanity_test.go
+@@ -2,6 +2,7 @@ package csi_test
+ 
+ import (
+ 	"context"
++	"flag"
+ 	"net"
+ 	"os"
+ 	"path/filepath"
+@@ -46,6 +47,12 @@ func (cleanupNode) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilities
+ // ZFS_TEST_POOL). The CSI side is a real unix socket, which is what
+ // csi-sanity dials.
+ func TestSanity(t *testing.T) {
++	// Ginkgo refuses -count>1 for the whole binary ("only -count=1 is
++	// allowed"), which made `go test -count=N ./internal/csi` fail outright
++	// and hid the package's other tests from flake hunting.
++	if f := flag.Lookup("test.count"); f != nil && f.Value.String() != "1" {
++		t.Skip("csi-sanity (Ginkgo) runs once per process; use -count=1")
++	}
+ 	ep := endpointClient(t)
+ 
+ 	// unix socket paths are limited to ~108 bytes; t.TempDir can exceed that
+diff --git a/internal/endpoint/apply_test.go b/internal/endpoint/apply_test.go
+index af540c1..35e226e 100644
+--- a/internal/endpoint/apply_test.go
++++ b/internal/endpoint/apply_test.go
+@@ -11,6 +11,7 @@ import (
+ // An op kind apply does not know is a program bug: the whole plan is
+ // refused as Internal before anything runs, never skipped as if done.
+ func TestApplyRefusesAnUnknownOpKind(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	sim := zfstest.New("tank")
+ 	e, err := New(zfs.New(sim), Config{Parent: "tank"})
+diff --git a/internal/endpoint/clonesize_test.go b/internal/endpoint/clonesize_test.go
+index 8a605b1..ff77316 100644
+--- a/internal/endpoint/clonesize_test.go
++++ b/internal/endpoint/clonesize_test.go
+@@ -15,6 +15,7 @@ const mib = 1 << 20
+ // never shrunk, so a source larger than the limit is OutOfRange before any
+ // op, not a success above the limit followed by AlreadyExists on retry.
+ func TestCloneLargerThanLimitIsOutOfRange(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	for _, k := range []endpoint.VolumeKind{endpoint.Block, endpoint.Filesystem} {
+@@ -47,6 +48,7 @@ func TestCloneLargerThanLimitIsOutOfRange(t *testing.T) {
+ // A filesystem restore with Reserve and no capacity reserves the size it
+ // takes from its source, and the identical retry is a no-op.
+ func TestReserveRestoreIsIdempotent(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {
+@@ -80,6 +82,8 @@ func TestReserveRestoreIsIdempotent(t *testing.T) {
+ // A failure (or crash) right after the clone converges, on retry, to the
+ // end state an uninterrupted run reaches: same refquota, same reservation.
+ func TestCloneFailureAfterCloneConvergesToSameState(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	for _, tc := range []struct {
+ 		name string
+@@ -91,6 +95,7 @@ func TestCloneFailureAfterCloneConvergesToSameState(t *testing.T) {
+ 		{"volume-reserve", endpoint.CreateVolumeRequest{Name: "dst", SourceVolumeID: "src", Reserve: true}},
+ 	} {
+ 		t.Run(tc.name, func(t *testing.T) {
++			t.Parallel()
+ 			ep, h := setup(t)
+ 			sim := h.Sim(t)
+ 			if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {
+diff --git a/internal/endpoint/coverage_test.go b/internal/endpoint/coverage_test.go
+index e498318..d7f2241 100644
+--- a/internal/endpoint/coverage_test.go
++++ b/internal/endpoint/coverage_test.go
+@@ -60,6 +60,7 @@ func TestPlannersRequireACoveringTable(t *testing.T) {
+ }
+ 
+ func TestScanRecordsCoverage(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	sim := zfstest.New("tank")
+ 	e, err := New(zfs.New(sim), Config{Parent: "tank"})
+diff --git a/internal/endpoint/crash_test.go b/internal/endpoint/crash_test.go
+new file mode 100644
+index 0000000..4796ceb
+--- /dev/null
++++ b/internal/endpoint/crash_test.go
+@@ -0,0 +1,312 @@
++package endpoint_test
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"slices"
++	"strings"
++	"sync"
++	"testing"
++	"time"
++
++	"github.com/wommy/empty/internal/endpoint"
++	"github.com/wommy/empty/internal/zfs"
++)
++
++// Crash injection, as a table: for every scenario and every mutating zfs
++// call k of its operation, the process "dies" either before call k runs or
++// after it ran but before its answer arrived. A fresh endpoint (a restart:
++// no locks, no memory) then retries the same request. It must succeed, reach
++// the end state of an uninterrupted run, and a further identical call must
++// mutate nothing.
++//
++// faultRunner wraps whatever runner the harness uses, so the table runs on
++// the simulator and, with ZFS_TEST_POOL, on a real pool: nothing here needs
++// the simulator's fault hooks.
++
++var errCrash = errors.New("injected crash")
++
++// faultRunner counts mutating zfs calls and fails call crashAt (0-based).
++type faultRunner struct {
++	zfs.Runner
++	crashAt int  // -1: never
++	after   bool // run the call, then lose its answer
++	mu      sync.Mutex
++	n       int
++	crashed bool
++}
++
++func mutating(args []string) bool { return len(args) > 0 && args[0] != "get" && args[0] != "list" }
++
++func (f *faultRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
++	f.mu.Lock()
++	crash := false
++	if mutating(args) {
++		crash = f.n == f.crashAt
++		f.crashed = f.crashed || crash
++		f.n++
++	}
++	f.mu.Unlock()
++	lost := &zfs.ExitError{Args: args, Code: -1, Underlay: errCrash}
++	if crash && !f.after {
++		return nil, lost
++	}
++	out, err := f.Runner.Run(ctx, name, args...)
++	if crash {
++		return nil, lost
++	}
++	return out, err
++}
++
++func (f *faultRunner) count() int {
++	f.mu.Lock()
++	defer f.mu.Unlock()
++	return f.n
++}
++
++type crashCase struct {
++	name  string
++	late  bool // the endpoint's clock is two days ahead (reconcile)
++	nfs   bool // needs exports to really happen
++	setup func(context.Context, *endpoint.Endpoint, *harness) error
++	op    func(context.Context, *endpoint.Endpoint) error
++	// xfail: known divergences by subtest ("k0-after"), with the reason. A
++	// listed crash point that converges fails the test: the fix must remove
++	// its row, so the list only shrinks (a ratchet).
++	xfail map[string]string
++}
++
++const cmib = 1 << 20
++
++func mk(reqs ...endpoint.CreateVolumeRequest) func(context.Context, *endpoint.Endpoint, *harness) error {
++	return func(ctx context.Context, ep *endpoint.Endpoint, _ *harness) error {
++		for _, r := range reqs {
++			if _, err := ep.CreateVolume(ctx, r); err != nil {
++				return err
++			}
++		}
++		return nil
++	}
++}
++
++func then(fs ...func(context.Context, *endpoint.Endpoint, *harness) error) func(context.Context, *endpoint.Endpoint, *harness) error {
++	return func(ctx context.Context, ep *endpoint.Endpoint, h *harness) error {
++		for _, f := range fs {
++			if err := f(ctx, ep, h); err != nil {
++				return err
++			}
++		}
++		return nil
++	}
++}
++
++func snapOf(name, vol string) func(context.Context, *endpoint.Endpoint, *harness) error {
++	return func(ctx context.Context, ep *endpoint.Endpoint, _ *harness) error {
++		_, err := ep.CreateSnapshot(ctx, name, vol)
++		return err
++	}
++}
++
++func createOp(r endpoint.CreateVolumeRequest) func(context.Context, *endpoint.Endpoint) error {
++	return func(ctx context.Context, ep *endpoint.Endpoint) error { _, err := ep.CreateVolume(ctx, r); return err }
++}
++
++var crashCases = []crashCase{
++	{name: "create-fs", op: createOp(endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 64 * cmib})},
++	{name: "create-fs-reserve", op: createOp(endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 64 * cmib, Reserve: true})},
++	{name: "create-fs-props", op: createOp(endpoint.CreateVolumeRequest{Name: "v", Properties: map[string]string{"compression": "zstd", "recordsize": "16K", "atime": "off"}})},
++	{name: "create-zvol-sparse", op: createOp(endpoint.CreateVolumeRequest{Name: "v", Kind: endpoint.Block, CapacityBytes: 64 * cmib, Sparse: true})},
++	{name: "create-zvol-thick", op: createOp(endpoint.CreateVolumeRequest{Name: "v", Kind: endpoint.Block, CapacityBytes: 64 * cmib})},
++	{name: "restore-fs-grow",
++		setup: then(mk(endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 16 * cmib}), snapOf("s", "src")),
++		op:    createOp(endpoint.CreateVolumeRequest{Name: "r", CapacityBytes: 32 * cmib, SourceSnapshotID: "src@s"})},
++	{name: "restore-fs-reserve",
++		setup: then(mk(endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 16 * cmib}), snapOf("s", "src")),
++		op:    createOp(endpoint.CreateVolumeRequest{Name: "r", SourceSnapshotID: "src@s", Reserve: true})},
++	{name: "restore-zvol-grow",
++		setup: then(mk(endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: 16 * cmib, Sparse: true}), snapOf("s", "src")),
++		op:    createOp(endpoint.CreateVolumeRequest{Name: "r", Kind: endpoint.Block, Sparse: true, CapacityBytes: 32 * cmib, SourceSnapshotID: "src@s"})},
++	{name: "clone-volume-fs-reserve",
++		setup: mk(endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 16 * cmib}),
++		op:    createOp(endpoint.CreateVolumeRequest{Name: "c", SourceVolumeID: "src", Reserve: true})},
++	{name: "clone-volume-zvol-thick",
++		setup: mk(endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: 16 * cmib}),
++		op:    createOp(endpoint.CreateVolumeRequest{Name: "c", Kind: endpoint.Block, CapacityBytes: 16 * cmib, SourceVolumeID: "src"})},
++	{name: "snapshot",
++		setup: mk(endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 16 * cmib}),
++		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
++			_, err := ep.CreateSnapshot(ctx, "s", "v")
++			return err
++		}},
++	{name: "expand-zvol",
++		setup: mk(endpoint.CreateVolumeRequest{Name: "v", Kind: endpoint.Block, CapacityBytes: 16 * cmib, Sparse: true}),
++		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
++			_, err := ep.ExpandVolume(ctx, "v", 32*cmib, 0)
++			return err
++		}},
++	{name: "delete-volume",
++		setup: mk(endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 16 * cmib}),
++		op:    func(ctx context.Context, ep *endpoint.Endpoint) error { return ep.DeleteVolume(ctx, "v") }},
++	{name: "delete-clone-releases-source",
++		setup: mk(endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 16 * cmib}, endpoint.CreateVolumeRequest{Name: "c", SourceVolumeID: "src"}),
++		op:    func(ctx context.Context, ep *endpoint.Endpoint) error { return ep.DeleteVolume(ctx, "c") },
++		// wave7 finding: the plan is destroy c, then destroy -d src@volume-source-for-volume-c.
++		// Dying between them leaves the snapshot; the retry finds c gone and
++		// plans nothing (OK), so only Reconcile's orphan rule collects it.
++		xfail: map[string]string{
++			"k0-after":  "clone-source snapshot leaks until Reconcile",
++			"k1-before": "clone-source snapshot leaks until Reconcile",
++		}},
++	{name: "delete-restored-clone",
++		setup: then(mk(endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 16 * cmib}), snapOf("s", "src"),
++			mk(endpoint.CreateVolumeRequest{Name: "r", SourceSnapshotID: "src@s"}),
++			func(ctx context.Context, ep *endpoint.Endpoint, _ *harness) error {
++				return ep.DeleteSnapshot(ctx, "src@s")
++			}),
++		op: func(ctx context.Context, ep *endpoint.Endpoint) error { return ep.DeleteVolume(ctx, "r") }},
++	{name: "publish", nfs: true,
++		setup: mk(endpoint.CreateVolumeRequest{Name: "v"}),
++		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
++			_, err := ep.PublishFileExport(ctx, "v", "10.0.0.1", false)
++			return err
++		}},
++	{name: "reconcile", late: true,
++		setup: mk(endpoint.CreateVolumeRequest{Name: "keep"}, endpoint.CreateVolumeRequest{Name: "drop"},
++			endpoint.CreateVolumeRequest{Name: "src"}, endpoint.CreateVolumeRequest{Name: "c", SourceVolumeID: "src"}),
++		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
++			_, err := ep.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
++			return err
++		}},
++}
++
++// fingerprint is the parent's observable state: every dataset and snapshot
++// below it with the properties the endpoint decides, names relative to the
++// parent, sorted. creation, guid and space accounting are left out.
++func fingerprint(t *testing.T, h *harness) string {
++	t.Helper()
++	p := endpoint.DefaultPropertyPrefix + ":"
++	props := []string{"type", "volsize", "refquota", "refreservation", "origin", "sharenfs", "compression", "recordsize",
++		p + "managed_resource", p + "provision_success", p + "csi_volume_name", p + "csi_snapshot_name", p + "nfs_clients",
++		p + "csi_volume_content_source_id"}
++	ds, err := h.Z.List(context.Background(), h.Parent, zfs.ListOptions{
++		Types: []zfs.Type{zfs.TypeFilesystem, zfs.TypeVolume, zfs.TypeSnapshot}, Depth: -1, Props: props})
++	if err != nil {
++		t.Fatal(err)
++	}
++	var lines []string
++	for _, d := range ds {
++		var kv []string
++		for _, k := range props {
++			v := d.Props[k]
++			if v.Value == "" || v.Value == "-" {
++				continue
++			}
++			s := k + "=" + strings.TrimPrefix(v.Value, h.Parent+"/")
++			if strings.HasPrefix(k, p) && !v.Local() {
++				s += "(" + v.Source + ")"
++			}
++			kv = append(kv, s)
++		}
++		lines = append(lines, strings.TrimPrefix(d.Name, h.Parent+"/")+" "+strings.Join(kv, " "))
++	}
++	slices.Sort(lines)
++	return strings.Join(lines, "\n")
++}
++
++func crashEndpoint(t *testing.T, h *harness, r zfs.Runner, late bool) *endpoint.Endpoint {
++	t.Helper()
++	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true}
++	if h.sim != nil {
++		cfg.Etab = h.sim
++	}
++	if late {
++		cfg.Now = func() time.Time { return time.Now().Add(48 * time.Hour) }
++	}
++	ep, err := endpoint.New(zfs.New(r), cfg)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return ep
++}
++
++// runCrash sets the scenario up, runs its op with a crash at mutating call
++// crashAt (-1: none), restarts and retries, checks the retry is a no-op, and
++// returns the end state and how many mutating calls the faulted run made.
++func runCrash(t *testing.T, c crashCase, crashAt int, after bool) (string, int) {
++	t.Helper()
++	ctx := context.Background()
++	ep0, h := setup(t)
++	if c.nfs {
++		h.NFS(t)
++	}
++	if c.setup != nil {
++		if err := c.setup(ctx, ep0, h); err != nil {
++			t.Fatalf("setup: %v", err)
++		}
++	}
++	fr := &faultRunner{Runner: h.Z.Runner, crashAt: crashAt, after: after}
++	err := c.op(ctx, crashEndpoint(t, h, fr, c.late))
++	switch {
++	case crashAt < 0 && err != nil:
++		t.Fatalf("uninterrupted run: %v", err)
++	case crashAt >= 0 && !fr.crashed:
++		t.Fatalf("op made only %d mutating calls, never reached call %d", fr.count(), crashAt)
++	}
++	// restart and retry, as the CO would
++	if crashAt >= 0 {
++		retry := crashEndpoint(t, h, h.Z.Runner, c.late)
++		for i := 0; i < 3; i++ {
++			if err = c.op(ctx, retry); err == nil {
++				break
++			}
++		}
++		if err != nil {
++			t.Fatalf("retry after the crash did not converge: %v", err)
++		}
++	}
++	idle := &faultRunner{Runner: h.Z.Runner, crashAt: -1}
++	if err := c.op(ctx, crashEndpoint(t, h, idle, c.late)); err != nil || idle.count() != 0 {
++		t.Fatalf("a repeat after success: %v, %d mutating calls, want none", err, idle.count())
++	}
++	return fingerprint(t, h), fr.count()
++}
++
++func TestCrashAtEveryMutationConverges(t *testing.T) {
++	for _, c := range crashCases {
++		t.Run(c.name, func(t *testing.T) {
++			t.Parallel() // each run has its own parent dataset (sim: its own Sim)
++			var want string
++			var n int
++			t.Run("uninterrupted", func(t *testing.T) { want, n = runCrash(t, c, -1, false) })
++			if want == "" && n == 0 {
++				t.Skip("uninterrupted run did not complete")
++			}
++			for k := 0; k < n; k++ {
++				for _, after := range []bool{false, true} {
++					mode := "before"
++					if after {
++						mode = "after"
++					}
++					label := fmt.Sprintf("k%d-%s", k, mode)
++					t.Run(label, func(t *testing.T) {
++						t.Parallel()
++						got, _ := runCrash(t, c, k, after)
++						if why, known := c.xfail[label]; known {
++							if got == want {
++								t.Fatalf("known divergence (%s) now converges: remove it from xfail", why)
++							}
++							// logged, not skipped: a skip would break the real
++							// leg's skip budget (ci/check-skips.sh)
++							t.Logf("XFAIL known divergence: %s", why)
++							return
++						}
++						if got != want {
++							t.Errorf("end state after a crash differs from the uninterrupted run:\n--- uninterrupted\n%s\n--- crash at %d (%s)\n%s", want, k, mode, got)
++						}
++					})
++				}
++			}
++		})
++	}
++}
+diff --git a/internal/endpoint/endpoint_test.go b/internal/endpoint/endpoint_test.go
+index 750e236..fa7b089 100644
+--- a/internal/endpoint/endpoint_test.go
++++ b/internal/endpoint/endpoint_test.go
+@@ -50,6 +50,31 @@ func (h *harness) Sim(t *testing.T) *zfstest.Sim {
+ 	return h.sim
+ }
+ 
++// requireSim skips a simulator-only test before it creates anything: on a
++// real pool the skip then costs no dataset, and it happens outside any
++// synctest bubble (a t.Skip inside synctest.Test reports PASS, not SKIP,
++// which would both hide the test and break ci/check-skips.sh).
++func requireSim(t *testing.T) {
++	t.Helper()
++	if os.Getenv("ZFS_TEST_POOL") != "" {
++		t.Skip("needs the simulator (fault injection / call accounting)")
++	}
++}
++
++type slowRunner struct {
++	zfs.Runner
++	get, mut time.Duration
++}
++
++func (r slowRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
++	if len(args) > 0 && (args[0] == "get" || args[0] == "list") {
++		time.Sleep(r.get)
++	} else {
++		time.Sleep(r.mut)
++	}
++	return r.Runner.Run(ctx, name, args...)
++}
++
+ var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
+ 
+ func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
+@@ -77,6 +102,28 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
+ 		h.sim = zfstest.New("tank")
+ 		h.Z = zfs.New(h.sim)
+ 		h.Parent = "tank/k8s/vols"
++		if lat := os.Getenv("ZFS_TEST_LATENCY"); lat != "" {
++			// a latency model of a real pool (wave7 suite.md): get and
++			// mutating calls each cost a fixed time, so parallelism and
++			// call counts can be measured without one
++			var get, mut time.Duration
++			fmt.Sscanf(lat, "%d,%d", &get, &mut)
++			h.Z = zfs.New(slowRunner{h.sim, get * time.Microsecond, mut * time.Microsecond})
++		}
++		if os.Getenv("ZFS_TEST_CALLS") != "" {
++			sim := h.sim
++			t.Cleanup(func() {
++				g, m := 0, 0
++				for _, c := range sim.Calls {
++					if len(c) > 1 && (c[1] == "get" || c[1] == "list") {
++						g++
++					} else {
++						m++
++					}
++				}
++				t.Logf("CALLS get=%d mut=%d", g, m)
++			})
++		}
+ 	}
+ 	if err := h.Z.CreateFilesystem(ctx, h.Parent, nil, true); err != nil {
+ 		t.Fatal(err)
+@@ -100,6 +147,7 @@ func wantCode(t *testing.T, err error, code endpoint.Code) {
+ }
+ 
+ func TestCreateVolumeIdempotent(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	req := endpoint.CreateVolumeRequest{Name: "pvc-1", Kind: endpoint.Block, CapacityBytes: 1<<30 + 1, Sparse: true}
+@@ -136,6 +184,7 @@ func TestCreateVolumeIdempotent(t *testing.T) {
+ }
+ 
+ func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	// a crash after create, before the marker: owned but not committed
+@@ -164,6 +213,7 @@ func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
+ }
+ 
+ func TestNeverAdoptsOrDeletesUnmanaged(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/precious", nil, false); err != nil {
+@@ -178,6 +228,7 @@ func TestNeverAdoptsOrDeletesUnmanaged(t *testing.T) {
+ }
+ 
+ func TestDeleteVolume(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if err := ep.DeleteVolume(ctx, "never-existed"); err != nil {
+@@ -206,6 +257,7 @@ func TestDeleteVolume(t *testing.T) {
+ }
+ 
+ func TestSnapshotLifecycleWithClones(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+@@ -266,6 +318,7 @@ func TestSnapshotLifecycleWithClones(t *testing.T) {
+ }
+ 
+ func TestCloneFromVolumeReleasesInternalSnapshot(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30}); err != nil {
+@@ -292,6 +345,7 @@ func TestCloneFromVolumeReleasesInternalSnapshot(t *testing.T) {
+ }
+ 
+ func TestExpand(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, _ := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "e", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+@@ -310,8 +364,13 @@ func TestExpand(t *testing.T) {
+ }
+ 
+ func TestConcurrentCreatesSerialize(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
++	// skip before the work, not after it: on a real pool 16 serialized
++	// creates can outlast LockWait (1s) and fail before the skip
++	sim := h.Sim(t)
+ 	var wg sync.WaitGroup
+ 	errs := make([]error, 16)
+ 	for i := range errs {
+@@ -328,7 +387,7 @@ func TestConcurrentCreatesSerialize(t *testing.T) {
+ 		}
+ 	}
+ 	creates := 0
+-	for _, c := range h.Sim(t).Calls {
++	for _, c := range sim.Calls {
+ 		if len(c) > 1 && c[1] == "create" && c[len(c)-1] == h.Parent+"/race" {
+ 			creates++
+ 		}
+@@ -339,6 +398,7 @@ func TestConcurrentCreatesSerialize(t *testing.T) {
+ }
+ 
+ func TestPagination(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, _ := setup(t)
+ 	for _, n := range []string{"v1", "v2", "v3"} {
+@@ -371,6 +431,7 @@ func TestPagination(t *testing.T) {
+ // review H2: user properties inherit, so a snapshot an administrator took
+ // (or an internal one) must not look owned.
+ func TestInheritedOwnershipIsNotOwnership(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 1 << 30}); err != nil {
+@@ -391,6 +452,7 @@ func TestInheritedOwnershipIsNotOwnership(t *testing.T) {
+ 
+ // review C1 end-to-end: thick clones are idempotent after success
+ func TestThickCloneRetryIsIdempotent(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, _ := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
+@@ -406,6 +468,8 @@ func TestThickCloneRetryIsIdempotent(t *testing.T) {
+ 
+ // a failure between clone and resize converges on retry
+ func TestCloneResizeFailureConverges(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: 1 << 30, Sparse: true}); err != nil {
+@@ -435,6 +499,8 @@ func TestCloneResizeFailureConverges(t *testing.T) {
+ // review 2 #1: zfs reports "dataset does not exist" for an exported pool;
+ // that must not read as "already deleted"
+ func TestMissingParentIsUnavailableNotAbsent(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	h.Sim(t)
+@@ -456,6 +522,7 @@ func TestMissingParentIsUnavailableNotAbsent(t *testing.T) {
+ // one scan for idempotency, converged on an interrupted provision, and
+ // refused when they would change a committed volume or a clone's block size.
+ func TestCreateVolumeProperties(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 
+diff --git a/internal/endpoint/export_contract_test.go b/internal/endpoint/export_contract_test.go
+index 63f9c19..e0c5dcd 100644
+--- a/internal/endpoint/export_contract_test.go
++++ b/internal/endpoint/export_contract_test.go
+@@ -65,6 +65,7 @@ func sets(h *harness, from int) int {
+ }
+ 
+ func TestFileExportLifecycle(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	h.NFS(t)
+@@ -134,6 +135,7 @@ func TestFileExportLifecycle(t *testing.T) {
+ }
+ 
+ func TestFileExportPreconditions(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "blk", Kind: endpoint.Block, CapacityBytes: 1 << 20, Sparse: true}); err != nil {
+@@ -187,6 +189,8 @@ func TestFileExportPreconditions(t *testing.T) {
+ // already right; likewise Unpublish must not report a revoke that did not
+ // happen (review: "Unexport reports OK while the volume is still exported").
+ func TestFileExportVerifiesKernelTable(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	sim := h.Sim(t)
+@@ -226,6 +230,7 @@ func TestFileExportVerifiesKernelTable(t *testing.T) {
+ // local value, and a sharenfs someone else set locally is refused, not
+ // overwritten.
+ func TestFileExportAdoptedVolumes(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setupPrefix(t, "democratic-csi")
+ 	h.NFS(t)
+diff --git a/internal/endpoint/foreign_test.go b/internal/endpoint/foreign_test.go
+index d1951aa..db3f877 100644
+--- a/internal/endpoint/foreign_test.go
++++ b/internal/endpoint/foreign_test.go
+@@ -14,6 +14,8 @@ import (
+ // one) is not the endpoint's, and `zfs destroy -r` of its volume would take
+ // it. DeleteVolume refuses, naming them, unless the operator opted in.
+ func TestDeleteVolumeSparesForeignSnapshots(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"}); err != nil {
+@@ -73,6 +75,7 @@ func TestDeleteVolumeSparesForeignSnapshots(t *testing.T) {
+ // The endpoint's own internal clone-source snapshot is not foreign: a
+ // volume whose clone is gone deletes as before.
+ func TestDeleteVolumeAfterItsCloneIsGone(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, _ := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src"}); err != nil {
+diff --git a/internal/endpoint/golden_plan_test.go b/internal/endpoint/golden_plan_test.go
+new file mode 100644
+index 0000000..7e2e965
+--- /dev/null
++++ b/internal/endpoint/golden_plan_test.go
+@@ -0,0 +1,230 @@
++package endpoint
++
++import (
++	"flag"
++	"fmt"
++	"os"
++	"strings"
++	"testing"
++	"time"
++
++	"github.com/wommy/empty/internal/zfs"
++)
++
++// Golden plan tests: each row is (Table fixture, request) and its expected
++// output is the plan's text in testdata/plans.golden, so an invariant is a
++// row and a behaviour change is a reviewable diff of that file:
++//
++//	go test ./internal/endpoint -run TestGoldenPlans -update
++//
++// Every row is also planned three times and must render identically: map
++// iteration order must never reach a plan.
++
++var update = flag.Bool("update", false, "rewrite testdata/*.golden")
++
++var codeNames = map[Code]string{
++	OK: "OK", Aborted: "Aborted", AlreadyExists: "AlreadyExists", DeadlineExceeded: "DeadlineExceeded",
++	FailedPrecondition: "FailedPrecondition", Internal: "Internal", InvalidArgument: "InvalidArgument",
++	NotFound: "NotFound", OutOfRange: "OutOfRange", ResourceExhausted: "ResourceExhausted",
++	Unavailable: "Unavailable", Unimplemented: "Unimplemented",
++}
++
++type goldenRow struct {
++	name string
++	rows []Row
++	plan func(Planner, Table) (Plan, error)
++}
++
++func create(r CreateVolumeRequest) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) { return p.PlanCreateVolume(t, r) }
++}
++
++func del(id string) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) { return p.PlanDeleteVolume(t, id) }
++}
++
++func expand(id string, c, l uint64) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) {
++		plan, _, err := p.PlanExpandVolume(t, id, c, l)
++		return plan, err
++	}
++}
++
++func snapshot(name, vol string) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) {
++		plan, _, err := p.PlanCreateSnapshot(t, name, vol)
++		return plan, err
++	}
++}
++
++func delSnap(id string) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) { return p.PlanDeleteSnapshot(t, id) }
++}
++
++func publish(id, live string, c NFSClient) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) {
++		plan, _, err := p.PlanPublishExport(t, ParseEtab([]byte(live)), id, c)
++		return plan, err
++	}
++}
++
++func unpublish(id, live, host string) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) {
++		plan, _, err := p.PlanUnpublishExport(t, ParseEtab([]byte(live)), id, host)
++		return plan, err
++	}
++}
++
++func reconcile(ids ...string) func(Planner, Table) (Plan, error) {
++	return func(p Planner, t Table) (Plan, error) {
++		d := Desired{VolumeIDs: ids, MinAge: time.Hour, Now: time.Unix(recNow, 0)}
++		rp, err := p.PlanReconcile(t, d)
++		return rp.Plan(), err
++	}
++}
++
++var (
++	zvol     = func(size uint64) func(*Row) { return func(r *Row) { r.Type, r.Volsize = zfs.TypeVolume, size } }
++	internal = func(r *Row) { r.Managed, r.SnapshotName = false, "" }
++	cloneOf  = func(o string) func(*Row) { return func(r *Row) { r.Origin = "tank/v/" + o } }
++)
++
++var goldenRows = []goldenRow{
++	// create: what each request shape plans on an empty parent
++	{"create/fs", nil, create(CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30})},
++	{"create/fs-unlimited", nil, create(CreateVolumeRequest{Name: "a"})},
++	{"create/fs-limit-only", nil, create(CreateVolumeRequest{Name: "a", LimitBytes: 1 << 20})},
++	{"create/fs-reserve", nil, create(CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30, Reserve: true})},
++	{"create/fs-props", nil, create(CreateVolumeRequest{Name: "a", Properties: map[string]string{"compression": "gzip-6", "recordsize": "16K", "atime": "off"}})},
++	{"create/fs-props-xattr-on", nil, create(CreateVolumeRequest{Name: "a", Properties: map[string]string{"xattr": "on"}})},
++	{"create/zvol-thick", nil, create(CreateVolumeRequest{Name: "z", Kind: Block, CapacityBytes: 1<<30 + 1})},
++	{"create/zvol-sparse", nil, create(CreateVolumeRequest{Name: "z", Kind: Block, CapacityBytes: 1 << 30, Sparse: true})},
++	{"create/zvol-volblocksize", nil, create(CreateVolumeRequest{Name: "z", Kind: Block, CapacityBytes: 1<<20 + 1, Properties: map[string]string{"volblocksize": "4K"}})},
++	{"create/denied-prop", nil, create(CreateVolumeRequest{Name: "a", Properties: map[string]string{"mountpoint": "/etc"}})},
++	{"create/bad-name", nil, create(CreateVolumeRequest{Name: "a/b"})},
++	// create against existing rows: idempotency, convergence, refusal
++	{"create/satisfied", []Row{vol("a", func(r *Row) { r.Refquota = 1 << 30 })}, create(CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30})},
++	{"create/foreign", []Row{vol("a", func(r *Row) { r.Managed = false })}, create(CreateVolumeRequest{Name: "a"})},
++	{"create/incompatible-size", []Row{vol("a", func(r *Row) { r.Refquota = 10 })}, create(CreateVolumeRequest{Name: "a", CapacityBytes: 11})},
++	{"create/uncommitted-resume", []Row{vol("a", func(r *Row) { r.Committed = false })}, create(CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30})},
++	{"create/uncommitted-clone-converges", []Row{
++		vol("src", func(r *Row) { r.Type, r.Volsize, r.Refres = zfs.TypeVolume, 1<<30, 1<<30 }),
++		snap("src@s", func(r *Row) { r.Volsize = 1 << 30 }),
++		vol("dst", func(r *Row) {
++			r.Type, r.Volsize, r.Committed = zfs.TypeVolume, 1<<30, false
++			r.SourceType, r.SourceID = "snapshot", "src@s"
++		}),
++	}, create(CreateVolumeRequest{Name: "dst", Kind: Block, CapacityBytes: 2 << 30, SourceSnapshotID: "src@s"})},
++	// content sources
++	{"restore/fs-grow", []Row{vol("src", func(r *Row) { r.Refquota = 1 << 20 }), snap("src@s", nil)},
++		create(CreateVolumeRequest{Name: "r", CapacityBytes: 2 << 20, SourceSnapshotID: "src@s"})},
++	{"restore/zvol-grow", []Row{vol("src", zvol(1<<20)), snap("src@s", func(r *Row) { r.Volsize = 1 << 20 })},
++		create(CreateVolumeRequest{Name: "r", Kind: Block, CapacityBytes: 2 << 20, SourceSnapshotID: "src@s"})},
++	{"restore/larger-than-limit", []Row{vol("src", zvol(10<<20)), snap("src@s", func(r *Row) { r.Volsize = 10 << 20 })},
++		create(CreateVolumeRequest{Name: "r", Kind: Block, CapacityBytes: 4 << 20, LimitBytes: 5 << 20, SourceSnapshotID: "src@s"})},
++	{"restore/unknown-source", []Row{vol("src", nil)}, create(CreateVolumeRequest{Name: "r", SourceSnapshotID: "src@nope"})},
++	{"restore/malformed-source", nil, create(CreateVolumeRequest{Name: "r", SourceSnapshotID: "non-existing-snapshot-id"})},
++	{"clone/from-volume-reserve", []Row{vol("src", func(r *Row) { r.Refquota = 1 << 20 })},
++		create(CreateVolumeRequest{Name: "c", SourceVolumeID: "src", Reserve: true})},
++	{"clone/from-uncommitted-volume", []Row{vol("src", func(r *Row) { r.Committed = false })},
++		create(CreateVolumeRequest{Name: "c", SourceVolumeID: "src"})},
++	// delete
++	{"delete/plain", []Row{vol("a", nil)}, del("a")},
++	{"delete/missing", nil, del("a")},
++	{"delete/has-csi-snapshot", []Row{vol("a", nil), snap("a@s", nil)}, del("a")},
++	{"delete/has-deferred-snapshot", []Row{vol("a", nil), snap("a@s", func(r *Row) { r.Deferred = true })}, del("a")},
++	{"delete/clone-releases-source", []Row{vol("b", nil), snap("b@volume-source-for-volume-c", internal), vol("c", cloneOf("b@volume-source-for-volume-c"))}, del("c")},
++	{"delete/cloned-source", []Row{vol("b", nil), snap("b@volume-source-for-volume-c", internal), vol("c", cloneOf("b@volume-source-for-volume-c"))}, del("b")},
++	{"delete/unmanaged", []Row{vol("a", func(r *Row) { r.Managed = false })}, del("a")},
++	// expand
++	{"expand/zvol", []Row{vol("z", func(r *Row) { r.Type, r.Volsize, r.BlockSz = zfs.TypeVolume, 1<<20, 128<<10 })}, expand("z", 1<<20+1, 0)},
++	{"expand/zvol-shrink-noop", []Row{vol("z", zvol(2<<20))}, expand("z", 1<<20, 0)},
++	{"expand/fs-quota", []Row{vol("a", func(r *Row) { r.Refquota = 1 << 20 })}, expand("a", 2<<20, 0)},
++	{"expand/fs-unlimited", []Row{vol("a", nil)}, expand("a", 1<<30, 0)},
++	{"expand/missing", nil, expand("a", 1, 0)},
++	// snapshots
++	{"snapshot/new", []Row{vol("a", nil)}, snapshot("s", "a")},
++	{"snapshot/exists", []Row{vol("a", nil), snap("a@s", nil)}, snapshot("s", "a")},
++	{"snapshot/name-taken-elsewhere", []Row{vol("a", nil), vol("b", nil), snap("b@s", nil)}, snapshot("s", "a")},
++	{"snapshot/reserved-prefix", []Row{vol("a", nil)}, snapshot("volume-source-for-volume-x", "a")},
++	{"snapshot/long-name", []Row{vol("a", nil)}, snapshot(strings.Repeat("n", 128), "a")},
++	{"delete-snapshot/plain", []Row{vol("a", nil), snap("a@s", nil)}, delSnap("a@s")},
++	{"delete-snapshot/foreign", []Row{vol("a", nil), snap("a@admin", internal)}, delSnap("a@admin")},
++	// file export
++	{"publish/first", []Row{fsv("a", nil)}, publish("a", "", NFSClient{Host: "10.0.0.1"})},
++	{"publish/second-ro", []Row{exported("a", "10.0.0.1=rw", "rw=10.0.0.1")}, publish("a", "/tank/v/a\t10.0.0.1(rw,sync)\n", NFSClient{Host: "10.9.0.0/16", ReadOnly: true})},
++	{"publish/zvol", []Row{vol("z", zvol(1<<20))}, publish("z", "", NFSClient{Host: "10.0.0.1"})},
++	{"unpublish/last", []Row{exported("a", "10.0.0.1=rw", "rw=10.0.0.1")}, unpublish("a", "/tank/v/a\t10.0.0.1(rw,sync)\n", "10.0.0.1")},
++	// reconcile (destroys only, in dependency order)
++	{"reconcile/undesired-and-chain", []Row{
++		aged(vol("keep", nil)), aged(vol("drop", nil)), aged(vol("b", nil)),
++		aged(snap("b@volume-source-for-volume-c", internal)), aged(vol("c", cloneOf("b@volume-source-for-volume-c"))),
++	}, reconcile("keep")},
++	{"reconcile/empty-desired-set", []Row{aged(vol("a", nil)), aged(vol("half", func(r *Row) { r.Committed = false }))}, reconcile()},
++}
++
++func renderGolden(r goldenRow) string {
++	plan, err := r.plan(pl, NewTable(append([]Row(nil), r.rows...)))
++	if err != nil {
++		return fmt.Sprintf("error: %s\n", codeNames[CodeOf(err)])
++	}
++	if len(plan) == 0 {
++		return "(empty)\n"
++	}
++	return plan.String()
++}
++
++func TestGoldenPlans(t *testing.T) {
++	var b strings.Builder
++	seen := map[string]bool{}
++	for _, r := range goldenRows {
++		if seen[r.name] {
++			t.Fatalf("duplicate row %s", r.name)
++		}
++		seen[r.name] = true
++		out := renderGolden(r)
++		for range 2 {
++			if again := renderGolden(r); again != out {
++				t.Fatalf("%s: plan is not deterministic:\n%s---\n%s", r.name, out, again)
++			}
++		}
++		fmt.Fprintf(&b, "## %s\n%s\n", r.name, out)
++	}
++	const path = "testdata/plans.golden"
++	if *update {
++		if err := os.MkdirAll("testdata", 0o755); err != nil {
++			t.Fatal(err)
++		}
++		if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
++			t.Fatal(err)
++		}
++		return
++	}
++	want, err := os.ReadFile(path)
++	if err != nil {
++		t.Fatalf("%v (run with -update to create it)", err)
++	}
++	if got := b.String(); got != string(want) {
++		t.Errorf("plans differ from %s (review, then -update):\n%s", path, lineDiff(string(want), got))
++	}
++}
++
++// lineDiff names the rows whose text changed, with both versions.
++func lineDiff(want, got string) string {
++	split := func(s string) map[string]string {
++		m := map[string]string{}
++		for _, sec := range strings.Split(s, "## ")[1:] {
++			name, body, _ := strings.Cut(sec, "\n")
++			m[name] = body
++		}
++		return m
++	}
++	w, g := split(want), split(got)
++	var b strings.Builder
++	for _, r := range goldenRows {
++		if w[r.name] != g[r.name] {
++			fmt.Fprintf(&b, "## %s\n- %s+ %s", r.name, strings.ReplaceAll(w[r.name], "\n", "\n- "), strings.ReplaceAll(g[r.name], "\n", "\n+ "))
++		}
++	}
++	return b.String()
++}
+diff --git a/internal/endpoint/main_test.go b/internal/endpoint/main_test.go
+new file mode 100644
+index 0000000..6bcdf2d
+--- /dev/null
++++ b/internal/endpoint/main_test.go
+@@ -0,0 +1,9 @@
++package endpoint_test
++
++import (
++	"testing"
++
++	"github.com/wommy/empty/internal/leakcheck"
++)
++
++func TestMain(m *testing.M) { leakcheck.Main(m) }
+diff --git a/internal/endpoint/opcodes_test.go b/internal/endpoint/opcodes_test.go
+index 55ec5f0..010c79b 100644
+--- a/internal/endpoint/opcodes_test.go
++++ b/internal/endpoint/opcodes_test.go
+@@ -24,6 +24,8 @@ func failOn(h *harness, t *testing.T, cmd, stderr string) {
+ // for a volume or snapshot in use on DeleteVolume and DeleteSnapshot; on
+ // create, snapshot and expand paths it is transient, so retryable.
+ func TestBusyIsMappedByOperation(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	const busy = "cannot destroy 'x': dataset is busy\n"
+ 	ep, h := setup(t)
+@@ -59,6 +61,8 @@ func TestBusyIsMappedByOperation(t *testing.T) {
+ // the plan already changed something, it is retryable: the retry re-scans
+ // and converges, while a final code would strand the half-made volume.
+ func TestUnknownFailureAfterAMutationIsRetryable(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	const boom = "internal error: Input/output error\n"
+ 	ep, h := setup(t)
+diff --git a/internal/endpoint/ownership_test.go b/internal/endpoint/ownership_test.go
+index 75f1e04..17e10e2 100644
+--- a/internal/endpoint/ownership_test.go
++++ b/internal/endpoint/ownership_test.go
+@@ -14,6 +14,7 @@ import (
+ // of one. Anything else names no volume or snapshot the endpoint issued,
+ // so it is NotFound, and nothing is snapshotted or cloned.
+ func TestCloneSourcesMustBeOwned(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/foreign", map[string]string{"refquota": "1048576"}, false); err != nil {
+@@ -84,6 +85,7 @@ func (r *cloneRacer) Run(ctx context.Context, name string, args ...string) ([]by
+ // same hazard the README rules out for `zfs create -p`). A replay of our
+ // own interrupted clone re-scans and takes the uncommitted-row path.
+ func TestCloneNeverAdoptsARacingDataset(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	sim := zfstest.New("tank")
+ 	r := &cloneRacer{sim: sim, target: "tank/p/c"}
+@@ -116,6 +118,7 @@ func TestCloneNeverAdoptsARacingDataset(t *testing.T) {
+ // a copy whose properties were re-set locally) is not the volume its
+ // dataset name suggests: it is not served, expanded or deleted under it.
+ func TestVolumeNameMustMatchID(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/moved", map[string]string{
+@@ -149,6 +152,8 @@ func TestVolumeNameMustMatchID(t *testing.T) {
+ // the endpoint's: not listed, not deletable, and its snapshots do not
+ // shadow the original's CSI snapshot names.
+ func TestReceivedCopyIsNotOwned(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	sim := h.Sim(t)
+@@ -201,6 +206,8 @@ func TestReceivedCopyIsNotOwned(t *testing.T) {
+ // dataset whose markers name another volume are someone else's, however
+ // "undesired" they look.
+ func TestReconcileSparesReceivedAndRenamed(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	sim := h.Sim(t)
+diff --git a/internal/endpoint/parent_test.go b/internal/endpoint/parent_test.go
+index 79960d2..1a2d4c7 100644
+--- a/internal/endpoint/parent_test.go
++++ b/internal/endpoint/parent_test.go
+@@ -12,6 +12,8 @@ import (
+ // that scans the whole parent reports a missing parent as Unavailable, as
+ // the single-volume scan does: NotFound is final for the CSI sidecars.
+ func TestMissingParentIsUnavailableForWholeScans(t *testing.T) {
++	t.Parallel()
++	requireSim(t)
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	h.Sim(t)
+diff --git a/internal/endpoint/plan.go b/internal/endpoint/plan.go
+index 2e2f63b..5833e00 100644
+--- a/internal/endpoint/plan.go
++++ b/internal/endpoint/plan.go
+@@ -4,6 +4,7 @@ import (
+ 	"crypto/sha256"
+ 	"encoding/hex"
+ 	"fmt"
++	"sort"
+ 	"strconv"
+ 	"strings"
+ 	"unicode"
+@@ -54,6 +55,43 @@ type Op struct {
+ // Plan is the ordered ops of one request.
+ type Plan []Op
+ 
++// String renders a plan one op per line with properties sorted, so the
++// same plan always prints the same text: golden files and logs compare it.
++//
++//	set tank/v/a volsize=2147483648 refreservation=auto
++func (p Plan) String() string {
++	var b strings.Builder
++	for _, op := range p {
++		b.WriteString(op.Kind.String())
++		b.WriteByte(' ')
++		b.WriteString(op.Target)
++		if op.Source != "" {
++			b.WriteString(" from=" + op.Source)
++		}
++		if op.Size != 0 {
++			b.WriteString(" size=" + u64(op.Size))
++		}
++		for _, f := range []struct {
++			on   bool
++			name string
++		}{{op.Sparse, "sparse"}, {op.Recursive, "recursive"}, {op.Defer, "defer"}, {op.OkExists, "ok-exists"}, {op.OkMissing, "ok-missing"}} {
++			if f.on {
++				b.WriteString(" +" + f.name)
++			}
++		}
++		keys := make([]string, 0, len(op.Props))
++		for k := range op.Props {
++			keys = append(keys, k)
++		}
++		sort.Strings(keys)
++		for _, k := range keys {
++			b.WriteString(" " + k + "=" + strconv.Quote(op.Props[k])[1:len(strconv.Quote(op.Props[k]))-1])
++		}
++		b.WriteByte('\n')
++	}
++	return b.String()
++}
++
+ // Planner holds what planning needs besides the table: pure configuration.
+ type Planner struct {
+ 	Parent       string
+diff --git a/internal/endpoint/prefix_test.go b/internal/endpoint/prefix_test.go
+index 8ac859f..7cc50b8 100644
+--- a/internal/endpoint/prefix_test.go
++++ b/internal/endpoint/prefix_test.go
+@@ -13,6 +13,7 @@ import (
+ // ADR 0003: the endpoint's state lives under its own user-property
+ // namespace by default; democratic-csi's is the adoption mode.
+ func TestDefaultPropertyPrefixIsOurOwn(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	sim := zfstest.New("tank")
+ 	ep, err := endpoint.New(zfs.New(sim), endpoint.Config{Parent: "tank"})
+@@ -32,6 +33,7 @@ func TestDefaultPropertyPrefixIsOurOwn(t *testing.T) {
+ // zfs_check_userprops: shorter than ZAP_MAXNAMELEN, 256). zfs would
+ // otherwise refuse each create with a bad property name, after startup.
+ func TestPropertyPrefixIsValidated(t *testing.T) {
++	t.Parallel()
+ 	sim := zfstest.New("tank")
+ 	for _, p := range []string{"democratic-csi", "zfs-endpoint", "com.example", "a:b", "x_1", strings.Repeat("a", 224)} {
+ 		if _, err := endpoint.New(zfs.New(sim), endpoint.Config{Parent: "tank", PropertyPrefix: p}); err != nil {
+diff --git a/internal/endpoint/props_roundtrip_test.go b/internal/endpoint/props_roundtrip_test.go
+new file mode 100644
+index 0000000..4a17b42
+--- /dev/null
++++ b/internal/endpoint/props_roundtrip_test.go
+@@ -0,0 +1,123 @@
++package endpoint_test
++
++import (
++	"context"
++	"fmt"
++	"slices"
++	"strconv"
++	"testing"
++
++	"github.com/wommy/empty/internal/endpoint"
++)
++
++// Property round trip, as a table generated from the allowlist itself:
++// every (kind, property, value) that ValidateProperties accepts is created,
++// read back and retried. On the simulator this checks the endpoint's
++// canonical tables against the simulator's copy of zfs_prop.c; with
++// ZFS_TEST_POOL it checks them against the real OpenZFS, for every value,
++// not the 7 the contract tests happen to use.
++//
++// The candidate values are every name in OpenZFS 2.4's index tables for
++// these properties (zfs_prop.c), the 2.2 aliases, and every power of two
++// from 512 up to 16M; the allowlist decides which become rows.
++
++type propRow struct {
++	kind       endpoint.VolumeKind
++	key, value string
++	canon      string
++}
++
++func allowlistRows() []propRow {
++	words := []string{"on", "off", "lzjb", "gzip", "zle", "lz4", "zstd", "zstd-fast", "standard", "always", "disabled",
++		"latency", "throughput", "verify", "sa", "dir", "posix", "nfsv4", "noacl", "posixacl", "hidden", "visible",
++		"1", "2", "3", "sha256", "skein", "edonr", "blake3", "restricted", "passthrough"}
++	for i := 1; i <= 9; i++ {
++		words = append(words, "gzip-"+strconv.Itoa(i))
++	}
++	for i := 1; i <= 19; i++ {
++		words = append(words, "zstd-"+strconv.Itoa(i))
++	}
++	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 500, 1000} {
++		words = append(words, "zstd-fast-"+strconv.Itoa(i))
++	}
++	for n := 512; n <= 16<<20; n *= 2 {
++		words = append(words, strconv.Itoa(n))
++		if n >= 1024 {
++			words = append(words, strconv.Itoa(n>>10)+"K")
++		}
++	}
++	keys := []string{"compression", "recordsize", "atime", "relatime", "sync", "logbias", "dedup", "xattr",
++		"acltype", "snapdir", "copies", "volblocksize"}
++	var rows []propRow
++	for _, kind := range []endpoint.VolumeKind{endpoint.Filesystem, endpoint.Block} {
++		for _, k := range keys {
++			seen := map[string]bool{}
++			for _, v := range words {
++				canon, err := endpoint.ValidateProperties(kind, map[string]string{k: v})
++				if err != nil || seen[k+"="+v] {
++					continue
++				}
++				seen[k+"="+v] = true
++				rows = append(rows, propRow{kind, k, v, canon[k]})
++			}
++		}
++	}
++	return rows
++}
++
++func TestPropertyRoundTrip(t *testing.T) {
++	t.Parallel()
++	rows := allowlistRows()
++	if len(rows) < 100 {
++		t.Fatalf("only %d allowlisted values found: the candidate list is stale", len(rows))
++	}
++	ep, h := setup(t)
++	for i, r := range rows {
++		t.Run(fmt.Sprintf("%s/%s=%s", r.kind, r.key, r.value), func(t *testing.T) {
++			t.Parallel()
++			ctx := context.Background()
++			req := endpoint.CreateVolumeRequest{Name: fmt.Sprintf("p%03d", i), Kind: r.kind, CapacityBytes: 1 << 20,
++				Sparse: r.kind == endpoint.Block, Properties: map[string]string{r.key: r.value}}
++			if _, err := ep.CreateVolume(ctx, req); err != nil {
++				t.Fatalf("create: %v", err)
++			}
++			ds := h.Parent + "/" + req.Name
++			// volblocksize is fixed at create: zfs prints its source as "-"
++			// ("default" at the default size), never "local"
++			if got, src := h.propSource(t, ds, r.key); got != r.canon || src != "local" && r.key != "volblocksize" {
++				t.Errorf("reads back %q (%s), the endpoint expects %q (local)", got, src, r.canon)
++			}
++			if _, err := ep.CreateVolume(ctx, req); err != nil {
++				t.Errorf("identical retry: %v", err)
++			}
++		})
++	}
++}
++
++// The table's own shape: each property the allowlist names has rows, so a
++// rule that stops accepting anything shows up here, not as a quiet gap.
++func TestPropertyRoundTripCoversEveryKey(t *testing.T) {
++	t.Parallel()
++	byKey := map[string]int{}
++	for _, r := range allowlistRows() {
++		byKey[r.key]++
++	}
++	var missing []string
++	for _, k := range []string{"compression", "recordsize", "atime", "relatime", "sync", "logbias", "dedup", "xattr",
++		"acltype", "snapdir", "copies", "volblocksize"} {
++		if byKey[k] == 0 {
++			missing = append(missing, k)
++		}
++	}
++	if len(missing) > 0 {
++		t.Fatalf("no allowlisted value for %v", missing)
++	}
++	keys := make([]string, 0, len(byKey))
++	for k := range byKey {
++		keys = append(keys, k)
++	}
++	slices.Sort(keys)
++	for _, k := range keys {
++		t.Logf("%-13s %3d values", k, byKey[k])
++	}
++}
+diff --git a/internal/endpoint/reconcile_contract_test.go b/internal/endpoint/reconcile_contract_test.go
+index bba77f8..9a24429 100644
+--- a/internal/endpoint/reconcile_contract_test.go
++++ b/internal/endpoint/reconcile_contract_test.go
+@@ -5,6 +5,7 @@ import (
+ 	"slices"
+ 	"sync"
+ 	"testing"
++	"testing/synctest"
+ 	"time"
+ 
+ 	"github.com/wommy/empty/internal/endpoint"
+@@ -35,6 +36,7 @@ func targets(p endpoint.ReconcilePlan) (acts, skips []string) {
+ }
+ 
+ func TestReconcileCollectsAbandonedCreate(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	// a CreateVolume that crashed before its commit marker, never retried
+@@ -70,6 +72,7 @@ func TestReconcileCollectsAbandonedCreate(t *testing.T) {
+ }
+ 
+ func TestReconcileCollectsLeakedCloneSource(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 1 << 30}); err != nil {
+@@ -97,6 +100,7 @@ func TestReconcileCollectsLeakedCloneSource(t *testing.T) {
+ }
+ 
+ func TestReconcileAgainstDesiredSet(t *testing.T) {
++	t.Parallel()
+ 	ctx := context.Background()
+ 	ep, h := setup(t)
+ 	for _, name := range []string{"keep", "drop", "snapped", "src"} {
+@@ -183,6 +187,14 @@ func (g *parked) Run(ctx context.Context, name string, args ...string) ([]byte,
+ // Reconcile takes the lock of everything it touches: an operation holding
+ // one makes it Aborted, with nothing applied. A dry run takes no locks.
+ func TestReconcileLocksTargets(t *testing.T) {
++	requireSim(t)
++	// In a synctest bubble the 200ms lock wait runs on the fake clock: the
++	// parked ExpandVolume and the waiting Reconcile are both durably blocked
++	// on bubble channels, so time jumps instead of sleeping.
++	synctest.Test(t, reconcileLocksTargets)
++}
++
++func reconcileLocksTargets(t *testing.T) {
+ 	ctx := context.Background()
+ 	_, h := setup(t)
+ 	g := &parked{Runner: h.Sim(t), entered: make(chan struct{}), release: make(chan struct{})}
+diff --git a/internal/endpoint/testdata/plans.golden b/internal/endpoint/testdata/plans.golden
+new file mode 100644
+index 0000000..286a261
+--- /dev/null
++++ b/internal/endpoint/testdata/plans.golden
+@@ -0,0 +1,165 @@
++## create/fs
++create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1073741824 sharenfs=off sharesmb=off
++set tank/v/a democratic-csi:provision_success=true
++
++## create/fs-unlimited
++create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true sharenfs=off sharesmb=off
++set tank/v/a democratic-csi:provision_success=true
++
++## create/fs-limit-only
++create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1048576 sharenfs=off sharesmb=off
++set tank/v/a democratic-csi:provision_success=true
++
++## create/fs-reserve
++create-filesystem tank/v/a democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true refquota=1073741824 refreservation=1073741824 sharenfs=off sharesmb=off
++set tank/v/a democratic-csi:provision_success=true
++
++## create/fs-props
++create-filesystem tank/v/a atime=off compression=gzip democratic-csi:csi_volume_name=a democratic-csi:managed_resource=true recordsize=16384 sharenfs=off sharesmb=off
++set tank/v/a democratic-csi:provision_success=true
++
++## create/fs-props-xattr-on
++error: InvalidArgument
++
++## create/zvol-thick
++create-volume tank/v/z size=1073758208 democratic-csi:csi_volume_name=z democratic-csi:managed_resource=true
++set tank/v/z democratic-csi:provision_success=true
++
++## create/zvol-sparse
++create-volume tank/v/z size=1073741824 +sparse democratic-csi:csi_volume_name=z democratic-csi:managed_resource=true
++set tank/v/z democratic-csi:provision_success=true
++
++## create/zvol-volblocksize
++create-volume tank/v/z size=1052672 democratic-csi:csi_volume_name=z democratic-csi:managed_resource=true volblocksize=4096
++set tank/v/z democratic-csi:provision_success=true
++
++## create/denied-prop
++error: InvalidArgument
++
++## create/bad-name
++error: InvalidArgument
++
++## create/satisfied
++(empty)
++
++## create/foreign
++error: AlreadyExists
++
++## create/incompatible-size
++error: AlreadyExists
++
++## create/uncommitted-resume
++set tank/v/a refquota=1073741824
++set tank/v/a democratic-csi:provision_success=true
++
++## create/uncommitted-clone-converges
++set tank/v/dst refreservation=auto volsize=2147483648
++set tank/v/dst democratic-csi:provision_success=true
++
++## restore/fs-grow
++clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true sharenfs=off sharesmb=off
++set tank/v/r refquota=2097152
++set tank/v/r democratic-csi:provision_success=true
++
++## restore/zvol-grow
++clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true
++set tank/v/r refreservation=auto volsize=2097152
++set tank/v/r democratic-csi:provision_success=true
++
++## restore/larger-than-limit
++error: OutOfRange
++
++## restore/unknown-source
++error: NotFound
++
++## restore/malformed-source
++error: NotFound
++
++## clone/from-volume-reserve
++snapshot tank/v/src@volume-source-for-volume-c +ok-exists
++clone tank/v/c from=tank/v/src@volume-source-for-volume-c democratic-csi:csi_volume_content_source_id=src democratic-csi:csi_volume_content_source_type=volume democratic-csi:csi_volume_name=c democratic-csi:managed_resource=true sharenfs=off sharesmb=off
++set tank/v/c refquota=1048576 refreservation=1048576
++set tank/v/c democratic-csi:provision_success=true
++
++## clone/from-uncommitted-volume
++error: NotFound
++
++## delete/plain
++destroy tank/v/a +recursive +ok-missing
++
++## delete/missing
++(empty)
++
++## delete/has-csi-snapshot
++error: FailedPrecondition
++
++## delete/has-deferred-snapshot
++destroy tank/v/a +recursive +ok-missing
++
++## delete/clone-releases-source
++destroy tank/v/c +recursive +ok-missing
++destroy tank/v/b@volume-source-for-volume-c +defer +ok-missing
++
++## delete/cloned-source
++error: FailedPrecondition
++
++## delete/unmanaged
++error: FailedPrecondition
++
++## expand/zvol
++set tank/v/z volsize=1179648
++
++## expand/zvol-shrink-noop
++(empty)
++
++## expand/fs-quota
++set tank/v/a refquota=2097152
++
++## expand/fs-unlimited
++(empty)
++
++## expand/missing
++error: NotFound
++
++## snapshot/new
++snapshot tank/v/a@s democratic-csi:csi_snapshot_name=s democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true
++
++## snapshot/exists
++(empty)
++
++## snapshot/name-taken-elsewhere
++error: AlreadyExists
++
++## snapshot/reserved-prefix
++error: InvalidArgument
++
++## snapshot/long-name
++snapshot tank/v/a@csi-dd2411b970d6f3272b9824bdc649c6d7 democratic-csi:csi_snapshot_name=nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true
++
++## delete-snapshot/plain
++destroy tank/v/a@s +defer +ok-missing
++
++## delete-snapshot/foreign
++error: FailedPrecondition
++
++## publish/first
++set tank/v/a democratic-csi:nfs_clients=10.0.0.1=rw sharenfs=rw=10.0.0.1
++
++## publish/second-ro
++set tank/v/a democratic-csi:nfs_clients=10.0.0.1=rw,10.9.0.0/16=ro sharenfs=rw=10.0.0.1,ro=10.9.0.0/16
++
++## publish/zvol
++error: FailedPrecondition
++
++## unpublish/last
++set tank/v/a democratic-csi:nfs_clients=none sharenfs=off
++
++## reconcile/undesired-and-chain
++destroy tank/v/c +recursive +ok-missing
++destroy tank/v/b@volume-source-for-volume-c +defer +ok-missing
++destroy tank/v/drop +recursive +ok-missing
++destroy tank/v/b +recursive +ok-missing
++
++## reconcile/empty-desired-set
++destroy tank/v/half +recursive +ok-missing
++
+diff --git a/internal/leakcheck/leakcheck.go b/internal/leakcheck/leakcheck.go
+new file mode 100644
+index 0000000..601c62d
+--- /dev/null
++++ b/internal/leakcheck/leakcheck.go
+@@ -0,0 +1,66 @@
++// Package leakcheck fails a test binary that ends with goroutines it did not
++// start with: a leaked gRPC server, a parked runner never released, a zfs
++// child whose Wait never returned. It is goleak's idea without the
++// dependency: stacks are compared by their top function after m.Run.
++package leakcheck
++
++import (
++	"fmt"
++	"os"
++	"runtime"
++	"strings"
++	"testing"
++	"time"
++)
++
++// ignored are goroutines the runtime, testing or a library keeps for the
++// life of the process.
++var ignored = []string{
++	"testing.(*M).",
++	"testing.tRunner",
++	"testing.runFuzzing",
++	"runtime.goexit",
++	"os/signal.signal_recv",
++	"internal/poll.runtime_pollWait", // the test binary's own stdio
++	"google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run", // grpc global
++	"github.com/onsi/ginkgo/v2/internal/interrupt_handler",
++}
++
++func goroutines() []string {
++	buf := make([]byte, 1<<20)
++	buf = buf[:runtime.Stack(buf, true)]
++	var out []string
++	for _, g := range strings.Split(string(buf), "\n\n") {
++		if strings.HasPrefix(g, "goroutine ") && !strings.Contains(g, "leakcheck.goroutines") {
++			keep := true
++			for _, ig := range ignored {
++				if strings.Contains(g, ig) && !strings.Contains(g, "created by github.com/wommy") {
++					keep = false
++				}
++			}
++			if keep {
++				out = append(out, g)
++			}
++		}
++	}
++	return out
++}
++
++// Main runs the tests, then waits up to 2s for every goroutine a test
++// started to end; any left is reported and fails the binary.
++func Main(m *testing.M) {
++	code := m.Run()
++	if code == 0 {
++		var left []string
++		for deadline := time.Now().Add(2 * time.Second); ; time.Sleep(20 * time.Millisecond) {
++			if left = goroutines(); len(left) == 0 || time.Now().After(deadline) {
++				break
++			}
++		}
++		if len(left) > 0 {
++			fmt.Fprintf(os.Stderr, "leakcheck: %d goroutine(s) outlived the tests:\n\n%s\n", len(left), strings.Join(left, "\n\n"))
++			code = 1
++		}
++	}
++	os.Exit(code)
++}
+diff --git a/internal/server/main_test.go b/internal/server/main_test.go
+new file mode 100644
+index 0000000..1572577
+--- /dev/null
++++ b/internal/server/main_test.go
+@@ -0,0 +1,9 @@
++package server_test
++
++import (
++	"testing"
++
++	"github.com/wommy/empty/internal/leakcheck"
++)
++
++func TestMain(m *testing.M) { leakcheck.Main(m) }
+diff --git a/internal/zfs/main_test.go b/internal/zfs/main_test.go
+new file mode 100644
+index 0000000..b64207b
+--- /dev/null
++++ b/internal/zfs/main_test.go
+@@ -0,0 +1,9 @@
++package zfs_test
++
++import (
++	"testing"
++
++	"github.com/wommy/empty/internal/leakcheck"
++)
++
++func TestMain(m *testing.M) { leakcheck.Main(m) }

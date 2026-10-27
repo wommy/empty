@@ -1,0 +1,8 @@
+=== code:create (x16)
+# generated: seed54
+zfs create $R/a
+zfs create -V 16384 -o volblocksize=65536 -o refreservation=auto $R/a/w
+step 2 `zfs create -V 16384 -o volblocksize=65536 -o refreservation=auto $R/a/w`: code differs
+  A: 1 cannot create 'zfsep-test/zd/s0/a/w': out of space
+  B: 0 
+

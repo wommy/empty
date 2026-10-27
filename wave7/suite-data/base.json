@@ -1,0 +1,849 @@
+{"Time":"2026-10-27T05:00:26.272293453Z","Action":"start","Package":"github.com/wommy/empty/cmd/zfs-csi"}
+{"Time":"2026-10-27T05:00:26.272599298Z","Action":"output","Package":"github.com/wommy/empty/cmd/zfs-csi","Output":"?   \tgithub.com/wommy/empty/cmd/zfs-csi\t[no test files]\n"}
+{"Time":"2026-10-27T05:00:26.272779698Z","Action":"skip","Package":"github.com/wommy/empty/cmd/zfs-csi","Elapsed":0}
+{"Time":"2026-10-27T05:00:33.712805331Z","Action":"start","Package":"github.com/wommy/empty/cmd/zfs-endpoint"}
+{"Time":"2026-10-27T05:00:34.599916435Z","Action":"run","Package":"github.com/wommy/empty/cmd/zfs-endpoint","Test":"TestLockParentIsExclusive"}
+{"Time":"2026-10-27T05:00:34.600044052Z","Action":"output","Package":"github.com/wommy/empty/cmd/zfs-endpoint","Test":"TestLockParentIsExclusive","Output":"=== RUN   TestLockParentIsExclusive\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:34.600071631Z","Action":"output","Package":"github.com/wommy/empty/cmd/zfs-endpoint","Test":"TestLockParentIsExclusive","Output":"--- PASS: TestLockParentIsExclusive (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:34.60007804Z","Action":"pass","Package":"github.com/wommy/empty/cmd/zfs-endpoint","Test":"TestLockParentIsExclusive","Elapsed":0}
+{"Time":"2026-10-27T05:00:34.600084539Z","Action":"output","Package":"github.com/wommy/empty/cmd/zfs-endpoint","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:34.600198507Z","Action":"output","Package":"github.com/wommy/empty/cmd/zfs-endpoint","Output":"ok  \tgithub.com/wommy/empty/cmd/zfs-endpoint\t0.879s\n"}
+{"Time":"2026-10-27T05:00:34.600211588Z","Action":"pass","Package":"github.com/wommy/empty/cmd/zfs-endpoint","Elapsed":0.887}
+{"Time":"2026-10-27T05:00:34.805754044Z","Action":"start","Package":"github.com/wommy/empty/gen/zfsendpoint/v1"}
+{"Time":"2026-10-27T05:00:34.805827972Z","Action":"output","Package":"github.com/wommy/empty/gen/zfsendpoint/v1","Output":"?   \tgithub.com/wommy/empty/gen/zfsendpoint/v1\t[no test files]\n"}
+{"Time":"2026-10-27T05:00:34.805842889Z","Action":"skip","Package":"github.com/wommy/empty/gen/zfsendpoint/v1","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.333352579Z","Action":"start","Package":"github.com/wommy/empty/internal/csi"}
+{"Time":"2026-10-27T05:00:40.333805372Z","Action":"start","Package":"github.com/wommy/empty/internal/endpoint"}
+{"Time":"2026-10-27T05:00:40.34453643Z","Action":"start","Package":"github.com/wommy/empty/internal/lock"}
+{"Time":"2026-10-27T05:00:40.344602092Z","Action":"output","Package":"github.com/wommy/empty/internal/lock","Output":"?   \tgithub.com/wommy/empty/internal/lock\t[no test files]\n"}
+{"Time":"2026-10-27T05:00:40.34461546Z","Action":"skip","Package":"github.com/wommy/empty/internal/lock","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.344637665Z","Action":"start","Package":"github.com/wommy/empty/internal/server"}
+{"Time":"2026-10-27T05:00:40.345005101Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestApplyRefusesAnUnknownOpKind"}
+{"Time":"2026-10-27T05:00:40.345089142Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestApplyRefusesAnUnknownOpKind","Output":"=== RUN   TestApplyRefusesAnUnknownOpKind\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345103631Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestApplyRefusesAnUnknownOpKind","Output":"--- PASS: TestApplyRefusesAnUnknownOpKind (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34526351Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestApplyRefusesAnUnknownOpKind","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345270615Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestOpKindString"}
+{"Time":"2026-10-27T05:00:40.345276626Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestOpKindString","Output":"=== RUN   TestOpKindString\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345283639Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestOpKindString","Output":"--- PASS: TestOpKindString (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345299071Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestOpKindString","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34530427Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlannersRequireACoveringTable"}
+{"Time":"2026-10-27T05:00:40.345308586Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlannersRequireACoveringTable","Output":"=== RUN   TestPlannersRequireACoveringTable\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34531322Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlannersRequireACoveringTable","Output":"--- PASS: TestPlannersRequireACoveringTable (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345322196Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlannersRequireACoveringTable","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34532514Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestScanRecordsCoverage"}
+{"Time":"2026-10-27T05:00:40.345327602Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestScanRecordsCoverage","Output":"=== RUN   TestScanRecordsCoverage\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345334145Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestScanRecordsCoverage","Output":"--- PASS: TestScanRecordsCoverage (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345337432Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestScanRecordsCoverage","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345341079Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestZfsErrCodes"}
+{"Time":"2026-10-27T05:00:40.345344325Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestZfsErrCodes","Output":"=== RUN   TestZfsErrCodes\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345348164Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestZfsErrCodes","Output":"--- PASS: TestZfsErrCodes (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345353915Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestZfsErrCodes","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345356594Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseClient"}
+{"Time":"2026-10-27T05:00:40.345360169Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseClient","Output":"=== RUN   TestParseClient\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345363644Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseClient","Output":"--- PASS: TestParseClient (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345366553Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseClient","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345369511Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestShareNFSAndClientEncoding"}
+{"Time":"2026-10-27T05:00:40.345372088Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestShareNFSAndClientEncoding","Output":"=== RUN   TestShareNFSAndClientEncoding\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345378303Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestShareNFSAndClientEncoding","Output":"--- PASS: TestShareNFSAndClientEncoding (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345381374Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestShareNFSAndClientEncoding","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345384081Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseEtab"}
+{"Time":"2026-10-27T05:00:40.345386659Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseEtab","Output":"=== RUN   TestParseEtab\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345393006Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseEtab","Output":"--- PASS: TestParseEtab (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345396293Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestParseEtab","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345400942Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport"}
+{"Time":"2026-10-27T05:00:40.34540368Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport","Output":"=== RUN   TestPlanPublishExport\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345410057Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/first_client"}
+{"Time":"2026-10-27T05:00:40.345412365Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/first_client","Output":"=== RUN   TestPlanPublishExport/first_client\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345416194Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/first_client","Output":"--- PASS: TestPlanPublishExport/first_client (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34541962Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/first_client","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345422349Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat_is_empty"}
+{"Time":"2026-10-27T05:00:40.345424671Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat_is_empty","Output":"=== RUN   TestPlanPublishExport/repeat_is_empty\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345427992Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat_is_empty","Output":"--- PASS: TestPlanPublishExport/repeat_is_empty (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34543113Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat_is_empty","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345436506Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat,_not_served:_reshare"}
+{"Time":"2026-10-27T05:00:40.34543885Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat,_not_served:_reshare","Output":"=== RUN   TestPlanPublishExport/repeat,_not_served:_reshare\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345444639Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat,_not_served:_reshare","Output":"--- PASS: TestPlanPublishExport/repeat,_not_served:_reshare (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345448076Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/repeat,_not_served:_reshare","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345451564Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/served_in_the_other_mode:_reshare"}
+{"Time":"2026-10-27T05:00:40.34545423Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/served_in_the_other_mode:_reshare","Output":"=== RUN   TestPlanPublishExport/served_in_the_other_mode:_reshare\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345458573Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/served_in_the_other_mode:_reshare","Output":"--- PASS: TestPlanPublishExport/served_in_the_other_mode:_reshare (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345466793Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/served_in_the_other_mode:_reshare","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345469878Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/second_client"}
+{"Time":"2026-10-27T05:00:40.345472343Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/second_client","Output":"=== RUN   TestPlanPublishExport/second_client\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345475768Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/second_client","Output":"--- PASS: TestPlanPublishExport/second_client (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345478578Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/second_client","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345481246Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/other_mode"}
+{"Time":"2026-10-27T05:00:40.34548356Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/other_mode","Output":"=== RUN   TestPlanPublishExport/other_mode\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345489145Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/other_mode","Output":"--- PASS: TestPlanPublishExport/other_mode (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345495724Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/other_mode","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345498803Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/drifted_sharenfs_is_rewritten"}
+{"Time":"2026-10-27T05:00:40.34550137Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/drifted_sharenfs_is_rewritten","Output":"=== RUN   TestPlanPublishExport/drifted_sharenfs_is_rewritten\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345505424Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/drifted_sharenfs_is_rewritten","Output":"--- PASS: TestPlanPublishExport/drifted_sharenfs_is_rewritten (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345508334Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/drifted_sharenfs_is_rewritten","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345511159Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/inherited_sharenfs_is_pinned"}
+{"Time":"2026-10-27T05:00:40.345513681Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/inherited_sharenfs_is_pinned","Output":"=== RUN   TestPlanPublishExport/inherited_sharenfs_is_pinned\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345517129Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/inherited_sharenfs_is_pinned","Output":"--- PASS: TestPlanPublishExport/inherited_sharenfs_is_pinned (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345522508Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/inherited_sharenfs_is_pinned","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345525188Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/foreign_local_sharenfs"}
+{"Time":"2026-10-27T05:00:40.345527573Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/foreign_local_sharenfs","Output":"=== RUN   TestPlanPublishExport/foreign_local_sharenfs\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345530959Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/foreign_local_sharenfs","Output":"--- PASS: TestPlanPublishExport/foreign_local_sharenfs (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345536166Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/foreign_local_sharenfs","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34553951Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/corrupt_client_list"}
+{"Time":"2026-10-27T05:00:40.345541929Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/corrupt_client_list","Output":"=== RUN   TestPlanPublishExport/corrupt_client_list\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345547873Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/corrupt_client_list","Output":"--- PASS: TestPlanPublishExport/corrupt_client_list (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345550734Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/corrupt_client_list","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345553483Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/zvol"}
+{"Time":"2026-10-27T05:00:40.345555921Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/zvol","Output":"=== RUN   TestPlanPublishExport/zvol\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345561694Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/zvol","Output":"--- PASS: TestPlanPublishExport/zvol (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345564686Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/zvol","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345567306Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmounted"}
+{"Time":"2026-10-27T05:00:40.345569664Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmounted","Output":"=== RUN   TestPlanPublishExport/unmounted\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345575581Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmounted","Output":"--- PASS: TestPlanPublishExport/unmounted (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34557853Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmounted","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345581248Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmanaged"}
+{"Time":"2026-10-27T05:00:40.345583539Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmanaged","Output":"=== RUN   TestPlanPublishExport/unmanaged\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345586817Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmanaged","Output":"--- PASS: TestPlanPublishExport/unmanaged (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345589702Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/unmanaged","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345592285Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/missing"}
+{"Time":"2026-10-27T05:00:40.345594573Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/missing","Output":"=== RUN   TestPlanPublishExport/missing\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345600382Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/missing","Output":"--- PASS: TestPlanPublishExport/missing (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345605488Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport/missing","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345609247Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport","Output":"--- PASS: TestPlanPublishExport (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345612071Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanPublishExport","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34561472Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport"}
+{"Time":"2026-10-27T05:00:40.345616952Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport","Output":"=== RUN   TestPlanUnpublishExport\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345620029Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/one_of_two"}
+{"Time":"2026-10-27T05:00:40.345624872Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/one_of_two","Output":"=== RUN   TestPlanUnpublishExport/one_of_two\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345630807Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/one_of_two","Output":"--- PASS: TestPlanUnpublishExport/one_of_two (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345633914Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/one_of_two","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345636645Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/last_sets_off_locally"}
+{"Time":"2026-10-27T05:00:40.345639026Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/last_sets_off_locally","Output":"=== RUN   TestPlanUnpublishExport/last_sets_off_locally\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34564706Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/last_sets_off_locally","Output":"--- PASS: TestPlanUnpublishExport/last_sets_off_locally (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34565015Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/last_sets_off_locally","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345652929Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/not_a_client"}
+{"Time":"2026-10-27T05:00:40.345657832Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/not_a_client","Output":"=== RUN   TestPlanUnpublishExport/not_a_client\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345661235Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/not_a_client","Output":"--- PASS: TestPlanUnpublishExport/not_a_client (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34566411Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/not_a_client","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345667092Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/already_removed"}
+{"Time":"2026-10-27T05:00:40.345669367Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/already_removed","Output":"=== RUN   TestPlanUnpublishExport/already_removed\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345673441Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/already_removed","Output":"--- PASS: TestPlanUnpublishExport/already_removed (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345676634Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/already_removed","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345684334Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/removed_but_still_served:_reshare"}
+{"Time":"2026-10-27T05:00:40.345688781Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/removed_but_still_served:_reshare","Output":"=== RUN   TestPlanUnpublishExport/removed_but_still_served:_reshare\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345695114Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/removed_but_still_served:_reshare","Output":"--- PASS: TestPlanUnpublishExport/removed_but_still_served:_reshare (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345698989Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/removed_but_still_served:_reshare","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345701998Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/served_by_a_foreign_sharenfs"}
+{"Time":"2026-10-27T05:00:40.345704762Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/served_by_a_foreign_sharenfs","Output":"=== RUN   TestPlanUnpublishExport/served_by_a_foreign_sharenfs\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345710662Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/served_by_a_foreign_sharenfs","Output":"--- PASS: TestPlanUnpublishExport/served_by_a_foreign_sharenfs (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345715439Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/served_by_a_foreign_sharenfs","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345722734Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/foreign_but_not_served"}
+{"Time":"2026-10-27T05:00:40.345725424Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/foreign_but_not_served","Output":"=== RUN   TestPlanUnpublishExport/foreign_but_not_served\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345729144Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/foreign_but_not_served","Output":"--- PASS: TestPlanUnpublishExport/foreign_but_not_served (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345732313Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/foreign_but_not_served","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34573525Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/unmounted_still_revokes"}
+{"Time":"2026-10-27T05:00:40.345737684Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/unmounted_still_revokes","Output":"=== RUN   TestPlanUnpublishExport/unmounted_still_revokes\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345741064Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/unmounted_still_revokes","Output":"--- PASS: TestPlanUnpublishExport/unmounted_still_revokes (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345744136Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/unmounted_still_revokes","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345749431Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/zvol"}
+{"Time":"2026-10-27T05:00:40.345751833Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/zvol","Output":"=== RUN   TestPlanUnpublishExport/zvol\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345758479Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/zvol","Output":"--- PASS: TestPlanUnpublishExport/zvol (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345761472Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/zvol","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345764331Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/missing"}
+{"Time":"2026-10-27T05:00:40.345766815Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/missing","Output":"=== RUN   TestPlanUnpublishExport/missing\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345770061Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/missing","Output":"--- PASS: TestPlanUnpublishExport/missing (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345775772Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/missing","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345778304Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/corrupt"}
+{"Time":"2026-10-27T05:00:40.345780703Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/corrupt","Output":"=== RUN   TestPlanUnpublishExport/corrupt\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34578501Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/corrupt","Output":"--- PASS: TestPlanUnpublishExport/corrupt (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345787951Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport/corrupt","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345791031Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport","Output":"--- PASS: TestPlanUnpublishExport (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34579406Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanUnpublishExport","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345796638Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExportConverges"}
+{"Time":"2026-10-27T05:00:40.345801345Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExportConverges","Output":"=== RUN   TestExportConverges\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345804867Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExportConverges","Output":"--- PASS: TestExportConverges (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345807794Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExportConverges","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345810348Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateMalformedSourceIsNotFound"}
+{"Time":"2026-10-27T05:00:40.345812713Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateMalformedSourceIsNotFound","Output":"=== RUN   TestPlanCreateMalformedSourceIsNotFound\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345816159Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateMalformedSourceIsNotFound","Output":"--- PASS: TestPlanCreateMalformedSourceIsNotFound (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345819167Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateMalformedSourceIsNotFound","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345821673Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateIsEmptyWhenSatisfied"}
+{"Time":"2026-10-27T05:00:40.345826369Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateIsEmptyWhenSatisfied","Output":"=== RUN   TestPlanCreateIsEmptyWhenSatisfied\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345831804Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateIsEmptyWhenSatisfied","Output":"--- PASS: TestPlanCreateIsEmptyWhenSatisfied (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345834734Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateIsEmptyWhenSatisfied","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345837344Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateConvergesUncommittedClone"}
+{"Time":"2026-10-27T05:00:40.345839707Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateConvergesUncommittedClone","Output":"=== RUN   TestPlanCreateConvergesUncommittedClone\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345843028Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateConvergesUncommittedClone","Output":"--- PASS: TestPlanCreateConvergesUncommittedClone (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345846001Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateConvergesUncommittedClone","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345850953Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateRefusesForeignAndIncompatible"}
+{"Time":"2026-10-27T05:00:40.345853237Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateRefusesForeignAndIncompatible","Output":"=== RUN   TestPlanCreateRefusesForeignAndIncompatible\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345863031Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateRefusesForeignAndIncompatible","Output":"--- PASS: TestPlanCreateRefusesForeignAndIncompatible (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345866184Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateRefusesForeignAndIncompatible","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.345868754Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateHonorsLimitOnly"}
+{"Time":"2026-10-27T05:00:40.345871031Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateHonorsLimitOnly","Output":"=== RUN   TestPlanCreateHonorsLimitOnly\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345874255Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateHonorsLimitOnly","Output":"--- PASS: TestPlanCreateHonorsLimitOnly (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345876939Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateHonorsLimitOnly","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34588198Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateThickZvolLeavesReservationToZFS"}
+{"Time":"2026-10-27T05:00:40.345884337Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateThickZvolLeavesReservationToZFS","Output":"=== RUN   TestPlanCreateThickZvolLeavesReservationToZFS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.345888022Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateThickZvolLeavesReservationToZFS","Output":"--- PASS: TestPlanCreateThickZvolLeavesReservationToZFS (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34589108Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateThickZvolLeavesReservationToZFS","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.346525648Z","Action":"start","Package":"github.com/wommy/empty/internal/unixsock"}
+{"Time":"2026-10-27T05:00:40.347165867Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanDeleteVolume"}
+{"Time":"2026-10-27T05:00:40.347204304Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanDeleteVolume","Output":"=== RUN   TestPlanDeleteVolume\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347216179Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanDeleteVolume","Output":"--- PASS: TestPlanDeleteVolume (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347225929Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanDeleteVolume","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347230996Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanExpand"}
+{"Time":"2026-10-27T05:00:40.347233749Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanExpand","Output":"=== RUN   TestPlanExpand\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347240633Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanExpand","Output":"--- PASS: TestPlanExpand (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347243893Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanExpand","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347246929Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotReservedPrefix"}
+{"Time":"2026-10-27T05:00:40.347249365Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotReservedPrefix","Output":"=== RUN   TestPlanSnapshotReservedPrefix\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347253587Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotReservedPrefix","Output":"--- PASS: TestPlanSnapshotReservedPrefix (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347259301Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotReservedPrefix","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347262344Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotLongAndUnusualNames"}
+{"Time":"2026-10-27T05:00:40.347264871Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotLongAndUnusualNames","Output":"=== RUN   TestPlanSnapshotLongAndUnusualNames\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347273428Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotLongAndUnusualNames","Output":"--- PASS: TestPlanSnapshotLongAndUnusualNames (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347277101Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanSnapshotLongAndUnusualNames","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347280098Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateFilesystemsAreNotShared"}
+{"Time":"2026-10-27T05:00:40.347282577Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateFilesystemsAreNotShared","Output":"=== RUN   TestPlanCreateFilesystemsAreNotShared\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347288053Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateFilesystemsAreNotShared","Output":"--- PASS: TestPlanCreateFilesystemsAreNotShared (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347293832Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateFilesystemsAreNotShared","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347296772Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesDenyList"}
+{"Time":"2026-10-27T05:00:40.347299066Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesDenyList","Output":"=== RUN   TestPlanCreatePropertiesDenyList\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347306042Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesDenyList","Output":"--- PASS: TestPlanCreatePropertiesDenyList (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347309219Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesDenyList","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347311918Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestValidatePropertyValues"}
+{"Time":"2026-10-27T05:00:40.347314181Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestValidatePropertyValues","Output":"=== RUN   TestValidatePropertyValues\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.3473201Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestValidatePropertyValues","Output":"--- PASS: TestValidatePropertyValues (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34732481Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestValidatePropertyValues","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347327524Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateAppliesProperties"}
+{"Time":"2026-10-27T05:00:40.347330187Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateAppliesProperties","Output":"=== RUN   TestPlanCreateAppliesProperties\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34733414Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateAppliesProperties","Output":"--- PASS: TestPlanCreateAppliesProperties (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347337077Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreateAppliesProperties","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347339712Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesRetry"}
+{"Time":"2026-10-27T05:00:40.347342117Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesRetry","Output":"=== RUN   TestPlanCreatePropertiesRetry\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347347969Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesRetry","Output":"--- PASS: TestPlanCreatePropertiesRetry (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347350705Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesRetry","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347353284Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesConvergeUncommitted"}
+{"Time":"2026-10-27T05:00:40.347355616Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesConvergeUncommitted","Output":"=== RUN   TestPlanCreatePropertiesConvergeUncommitted\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34735899Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesConvergeUncommitted","Output":"--- PASS: TestPlanCreatePropertiesConvergeUncommitted (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347362382Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanCreatePropertiesConvergeUncommitted","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347365094Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile"}
+{"Time":"2026-10-27T05:00:40.347367473Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile","Output":"=== RUN   TestPlanReconcile\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34756305Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_committed_volume_is_kept"}
+{"Time":"2026-10-27T05:00:40.347574859Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_committed_volume_is_kept","Output":"=== RUN   TestPlanReconcile/desired_committed_volume_is_kept\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347586407Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_committed_volume_is_kept","Output":"--- PASS: TestPlanReconcile/desired_committed_volume_is_kept (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347599777Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_committed_volume_is_kept","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347605537Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/undesired_committed_volume_is_collected"}
+{"Time":"2026-10-27T05:00:40.347609371Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/undesired_committed_volume_is_collected","Output":"=== RUN   TestPlanReconcile/undesired_committed_volume_is_collected\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347613954Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/undesired_committed_volume_is_collected","Output":"--- PASS: TestPlanReconcile/undesired_committed_volume_is_collected (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347620906Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/undesired_committed_volume_is_collected","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347623928Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/empty_desired_set_collects_no_committed_volume"}
+{"Time":"2026-10-27T05:00:40.347626976Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/empty_desired_set_collects_no_committed_volume","Output":"=== RUN   TestPlanReconcile/empty_desired_set_collects_no_committed_volume\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347631298Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/empty_desired_set_collects_no_committed_volume","Output":"--- PASS: TestPlanReconcile/empty_desired_set_collects_no_committed_volume (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347634599Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/empty_desired_set_collects_no_committed_volume","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347638352Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set"}
+{"Time":"2026-10-27T05:00:40.347645042Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set","Output":"=== RUN   TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347649369Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set","Output":"--- PASS: TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347655202Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/old_uncommitted_row_is_collected_even_with_an_empty_desired_set","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34765814Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_uncommitted_row_may_be_in_flight"}
+{"Time":"2026-10-27T05:00:40.347660789Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_uncommitted_row_may_be_in_flight","Output":"=== RUN   TestPlanReconcile/young_uncommitted_row_may_be_in_flight\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347667491Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_uncommitted_row_may_be_in_flight","Output":"--- PASS: TestPlanReconcile/young_uncommitted_row_may_be_in_flight (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347671134Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_uncommitted_row_may_be_in_flight","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347674019Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set"}
+{"Time":"2026-10-27T05:00:40.347676764Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set","Output":"=== RUN   TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347680622Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set","Output":"--- PASS: TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347686184Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_undesired_volume_may_postdate_the_desired_set","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347689492Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry"}
+{"Time":"2026-10-27T05:00:40.34769213Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry","Output":"=== RUN   TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347695893Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry","Output":"--- PASS: TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347698988Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/desired_uncommitted_row_is_left_for_the_caller's_retry","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347701935Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unknown_creation_is_never_old"}
+{"Time":"2026-10-27T05:00:40.347704537Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unknown_creation_is_never_old","Output":"=== RUN   TestPlanReconcile/unknown_creation_is_never_old\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347710638Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unknown_creation_is_never_old","Output":"--- PASS: TestPlanReconcile/unknown_creation_is_never_old (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347713635Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unknown_creation_is_never_old","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347716377Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unowned_datasets_are_invisible"}
+{"Time":"2026-10-27T05:00:40.347718886Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unowned_datasets_are_invisible","Output":"=== RUN   TestPlanReconcile/unowned_datasets_are_invisible\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347722577Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unowned_datasets_are_invisible","Output":"--- PASS: TestPlanReconcile/unowned_datasets_are_invisible (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347727692Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/unowned_datasets_are_invisible","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347730935Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason"}
+{"Time":"2026-10-27T05:00:40.34773363Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason","Output":"=== RUN   TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347739728Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason","Output":"--- PASS: TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347742727Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/snapshotted_volume_is_skipped_with_the_reason","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34774537Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped"}
+{"Time":"2026-10-27T05:00:40.347748236Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped","Output":"=== RUN   TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347875441Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped","Output":"--- PASS: TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347879925Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/volume_cloned_by_a_desired_volume_is_skipped","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347882974Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_clone_first"}
+{"Time":"2026-10-27T05:00:40.347885601Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_clone_first","Output":"=== RUN   TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_clone_first\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347892589Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_clone_first","Output":"--- PASS: TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_clone_first (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347895592Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint:_clone_and_its_source_collected_together,_clone_first","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.347898568Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint_blocked_by_a_young_clone"}
+{"Time":"2026-10-27T05:00:40.347901015Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint_blocked_by_a_young_clone","Output":"=== RUN   TestPlanReconcile/fixpoint_blocked_by_a_young_clone\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.347904824Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint_blocked_by_a_young_clone","Output":"--- PASS: TestPlanReconcile/fixpoint_blocked_by_a_young_clone (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349599305Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/fixpoint_blocked_by_a_young_clone","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34962332Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume"}
+{"Time":"2026-10-27T05:00:40.349632181Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume","Output":"=== RUN   TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349639666Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume","Output":"--- PASS: TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34964332Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_clone-source_snapshot_on_a_desired_volume","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349646779Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_in_use_is_kept"}
+{"Time":"2026-10-27T05:00:40.349649949Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_in_use_is_kept","Output":"=== RUN   TestPlanReconcile/clone-source_snapshot_in_use_is_kept\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349654287Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_in_use_is_kept","Output":"--- PASS: TestPlanReconcile/clone-source_snapshot_in_use_is_kept (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.34965739Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_in_use_is_kept","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349662963Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected"}
+{"Time":"2026-10-27T05:00:40.349665576Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected","Output":"=== RUN   TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349669286Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected","Output":"--- PASS: TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349672902Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source-named_CSI_snapshot_is_never_collected","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349675927Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only"}
+{"Time":"2026-10-27T05:00:40.349678461Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only","Output":"=== RUN   TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349683027Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only","Output":"--- PASS: TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349686149Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/clone-source_snapshot_on_an_unowned_volume_is_reported_only","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349692015Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone"}
+{"Time":"2026-10-27T05:00:40.3496995Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone","Output":"=== RUN   TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349703939Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone","Output":"--- PASS: TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349707181Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/young_clone-source_snapshot_may_be_mid-clone","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349710202Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it"}
+{"Time":"2026-10-27T05:00:40.349712816Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it","Output":"=== RUN   TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349719053Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it","Output":"--- PASS: TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349722211Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/orphan_snapshot_of_a_collected_volume_goes_with_it","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349727572Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/deferred_CSI_snapshot_does_not_block"}
+{"Time":"2026-10-27T05:00:40.349730218Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/deferred_CSI_snapshot_does_not_block","Output":"=== RUN   TestPlanReconcile/deferred_CSI_snapshot_does_not_block\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349734417Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/deferred_CSI_snapshot_does_not_block","Output":"--- PASS: TestPlanReconcile/deferred_CSI_snapshot_does_not_block (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349841877Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile/deferred_CSI_snapshot_does_not_block","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349846116Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile","Output":"--- PASS: TestPlanReconcile (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349849342Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcile","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349854023Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileLocksEveryTarget"}
+{"Time":"2026-10-27T05:00:40.349859326Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileLocksEveryTarget","Output":"=== RUN   TestPlanReconcileLocksEveryTarget\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349863688Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileLocksEveryTarget","Output":"--- PASS: TestPlanReconcileLocksEveryTarget (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349867345Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileLocksEveryTarget","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.34987013Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileHeldLimitsActions"}
+{"Time":"2026-10-27T05:00:40.349875167Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileHeldLimitsActions","Output":"=== RUN   TestPlanReconcileHeldLimitsActions\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349878827Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileHeldLimitsActions","Output":"--- PASS: TestPlanReconcileHeldLimitsActions (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349881829Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPlanReconcileHeldLimitsActions","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349884455Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSimulateDestroyReapsDeferredOrigins"}
+{"Time":"2026-10-27T05:00:40.349889532Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSimulateDestroyReapsDeferredOrigins","Output":"=== RUN   TestSimulateDestroyReapsDeferredOrigins\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349893012Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSimulateDestroyReapsDeferredOrigins","Output":"--- PASS: TestSimulateDestroyReapsDeferredOrigins (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.349896095Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSimulateDestroyReapsDeferredOrigins","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.349898952Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneLargerThanLimitIsOutOfRange"}
+{"Time":"2026-10-27T05:00:40.349901629Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneLargerThanLimitIsOutOfRange","Output":"=== RUN   TestCloneLargerThanLimitIsOutOfRange\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.355652666Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneLargerThanLimitIsOutOfRange","Output":"--- PASS: TestCloneLargerThanLimitIsOutOfRange (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.355763656Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneLargerThanLimitIsOutOfRange","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.355772001Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReserveRestoreIsIdempotent"}
+{"Time":"2026-10-27T05:00:40.355775078Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReserveRestoreIsIdempotent","Output":"=== RUN   TestReserveRestoreIsIdempotent\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.355780381Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReserveRestoreIsIdempotent","Output":"--- PASS: TestReserveRestoreIsIdempotent (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.355827403Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReserveRestoreIsIdempotent","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.355835085Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState"}
+{"Time":"2026-10-27T05:00:40.355838596Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState","Output":"=== RUN   TestCloneFailureAfterCloneConvergesToSameState\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.355846758Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot"}
+{"Time":"2026-10-27T05:00:40.355849567Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot","Output":"=== RUN   TestCloneFailureAfterCloneConvergesToSameState/snapshot\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.359789055Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot","Output":"--- PASS: TestCloneFailureAfterCloneConvergesToSameState/snapshot (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.35985029Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.359859046Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot-reserve"}
+{"Time":"2026-10-27T05:00:40.359874904Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot-reserve","Output":"=== RUN   TestCloneFailureAfterCloneConvergesToSameState/snapshot-reserve\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.359776596Z","Action":"run","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenIsOwnerOnly"}
+{"Time":"2026-10-27T05:00:40.359896644Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenIsOwnerOnly","Output":"=== RUN   TestListenIsOwnerOnly\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.360191082Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot-reserve","Output":"--- PASS: TestCloneFailureAfterCloneConvergesToSameState/snapshot-reserve (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.360371856Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/snapshot-reserve","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.360383692Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume"}
+{"Time":"2026-10-27T05:00:40.360388191Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume","Output":"=== RUN   TestCloneFailureAfterCloneConvergesToSameState/volume\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.363637445Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenIsOwnerOnly","Output":"--- PASS: TestListenIsOwnerOnly (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.363665069Z","Action":"pass","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenIsOwnerOnly","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.363672939Z","Action":"run","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenRefusesALiveSocket"}
+{"Time":"2026-10-27T05:00:40.363676833Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenRefusesALiveSocket","Output":"=== RUN   TestListenRefusesALiveSocket\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.365596746Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenRefusesALiveSocket","Output":"--- PASS: TestListenRefusesALiveSocket (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.365618451Z","Action":"pass","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenRefusesALiveSocket","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.36562426Z","Action":"run","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenReplacesAStaleSocket"}
+{"Time":"2026-10-27T05:00:40.365627536Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenReplacesAStaleSocket","Output":"=== RUN   TestListenReplacesAStaleSocket\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.366419932Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume","Output":"--- PASS: TestCloneFailureAfterCloneConvergesToSameState/volume (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.366655576Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.36667406Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume-reserve"}
+{"Time":"2026-10-27T05:00:40.366678101Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume-reserve","Output":"=== RUN   TestCloneFailureAfterCloneConvergesToSameState/volume-reserve\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379565889Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenReplacesAStaleSocket","Output":"--- PASS: TestListenReplacesAStaleSocket (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379615258Z","Action":"pass","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenReplacesAStaleSocket","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.379621992Z","Action":"run","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenNeverDeletesANonSocket"}
+{"Time":"2026-10-27T05:00:40.379625852Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenNeverDeletesANonSocket","Output":"=== RUN   TestListenNeverDeletesANonSocket\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.37963Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenNeverDeletesANonSocket","Output":"--- PASS: TestListenNeverDeletesANonSocket (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379633514Z","Action":"pass","Package":"github.com/wommy/empty/internal/unixsock","Test":"TestListenNeverDeletesANonSocket","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.379636332Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379651924Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume-reserve","Output":"--- PASS: TestCloneFailureAfterCloneConvergesToSameState/volume-reserve (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379657633Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState/volume-reserve","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.379663802Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState","Output":"--- PASS: TestCloneFailureAfterCloneConvergesToSameState (0.02s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379668123Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFailureAfterCloneConvergesToSameState","Elapsed":0.02}
+{"Time":"2026-10-27T05:00:40.379672406Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeIdempotent"}
+{"Time":"2026-10-27T05:00:40.379674847Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeIdempotent","Output":"=== RUN   TestCreateVolumeIdempotent\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379678913Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeIdempotent","Output":"--- PASS: TestCreateVolumeIdempotent (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379681832Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeIdempotent","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.379684497Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeResumesInterruptedProvision"}
+{"Time":"2026-10-27T05:00:40.379687063Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeResumesInterruptedProvision","Output":"=== RUN   TestCreateVolumeResumesInterruptedProvision\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379691127Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeResumesInterruptedProvision","Output":"--- PASS: TestCreateVolumeResumesInterruptedProvision (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379706423Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeResumesInterruptedProvision","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.379709452Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestNeverAdoptsOrDeletesUnmanaged"}
+{"Time":"2026-10-27T05:00:40.379711816Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestNeverAdoptsOrDeletesUnmanaged","Output":"=== RUN   TestNeverAdoptsOrDeletesUnmanaged\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379715405Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestNeverAdoptsOrDeletesUnmanaged","Output":"--- PASS: TestNeverAdoptsOrDeletesUnmanaged (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.37971919Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestNeverAdoptsOrDeletesUnmanaged","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.379722693Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolume"}
+{"Time":"2026-10-27T05:00:40.379725791Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolume","Output":"=== RUN   TestDeleteVolume\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379729921Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolume","Output":"--- PASS: TestDeleteVolume (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379733017Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolume","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.379762564Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSnapshotLifecycleWithClones"}
+{"Time":"2026-10-27T05:00:40.37976509Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSnapshotLifecycleWithClones","Output":"=== RUN   TestSnapshotLifecycleWithClones\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379792703Z","Action":"run","Package":"github.com/wommy/empty/internal/server","Test":"TestRoundTripAndCodes"}
+{"Time":"2026-10-27T05:00:40.37981416Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Test":"TestRoundTripAndCodes","Output":"=== RUN   TestRoundTripAndCodes\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379824393Z","Action":"run","Package":"github.com/wommy/empty/internal/csi","Test":"TestCapabilitiesAdvertised"}
+{"Time":"2026-10-27T05:00:40.379835251Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestCapabilitiesAdvertised","Output":"=== RUN   TestCapabilitiesAdvertised\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.379839956Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestCapabilitiesAdvertised","Output":"--- PASS: TestCapabilitiesAdvertised (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.37984389Z","Action":"pass","Package":"github.com/wommy/empty/internal/csi","Test":"TestCapabilitiesAdvertised","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.379846756Z","Action":"run","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandNodeExpansionRequired"}
+{"Time":"2026-10-27T05:00:40.379849914Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandNodeExpansionRequired","Output":"=== RUN   TestExpandNodeExpansionRequired\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.41554127Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandNodeExpansionRequired","Output":"--- PASS: TestExpandNodeExpansionRequired (0.02s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.415591123Z","Action":"pass","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandNodeExpansionRequired","Elapsed":0.02}
+{"Time":"2026-10-27T05:00:40.415599715Z","Action":"run","Package":"github.com/wommy/empty/internal/csi","Test":"TestParametersAndAccessChecks"}
+{"Time":"2026-10-27T05:00:40.415618163Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestParametersAndAccessChecks","Output":"=== RUN   TestParametersAndAccessChecks\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.415624046Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestParametersAndAccessChecks","Output":"--- PASS: TestParametersAndAccessChecks (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.415627207Z","Action":"pass","Package":"github.com/wommy/empty/internal/csi","Test":"TestParametersAndAccessChecks","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.415633019Z","Action":"run","Package":"github.com/wommy/empty/internal/csi","Test":"TestNeverIssuedIDs"}
+{"Time":"2026-10-27T05:00:40.415635514Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestNeverIssuedIDs","Output":"=== RUN   TestNeverIssuedIDs\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.415708493Z","Action":"output","Package":"github.com/wommy/empty/internal/unixsock","Output":"ok  \tgithub.com/wommy/empty/internal/unixsock\t0.069s\n"}
+{"Time":"2026-10-27T05:00:40.415719165Z","Action":"pass","Package":"github.com/wommy/empty/internal/unixsock","Elapsed":0.069}
+{"Time":"2026-10-27T05:00:40.507130235Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSnapshotLifecycleWithClones","Output":"--- PASS: TestSnapshotLifecycleWithClones (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.50720427Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestSnapshotLifecycleWithClones","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.507217037Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFromVolumeReleasesInternalSnapshot"}
+{"Time":"2026-10-27T05:00:40.507219867Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFromVolumeReleasesInternalSnapshot","Output":"=== RUN   TestCloneFromVolumeReleasesInternalSnapshot\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507226595Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFromVolumeReleasesInternalSnapshot","Output":"--- PASS: TestCloneFromVolumeReleasesInternalSnapshot (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507231733Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneFromVolumeReleasesInternalSnapshot","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507261418Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExpand"}
+{"Time":"2026-10-27T05:00:40.507266249Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExpand","Output":"=== RUN   TestExpand\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507272003Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExpand","Output":"--- PASS: TestExpand (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507276009Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestExpand","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507278926Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestConcurrentCreatesSerialize"}
+{"Time":"2026-10-27T05:00:40.507281644Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestConcurrentCreatesSerialize","Output":"=== RUN   TestConcurrentCreatesSerialize\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507285238Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestConcurrentCreatesSerialize","Output":"--- PASS: TestConcurrentCreatesSerialize (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507288155Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestConcurrentCreatesSerialize","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507290616Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPagination"}
+{"Time":"2026-10-27T05:00:40.507302905Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPagination","Output":"=== RUN   TestPagination\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507306922Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPagination","Output":"--- PASS: TestPagination (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507309649Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPagination","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507312032Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestInheritedOwnershipIsNotOwnership"}
+{"Time":"2026-10-27T05:00:40.507314132Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestInheritedOwnershipIsNotOwnership","Output":"=== RUN   TestInheritedOwnershipIsNotOwnership\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507317768Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestInheritedOwnershipIsNotOwnership","Output":"--- PASS: TestInheritedOwnershipIsNotOwnership (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507320719Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestInheritedOwnershipIsNotOwnership","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507323353Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestThickCloneRetryIsIdempotent"}
+{"Time":"2026-10-27T05:00:40.507325712Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestThickCloneRetryIsIdempotent","Output":"=== RUN   TestThickCloneRetryIsIdempotent\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507329069Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestThickCloneRetryIsIdempotent","Output":"--- PASS: TestThickCloneRetryIsIdempotent (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507335365Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestThickCloneRetryIsIdempotent","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507338098Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneResizeFailureConverges"}
+{"Time":"2026-10-27T05:00:40.507341413Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneResizeFailureConverges","Output":"=== RUN   TestCloneResizeFailureConverges\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507346124Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneResizeFailureConverges","Output":"--- PASS: TestCloneResizeFailureConverges (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507349643Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneResizeFailureConverges","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507352459Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableNotAbsent"}
+{"Time":"2026-10-27T05:00:40.507354874Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableNotAbsent","Output":"=== RUN   TestMissingParentIsUnavailableNotAbsent\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507361081Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableNotAbsent","Output":"--- PASS: TestMissingParentIsUnavailableNotAbsent (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.50736454Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableNotAbsent","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507367236Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeProperties"}
+{"Time":"2026-10-27T05:00:40.507398124Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeProperties","Output":"=== RUN   TestCreateVolumeProperties\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507410844Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeProperties","Output":"--- PASS: TestCreateVolumeProperties (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507414224Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCreateVolumeProperties","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507417065Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportLifecycle"}
+{"Time":"2026-10-27T05:00:40.507419563Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportLifecycle","Output":"=== RUN   TestFileExportLifecycle\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507423105Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportLifecycle","Output":"--- PASS: TestFileExportLifecycle (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507425699Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportLifecycle","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507428132Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportPreconditions"}
+{"Time":"2026-10-27T05:00:40.507430389Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportPreconditions","Output":"=== RUN   TestFileExportPreconditions\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507433747Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportPreconditions","Output":"--- PASS: TestFileExportPreconditions (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507436451Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportPreconditions","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507438844Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportVerifiesKernelTable"}
+{"Time":"2026-10-27T05:00:40.507441034Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportVerifiesKernelTable","Output":"=== RUN   TestFileExportVerifiesKernelTable\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507444305Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportVerifiesKernelTable","Output":"--- PASS: TestFileExportVerifiesKernelTable (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507447063Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportVerifiesKernelTable","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507449625Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportAdoptedVolumes"}
+{"Time":"2026-10-27T05:00:40.507457383Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportAdoptedVolumes","Output":"=== RUN   TestFileExportAdoptedVolumes\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507461089Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportAdoptedVolumes","Output":"--- PASS: TestFileExportAdoptedVolumes (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507463734Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestFileExportAdoptedVolumes","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507468358Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeSparesForeignSnapshots"}
+{"Time":"2026-10-27T05:00:40.507470876Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeSparesForeignSnapshots","Output":"=== RUN   TestDeleteVolumeSparesForeignSnapshots\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507474382Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeSparesForeignSnapshots","Output":"--- PASS: TestDeleteVolumeSparesForeignSnapshots (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.50747946Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeSparesForeignSnapshots","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.507482908Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeAfterItsCloneIsGone"}
+{"Time":"2026-10-27T05:00:40.507485316Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeAfterItsCloneIsGone","Output":"=== RUN   TestDeleteVolumeAfterItsCloneIsGone\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507488548Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeAfterItsCloneIsGone","Output":"--- PASS: TestDeleteVolumeAfterItsCloneIsGone (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507491342Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDeleteVolumeAfterItsCloneIsGone","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507494053Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestBusyIsMappedByOperation"}
+{"Time":"2026-10-27T05:00:40.507496281Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestBusyIsMappedByOperation","Output":"=== RUN   TestBusyIsMappedByOperation\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507499508Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestBusyIsMappedByOperation","Output":"--- PASS: TestBusyIsMappedByOperation (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507502501Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestBusyIsMappedByOperation","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507505001Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestUnknownFailureAfterAMutationIsRetryable"}
+{"Time":"2026-10-27T05:00:40.507507505Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestUnknownFailureAfterAMutationIsRetryable","Output":"=== RUN   TestUnknownFailureAfterAMutationIsRetryable\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507510771Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestUnknownFailureAfterAMutationIsRetryable","Output":"--- PASS: TestUnknownFailureAfterAMutationIsRetryable (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507513892Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestUnknownFailureAfterAMutationIsRetryable","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507516701Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneSourcesMustBeOwned"}
+{"Time":"2026-10-27T05:00:40.50751879Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneSourcesMustBeOwned","Output":"=== RUN   TestCloneSourcesMustBeOwned\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507521905Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneSourcesMustBeOwned","Output":"--- PASS: TestCloneSourcesMustBeOwned (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507524369Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneSourcesMustBeOwned","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507526591Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneNeverAdoptsARacingDataset"}
+{"Time":"2026-10-27T05:00:40.507528767Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneNeverAdoptsARacingDataset","Output":"=== RUN   TestCloneNeverAdoptsARacingDataset\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507531954Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneNeverAdoptsARacingDataset","Output":"--- PASS: TestCloneNeverAdoptsARacingDataset (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507534542Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestCloneNeverAdoptsARacingDataset","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507539778Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestVolumeNameMustMatchID"}
+{"Time":"2026-10-27T05:00:40.507542519Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestVolumeNameMustMatchID","Output":"=== RUN   TestVolumeNameMustMatchID\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507545702Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestVolumeNameMustMatchID","Output":"--- PASS: TestVolumeNameMustMatchID (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507548217Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestVolumeNameMustMatchID","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507550715Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReceivedCopyIsNotOwned"}
+{"Time":"2026-10-27T05:00:40.507553209Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReceivedCopyIsNotOwned","Output":"=== RUN   TestReceivedCopyIsNotOwned\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507556351Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReceivedCopyIsNotOwned","Output":"--- PASS: TestReceivedCopyIsNotOwned (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507558977Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReceivedCopyIsNotOwned","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.50756145Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileSparesReceivedAndRenamed"}
+{"Time":"2026-10-27T05:00:40.507563709Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileSparesReceivedAndRenamed","Output":"=== RUN   TestReconcileSparesReceivedAndRenamed\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507566973Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileSparesReceivedAndRenamed","Output":"--- PASS: TestReconcileSparesReceivedAndRenamed (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507569729Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileSparesReceivedAndRenamed","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507573501Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableForWholeScans"}
+{"Time":"2026-10-27T05:00:40.507576027Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableForWholeScans","Output":"=== RUN   TestMissingParentIsUnavailableForWholeScans\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507579325Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableForWholeScans","Output":"--- PASS: TestMissingParentIsUnavailableForWholeScans (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507582094Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestMissingParentIsUnavailableForWholeScans","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507584534Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDefaultPropertyPrefixIsOurOwn"}
+{"Time":"2026-10-27T05:00:40.507586823Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDefaultPropertyPrefixIsOurOwn","Output":"=== RUN   TestDefaultPropertyPrefixIsOurOwn\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507589972Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDefaultPropertyPrefixIsOurOwn","Output":"--- PASS: TestDefaultPropertyPrefixIsOurOwn (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507592444Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestDefaultPropertyPrefixIsOurOwn","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507597662Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPropertyPrefixIsValidated"}
+{"Time":"2026-10-27T05:00:40.507600031Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPropertyPrefixIsValidated","Output":"=== RUN   TestPropertyPrefixIsValidated\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507603373Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPropertyPrefixIsValidated","Output":"--- PASS: TestPropertyPrefixIsValidated (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507606021Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestPropertyPrefixIsValidated","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.50760829Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsAbandonedCreate"}
+{"Time":"2026-10-27T05:00:40.507610476Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsAbandonedCreate","Output":"=== RUN   TestReconcileCollectsAbandonedCreate\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507615842Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsAbandonedCreate","Output":"--- PASS: TestReconcileCollectsAbandonedCreate (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507618823Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsAbandonedCreate","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507621182Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsLeakedCloneSource"}
+{"Time":"2026-10-27T05:00:40.507623344Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsLeakedCloneSource","Output":"=== RUN   TestReconcileCollectsLeakedCloneSource\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507626672Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsLeakedCloneSource","Output":"--- PASS: TestReconcileCollectsLeakedCloneSource (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507629335Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileCollectsLeakedCloneSource","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.507631825Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileAgainstDesiredSet"}
+{"Time":"2026-10-27T05:00:40.507633978Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileAgainstDesiredSet","Output":"=== RUN   TestReconcileAgainstDesiredSet\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507637498Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileAgainstDesiredSet","Output":"--- PASS: TestReconcileAgainstDesiredSet (0.02s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507640679Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileAgainstDesiredSet","Elapsed":0.02}
+{"Time":"2026-10-27T05:00:40.507659982Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileLocksTargets"}
+{"Time":"2026-10-27T05:00:40.507664358Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileLocksTargets","Output":"=== RUN   TestReconcileLocksTargets\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507692816Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Test":"TestRoundTripAndCodes","Output":"--- PASS: TestRoundTripAndCodes (0.09s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.507695927Z","Action":"pass","Package":"github.com/wommy/empty/internal/server","Test":"TestRoundTripAndCodes","Elapsed":0.09}
+{"Time":"2026-10-27T05:00:40.507699008Z","Action":"run","Package":"github.com/wommy/empty/internal/server","Test":"TestReconcile"}
+{"Time":"2026-10-27T05:00:40.50770159Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Test":"TestReconcile","Output":"=== RUN   TestReconcile\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.523589109Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestNeverIssuedIDs","Output":"--- PASS: TestNeverIssuedIDs (0.12s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.523634097Z","Action":"pass","Package":"github.com/wommy/empty/internal/csi","Test":"TestNeverIssuedIDs","Elapsed":0.12}
+{"Time":"2026-10-27T05:00:40.52364439Z","Action":"run","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandUnlimitedFilesystem"}
+{"Time":"2026-10-27T05:00:40.523649317Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandUnlimitedFilesystem","Output":"=== RUN   TestExpandUnlimitedFilesystem\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.523669251Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Test":"TestReconcile","Output":"--- PASS: TestReconcile (0.06s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.523672833Z","Action":"pass","Package":"github.com/wommy/empty/internal/server","Test":"TestReconcile","Elapsed":0.06}
+{"Time":"2026-10-27T05:00:40.523685908Z","Action":"run","Package":"github.com/wommy/empty/internal/server","Test":"TestFileExport"}
+{"Time":"2026-10-27T05:00:40.52368848Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Test":"TestFileExport","Output":"=== RUN   TestFileExport\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.526054984Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandUnlimitedFilesystem","Output":"--- PASS: TestExpandUnlimitedFilesystem (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.52626803Z","Action":"pass","Package":"github.com/wommy/empty/internal/csi","Test":"TestExpandUnlimitedFilesystem","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.526281804Z","Action":"run","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity"}
+{"Time":"2026-10-27T05:00:40.526285939Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"=== RUN   TestSanity\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.531268025Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"Running Suite: zfs-csi sanity - /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave7/suite-copy/internal/csi\n"}
+{"Time":"2026-10-27T05:00:40.531298732Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"============================================================================================================================================\n"}
+{"Time":"2026-10-27T05:00:40.531312279Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"Random Seed: [1m1793077240[0m\n"}
+{"Time":"2026-10-27T05:00:40.531318042Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"\n"}
+{"Time":"2026-10-27T05:00:40.531323112Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"Will run [1m69[0m of [1m103[0m specs\n"}
+{"Time":"2026-10-27T05:00:40.53549243Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Test":"TestFileExport","Output":"--- PASS: TestFileExport (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.535522811Z","Action":"pass","Package":"github.com/wommy/empty/internal/server","Test":"TestFileExport","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.535531187Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.585094061Z","Action":"start","Package":"github.com/wommy/empty/internal/zfs"}
+{"Time":"2026-10-27T05:00:40.586509938Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;10m•[0m[38;5;10m•[0mI1027 05:00:40.586434   28655 resources.go:306] deleting snapshot ID DeleteSnapshot-volume-1-4A405824-410431A2@DeleteSnapshot-snapshot-1-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.589056567Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestParseColumnsRejectsForgedLines"}
+{"Time":"2026-10-27T05:00:40.589105091Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestParseColumnsRejectsForgedLines","Output":"=== RUN   TestParseColumnsRejectsForgedLines\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.58929982Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestParseColumnsRejectsForgedLines","Output":"--- PASS: TestParseColumnsRejectsForgedLines (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.589333322Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestParseColumnsRejectsForgedLines","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.589424408Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestClassify"}
+{"Time":"2026-10-27T05:00:40.589430092Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestClassify","Output":"=== RUN   TestClassify\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.589634989Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestClassify","Output":"--- PASS: TestClassify (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.589667936Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestClassify","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.589857517Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestExistsDoesNotSwallowUnknownErrors"}
+{"Time":"2026-10-27T05:00:40.589873572Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestExistsDoesNotSwallowUnknownErrors","Output":"=== RUN   TestExistsDoesNotSwallowUnknownErrors\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.589879998Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestExistsDoesNotSwallowUnknownErrors","Output":"--- PASS: TestExistsDoesNotSwallowUnknownErrors (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.589883481Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestExistsDoesNotSwallowUnknownErrors","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.589887082Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestRejectsFlagLikeAndShellNames"}
+{"Time":"2026-10-27T05:00:40.589889463Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestRejectsFlagLikeAndShellNames","Output":"=== RUN   TestRejectsFlagLikeAndShellNames\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.589893314Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestRejectsFlagLikeAndShellNames","Output":"--- PASS: TestRejectsFlagLikeAndShellNames (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.589896274Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestRejectsFlagLikeAndShellNames","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.589899117Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestLifecycleAgainstSim"}
+{"Time":"2026-10-27T05:00:40.589901724Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestLifecycleAgainstSim","Output":"=== RUN   TestLifecycleAgainstSim\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.59018499Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestLifecycleAgainstSim","Output":"--- PASS: TestLifecycleAgainstSim (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.590490663Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestLifecycleAgainstSim","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.590502053Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestKilledCommandIsInterrupted"}
+{"Time":"2026-10-27T05:00:40.590505922Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestKilledCommandIsInterrupted","Output":"=== RUN   TestKilledCommandIsInterrupted\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.676468045Z","Action":"output","Package":"github.com/wommy/empty/internal/server","Output":"ok  \tgithub.com/wommy/empty/internal/server\t0.332s\n"}
+{"Time":"2026-10-27T05:00:40.676566609Z","Action":"pass","Package":"github.com/wommy/empty/internal/server","Elapsed":0.332}
+{"Time":"2026-10-27T05:00:40.679935588Z","Action":"start","Package":"github.com/wommy/empty/internal/zfs/zfstest"}
+{"Time":"2026-10-27T05:00:40.680046582Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs/zfstest","Output":"?   \tgithub.com/wommy/empty/internal/zfs/zfstest\t[no test files]\n"}
+{"Time":"2026-10-27T05:00:40.680062022Z","Action":"skip","Package":"github.com/wommy/empty/internal/zfs/zfstest","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.687992344Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;10m•[0mI1027 05:00:40.687796   28655 resources.go:306] deleting snapshot ID listSnapshots-volume-unrelated-s-2-4A405824-410431A2@listSnapshots-snapshot-unrelated-s-2-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.689495735Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.689350   28655 resources.go:306] deleting snapshot ID listSnapshots-volume-target-s-4A405824-410431A2@listSnapshots-snapshot-target-s-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.690518654Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.690468   28655 resources.go:306] deleting snapshot ID listSnapshots-volume-unrelated-s-1-4A405824-410431A2@listSnapshots-snapshot-unrelated-s-1-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.706860763Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0m[38;5;10m•[0mI1027 05:00:40.706591   28655 resources.go:306] deleting snapshot ID listSnapshots-volume-unrelated-v-2-4A405824-410431A2@listSnapshots-snapshot-unrelated-v-2-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.709194436Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.709108   28655 resources.go:306] deleting snapshot ID listSnapshots-volume-target-v-4A405824-410431A2@listSnapshots-snapshot-target-v-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.716666188Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.716482   28655 resources.go:306] deleting snapshot ID listSnapshots-volume-unrelated-v-1-4A405824-410431A2@listSnapshots-snapshot-unrelated-v-1-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.797111667Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileLocksTargets","Output":"--- PASS: TestReconcileLocksTargets (0.36s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.79717736Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"TestReconcileLocksTargets","Elapsed":0.36}
+{"Time":"2026-10-27T05:00:40.797219759Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe"}
+{"Time":"2026-10-27T05:00:40.79722505Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe","Output":"=== RUN   FuzzReconcileSafe\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.797230527Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#0"}
+{"Time":"2026-10-27T05:00:40.797242598Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#0","Output":"=== RUN   FuzzReconcileSafe/seed#0\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.801490167Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#0","Output":"--- PASS: FuzzReconcileSafe/seed#0 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.801530513Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#0","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.801538813Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#1"}
+{"Time":"2026-10-27T05:00:40.801541691Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#1","Output":"=== RUN   FuzzReconcileSafe/seed#1\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.803428005Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#1","Output":"--- PASS: FuzzReconcileSafe/seed#1 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.803452309Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#1","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.803458362Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#2"}
+{"Time":"2026-10-27T05:00:40.803461232Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#2","Output":"=== RUN   FuzzReconcileSafe/seed#2\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.80743995Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#2","Output":"--- PASS: FuzzReconcileSafe/seed#2 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.807467683Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#2","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.807473721Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#3"}
+{"Time":"2026-10-27T05:00:40.807476552Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#3","Output":"=== RUN   FuzzReconcileSafe/seed#3\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.807480411Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#3","Output":"--- PASS: FuzzReconcileSafe/seed#3 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.80748386Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#3","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.807486655Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#4"}
+{"Time":"2026-10-27T05:00:40.807488779Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#4","Output":"=== RUN   FuzzReconcileSafe/seed#4\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.815180871Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#4","Output":"--- PASS: FuzzReconcileSafe/seed#4 (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.815287948Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe/seed#4","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.81536239Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe","Output":"--- PASS: FuzzReconcileSafe (0.02s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.815443579Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzReconcileSafe","Elapsed":0.02}
+{"Time":"2026-10-27T05:00:40.81546845Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges"}
+{"Time":"2026-10-27T05:00:40.815481294Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges","Output":"=== RUN   FuzzCreateConverges\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.815603298Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#0"}
+{"Time":"2026-10-27T05:00:40.815609579Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#0","Output":"=== RUN   FuzzCreateConverges/seed#0\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.826561521Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0mI1027 05:00:40.825612   28655 resources.go:306] deleting snapshot ID volume5-4A405824-410431A2@snapshot5-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.830202405Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.830116   28655 resources.go:306] deleting snapshot ID volume4-4A405824-410431A2@snapshot4-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.83315805Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.832631   28655 resources.go:306] deleting snapshot ID volume3-4A405824-410431A2@snapshot3-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.836098736Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.834952   28655 resources.go:306] deleting snapshot ID volume2-4A405824-410431A2@snapshot2-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.83611975Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.835910   28655 resources.go:306] deleting snapshot ID volume1-4A405824-410431A2@snapshot1-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.846248385Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestKilledCommandIsInterrupted","Output":"--- PASS: TestKilledCommandIsInterrupted (0.25s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.846274007Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestKilledCommandIsInterrupted","Elapsed":0.25}
+{"Time":"2026-10-27T05:00:40.84628266Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestSimPrintsIndexPropertiesLikeOpenZFS"}
+{"Time":"2026-10-27T05:00:40.846285473Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestSimPrintsIndexPropertiesLikeOpenZFS","Output":"=== RUN   TestSimPrintsIndexPropertiesLikeOpenZFS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.855462688Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestSimPrintsIndexPropertiesLikeOpenZFS","Output":"--- PASS: TestSimPrintsIndexPropertiesLikeOpenZFS (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.855529357Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestSimPrintsIndexPropertiesLikeOpenZFS","Elapsed":0.01}
+{"Time":"2026-10-27T05:00:40.855538393Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"TestPropLocalIsOnlyLocal"}
+{"Time":"2026-10-27T05:00:40.855541728Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestPropLocalIsOnlyLocal","Output":"=== RUN   TestPropLocalIsOnlyLocal\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.855547972Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"TestPropLocalIsOnlyLocal","Output":"--- PASS: TestPropLocalIsOnlyLocal (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.855556349Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"TestPropLocalIsOnlyLocal","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.855561069Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns"}
+{"Time":"2026-10-27T05:00:40.855563454Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns","Output":"=== RUN   FuzzParseColumns\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.85557613Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#0"}
+{"Time":"2026-10-27T05:00:40.855578576Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#0","Output":"=== RUN   FuzzParseColumns/seed#0\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857439316Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#0","Output":"--- PASS: FuzzParseColumns/seed#0 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857458851Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#0","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857465093Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#1"}
+{"Time":"2026-10-27T05:00:40.857468841Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#1","Output":"=== RUN   FuzzParseColumns/seed#1\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857491353Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#1","Output":"--- PASS: FuzzParseColumns/seed#1 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857496283Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#1","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857567753Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#2"}
+{"Time":"2026-10-27T05:00:40.857573433Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#2","Output":"=== RUN   FuzzParseColumns/seed#2\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857577877Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#2","Output":"--- PASS: FuzzParseColumns/seed#2 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857580771Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns/seed#2","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857584259Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns","Output":"--- PASS: FuzzParseColumns (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857587166Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzParseColumns","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857589717Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify"}
+{"Time":"2026-10-27T05:00:40.857592848Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify","Output":"=== RUN   FuzzClassify\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857596312Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#0"}
+{"Time":"2026-10-27T05:00:40.857601078Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#0","Output":"=== RUN   FuzzClassify/seed#0\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857605589Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#0","Output":"--- PASS: FuzzClassify/seed#0 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857610261Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#0","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857614509Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#1"}
+{"Time":"2026-10-27T05:00:40.857618343Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#1","Output":"=== RUN   FuzzClassify/seed#1\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857623835Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#1","Output":"--- PASS: FuzzClassify/seed#1 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857669177Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#1","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857674388Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#2"}
+{"Time":"2026-10-27T05:00:40.857676832Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#2","Output":"=== RUN   FuzzClassify/seed#2\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857680989Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#2","Output":"--- PASS: FuzzClassify/seed#2 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857683919Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#2","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857686332Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#3"}
+{"Time":"2026-10-27T05:00:40.857688335Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#3","Output":"=== RUN   FuzzClassify/seed#3\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857691626Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#3","Output":"--- PASS: FuzzClassify/seed#3 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857694474Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#3","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857697253Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#4"}
+{"Time":"2026-10-27T05:00:40.85769931Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#4","Output":"=== RUN   FuzzClassify/seed#4\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857702567Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#4","Output":"--- PASS: FuzzClassify/seed#4 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857705568Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#4","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857709335Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#5"}
+{"Time":"2026-10-27T05:00:40.857713142Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#5","Output":"=== RUN   FuzzClassify/seed#5\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857718636Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#5","Output":"--- PASS: FuzzClassify/seed#5 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857723129Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#5","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857748596Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#6"}
+{"Time":"2026-10-27T05:00:40.857765086Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#6","Output":"=== RUN   FuzzClassify/seed#6\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857771839Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#6","Output":"--- PASS: FuzzClassify/seed#6 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.85777597Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#6","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857778905Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#7"}
+{"Time":"2026-10-27T05:00:40.857781244Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#7","Output":"=== RUN   FuzzClassify/seed#7\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857784371Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#7","Output":"--- PASS: FuzzClassify/seed#7 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.85779195Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#7","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.85779464Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#8"}
+{"Time":"2026-10-27T05:00:40.857796795Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#8","Output":"=== RUN   FuzzClassify/seed#8\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857800179Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#8","Output":"--- PASS: FuzzClassify/seed#8 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857803278Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#8","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857807037Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#9"}
+{"Time":"2026-10-27T05:00:40.857816743Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#9","Output":"=== RUN   FuzzClassify/seed#9\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857852361Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#9","Output":"--- PASS: FuzzClassify/seed#9 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857860085Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#9","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857866362Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#10"}
+{"Time":"2026-10-27T05:00:40.857870219Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#10","Output":"=== RUN   FuzzClassify/seed#10\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857875808Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#10","Output":"--- PASS: FuzzClassify/seed#10 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857880145Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#10","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857884098Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#11"}
+{"Time":"2026-10-27T05:00:40.857888587Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#11","Output":"=== RUN   FuzzClassify/seed#11\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857892277Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#11","Output":"--- PASS: FuzzClassify/seed#11 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857894977Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#11","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857897384Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#12"}
+{"Time":"2026-10-27T05:00:40.857900269Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#12","Output":"=== RUN   FuzzClassify/seed#12\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857905335Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#12","Output":"--- PASS: FuzzClassify/seed#12 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857909459Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#12","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857913143Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#13"}
+{"Time":"2026-10-27T05:00:40.857917098Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#13","Output":"=== RUN   FuzzClassify/seed#13\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857959426Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#13","Output":"--- PASS: FuzzClassify/seed#13 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857965054Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#13","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857969535Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#14"}
+{"Time":"2026-10-27T05:00:40.857973398Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#14","Output":"=== RUN   FuzzClassify/seed#14\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.857979051Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#14","Output":"--- PASS: FuzzClassify/seed#14 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.85798335Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#14","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.857987144Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#15"}
+{"Time":"2026-10-27T05:00:40.857990508Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#15","Output":"=== RUN   FuzzClassify/seed#15\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858047731Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#15","Output":"--- PASS: FuzzClassify/seed#15 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858056397Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#15","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858060825Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#16"}
+{"Time":"2026-10-27T05:00:40.858064558Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#16","Output":"=== RUN   FuzzClassify/seed#16\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858069876Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#16","Output":"--- PASS: FuzzClassify/seed#16 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858082387Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#16","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858086362Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#17"}
+{"Time":"2026-10-27T05:00:40.858089845Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#17","Output":"=== RUN   FuzzClassify/seed#17\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858094896Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#17","Output":"--- PASS: FuzzClassify/seed#17 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858099398Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#17","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.8581036Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#18"}
+{"Time":"2026-10-27T05:00:40.858107201Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#18","Output":"=== RUN   FuzzClassify/seed#18\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858112755Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#18","Output":"--- PASS: FuzzClassify/seed#18 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858146117Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#18","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858153154Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#19"}
+{"Time":"2026-10-27T05:00:40.858157313Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#19","Output":"=== RUN   FuzzClassify/seed#19\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858170195Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#19","Output":"--- PASS: FuzzClassify/seed#19 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858176605Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#19","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858180672Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#20"}
+{"Time":"2026-10-27T05:00:40.858184055Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#20","Output":"=== RUN   FuzzClassify/seed#20\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858189298Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#20","Output":"--- PASS: FuzzClassify/seed#20 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858194081Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#20","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858197988Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#21"}
+{"Time":"2026-10-27T05:00:40.85820239Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#21","Output":"=== RUN   FuzzClassify/seed#21\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858207478Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#21","Output":"--- PASS: FuzzClassify/seed#21 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858212043Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#21","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.85824543Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#22"}
+{"Time":"2026-10-27T05:00:40.858250752Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#22","Output":"=== RUN   FuzzClassify/seed#22\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858257283Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#22","Output":"--- PASS: FuzzClassify/seed#22 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.85826193Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#22","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858266149Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#23"}
+{"Time":"2026-10-27T05:00:40.858269702Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#23","Output":"=== RUN   FuzzClassify/seed#23\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858274853Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#23","Output":"--- PASS: FuzzClassify/seed#23 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858279514Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#23","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858283398Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#24"}
+{"Time":"2026-10-27T05:00:40.858286971Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#24","Output":"=== RUN   FuzzClassify/seed#24\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.85830432Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#24","Output":"--- PASS: FuzzClassify/seed#24 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858313318Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#24","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858316557Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#25"}
+{"Time":"2026-10-27T05:00:40.858322926Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#25","Output":"=== RUN   FuzzClassify/seed#25\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.85832782Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#25","Output":"--- PASS: FuzzClassify/seed#25 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858330697Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#25","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858333188Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#26"}
+{"Time":"2026-10-27T05:00:40.858335143Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#26","Output":"=== RUN   FuzzClassify/seed#26\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858338137Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#26","Output":"--- PASS: FuzzClassify/seed#26 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858340833Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#26","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858343018Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#27"}
+{"Time":"2026-10-27T05:00:40.858345217Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#27","Output":"=== RUN   FuzzClassify/seed#27\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858348144Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#27","Output":"--- PASS: FuzzClassify/seed#27 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858350704Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#27","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858353113Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#28"}
+{"Time":"2026-10-27T05:00:40.858355053Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#28","Output":"=== RUN   FuzzClassify/seed#28\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858357985Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#28","Output":"--- PASS: FuzzClassify/seed#28 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858360383Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#28","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858362582Z","Action":"run","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#29"}
+{"Time":"2026-10-27T05:00:40.858364784Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#29","Output":"=== RUN   FuzzClassify/seed#29\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858368833Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#29","Output":"--- PASS: FuzzClassify/seed#29 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858371688Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify/seed#29","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858374439Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify","Output":"--- PASS: FuzzClassify (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858377007Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Test":"FuzzClassify","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.858379517Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.858545576Z","Action":"output","Package":"github.com/wommy/empty/internal/zfs","Output":"ok  \tgithub.com/wommy/empty/internal/zfs\t0.273s\n"}
+{"Time":"2026-10-27T05:00:40.858557935Z","Action":"pass","Package":"github.com/wommy/empty/internal/zfs","Elapsed":0.273}
+{"Time":"2026-10-27T05:00:40.862038948Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#0","Output":"--- PASS: FuzzCreateConverges/seed#0 (0.04s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862059249Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#0","Elapsed":0.04}
+{"Time":"2026-10-27T05:00:40.862064616Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#1"}
+{"Time":"2026-10-27T05:00:40.862067569Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#1","Output":"=== RUN   FuzzCreateConverges/seed#1\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862074124Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#1","Output":"--- PASS: FuzzCreateConverges/seed#1 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862077273Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#1","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862080235Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#2"}
+{"Time":"2026-10-27T05:00:40.862082643Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#2","Output":"=== RUN   FuzzCreateConverges/seed#2\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862086261Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#2","Output":"--- PASS: FuzzCreateConverges/seed#2 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862089111Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#2","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862091691Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#3"}
+{"Time":"2026-10-27T05:00:40.862094122Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#3","Output":"=== RUN   FuzzCreateConverges/seed#3\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862124548Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#3","Output":"--- PASS: FuzzCreateConverges/seed#3 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862130517Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#3","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862133294Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#4"}
+{"Time":"2026-10-27T05:00:40.86213581Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#4","Output":"=== RUN   FuzzCreateConverges/seed#4\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862139325Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#4","Output":"--- PASS: FuzzCreateConverges/seed#4 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862142115Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#4","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862144878Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#5"}
+{"Time":"2026-10-27T05:00:40.862147232Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#5","Output":"=== RUN   FuzzCreateConverges/seed#5\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862150718Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#5","Output":"--- PASS: FuzzCreateConverges/seed#5 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862153425Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#5","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862162018Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#6"}
+{"Time":"2026-10-27T05:00:40.862164523Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#6","Output":"=== RUN   FuzzCreateConverges/seed#6\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862167802Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#6","Output":"--- PASS: FuzzCreateConverges/seed#6 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862170408Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#6","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862175395Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#7"}
+{"Time":"2026-10-27T05:00:40.862179692Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#7","Output":"=== RUN   FuzzCreateConverges/seed#7\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862183109Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#7","Output":"--- PASS: FuzzCreateConverges/seed#7 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.86218581Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#7","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862188442Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#8"}
+{"Time":"2026-10-27T05:00:40.862190679Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#8","Output":"=== RUN   FuzzCreateConverges/seed#8\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862193882Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#8","Output":"--- PASS: FuzzCreateConverges/seed#8 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862196515Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#8","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862198846Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#9"}
+{"Time":"2026-10-27T05:00:40.862201148Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#9","Output":"=== RUN   FuzzCreateConverges/seed#9\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862551747Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#9","Output":"--- PASS: FuzzCreateConverges/seed#9 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.862736423Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#9","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.862744779Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#10"}
+{"Time":"2026-10-27T05:00:40.862749603Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#10","Output":"=== RUN   FuzzCreateConverges/seed#10\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863044663Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#10","Output":"--- PASS: FuzzCreateConverges/seed#10 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863166827Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#10","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.863200006Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#11"}
+{"Time":"2026-10-27T05:00:40.863203918Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#11","Output":"=== RUN   FuzzCreateConverges/seed#11\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863228448Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#11","Output":"--- PASS: FuzzCreateConverges/seed#11 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863232483Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#11","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.86323566Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#12"}
+{"Time":"2026-10-27T05:00:40.863237949Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#12","Output":"=== RUN   FuzzCreateConverges/seed#12\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863241483Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#12","Output":"--- PASS: FuzzCreateConverges/seed#12 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.86324426Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#12","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.863247021Z","Action":"run","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#13"}
+{"Time":"2026-10-27T05:00:40.863249198Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#13","Output":"=== RUN   FuzzCreateConverges/seed#13\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863253818Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#13","Output":"--- PASS: FuzzCreateConverges/seed#13 (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863256662Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges/seed#13","Elapsed":0}
+{"Time":"2026-10-27T05:00:40.863260933Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges","Output":"--- PASS: FuzzCreateConverges (0.05s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.863263806Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Test":"FuzzCreateConverges","Elapsed":0.05}
+{"Time":"2026-10-27T05:00:40.863267698Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.866669613Z","Action":"output","Package":"github.com/wommy/empty/internal/endpoint","Output":"ok  \tgithub.com/wommy/empty/internal/endpoint\t0.533s\n"}
+{"Time":"2026-10-27T05:00:40.866711994Z","Action":"pass","Package":"github.com/wommy/empty/internal/endpoint","Elapsed":0.533}
+{"Time":"2026-10-27T05:00:40.881307764Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;10m•[0m[38;5;10m•[0mI1027 05:00:40.881212   28655 resources.go:306] deleting snapshot ID CreateSnapshot-volume-1-4A405824-410431A2@CreateSnapshot-snapshot-1-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.88211433Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.882029   28655 resources.go:306] deleting snapshot ID CreateSnapshot-volume-1-4A405824-410431A2@CreateSnapshot-snapshot-1-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.890594658Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0mI1027 05:00:40.890508   28655 resources.go:306] deleting snapshot ID CreateSnapshot-volume-2-4A405824-410431A2@CreateSnapshot-snapshot-2-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.896396609Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0mI1027 05:00:40.895897   28655 resources.go:306] deleting snapshot ID CreateSnapshot-volume-maxlen-name-4A405824-410431A2@csi-45c0b2bef4cac16b78909905c276d50e\n"}
+{"Time":"2026-10-27T05:00:40.897184462Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"I1027 05:00:40.896496   28655 resources.go:306] deleting snapshot ID CreateSnapshot-volume-maxlen-name-4A405824-410431A2@csi-45c0b2bef4cac16b78909905c276d50e\n"}
+{"Time":"2026-10-27T05:00:40.909448224Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0m[38;5;14mS[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m\n"}
+{"Time":"2026-10-27T05:00:40.90955731Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;243m------------------------------[0m\n"}
+{"Time":"2026-10-27T05:00:40.909643581Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;11mP [PENDING][0m\n"}
+{"Time":"2026-10-27T05:00:40.910115962Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[0mController Service [Controller Server] [38;5;243mListVolumes [38;5;11m[1mpagination should detect volumes added between pages and accept tokens when the last volume from a page is deleted[0m\n"}
+{"Time":"2026-10-27T05:00:40.910131845Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;243m/root/go/pkg/mod/github.com/kubernetes-csi/csi-test/v5@v5.6.0/pkg/sanity/controller.go:262[0m\n"}
+{"Time":"2026-10-27T05:00:40.910136097Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;243m------------------------------[0m\n"}
+{"Time":"2026-10-27T05:00:40.933695226Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0mI1027 05:00:40.932937   28655 resources.go:306] deleting snapshot ID sanity-controller-source-vol-snap-4A405824-410431A2@sanity-controller-snap-from-vol-4A405824-410431A2\n"}
+{"Time":"2026-10-27T05:00:40.980082849Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m[38;5;14mS[0m\n"}
+{"Time":"2026-10-27T05:00:40.9801715Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"\n"}
+{"Time":"2026-10-27T05:00:40.980461748Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m[1mRan 44 of 103 Specs in 0.449 seconds[0m\n"}
+{"Time":"2026-10-27T05:00:40.980482226Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"[38;5;10m[1mSUCCESS![0m -- [38;5;10m[1m44 Passed[0m | [38;5;9m[1m0 Failed[0m | [38;5;11m[1m1 Pending[0m | [38;5;14m[1m58 Skipped[0m\n"}
+{"Time":"2026-10-27T05:00:40.981306278Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Output":"--- PASS: TestSanity (0.46s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.981402161Z","Action":"pass","Package":"github.com/wommy/empty/internal/csi","Test":"TestSanity","Elapsed":0.46}
+{"Time":"2026-10-27T05:00:40.981428616Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-27T05:00:40.995615846Z","Action":"output","Package":"github.com/wommy/empty/internal/csi","Output":"ok  \tgithub.com/wommy/empty/internal/csi\t0.662s\n"}
+{"Time":"2026-10-27T05:00:40.995667769Z","Action":"pass","Package":"github.com/wommy/empty/internal/csi","Elapsed":0.662}

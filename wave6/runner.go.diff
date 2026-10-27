@@ -1,0 +1,56 @@
+--- head/internal/zfs/runner.go	2026-10-27 04:48:40.000000000 +0000
++++ json-copy/internal/zfs/runner.go	2026-10-27 04:55:27.444557684 +0000
+@@ -5,6 +5,8 @@
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"io"
++	"os"
+ 	"os/exec"
+ )
+ 
+@@ -60,3 +62,44 @@
+ 	}
+ 	return stdout.Bytes(), nil
+ }
++
++// Streamer is a Runner that can hand stdout to a reader as it is produced,
++// so a large scan is decoded without buffering it whole. It is optional:
++// Client falls back to Run plus a bytes.Reader.
++type Streamer interface {
++	// Stream runs name with args and calls read with its stdout. read must
++	// consume what it needs; the rest is drained so the process can exit.
++	// A non-zero exit is returned as *ExitError and wins over read's error:
++	// zfs prints nothing to stdout on a JSON failure, so the decode error
++	// is only a symptom then.
++	Stream(ctx context.Context, name string, args []string, read func(io.Reader) error) error
++}
++
++// Stream implements Streamer. It runs with LC_ALL=C.UTF-8: under the C
++// locale libnvpair's mbrtowc rejects every byte >= 0x80, and zfs then
++// leaves a truncated JSON document on stdout and still exits 0.
++func (LocalRunner) Stream(ctx context.Context, name string, args []string, read func(io.Reader) error) error {
++	cmd := exec.CommandContext(ctx, name, args...)
++	cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8")
++	var stderr bytes.Buffer
++	cmd.Stderr = &stderr
++	stdout, err := cmd.StdoutPipe()
++	if err != nil {
++		return fmt.Errorf("run %s: %w", name, err)
++	}
++	if err := cmd.Start(); err != nil {
++		return fmt.Errorf("run %s: %w", name, err)
++	}
++	rerr := read(stdout)
++	if rerr != nil {
++		_, _ = io.Copy(io.Discard, stdout) // let zfs finish and report its exit
++	}
++	if err := cmd.Wait(); err != nil {
++		var ee *exec.ExitError
++		if !errors.As(err, &ee) {
++			return fmt.Errorf("run %s: %w", name, err)
++		}
++		return &ExitError{Args: append([]string{name}, args...), Code: ee.ExitCode(), Stderr: stderr.String(), Underlay: err}
++	}
++	return rerr
++}

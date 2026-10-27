@@ -1,0 +1,366 @@
+{
+  "v25.10.0": {
+    "auth.login": [
+      "username",
+      "password",
+      "otp_token"
+    ],
+    "auth.login_with_api_key": [
+      "api_key"
+    ],
+    "core.get_jobs": [
+      "filters",
+      "options"
+    ],
+    "core.job_wait": [
+      "id"
+    ],
+    "filesystem.chown": [
+      "filesystem_chown"
+    ],
+    "filesystem.setperm": [
+      "filesystem_setperm"
+    ],
+    "iscsi.extent.create": [
+      "iscsi_extent_create"
+    ],
+    "iscsi.extent.delete": [
+      "id",
+      "remove",
+      "force"
+    ],
+    "iscsi.extent.query": [
+      "filters",
+      "options"
+    ],
+    "iscsi.extent.update": [
+      "id",
+      "iscsi_extent_update"
+    ],
+    "iscsi.global.config": [],
+    "iscsi.target.create": [
+      "iscsi_target_create"
+    ],
+    "iscsi.target.delete": [
+      "id",
+      "force",
+      "delete_extents"
+    ],
+    "iscsi.target.query": [
+      "filters",
+      "options"
+    ],
+    "iscsi.target.update": [
+      "id",
+      "iscsi_target_update"
+    ],
+    "iscsi.targetextent.create": [
+      "iscsi_target_to_extent_create"
+    ],
+    "iscsi.targetextent.delete": [
+      "id",
+      "force"
+    ],
+    "iscsi.targetextent.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.namespace.create": [
+      "nvmet_namespace_create"
+    ],
+    "nvmet.namespace.delete": [
+      "id",
+      "options"
+    ],
+    "nvmet.namespace.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.port.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.port_subsys.create": [
+      "nvmet_port_subsys_create"
+    ],
+    "nvmet.port_subsys.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.subsys.create": [
+      "nvmet_subsys_create"
+    ],
+    "nvmet.subsys.delete": [
+      "id",
+      "options"
+    ],
+    "nvmet.subsys.query": [
+      "filters",
+      "options"
+    ],
+    "pool.dataset.create": [
+      "data"
+    ],
+    "pool.dataset.delete": [
+      "id",
+      "options"
+    ],
+    "pool.dataset.destroy_snapshots": [
+      "name",
+      "snapshots"
+    ],
+    "pool.dataset.get_instance": [
+      "id",
+      "options"
+    ],
+    "pool.dataset.query": [
+      "filters",
+      "options"
+    ],
+    "pool.dataset.update": [
+      "id",
+      "data"
+    ],
+    "pool.snapshot.clone": [
+      "data"
+    ],
+    "pool.snapshot.create": [
+      "data"
+    ],
+    "pool.snapshot.delete": [
+      "id",
+      "options"
+    ],
+    "pool.snapshot.get_instance": [
+      "id",
+      "options"
+    ],
+    "pool.snapshot.query": [
+      "filters",
+      "options"
+    ],
+    "pool.snapshot.update": [
+      "id",
+      "data"
+    ],
+    "replication.run_onetime": [
+      "replication_run_onetime"
+    ],
+    "service.reload": [
+      "service",
+      "options"
+    ],
+    "sharing.nfs.create": [
+      "data"
+    ],
+    "sharing.nfs.delete": [
+      "id"
+    ],
+    "sharing.nfs.query": [
+      "filters",
+      "options"
+    ],
+    "sharing.nfs.update": [
+      "id",
+      "data"
+    ],
+    "sharing.smb.create": [
+      "data"
+    ],
+    "sharing.smb.delete": [
+      "id"
+    ],
+    "sharing.smb.query": [
+      "filters",
+      "options"
+    ],
+    "sharing.smb.update": [
+      "id",
+      "data"
+    ],
+    "system.info": [],
+    "system.version": []
+  },
+  "v27.0.0": {
+    "auth.login": [
+      "username",
+      "password",
+      "otp_token"
+    ],
+    "auth.login_with_api_key": [
+      "api_key"
+    ],
+    "core.get_jobs": [
+      "filters",
+      "options"
+    ],
+    "core.job_wait": [
+      "id"
+    ],
+    "filesystem.chown": [
+      "filesystem_chown"
+    ],
+    "filesystem.setperm": [
+      "filesystem_setperm"
+    ],
+    "iscsi.extent.create": [
+      "iscsi_extent_create"
+    ],
+    "iscsi.extent.delete": [
+      "id",
+      "remove",
+      "force"
+    ],
+    "iscsi.extent.query": [
+      "filters",
+      "options"
+    ],
+    "iscsi.extent.update": [
+      "id",
+      "iscsi_extent_update"
+    ],
+    "iscsi.global.config": [],
+    "iscsi.target.create": [
+      "iscsi_target_create"
+    ],
+    "iscsi.target.delete": [
+      "id",
+      "force",
+      "delete_extents"
+    ],
+    "iscsi.target.query": [
+      "filters",
+      "options"
+    ],
+    "iscsi.target.update": [
+      "id",
+      "iscsi_target_update"
+    ],
+    "iscsi.targetextent.create": [
+      "iscsi_target_to_extent_create"
+    ],
+    "iscsi.targetextent.delete": [
+      "id",
+      "force"
+    ],
+    "iscsi.targetextent.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.namespace.create": [
+      "nvmet_namespace_create"
+    ],
+    "nvmet.namespace.delete": [
+      "id",
+      "options"
+    ],
+    "nvmet.namespace.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.port.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.port_subsys.create": [
+      "nvmet_port_subsys_create"
+    ],
+    "nvmet.port_subsys.query": [
+      "filters",
+      "options"
+    ],
+    "nvmet.subsys.create": [
+      "nvmet_subsys_create"
+    ],
+    "nvmet.subsys.delete": [
+      "id",
+      "options"
+    ],
+    "nvmet.subsys.query": [
+      "filters",
+      "options"
+    ],
+    "pool.dataset.create": [
+      "data"
+    ],
+    "pool.dataset.delete": [
+      "id",
+      "options"
+    ],
+    "pool.dataset.destroy_snapshots": [
+      "name",
+      "snapshots"
+    ],
+    "pool.dataset.get_instance": [
+      "id",
+      "options"
+    ],
+    "pool.dataset.query": [
+      "filters",
+      "options"
+    ],
+    "pool.dataset.update": [
+      "id",
+      "data"
+    ],
+    "pool.snapshot.clone": [
+      "data"
+    ],
+    "pool.snapshot.create": [
+      "data"
+    ],
+    "pool.snapshot.delete": [
+      "id",
+      "options"
+    ],
+    "pool.snapshot.get_instance": [
+      "id",
+      "options"
+    ],
+    "pool.snapshot.query": [
+      "filters",
+      "options"
+    ],
+    "pool.snapshot.update": [
+      "id",
+      "data"
+    ],
+    "replication.run_onetime": [
+      "replication_run_onetime"
+    ],
+    "service.reload": [
+      "service",
+      "options"
+    ],
+    "sharing.nfs.create": [
+      "data"
+    ],
+    "sharing.nfs.delete": [
+      "id"
+    ],
+    "sharing.nfs.query": [
+      "filters",
+      "options"
+    ],
+    "sharing.nfs.update": [
+      "id",
+      "data"
+    ],
+    "sharing.smb.create": [
+      "data"
+    ],
+    "sharing.smb.delete": [
+      "id"
+    ],
+    "sharing.smb.query": [
+      "filters",
+      "options"
+    ],
+    "sharing.smb.update": [
+      "id",
+      "data"
+    ],
+    "system.info": [],
+    "system.version": []
+  }
+}

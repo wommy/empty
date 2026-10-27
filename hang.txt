@@ -1,0 +1,113 @@
+2026/10/27 05:25:06 WARN drain timed out: cancelling in-flight calls after=100ms in_flight=1
+2026/10/27 05:25:07 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapacity code=Aborted duration=310.103203ms peer=bufconn error="inspect parent: zfs get tank/vols: interrupted, outcome unknown: signal: terminated"
+2026/10/27 05:25:07 WARN drain timed out: cancelling in-flight calls after=50ms in_flight=1
+2026/10/27 05:25:07 ERROR handlers still running after stop: exiting anyway after=200ms in_flight=1
+panic: test timed out after 20s
+	running tests:
+		TestShutdownWaitsForCancelledHandlers (20s)
+
+goroutine 9 [running]:
+testing.(*M).startAlarm.func1()
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2961 +0x34a
+created by time.goFunc
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/time/sleep.go:182 +0x2d
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0x1a226460ed88, {0x9d5f90?, 0x1a2264633aa0?}, 0x1005130)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2268 +0x4f2
+testing.runTests.func1(0x1a226460ed88)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2744 +0x37
+testing.tRunner(0x1a226460ed88, 0x1a2264633bc8)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2195 +0xea
+testing.runTests({0x9c9add, 0x16}, {0x9d6d4b, 0x26}, 0x1a22645b4630, {0x106e7b0, 0x9, 0x9}, {0xc2b02b51b2832196, 0x4a83b5e2e, ...})
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2742 +0x510
+testing.(*M).Run(0x1a226459f900)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2602 +0x6af
+main.main()
+	_testmain.go:64 +0x9b
+
+goroutine 21 [sync.Mutex.Lock]:
+internal/sync.runtime_SemacquireMutex(0x5602c0?, 0x28?, 0x10086a0?)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/runtime/sema.go:95 +0x25
+internal/sync.(*Mutex).lockSlow(0x1a226493ca80)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/internal/sync/mutex.go:149 +0x15a
+internal/sync.(*Mutex).Lock(...)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/internal/sync/mutex.go:70
+sync.(*Mutex).Lock(...)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/sync/mutex.go:46
+google.golang.org/grpc.(*Server).stop(0x1a226493c908, 0x0)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1692 +0x10d
+google.golang.org/grpc.(*Server).Stop(...)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1677
+testing.(*common).Cleanup.func1()
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:1462 +0x109
+testing.(*common).runCleanup(0x1a226460efc8, 0x0?)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:1822 +0xea
+testing.tRunner.func2()
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2189 +0x25
+testing.tRunner(0x1a226460efc8, 0x1005130)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2201 +0x114
+created by testing.(*T).Run in goroutine 1
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/testing/testing.go:2260 +0x4d4
+
+goroutine 23 [chan receive]:
+google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run(0x1a22645ab090, {0x1001450, 0x1a22645baa50})
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/internal/grpcsync/callback_serializer.go:114 +0x10d
+created by google.golang.org/grpc/internal/grpcsync.NewCallbackSerializer in goroutine 21
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/internal/grpcsync/callback_serializer.go:57 +0x13d
+
+goroutine 24 [chan receive]:
+google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run(0x1a22645ab0b0, {0x1001450, 0x1a22645baaa0})
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/internal/grpcsync/callback_serializer.go:114 +0x10d
+created by google.golang.org/grpc/internal/grpcsync.NewCallbackSerializer in goroutine 21
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/internal/grpcsync/callback_serializer.go:57 +0x13d
+
+goroutine 25 [chan receive]:
+google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run(0x1a22645ab0d0, {0x1001450, 0x1a22645baaf0})
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/internal/grpcsync/callback_serializer.go:114 +0x10d
+created by google.golang.org/grpc/internal/grpcsync.NewCallbackSerializer in goroutine 21
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/internal/grpcsync/callback_serializer.go:57 +0x13d
+
+goroutine 91 [sync.WaitGroup.Wait]:
+sync.runtime_SemacquireWaitGroup(0x0?, 0x0?)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/runtime/sema.go:114 +0x2e
+sync.(*WaitGroup).Wait(0x1a226493caf0)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/sync/waitgroup.go:206 +0x85
+google.golang.org/grpc.(*Server).stop(0x1a226493c908, 0x1)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1722 +0x2f1
+google.golang.org/grpc.(*Server).GracefulStop(...)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1684
+created by github.com/wommy/empty/internal/server.(*Daemon).Shutdown in goroutine 21
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/internal/server/daemon.go:119 +0xc8
+
+goroutine 90 [sleep]:
+time.Sleep(0x34630b8a000)
+	/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/src/runtime/time.go:368 +0x165
+github.com/wommy/empty/internal/server_test.(*gateRunner).Run(0x7f9903226868?, {0x1001418?, 0x1a22648a32c0?}, {0x107e940?, 0x1a226453e480?}, {0x1a226453e480, 0x6, 0x6})
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/internal/server/daemon_test.go:48 +0x21c
+github.com/wommy/empty/internal/zfs.(*Client).run(0x9f28d0?, {0x1001418, 0x1a22648a32c0}, {0x9bb310, 0x3}, {0x9bfd01, 0x9}, {0x1a226453e480, 0x6, 0x6})
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/internal/zfs/zfs.go:115 +0x9f
+github.com/wommy/empty/internal/zfs.(*Client).Get(0x1a226453c040, {0x1001418, 0x1a22648a32c0}, {0x9bfd01, 0x9}, {0x1a2264605730, 0x1, 0x1})
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/internal/zfs/zfs.go:142 +0x1cf
+github.com/wommy/empty/internal/endpoint.(*Endpoint).GetCapacity(0x1a22645a46e0, {0x1001418?, 0x1a22648a32c0?})
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/internal/endpoint/endpoint.go:632 +0x65
+github.com/wommy/empty/internal/server.(*Server).GetCapacity(0x1062810?, {0x1001418?, 0x1a22648a32c0?}, 0x1a22646057b0?)
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/internal/server/server.go:203 +0x25
+github.com/wommy/empty/gen/zfsendpoint/v1._EndpointService_GetCapacity_Handler.func1({0x1001418?, 0x1a22648a32c0?}, {0xf03058?, 0x1a22648a3260?})
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/gen/zfsendpoint/v1/endpoint_grpc.pb.go:499 +0xcb
+github.com/wommy/empty/internal/server.(*Daemon).unary(0x1a22645b84c0, {0x1001418, 0x1a22648a3230}, {0xf03058, 0x1a22648a3260}, 0x1a226453c7a0, 0x1a226461e468)
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/internal/server/daemon.go:150 +0x1eb
+github.com/wommy/empty/gen/zfsendpoint/v1._EndpointService_GetCapacity_Handler({0xef3938, 0x1a226461e078}, {0x1001418, 0x1a22648a3230}, 0x1a226461e450, 0x1a226448a320)
+	/home/user/empty/.claude/worktrees/agent-aad3f1ab5f9072c5f/gen/zfsendpoint/v1/endpoint_grpc.pb.go:501 +0x166
+google.golang.org/grpc.(*Server).wrapUnaryHandler.func1({0xef3938, 0x1a226461e078}, {0x10020c8, 0x1a2264954100})
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1284 +0xc3
+google.golang.org/grpc.(*Server).processRPC(0x1a226493c908, {0x1001418, 0x1a22648a31d0}, 0x1a22649521c0, 0x1a22648a22a0, 0x1a226453c1c0, 0x0)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1450 +0x1230
+google.golang.org/grpc.(*Server).handleStream(0x1a226493c908, {0x10016f0, 0x1a22645eeea0}, 0x1a22649521c0)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1595 +0xa94
+google.golang.org/grpc.(*Server).serveStreams.func2.1()
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1096 +0x7f
+created by google.golang.org/grpc.(*Server).serveStreams.func2 in goroutine 88
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1107 +0x127
+FAIL	github.com/wommy/empty/internal/server	20.024s
+FAIL

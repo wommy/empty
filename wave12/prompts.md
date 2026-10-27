@@ -1,0 +1,9 @@
+# wave12: Pareto triage (3 agents; launch when running < 4)
+Writers: 0 of 3 (owner rule: writers < 50%).
+ANOMALIES FIRST (owner rule): weigh anything unexplained (timing jumps, counts that do not add up, flaky or surprising behaviour) aggressively; rank it above ordinary findings and root-cause it with data.
+Shared: repo /home/user/empty, branch claude/gallant-johnson-1qaxp5 HEAD; ADRs 0001-0005; CONTEXT none yet. Read-only on repo; outputs to scratchpad/wave12/. No pushes.
+Pareto rule for all three: every finding gets (likelihood x blast radius) / fix cost; output the top 20% that remove ~80% of risk, with a one-line fix and the test (lowest level that proves it, ADR 0005).
+
+1. Opus — Findings ledger triage: ingest every report in scratchpad (wave5..wave10: adversary.md, spec.json open rows, mutation.md, suite.md, diff-fuzz reports, dod3/, adv4/, gaps docs, README stale claims), dedupe into one ledger.jsonl (id, source(s), kind: edge|gap|seam|bug|doc|perf|ops, status at HEAD verified by reading code), Pareto-rank, and propose the next 3 builder batches (disjoint files) to fix the top 20%.
+2. Opus — Seams & edges hunt (fresh eyes): every boundary — CSI<->endpoint gRPC, endpoint<->zfs CLI/JSON, endpoint<->nfs-utils/etab/kernel, process<->systemd/signals/locks, config/flags<->runtime, k8s sidecars/csi-driver-nfs<->volume_context, upgrade/downgrade of properties and prefixes. For each seam: the contract each side assumes, where they disagree, edge inputs (empty, max, unicode, races, crash windows, clock), and whether a test pins it. Verify against code, not docs.
+3. Sonnet — Gaps vs production: what an operator needs that does not exist (install/upgrade path, metrics/health, backup/DR, HA fencing, security/authn ADR 0001, capacity limits, observability of reconcile, docs/runbooks, block-volume node story). Rank by Pareto against "first real deployment on TrueNAS/Ubuntu 26.10 with OpenZFS 2.4".

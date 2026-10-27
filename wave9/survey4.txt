@@ -1,0 +1,133 @@
+=== class:create (x3)
+# generated: seed121
+zfs create -V 67108864 $R/v
+zfs create -s -V 67108864 -o volblocksize=3000 $R/v
+step 2 `zfs create -s -V 67108864 -o volblocksize=3000 $R/v`: class differs
+  A: badprop: cannot create 'zfsep-test/zd/s0/v': 'volblocksize' must be power of 2 from 512B to 16M
+  B: exists: cannot create 'zfsep-test/zd/s0/v': dataset already exists
+
+=== class:destroy (x64)
+# generated: seed0
+zfs destroy -d $R/x@s1
+step 1 `zfs destroy -d $R/x@s1`: class differs
+  A: noent: cannot open 'zfsep-test/zd/s0/x': dataset does not exist
+  B: nosnaps: could not find any snapshots to destroy; check snapshot names.
+
+=== class:inherit (x13)
+# generated: seed24
+zfs inherit canmount $R/y
+step 1 `zfs inherit canmount $R/y`: class differs
+  A: noinherit: 'canmount' property cannot be inherited
+  B: noent: cannot open 'zfsep-test/zd/s0/y': dataset does not exist
+
+=== class:rename (x41)
+# generated: seed21
+zfs rename $R/x $R/a/z
+step 1 `zfs rename $R/x $R/a/z`: class differs
+  A: noent: cannot open 'zfsep-test/zd/s0/x': dataset does not exist
+  B: unknown: unrecognized command 'rename'
+
+=== class:set (x1)
+# generated: seed364
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs set -u dedup=off $R/a@s1
+step 3 `zfs set -u dedup=off $R/a@s1`: class differs
+  A: snapprop: cannot set property for 'zfsep-test/zd/s0/a@s1': this property can not be modified for snapshots
+  B: proptype: cannot set property for 'zfsep-test/zd/s0/a@s1': 'dedup' does not apply to datasets of this type
+
+=== class:snapshot (x2)
+# generated: seed227
+zfs create $R/a
+zfs snapshot -o compression=off $R/a@s1
+step 2 `zfs snapshot -o compression=off $R/a@s1`: class differs
+  A: snapprop: cannot create snapshots : this property can not be modified for snapshots
+  B: unknown: cannot create snapshot 'zfsep-test/zd/s0/a@s1': property 'compression' can not be set on snapshots
+
+=== code:create (x11)
+# generated: seed61
+zfs create -s -V 1000000 -o volblocksize=3000 $R/x
+step 1 `zfs create -s -V 1000000 -o volblocksize=3000 $R/x`: code differs
+  A: 1 cannot create 'zfsep-test/zd/s0/x': 'volblocksize' must be power of 2 from 512B to 16M
+  B: 0 
+
+=== code:destroy (x7)
+# generated: seed126
+zfs create -V 67108864 $R/v
+zfs destroy -rd $R/v
+step 2 `zfs destroy -rd $R/v`: code differs
+  A: 1 cannot open 'zfsep-test/zd/s0/v': missing '@' delimiter in snapshot name
+  B: 0 
+
+=== code:inherit (x15)
+# generated: seed5
+zfs inherit bogus $R/a/w
+step 1 `zfs inherit bogus $R/a/w`: code differs
+  A: 2 invalid property 'bogus'
+  B: 1 cannot open 'zfsep-test/zd/s0/a/w': dataset does not exist
+
+=== code:rename (x6)
+# generated: seed52
+zfs create $R/a
+zfs rename $R/a $R/z
+step 2 `zfs rename $R/a $R/z`: code differs
+  A: 0 
+  B: 1 unrecognized command 'rename'
+
+=== code:set (x5)
+# generated: seed31
+zfs set compression=bogus compression=lz4 $R/v
+step 1 `zfs set compression=bogus compression=lz4 $R/v`: code differs
+  A: 255 property 'compression' specified multiple times
+  B: 1 cannot open 'zfsep-test/zd/s0/v': dataset does not exist
+
+=== code:snapshot (x116)
+# generated: seed1
+zfs snapshot $R/r@s1
+step 1 `zfs snapshot $R/r@s1`: code differs
+  A: 2 cannot open 'zfsep-test/zd/s0/r': dataset does not exist
+  B: 1 cannot open 'zfsep-test/zd/s0/r': dataset does not exist
+
+=== proj:create:refreservation (x9)
+# generated: seed8
+zfs create -V 134217728 -o refreservation=none $R/y
+step 1 `zfs create -V 134217728 -o refreservation=none $R/y`: proj differs
+  A: $R/y	refreservation	0	local
+  B: $R/y	refreservation	none	local
+
+=== proj:set:mounted (x2)
+# generated: seed209
+zfs create $R/a
+zfs set canmount=noauto $R/a
+step 2 `zfs set canmount=noauto $R/a`: proj differs
+  A: $R/a	mounted	yes	-
+  B: $R/a	mounted	no	-
+
+=== proj:set:quota (x2)
+# generated: seed4
+zfs create $R/a
+zfs set quota=none copies=2 $R/a
+step 2 `zfs set quota=none copies=2 $R/a`: proj differs
+  A: $R/a	quota	0	local
+  B: $R/a	quota	none	local
+
+=== proj:set:reservation (x1)
+# generated: seed266
+zfs create -V 67108864 $R/v
+zfs set reservation=none $R/v
+step 2 `zfs set reservation=none $R/v`: proj differs
+  A: $R/v	reservation	0	local
+  B: $R/v	reservation	none	local
+
+=== proj:snapshot:acltype (x25)
+# generated: seed67
+zfs create -V 67108864 $R/v
+zfs snapshot -o zd:a=snap $R/v@s2
+step 2 `zfs snapshot -o zd:a=snap $R/v@s2`: proj differs
+  A: $R/v@s2	acltype	-	-
+     $R/v@s2	volsize	67108864	local
+     $R/v@s2	xattr	-	-
+  B: $R/v@s2	acltype	off	default
+     $R/v@s2	volsize	67108864	-
+     $R/v@s2	xattr	sa	default
+

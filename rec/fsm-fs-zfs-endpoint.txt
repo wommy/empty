@@ -1,0 +1,22 @@
+# FSM explore: kind=filesystem prefix=zfs-endpoint depth=4
+distinct worlds=193 edges=1222 crash/retry runs=3906 combos=99 time=9.363s
+
+## row states observed
+  CSI-snap                                                     2320
+  CSI-snap-deferred                                            29
+  Clone-uncommitted                                            1282
+  Committed                                                    7327
+  Committed-clone                                              1214
+  Created-uncommitted                                          1033
+  Foreign                                                      671
+  Foreign(dcsi)                                                597
+  Foreign(recv)                                                734
+  Foreign-snap                                                 2345
+  Foreign-snap(recv)                                           95
+  IMPOSSIBLE(managed internal snapshot)                        2770
+
+## findings (minimal depth first)
+
+[unnamed-state] (depth 2) IMPOSSIBLE(managed internal snapshot)
+  trace: CV(a) ; CV(b<-a,reserve)
+    => a@volume-source-for-volume-b:IMPOSSIBLE(managed internal snapshot)

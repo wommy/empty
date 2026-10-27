@@ -1,0 +1,76 @@
+package endpoint
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/wommy/empty/internal/zfs"
+)
+
+type probeRunner struct{ out string }
+
+func (c probeRunner) Run(context.Context, string, ...string) ([]byte, error) { return []byte(c.out), nil }
+
+func TestReachPhantom(t *testing.T) {
+	n := props{DefaultPropertyPrefix}
+	var b strings.Builder
+	for _, ds := range []string{"tank/v", "tank/v/a"} {
+		for _, p := range n.columns() {
+			v, src := "-", "-"
+			switch {
+			case p == "type":
+				v = "filesystem"
+			case p == "creation":
+				v = "1700000000"
+			case ds == "tank/v/a" && (p == n.managed() || p == n.success()):
+				v, src = "true", "local"
+			case ds == "tank/v/a" && p == n.volumeName():
+				v, src = "a", "local"
+			}
+			b.WriteString(ds + "\t" + p + "\t" + v + "\t" + src + "\n")
+		}
+	}
+	b.WriteString("tank/v/a@ghost\t" + n.managed() + "\ttrue\tlocal\ntank/v/a@ghost\t" + n.success() + "\ttrue\tlocal\n")
+	ep, _ := New(zfs.New(probeRunner{b.String()}), Config{Parent: "tank/v"})
+	vols, _, err := ep.ListVolumes(context.Background(), 0, "")
+	var ids []string
+	for _, v := range vols {
+		ids = append(ids, v.ID+"("+v.Kind.String()+")")
+	}
+	t.Logf("phantom: ListVolumes = %v, code=%v err=%v", ids, CodeOf(err), err)
+}
+
+func TestReachKind(t *testing.T) {
+	plan, err := pl.PlanCreateVolume(NewTable(nil), CreateVolumeRequest{Name: "a", Kind: VolumeKind(7), Reserve: true, Sparse: true})
+	t.Logf("Kind=7 Reserve+Sparse no capacity: %d ops, err=%v", len(plan), err)
+}
+
+func TestReachZeroPlanner(t *testing.T) {
+	defer func() { t.Logf("zero Planner block create: recovered=%v", recover()) }()
+	Planner{Parent: "tank/v"}.PlanCreateVolume(NewTable(nil), CreateVolumeRequest{Name: "a", Kind: Block, CapacityBytes: 1000})
+}
+
+func TestReachClient(t *testing.T) {
+	row := vol("a", func(r *Row) { r.Mounted, r.Mount, r.ShareNFS = true, "/tank/v/a", "off" })
+	plan, _, err := pl.PlanPublishExport(NewTable([]Row{row}), Etab{}, "a", NFSClient{Host: "*"})
+	if len(plan) > 0 {
+		t.Logf("NFSClient{Host:\"*\"}: sharenfs=%q err=%v", plan[0].Props["sharenfs"], err)
+	} else {
+		t.Logf("NFSClient{Host:\"*\"}: err=%v", err)
+	}
+}
+
+func TestReachPrefix(t *testing.T) {
+	for _, p := range []string{"Bad Prefix", "a,type"} {
+		_, err := New(zfs.New(probeRunner{}), Config{Parent: "tank/v", PropertyPrefix: p})
+		t.Logf("prefix %q: New err=%v", p, err)
+	}
+}
+
+func TestReachOpZero(t *testing.T) {
+	ep, _ := New(zfs.New(probeRunner{}), Config{Parent: "tank/v"})
+	t.Logf("apply(Plan{{}}): %v", ep.apply(context.Background(), Plan{{}}))
+	t.Logf("apply(Op{Kind: OpSet, Target: \"tank/v/a\"} no props): %v", ep.apply(context.Background(), Plan{{Kind: OpSet, Target: "tank/v/a"}}))
+	t.Logf("apply(destroy outside parent): %v", ep.apply(context.Background(), Plan{{Kind: OpDestroy, Target: "tank/other", Recursive: true}}))
+}

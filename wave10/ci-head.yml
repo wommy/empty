@@ -1,0 +1,98 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# one run per PR: a new push cancels the old run; every push to main gets
+# its own group, so none is cancelled or dropped from the queue
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # go.mod's `go` line is 1.27.0 and its toolchain line 1.27.3: install
+  # 1.27.3 directly and never switch, or the restored cache and the
+  # switched toolchain collide (tar "Failed to restore" in every job)
+  GOTOOLCHAIN: local
+
+defaults:
+  run:
+    shell: bash # -eo pipefail, so `| tee` does not hide a failure
+
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: 1.27.3
+          cache-dependency-path: go.sum # key: unit
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: go.mod and go.sum tidy
+        run: go mod tidy -diff
+      - name: vet
+        run: go vet ./...
+      - name: test (simulator)
+        run: go test -race -count=1 ./...
+
+  fuzz:
+    # each target in parallel, off the unit job's critical path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: FuzzCreateConverges, pkg: ./internal/endpoint }
+          - { name: FuzzReconcileSafe, pkg: ./internal/endpoint }
+          - { name: FuzzParseColumns, pkg: ./internal/zfs }
+          - { name: FuzzClassify, pkg: ./internal/zfs }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: 1.27.3
+          cache: false # the unit job owns the build cache
+      - name: fuzz ${{ matrix.target.name }}
+        run: go test -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime 30s -fuzzminimizetime 10s ${{ matrix.target.pkg }}
+
+  proto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # buf is run at a pinned version rather than added as a go.mod tool:
+      # its large dependency tree would take part in this module's version
+      # selection (grpc, protobuf, x/...). `go run pkg@version` is verified
+      # against sum.golang.org and leaves no stale binary on PATH. The
+      # protoc plugins are go.mod tools (buf.gen.yaml runs `go tool ...`),
+      # so they always match the protobuf/grpc versions in go.sum.
+      BUF: go run github.com/bufbuild/buf/cmd/buf@v1.47.2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: 1.27.3
+          cache: false # buf's modules once took over the shared cache key
+      - name: buf lint
+        run: $BUF lint
+      - name: generated code up to date
+        run: |
+          $BUF generate
+          test -z "$(gofmt -l gen | tee /dev/stderr)"
+          git diff --exit-code -- gen/
+          test -z "$(git status --porcelain -- gen | tee /dev/stderr)"
+

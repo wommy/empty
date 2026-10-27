@@ -1,0 +1,395 @@
+{
+ "_comment": "test -> [invariant class, one-phrase invariant]. Hand-written: the only non-mechanical column of the inventory.",
+ "TestLockParentIsExclusive": [
+  "process-singleton",
+  "one endpoint process per parent (flock)"
+ ],
+ "TestCapabilitiesAdvertised": [
+  "csi-surface",
+  "controller advertises exactly the supported RPC set"
+ ],
+ "TestExpandNodeExpansionRequired": [
+  "csi-expand",
+  "node expansion only for a zvol carrying a filesystem"
+ ],
+ "TestParametersAndAccessChecks": [
+  "csi-params",
+  "StorageClass parameters and access modes are validated"
+ ],
+ "TestNeverIssuedIDs": [
+  "csi-ids",
+  "ids never issued are NotFound (Delete: OK), never InvalidArgument"
+ ],
+ "TestExpandUnlimitedFilesystem": [
+  "csi-expand",
+  "expand of an unlimited fs reports the requested capacity"
+ ],
+ "TestSanity": [
+  "csi-spec",
+  "csi-sanity Identity + Controller specs pass"
+ ],
+ "TestApplyRefusesAnUnknownOpKind": [
+  "apply-safety",
+  "unknown op kind refuses the whole plan before any op"
+ ],
+ "TestOpKindString": [
+  "diagnostics",
+  "op kinds render stable names"
+ ],
+ "TestPlannersRequireACoveringTable": [
+  "plan-coverage",
+  "planners refuse a table that does not cover what they judge"
+ ],
+ "TestScanRecordsCoverage": [
+  "plan-coverage",
+  "scans record exactly which ids they cover"
+ ],
+ "TestZfsErrCodes": [
+  "error-mapping",
+  "each zfs error Kind maps to its CSI code"
+ ],
+ "TestParseClient": [
+  "export-input",
+  "NFS client specs are parsed or InvalidArgument"
+ ],
+ "TestShareNFSAndClientEncoding": [
+  "export-encoding",
+  "sharenfs/client encoding is canonical and round-trips"
+ ],
+ "TestParseEtab": [
+  "export-etab",
+  "etab lines parse to client lookups"
+ ],
+ "TestPlanPublishExport": [
+  "export-plan",
+  "publish plans the minimal sharenfs set or refuses"
+ ],
+ "TestPlanUnpublishExport": [
+  "export-plan",
+  "unpublish plans the minimal sharenfs set or refuses"
+ ],
+ "TestExportConverges": [
+  "export-plan",
+  "publish/unpublish twice converges to an empty plan"
+ ],
+ "TestPlanCreateMalformedSourceIsNotFound": [
+  "create-source",
+  "unissuable content-source ids are NotFound"
+ ],
+ "TestPlanCreateIsEmptyWhenSatisfied": [
+  "create-idempotency",
+  "a satisfied create plans nothing"
+ ],
+ "TestPlanCreateConvergesUncommittedClone": [
+  "create-resume",
+  "an uncommitted clone is driven to size, reservation, commit"
+ ],
+ "TestPlanCreateRefusesForeignAndIncompatible": [
+  "create-compat",
+  "foreign or incompatible existing rows are AlreadyExists"
+ ],
+ "TestPlanCreateHonorsLimitOnly": [
+  "create-capacity",
+  "limit-only request sets a quota"
+ ],
+ "TestPlanCreateThickZvolLeavesReservationToZFS": [
+  "create-capacity",
+  "thick zvols keep zfs's auto refreservation"
+ ],
+ "TestPlanDeleteVolume": [
+  "delete-semantics",
+  "delete refuses snapshotted/cloned volumes, defers clone sources"
+ ],
+ "TestPlanExpand": [
+  "expand",
+  "expand rounds to volblocksize; unlimited fs gets no quota"
+ ],
+ "TestPlanSnapshotReservedPrefix": [
+  "snapshot-names",
+  "internal clone-source prefix is reserved"
+ ],
+ "TestPlanSnapshotLongAndUnusualNames": [
+  "snapshot-names",
+  "long/unusual names hash to a valid <=128-byte id, stably"
+ ],
+ "TestPlanCreateFilesystemsAreNotShared": [
+  "export-default",
+  "new filesystems are created unshared"
+ ],
+ "TestPlanCreatePropertiesDenyList": [
+  "props-allowlist",
+  "properties outside the allowlist/kind are InvalidArgument"
+ ],
+ "TestValidatePropertyValues": [
+  "props-canon",
+  "allowlisted values canonicalise to what zfs prints"
+ ],
+ "TestPlanCreateAppliesProperties": [
+  "props-apply",
+  "validated properties are planned at create"
+ ],
+ "TestPlanCreatePropertiesRetry": [
+  "props-compat",
+  "retry compatibility compares local canonical values"
+ ],
+ "TestPlanCreatePropertiesConvergeUncommitted": [
+  "create-resume",
+  "uncommitted rows are driven to the requested properties"
+ ],
+ "TestPlanReconcile": [
+  "reconcile-plan",
+  "reconcile collects exactly the undesired/uncommitted owned, old rows"
+ ],
+ "TestPlanReconcileLocksEveryTarget": [
+  "reconcile-locks",
+  "every reconcile action locks its volume and served clone"
+ ],
+ "TestPlanReconcileHeldLimitsActions": [
+  "reconcile-locks",
+  "actions outside held locks, and dependents, are skipped"
+ ],
+ "TestSimulateDestroyReapsDeferredOrigins": [
+  "reconcile-plan",
+  "deferred destroys reap when the last clone goes"
+ ],
+ "TestCloneLargerThanLimitIsOutOfRange": [
+  "create-capacity",
+  "a clone larger than limit is OutOfRange before any op"
+ ],
+ "TestReserveRestoreIsIdempotent": [
+  "create-idempotency",
+  "reserve-restores reserve the source size, retry no-op"
+ ],
+ "TestCloneFailureAfterCloneConvergesToSameState": [
+  "crash-convergence",
+  "failure after clone converges to the uninterrupted end state"
+ ],
+ "TestCreateVolumeIdempotent": [
+  "create-idempotency",
+  "identical create is a no-op; incompatible is AlreadyExists"
+ ],
+ "TestCreateVolumeResumesInterruptedProvision": [
+  "create-resume",
+  "an uncommitted provision is hidden then resumed"
+ ],
+ "TestNeverAdoptsOrDeletesUnmanaged": [
+  "ownership",
+  "unmanaged datasets are never adopted or deleted"
+ ],
+ "TestDeleteVolume": [
+  "delete-semantics",
+  "delete is idempotent and refuses while CSI snapshots exist"
+ ],
+ "TestSnapshotLifecycleWithClones": [
+  "snapshot-lifecycle",
+  "snapshot ids/global names, restore with growth, deferred delete"
+ ],
+ "TestCloneFromVolumeReleasesInternalSnapshot": [
+  "clone-source-lifecycle",
+  "volume clones release their internal snapshot"
+ ],
+ "TestExpand": [
+  "expand",
+  "expand grows, never shrinks, NotFound when missing"
+ ],
+ "TestConcurrentCreatesSerialize": [
+  "locking",
+  "concurrent identical creates run zfs create once"
+ ],
+ "TestPagination": [
+  "pagination",
+  "list pages in order; bad token Aborted"
+ ],
+ "TestInheritedOwnershipIsNotOwnership": [
+  "ownership",
+  "inherited user props are not ownership"
+ ],
+ "TestThickCloneRetryIsIdempotent": [
+  "create-idempotency",
+  "thick clone retry succeeds"
+ ],
+ "TestCloneResizeFailureConverges": [
+  "crash-convergence",
+  "failure between clone and resize converges on retry"
+ ],
+ "TestMissingParentIsUnavailableNotAbsent": [
+  "missing-parent",
+  "missing parent is Unavailable, not NotFound/absent"
+ ],
+ "TestCreateVolumeProperties": [
+  "props-e2e",
+  "properties applied, read back, compared on retry, converged"
+ ],
+ "TestFileExportLifecycle": [
+  "export-e2e",
+  "publish/unpublish reaches the kernel table, idempotently"
+ ],
+ "TestFileExportPreconditions": [
+  "export-input",
+  "export refuses zvols, unmounted, missing, bad hosts, disabled"
+ ],
+ "TestFileExportVerifiesKernelTable": [
+  "export-verify",
+  "publish/unpublish verify etab, not zfs set's exit code"
+ ],
+ "TestFileExportAdoptedVolumes": [
+  "export-adoption",
+  "inherited sharenfs is pinned; foreign local sharenfs refused"
+ ],
+ "TestDeleteVolumeSparesForeignSnapshots": [
+  "ownership",
+  "foreign snapshots block delete and reconcile unless opted in"
+ ],
+ "TestDeleteVolumeAfterItsCloneIsGone": [
+  "clone-source-lifecycle",
+  "internal clone-source snapshot does not block delete"
+ ],
+ "TestBusyIsMappedByOperation": [
+  "error-mapping",
+  "busy maps by op: delete FailedPrecondition, else Unavailable"
+ ],
+ "TestUnknownFailureAfterAMutationIsRetryable": [
+  "error-mapping",
+  "unknown error after a mutation is Aborted, before Internal"
+ ],
+ "TestCloneSourcesMustBeOwned": [
+  "ownership",
+  "clone sources must be owned, committed, CSI"
+ ],
+ "TestCloneNeverAdoptsARacingDataset": [
+  "ownership",
+  "a clone never adopts a dataset created in the race window"
+ ],
+ "TestVolumeNameMustMatchID": [
+  "ownership",
+  "markers naming another volume are not served"
+ ],
+ "TestReceivedCopyIsNotOwned": [
+  "ownership",
+  "received properties are not ownership"
+ ],
+ "TestReconcileSparesReceivedAndRenamed": [
+  "ownership",
+  "reconcile spares received and renamed datasets"
+ ],
+ "TestMissingParentIsUnavailableForWholeScans": [
+  "missing-parent",
+  "whole-parent scans map a missing parent to Unavailable"
+ ],
+ "TestDefaultPropertyPrefixIsOurOwn": [
+  "prefix",
+  "default property prefix is zfs-endpoint"
+ ],
+ "TestPropertyPrefixIsValidated": [
+  "prefix",
+  "invalid property prefixes are refused at startup"
+ ],
+ "TestReconcileCollectsAbandonedCreate": [
+  "reconcile-e2e",
+  "abandoned creates collected when old; dry run applies nothing"
+ ],
+ "TestReconcileCollectsLeakedCloneSource": [
+  "reconcile-e2e",
+  "leaked clone-source snapshots collected, used ones kept"
+ ],
+ "TestReconcileAgainstDesiredSet": [
+  "reconcile-e2e",
+  "reconcile against a desired set collects in dependency order"
+ ],
+ "TestReconcileLocksTargets": [
+  "reconcile-locks",
+  "reconcile aborts on a held lock; dry run takes none"
+ ],
+ "FuzzReconcileSafe": [
+  "reconcile-safety",
+  "reconcile never targets kept rows and converges (fuzz)"
+ ],
+ "FuzzCreateConverges": [
+  "create-idempotency",
+  "accepted creates converge; retry mutates nothing (fuzz)"
+ ],
+ "TestRoundTripAndCodes": [
+  "grpc-surface",
+  "gRPC maps endpoint codes and fields"
+ ],
+ "TestReconcile": [
+  "grpc-surface",
+  "gRPC reconcile: capability, young skip, input validation"
+ ],
+ "TestFileExport": [
+  "grpc-surface",
+  "gRPC file export gated by capability"
+ ],
+ "TestListenIsOwnerOnly": [
+  "unixsock",
+  "socket is owner-only"
+ ],
+ "TestListenRefusesALiveSocket": [
+  "unixsock",
+  "a live socket is not replaced"
+ ],
+ "TestListenReplacesAStaleSocket": [
+  "unixsock",
+  "a stale socket is replaced"
+ ],
+ "TestListenNeverDeletesANonSocket": [
+  "unixsock",
+  "a non-socket path is never deleted"
+ ],
+ "TestParseColumnsRejectsForgedLines": [
+  "zfs-parse",
+  "duplicate (forged) lines fail the scan"
+ ],
+ "TestClassify": [
+  "zfs-classify",
+  "known stderr texts classify to their Kind"
+ ],
+ "TestExistsDoesNotSwallowUnknownErrors": [
+  "zfs-classify",
+  "only a classified not-found is absent"
+ ],
+ "TestRejectsFlagLikeAndShellNames": [
+  "zfs-argv",
+  "flag-like/shell names and newline values refused"
+ ],
+ "TestLifecycleAgainstSim": [
+  "sim-fidelity",
+  "client create/get/snapshot/clone/defer-destroy/list on sim"
+ ],
+ "TestKilledCommandIsInterrupted": [
+  "zfs-runner",
+  "a killed command is Interrupted with the ctx error, bounded"
+ ],
+ "TestSimPrintsIndexPropertiesLikeOpenZFS": [
+  "sim-fidelity",
+  "sim prints index props like OpenZFS 2.4"
+ ],
+ "TestPropLocalIsOnlyLocal": [
+  "ownership",
+  "only source=local is local"
+ ],
+ "FuzzParseColumns": [
+  "zfs-parse",
+  "parser output shape is consistent (fuzz)"
+ ],
+ "FuzzClassify": [
+  "zfs-classify",
+  "classify returns a valid Kind for any text (fuzz)"
+ ],
+ "TestGoldenPlans": [
+  "plan-golden",
+  "every (Table, request) row plans exactly its golden ops, deterministically"
+ ],
+ "TestCrashAtEveryMutationConverges": [
+  "crash-convergence",
+  "a crash before/after any mutating call converges to the uninterrupted end state"
+ ],
+ "TestPropertyRoundTrip": [
+  "props-roundtrip",
+  "every allowlisted value is applied locally, reads back canonical, retries clean"
+ ],
+ "TestPropertyRoundTripCoversEveryKey": [
+  "props-roundtrip",
+  "every allowlisted key yields table rows"
+ ]
+}
