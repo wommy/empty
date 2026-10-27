@@ -1,0 +1,14 @@
+[
+{"label": "5a: restoreShareNFS always inherits (the Set branch deleted)", "file": "internal/endpoint/endpoint.go",
+ "old": "\tif before.ShareNFSLocal {\n\t\treturn e.zfs.Set(ctx, before.Name, map[string]string{\"sharenfs\": before.ShareNFS})",
+ "new": "\tif false && before.ShareNFSLocal {\n\t\treturn e.zfs.Set(ctx, before.Name, map[string]string{\"sharenfs\": before.ShareNFS})",
+ "pkg": "./internal/endpoint", "run": "TestFileExportRefusedPublishRestoresLocalList"},
+{"label": "5b: a failed restore is dropped", "file": "internal/endpoint/endpoint.go",
+ "old": "\t\t\tif rerr := e.restoreShareNFS(ctx, row); rerr != nil {",
+ "new": "\t\t\tif rerr := e.restoreShareNFS(ctx, row); false && rerr != nil {",
+ "pkg": "./internal/endpoint", "run": "TestFileExportRefusedPublishRestoresLocalList"},
+{"label": "5c: no restore after a refusal", "file": "internal/endpoint/endpoint.go",
+ "old": "\t\tif len(plan) > 0 {\n\t\t\tif rerr := e.restoreShareNFS(ctx, row); rerr != nil {",
+ "new": "\t\tif false && len(plan) > 0 {\n\t\t\tif rerr := e.restoreShareNFS(ctx, row); rerr != nil {",
+ "pkg": "./internal/endpoint", "run": "TestFileExportRefusedPublishRestoresLocalList"}
+]

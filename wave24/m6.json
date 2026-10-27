@@ -1,0 +1,10 @@
+[
+{"label": "6a: a failed rollback is dropped (only the grow's error returned)", "file": "internal/endpoint/endpoint.go",
+ "old": "\t\tif rerr := e.rollbackExpand(ctx, before); rerr != nil {",
+ "new": "\t\tif rerr := e.rollbackExpand(ctx, before); false && rerr != nil {",
+ "pkg": "./internal/endpoint", "run": "TestExpandRollbackFailureIsReported"},
+{"label": "6b: rollbackExpand ignores its scan error", "file": "internal/endpoint/endpoint.go",
+ "old": "\tt, err := e.scan(ctx, before.ID)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn e.apply(ctx, e.plan.PlanExpandRollback(t, before))",
+ "new": "\tt, err := e.scan(ctx, before.ID)\n\tif false && err != nil {\n\t\treturn err\n\t}\n\treturn e.apply(ctx, e.plan.PlanExpandRollback(t, before))",
+ "pkg": "./internal/endpoint", "run": "TestExpandRollbackFailureIsReported"}
+]

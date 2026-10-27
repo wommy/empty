@@ -377,3 +377,7 @@
 {"ts": "2026-10-27T16:36:13Z", "id": "a4d747b6e8fa52105", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-27T16:36:13Z", "id": "a4d747b6e8fa52105", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T16:36:13Z", "id": "a4d747b6e8fa52105", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T16:40:05Z", "id": "a7b0ee7e8649d8e0b", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T16:40:05Z", "id": "a7b0ee7e8649d8e0b", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T16:40:05Z", "id": "a7b0ee7e8649d8e0b", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T16:40:05Z", "id": "aec3b828c6a86e68b", "from": "queued", "to": "running", "note": "q-scan-cut"}

@@ -1,0 +1,60 @@
+endpoint: headroom guard reads usedbyrefreservation; GetCapacity is child space
+
+The -min-free-bytes guard estimated a new child's space as the parent's
+available less its whole refreservation, short by min(unique,
+refreservation): a parent whose refreservation covers its own data was
+refused although its children had room (100G refreservation full of
+the parent's data, 50G of dir space: the guard read 0). It now
+subtracts usedbyrefreservation, max(0, refreservation - unique), which
+is exactly what available adds back (dsl_dir.c dsl_dir_stats,
+DD_USED_REFRSRV), so the figure is exact while no refquota caps the
+parent. A dir without the used breakdown prints "-", which zfs.Prop.Uint
+reads as 0; that would overestimate, so "-" (or an absent value) falls
+back to the refreservation bound.
+
+childSpace also says when its figure is only a lower bound, and the
+refusal carries why: the parent is a pool root with a refquota (no level
+up to read; its children's space is not reported), the level up a
+refquota needs could not be read (that read's error used to fail the
+create; it now falls back to the bound already in hand), or no used
+breakdown.
+
+GetCapacity reported the parent's raw available, which counts the
+parent's own unused refreservation and is capped by its refquota. CSI
+available_capacity is "the storage that can be used to provision
+volumes", so it now reports childSpace less the floor: the largest
+thick volume it reports passes the guard. With no floor and no
+reservations it is unchanged. The csi package passes the number
+through (i64 clamp); its tests do not pin a value. The server tests'
+canned zfs get answers now carry the properties childSpace reads.
+
+TestChildAvail: row 7's inputs were impossible (available 0.5G under a
+5G refquota means 4.5G referenced, above its 4G used); now available 5G
+= min(10G dir space + 4G unused refreservation, 5G refquota - 0), used
+4G. Rows carry usedbyrefreservation and whether the result is exact.
+
+Sim: usedbyrefreservation (filesystems and volumes; "-" on snapshots,
+which skip dsl_dir_stats) is the refreservation, max(0, R - unique) with
+unique 0, as dirUsed already counted it; used is the dir's
+dd_used_bytes (dirUsed) instead of 0, so used >= usedbyrefreservation as
+on a real pool and the guard's level-up arithmetic sees the real used.
+zfs set of any readonly property now fails "'<prop>' is readonly" like
+zfs_valid_proplist (only volblocksize did; others were stored). The
+zfsdiff model knows the property (readonly, not projected); the corpus
+and random model-vs-sim runs agree, nightly included.
+
+TestRealFacts SPC-02 pins on a real pool that a new child's available
+is its parent's available less the parent's usedbyrefreservation, and
+that usedbyrefreservation is the refreservation within 1 MiB for a
+fresh dataset; weight +0.6s estimated by hand.
+
+Failing first: TestChildAvail (covering-refreservation row read 0, want
+50G; partly used read 3G, want 5G), TestMinFreeBytesGuardLevelUpUnreadable
+(thin create failed "inspect parent: zfs get tank: permission denied"),
+TestMinFreeBytesGuardPoolRootRefquota (refusal did not say lower bound),
+TestGetCapacityIsChildSpace (10G for a parent with an unused 5G
+refreservation, 1G under a 1G refquota), TestSimUsedByRefreservation
+(invalid property 'usedbyrefreservation').
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
