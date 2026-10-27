@@ -15,3 +15,4 @@
 {"run": 40513522394, "sha": "2b648ef", "conclusion": "success", "seconds": 55, "cause": null, "note": "ci-trim merged; under 60 cap, 10s over 45 target; cache lever pending"}
 {"run": 40515292150, "sha": "c1f00ba", "conclusion": "failure", "seconds": null, "cause": "A-zvol-cleanup-busy"}
 {"run": 40515962800, "sha": "8559eb1", "conclusion": "success", "seconds": 65, "cause": null, "note": "A-zvol-cleanup-busy fixed; endpoint job 62s (restore 11s, test 42s); over 60 cap by 5s: endpoint test step is the long pole"}
+{"run": 40516341443, "sha": "7048b51", "conclusion": "success", "seconds": 157, "cause": null, "note": "cold zfsvm-v5 provisioning (expected); stored guest 540M (v4 943M); direct no-initrd boot passed checks; warm timing pending next push"}

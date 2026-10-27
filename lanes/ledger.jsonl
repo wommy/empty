@@ -56,3 +56,4 @@
 {"t":"2026-10-27T14:00Z","lane":"writer","agent":"a2d5add9daefcd276","name":"ci-cache","tokens":210602,"tools":75,"min":17,"outcome":"merged","sha":"pending-ci"}
 {"t":"2026-10-27T14:02Z","lane":"reader","agent":"af6985ce32183060f","name":"r-seams","tokens":200704,"tools":45,"min":5.8,"findings":3,"confirmed":2,"actionable":3,"outcome":"done -> q-seams-fix"}
 {"t":"2026-10-27T14:02Z","lane":"reader","agent":"a8806c3aad4d92fff","name":"r-ci-45","tokens":147668,"tools":22,"min":5.9,"findings":10,"actionable":3,"outcome":"done -> q-ci-poll, q-ci-split3"}
+{"t":"2026-10-27T14:05Z","lane":"reader","agent":"ae5bbba5f5297c943","name":"r-sim-gaps","tokens":242119,"tools":59,"min":12.7,"findings":6,"actionable":4,"outcome":"done -> #5 folded into seams-fix; #1,#3,#4 -> q-sim-facts (writer, after a slot frees); #6 low"}

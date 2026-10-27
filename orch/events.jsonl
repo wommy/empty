@@ -261,3 +261,10 @@
 {"ts": "2026-10-27T13:56:34Z", "id": "ab861af8ad2341413", "from": "queued", "to": "running", "note": "q-seams-fix"}
 {"ts": "2026-10-27T13:56:34Z", "id": "a27f596bb840a667d", "from": "queued", "to": "running", "note": "q-ci-poll"}
 {"ts": "2026-10-27T13:56:34Z", "id": "acf7494638986ab8a", "from": "queued", "to": "running", "note": "q-ci-split3"}
+{"ts": "2026-10-27T13:56:40Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T14:02:11Z", "id": "ae5bbba5f5297c943", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T14:02:11Z", "id": "ae5bbba5f5297c943", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T14:02:11Z", "id": "ae5bbba5f5297c943", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T14:02:42Z", "id": "aca049f970d79dedd", "from": "queued", "to": "running", "note": "q-r-review"}
+{"ts": "2026-10-27T14:02:42Z", "id": "a9ad34019bac5d798", "from": "queued", "to": "running", "note": "q-r-guestcpu"}
+{"ts": "2026-10-27T14:02:42Z", "id": "ad2a854644691adce", "from": "queued", "to": "running", "note": "q-r-simfacts-spec"}
