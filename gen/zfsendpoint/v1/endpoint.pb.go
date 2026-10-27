@@ -462,12 +462,10 @@ type CreateVolumeRequest struct {
 	// Default-deny: only an allowlist is accepted, per kind, with validated
 	// values; anything else, including user properties ("a:b"), is
 	// INVALID_ARGUMENT.
-	//
-	//	FILESYSTEM: compression, recordsize, atime, relatime, sync, logbias,
-	//	            dedup (off|on|verify), xattr, acltype, snapdir, copies
-	//	BLOCK:      compression, volblocksize (create-only; a clone must match
-	//	            its source), sync, logbias, dedup, copies
-	//
+	//   FILESYSTEM: compression, recordsize, atime, relatime, sync, logbias,
+	//               dedup (off|on|verify), xattr, acltype, snapdir, copies
+	//   BLOCK:      compression, volblocksize (create-only; a clone must match
+	//               its source), sync, logbias, dedup, copies
 	// A repeat with the same name is compatible only if every requested
 	// property is set locally on the volume with the same value; otherwise
 	// ALREADY_EXISTS.

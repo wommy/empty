@@ -69,13 +69,13 @@ type EndpointServiceClient interface {
 	// NFS export of FILESYSTEM volumes, one client at a time (CSI
 	// ControllerPublish/Unpublish). Offered only with CAPABILITY_FILE_EXPORT;
 	// otherwise UNIMPLEMENTED.
-	//   - Publishing the same client in the same mode again is OK; in the other
-	//     mode ALREADY_EXISTS.
-	//   - Unpublishing a client (or volume) that is not exported is OK.
-	//   - BLOCK volumes and filesystems not mounted on the storage host are
-	//     FAILED_PRECONDITION.
-	//   - OK means the NFS server serves (or no longer serves) the client; if it
-	//     does not, UNAVAILABLE, and a retry re-applies.
+	// - Publishing the same client in the same mode again is OK; in the other
+	//   mode ALREADY_EXISTS.
+	// - Unpublishing a client (or volume) that is not exported is OK.
+	// - BLOCK volumes and filesystems not mounted on the storage host are
+	//   FAILED_PRECONDITION.
+	// - OK means the NFS server serves (or no longer serves) the client; if it
+	//   does not, UNAVAILABLE, and a retry re-applies.
 	PublishFileExport(ctx context.Context, in *PublishFileExportRequest, opts ...grpc.CallOption) (*PublishFileExportResponse, error)
 	UnpublishFileExport(ctx context.Context, in *UnpublishFileExportRequest, opts ...grpc.CallOption) (*UnpublishFileExportResponse, error)
 }
@@ -242,13 +242,13 @@ type EndpointServiceServer interface {
 	// NFS export of FILESYSTEM volumes, one client at a time (CSI
 	// ControllerPublish/Unpublish). Offered only with CAPABILITY_FILE_EXPORT;
 	// otherwise UNIMPLEMENTED.
-	//   - Publishing the same client in the same mode again is OK; in the other
-	//     mode ALREADY_EXISTS.
-	//   - Unpublishing a client (or volume) that is not exported is OK.
-	//   - BLOCK volumes and filesystems not mounted on the storage host are
-	//     FAILED_PRECONDITION.
-	//   - OK means the NFS server serves (or no longer serves) the client; if it
-	//     does not, UNAVAILABLE, and a retry re-applies.
+	// - Publishing the same client in the same mode again is OK; in the other
+	//   mode ALREADY_EXISTS.
+	// - Unpublishing a client (or volume) that is not exported is OK.
+	// - BLOCK volumes and filesystems not mounted on the storage host are
+	//   FAILED_PRECONDITION.
+	// - OK means the NFS server serves (or no longer serves) the client; if it
+	//   does not, UNAVAILABLE, and a retry re-applies.
 	PublishFileExport(context.Context, *PublishFileExportRequest) (*PublishFileExportResponse, error)
 	UnpublishFileExport(context.Context, *UnpublishFileExportRequest) (*UnpublishFileExportResponse, error)
 	mustEmbedUnimplementedEndpointServiceServer()
