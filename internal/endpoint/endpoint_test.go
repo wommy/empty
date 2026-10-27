@@ -366,6 +366,18 @@ func TestPagination(t *testing.T) {
 	}
 	_, _, err := ep.ListVolumes(ctx, 2, "nope")
 	wantCode(t, err, endpoint.Aborted)
+	// S4: the token's volume deleted between pages; the walk goes on
+	first, tok, err := ep.ListVolumes(ctx, 2, "")
+	if err != nil || len(first) != 2 {
+		t.Fatal(first, err)
+	}
+	if err := ep.DeleteVolume(ctx, first[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	rest, next, err := ep.ListVolumes(ctx, 2, tok)
+	if err != nil || len(rest) != 1 || rest[0].ID != "v3" || next != "" {
+		t.Fatalf("after deleting %s: %+v %q %v", first[1].ID, rest, next, err)
+	}
 }
 
 // review H2: user properties inherit, so a snapshot an administrator took

@@ -562,25 +562,43 @@ func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) 
 	return volumeView(row), nil
 }
 
-// page returns items after startingToken (an item id), at most max (0 = all),
-// and the next token. An unknown token is Aborted (CSI).
-func page[T any](items []T, id func(T) string, max int, startingToken string) ([]T, string, error) {
+// tokenPrefix starts every page token: "after/<last id served>". "/" is in
+// no volume or snapshot id, so a token is never mistaken for an id, and a
+// string the endpoint never issued (csi-sanity's "invalid-token", a bare
+// id from a build before this format) is Aborted rather than read as a
+// position. A walk across that upgrade restarts once.
+const tokenPrefix = "after/"
+
+// volumeToken and snapshotToken report whether a token's id could be one
+// the list serves; the ids need not exist any more.
+func volumeToken(id string) bool { return id != "" && !strings.ContainsAny(id, "/@") }
+
+func snapshotToken(id string) bool {
+	vol, snap, ok := strings.Cut(id, "@")
+	return ok && volumeToken(vol) && snap != "" && !strings.ContainsAny(snap, "/@")
+}
+
+// page returns items (sorted by id) after startingToken, at most max (0 =
+// all), and the next token. A token resumes at the first id after the one
+// it names, whether or not that item still exists: a volume deleted
+// between pages (normal churn while a CO lists) must not end the walk. A
+// token the endpoint could not have issued is Aborted (CSI).
+func page[T any](items []T, id func(T) string, valid func(string) bool, max int, startingToken string) ([]T, string, error) {
 	start := 0
 	if startingToken != "" {
-		start = -1
-		for i, it := range items {
-			if id(it) == startingToken {
-				start = i + 1
-				break
-			}
-		}
-		if start < 0 {
+		after, ok := strings.CutPrefix(startingToken, tokenPrefix)
+		if !ok || !valid(after) {
 			return nil, "", errorf(Aborted, "invalid starting token %q", startingToken)
 		}
+		i, found := slices.BinarySearchFunc(items, after, func(it T, after string) int { return strings.Compare(id(it), after) })
+		if found {
+			i++
+		}
+		start = i
 	}
 	items = items[start:]
 	if max > 0 && len(items) > max {
-		return items[:max], id(items[max-1]), nil
+		return items[:max], tokenPrefix + id(items[max-1]), nil
 	}
 	return items, "", nil
 }
@@ -597,7 +615,7 @@ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToke
 			vols = append(vols, volumeView(r))
 		}
 	}
-	return page(vols, func(v Volume) string { return v.ID }, maxEntries, startingToken)
+	return page(vols, func(v Volume) string { return v.ID }, volumeToken, maxEntries, startingToken)
 }
 
 // CreateSnapshot cuts "<volume>@<name>". The same name on the same volume is
@@ -651,7 +669,7 @@ func (e *Endpoint) ListSnapshots(ctx context.Context, snapshotID, sourceVolumeID
 		}
 		snaps = append(snaps, s)
 	}
-	return page(snaps, func(s Snapshot) string { return s.ID }, maxEntries, startingToken)
+	return page(snaps, func(s Snapshot) string { return s.ID }, snapshotToken, maxEntries, startingToken)
 }
 
 // DeleteSnapshot removes a snapshot. Missing or never-issued ids succeed. A
