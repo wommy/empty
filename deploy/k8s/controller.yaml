@@ -1,5 +1,6 @@
 # The CSI controller: zfs-csi plus the provisioner, resizer and snapshotter
-# sidecars, on the ZFS host itself (hyperconverged, ADR 0006).
+# sidecars and a liveness probe, on the ZFS host itself (hyperconverged,
+# ADR 0006).
 #
 # Before applying:
 #   - label the ZFS host, and exactly one node: the controller follows the
@@ -23,7 +24,7 @@
 # before production: a tag can be re-pushed.
 #
 # Sockets and users:
-#   - /csi is an emptyDir shared by the four containers. kubelet makes it
+#   - /csi is an emptyDir shared by the five containers. kubelet makes it
 #     0777; zfs-csi serves csi.sock there 0600 (unixsock.ListenShared), so
 #     every container runs as uid 0, the socket's owner.
 #   - /run/zfs-endpoint/sock/<escaped parent> is this endpoint's socket
@@ -35,8 +36,9 @@
 #   - The endpoint directory is mounted read-only: zfs-csi only connect()s,
 #     which needs write permission on the socket inode, not a writable
 #     mount (ADR 0008).
-#   - The service account token reaches the three sidecars only, through a
-#     projected volume; zfs-csi calls no Kubernetes API.
+#   - The service account token reaches the provisioner, resizer and
+#     snapshotter only, through a projected volume; zfs-csi and the
+#     liveness probe call no Kubernetes API.
 #   - No ControllerPublish, so no attacher sidecar (CSIDriver
 #     attachRequired: false).
 apiVersion: apps/v1
@@ -94,6 +96,27 @@ spec:
           resources:
             requests: {cpu: 10m, memory: 20Mi}
             limits: {memory: 128Mi}
+          # The endpoint's runtime health (NOT_SERVING on a suspended or
+          # exported pool, all zfs slots stuck, a drain) is otherwise
+          # invisible here: the sidecars call Probe only at startup. The
+          # liveness-probe container serves Probe on :29664/healthz, 500
+          # while the endpoint is not serving or unreachable.
+          # Readiness, not liveness (ADR 0008 addendum): restarting zfs-csi
+          # does not fix the endpoint, and its sidecars exit when the CSI
+          # socket goes away, so a long pool outage would become a restart
+          # loop of all five containers. NotReady after 3 x 10s: an
+          # endpoint restart (seconds, Restart=on-failure 2s) passes
+          # unseen; a stuck endpoint shows within 30s and for as long as
+          # it lasts. No Service selects this pod: readiness only reports
+          # (kubectl get pod READY, the Ready condition, alerts on it).
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 29664
+            periodSeconds: 10
+            # above the liveness probe's --probe-timeout
+            timeoutSeconds: 5
+            failureThreshold: 3
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
@@ -169,6 +192,33 @@ spec:
               mountPath: /csi
             - name: kube-api-access
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
+        - name: liveness-probe
+          # the image and digest node.yaml pins (kubernetes/k8s.io
+          # images.yaml at 56620372d4896b196b798a1271c7dc5922e8d780)
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.19.0@sha256:06da0d5b8908072f2e4522692aee8dc119fba7247a9658497e1153992cd777e9
+          args:
+            - --csi-address=/csi/csi.sock
+            - --probe-timeout=3s
+            # on the pod IP: kubelet probes it from the host, where
+            # localhost is the node's. Not node.yaml's 29663 (host network)
+            # or csi-driver-nfs's 29653. It answers only ready or not.
+            - --http-endpoint=:29664
+            - --v=2
+          ports:
+            - name: healthz
+              containerPort: 29664
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 20Mi}
+            limits: {memory: 100Mi}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
               readOnly: true
       volumes:
         - name: socket-dir

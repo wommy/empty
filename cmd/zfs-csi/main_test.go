@@ -2,7 +2,11 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -109,5 +113,34 @@ func TestVersionFlag(t *testing.T) {
 	// builds saying "dev" with nothing failing
 	if want := os.Getenv("WANT_VERSION"); want != "" && got != want {
 		t.Fatalf("-version printed %q, want %q: -ldflags -X no longer sets internal/version.Version", got, want)
+	}
+}
+
+// zfs-csi logs JSON (slog) to stderr, as ADR 0006 says both binaries do,
+// the fatal line too, so a JSON pipeline reading kubectl logs keeps it.
+// The test binary re-runs itself as main() with flags run refuses.
+func TestLogsJSON(t *testing.T) {
+	if os.Getenv("ZFS_CSI_RUN_MAIN") == "1" {
+		os.Args = []string{"zfs-csi", "-parent", "tank/a", "-endpoint", "unix:///x/e.sock"}
+		main()
+		return
+	}
+	t.Parallel()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestLogsJSON$")
+	cmd.Env = append(os.Environ(), "ZFS_CSI_RUN_MAIN=1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 {
+		t.Fatalf("main with -parent and -endpoint: %v, want exit 1; stderr %q", err, stderr.String())
+	}
+	lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+	var rec map[string]any
+	if len(lines) != 1 || json.Unmarshal([]byte(lines[0]), &rec) != nil {
+		t.Fatalf("stderr %q: want one JSON line", stderr.String())
+	}
+	if rec["level"] != "ERROR" || rec["msg"] != "exit" || !strings.Contains(fmt.Sprint(rec["error"]), "-parent and -endpoint") {
+		t.Errorf("fatal line %v", rec)
 	}
 }
