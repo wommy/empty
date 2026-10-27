@@ -596,7 +596,10 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 				return Volume{}, resumeErr(err)
 			}
 		}
-		if pass > 0 || len(plan)+len(commit) == 0 || commit != nil || p.commits(plan) {
+		if pass == 0 && len(plan)+len(commit) == 0 {
+			return e.servedFrom(ctx, t, id) // a compatible repeat
+		}
+		if pass > 0 || commit != nil || p.commits(plan) {
 			break
 		}
 	}
@@ -709,6 +712,17 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 		return Volume{}, errorf(Aborted, "volume %s vanished or changed owner after provisioning", id)
 	}
 	return volumeView(row), nil
+}
+
+// servedFrom is readVolume answered from t: a scan made under the
+// volume's lock with nothing applied since, so a re-read would read the
+// same rows again (a compatible repeat, an expand already done). A row
+// that is not a served volume still gets the re-read and its verdict.
+func (e *Endpoint) servedFrom(ctx context.Context, t Table, id string) (Volume, error) {
+	if row, ok := t.Get(id); ok && row.ServedVolume() {
+		return volumeView(row), nil
+	}
+	return e.readVolume(ctx, id)
 }
 
 // DeleteVolume destroys a volume. Missing volumes succeed (CSI). Like the
@@ -863,7 +877,12 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 		}
 		return Volume{}, err
 	}
-	v, err := e.readVolume(ctx, volID)
+	var v Volume
+	if len(plan) == 0 {
+		v, err = e.servedFrom(ctx, t, volID) // already at least capacity
+	} else {
+		v, err = e.readVolume(ctx, volID)
+	}
 	if err == nil && v.Kind == Filesystem && v.CapacityBytes == 0 {
 		// unlimited (no refquota) already satisfies the request, and a
 		// quota would shrink it; capacity after expansion is reported as

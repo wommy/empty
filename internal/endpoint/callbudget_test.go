@@ -29,7 +29,6 @@ var rpcCallBudget = []rpcBudget{
 	}},
 	{"CreateVolume block retry", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/b",
-		"get -t filesystem,volume,snapshot -d 1 <cols> P/b",
 	}},
 	{"CreateVolume fs new", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
@@ -41,7 +40,6 @@ var rpcCallBudget = []rpcBudget{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
 	}},
 	{"CreateVolume fs retry", []string{
-		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
 	}},
 	{"CreateVolume nfs new", []string{
@@ -55,7 +53,6 @@ var rpcCallBudget = []rpcBudget{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/n",
 	}},
 	{"CreateVolume nfs retry", []string{
-		"get -t filesystem,volume,snapshot -d 1 <cols> P/n",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/n",
 	}},
 	{"CreateSnapshot new", []string{
@@ -78,7 +75,6 @@ var rpcCallBudget = []rpcBudget{
 	{"CreateVolume clone of snapshot retry", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/c",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/b",
-		"get -t filesystem,volume,snapshot -d 1 <cols> P/c",
 	}},
 	{"CreateVolume fs clone of volume new", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/cf",
@@ -96,7 +92,6 @@ var rpcCallBudget = []rpcBudget{
 	{"CreateVolume fs clone of volume retry", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/cf",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
-		"get -t filesystem,volume,snapshot -d 1 <cols> P/cf",
 	}},
 	{"ExpandVolume new", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
@@ -104,7 +99,6 @@ var rpcCallBudget = []rpcBudget{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
 	}},
 	{"ExpandVolume retry", []string{
-		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
 	}},
 	{"DeleteVolume present", []string{
