@@ -87,16 +87,25 @@ func listen(path string, checkDir func(string) error) (net.Listener, error) {
 	return l, err
 }
 
-// CheckPath accepts only an absolute filesystem path for a socket. Go
-// treats a leading '@' as a Linux abstract socket: no inode, so no mode,
-// no owner and no directory to protect it, and any local process can
-// connect.
+// MaxPathLen is the longest socket path bind accepts: sockaddr_un's
+// sun_path holds 108 bytes including the terminating NUL.
+const MaxPathLen = 107
+
+// CheckPath accepts only an absolute filesystem path for a socket, short
+// enough to bind. Go treats a leading '@' as a Linux abstract socket: no
+// inode, so no mode, no owner and no directory to protect it, and any
+// local process can connect. A path past MaxPathLen would pass every other
+// check and fail only at bind ("invalid argument"), after the daemon's
+// whole startup.
 func CheckPath(path string) error {
 	if strings.HasPrefix(path, "@") {
 		return fmt.Errorf("socket %q: abstract sockets have no permissions; use an absolute path", path)
 	}
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return fmt.Errorf("socket %q: want a clean absolute path", path)
+	}
+	if len(path) > MaxPathLen {
+		return fmt.Errorf("socket %q is %d bytes: sun_path holds %d and a NUL (108 bytes)", path, len(path), MaxPathLen)
 	}
 	return nil
 }

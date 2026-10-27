@@ -8,6 +8,13 @@
 # zfs-endpoint's default -listen and `zfs-csi -parent tank/k8s/vols` use
 # the same path (deploy/deploy_test.go pins it).
 #
+# %i keeps the escapes literally: tank/k8s-vols is served on
+# /run/zfs-endpoint/tank-k8s\x2dvols.sock, backslash and all, so each '-'
+# (and any byte outside [A-Za-z0-9:_.]) in the dataset name costs 4
+# bytes. A socket path holds at most 107 bytes (sun_path), which leaves 84
+# for the escaped name; a longer one exits 78 at startup (no restart), and
+# needs a shorter -listen in a drop-in, with zfs-csi -endpoint to match.
+#
 # For an encrypted parent, add After=zfs-load-key.service (or the matching
 # zfs-load-key@ unit) in a drop-in.
 
@@ -55,7 +62,8 @@ KillMode=mixed
 KillSignal=SIGTERM
 TimeoutStopSec=45
 # > the version probe (10s) + -parent-wait (60s) + one parent probe (10s)
-TimeoutStartSec=90
+# + the property-prefix check (10s)
+TimeoutStartSec=100
 
 # restart with backoff (RestartSteps/RestartMaxDelaySec: systemd >= 254)
 Restart=on-failure
