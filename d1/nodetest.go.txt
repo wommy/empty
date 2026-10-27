@@ -1,0 +1,207 @@
+
+// upstreamNodeRBAC is what csi-driver-nfs's deploy/<tag>/rbac-csi-nfs.yaml
+// grants its node service account (csi-nfs-node-sa), keyed by the pinned
+// nfsplugin image tag: bumping it fails TestNodeDaemonSet until this table
+// is refreshed from the new tag. At v4.13.6 no binding names the node
+// account: the node plugin, the registrar and the liveness probe call no
+// Kubernetes API.
+var upstreamNodeRBAC = map[string]func(grant){
+	"registry.k8s.io/sig-storage/nfsplugin:v4.13.6": func(grant) {},
+}
+
+// The node plugin is csi-driver-nfs's node DaemonSet (ADR 0004, ADR 0009)
+// under this driver's name: kubelet finds it by the registration path, and
+// csi-driver-nfs's own CSIDriver is not shipped (TestManifests). Images
+// are pinned by tag and digest; every container has requests and a memory
+// limit; only the nfs container is privileged (it mounts, with
+// Bidirectional propagation into the pods directory), and the others drop
+// every capability, keep a read-only root and mount the plugin socket
+// read-only; no container gets a service account token, and the node
+// account is granted no more than upstream grants its own.
+func TestNodeDaemonSet(t *testing.T) {
+	t.Parallel()
+	objs := k8sObjects(t)
+	ds := object(t, objs, "DaemonSet", nodeName)
+	if get(ds, "metadata", "namespace") != namespace {
+		t.Errorf("DaemonSet namespace %v, want %s", get(ds, "metadata", "namespace"), namespace)
+	}
+	pod := get(ds, "spec", "template", "spec")
+	if get(pod, "serviceAccountName") != nodeName {
+		t.Errorf("serviceAccountName %v, want %s", get(pod, "serviceAccountName"), nodeName)
+	}
+	object(t, objs, "ServiceAccount", nodeName)
+	if get(pod, "automountServiceAccountToken") != false {
+		t.Error("automountServiceAccountToken is not false: the node containers call no Kubernetes API")
+	}
+	// csi-driver-nfs: "original nfs connection would be broken without
+	// hostNetwork"; ADR 0001 v2 D8 relies on mounts using host networking
+	if get(pod, "hostNetwork") != true || get(pod, "dnsPolicy") != "ClusterFirstWithHostNet" {
+		t.Errorf("hostNetwork %v, dnsPolicy %v: want true, ClusterFirstWithHostNet", get(pod, "hostNetwork"), get(pod, "dnsPolicy"))
+	}
+	if l := get(object(t, objs, "Namespace", namespace), "metadata", "labels", "pod-security.kubernetes.io/enforce"); l != "privileged" {
+		t.Errorf("namespace Pod Security enforce %v: baseline and restricted refuse a privileged node plugin", l)
+	}
+
+	vols := map[string]any{}
+	for _, v := range get(pod, "volumes").([]any) {
+		vols[get(v, "name").(string)] = v
+	}
+	pluginDir := "/var/lib/kubelet/plugins/" + zcsi.DefaultDriverName
+	for name, want := range map[string]string{
+		"socket-dir":       pluginDir,
+		"registration-dir": "/var/lib/kubelet/plugins_registry",
+		"pods-mount-dir":   "/var/lib/kubelet/pods",
+	} {
+		if p := get(vols[name], "hostPath", "path"); p != want {
+			t.Errorf("volume %s: hostPath %v, want %s", name, p, want)
+		}
+	}
+
+	cs := containers(pod)
+	var names []string
+	for _, c := range get(pod, "containers").([]any) {
+		names = append(names, get(c, "name").(string))
+	}
+	if want := []string{"nfs", "node-driver-registrar", "liveness-probe"}; !slices.Equal(names, want) {
+		t.Fatalf("containers %v, want %v", names, want)
+	}
+	for name, c := range cs {
+		image, _ := get(c, "image").(string)
+		if !pinnedDigest.MatchString(image) {
+			t.Errorf("%s: image %q not pinned by tag and digest", name, image)
+		}
+		for _, k := range [][]string{{"requests", "cpu"}, {"requests", "memory"}, {"limits", "memory"}} {
+			if get(c, "resources", k[0], k[1]) == nil {
+				t.Errorf("%s: no resources.%s.%s", name, k[0], k[1])
+			}
+		}
+		sc := get(c, "securityContext")
+		mounts := map[string]any{}
+		for _, m := range get(c, "volumeMounts").([]any) {
+			mounts[get(m, "name").(string)] = m
+		}
+		if name == "nfs" {
+			if get(sc, "privileged") != true {
+				t.Error("nfs: not privileged: it mounts NFS and propagates the mounts to kubelet")
+			}
+			if get(mounts["pods-mount-dir"], "mountPropagation") != "Bidirectional" {
+				t.Error("nfs: the pods directory is not mounted Bidirectional: pods would not see the volume")
+			}
+			continue
+		}
+		if get(sc, "privileged") == true || get(sc, "allowPrivilegeEscalation") != false ||
+			get(sc, "readOnlyRootFilesystem") != true || !slices.Equal(strs(get(sc, "capabilities", "drop")), []string{"ALL"}) {
+			t.Errorf("%s: securityContext %v: want unprivileged, no escalation, a read-only root, every capability dropped", name, sc)
+		}
+		for mname, m := range mounts {
+			// the registrar writes its registration socket; nothing else
+			// outside the nfs container writes to the host
+			if get(m, "readOnly") != true && (name != "node-driver-registrar" || mname != "registration-dir") {
+				t.Errorf("%s: %s mounted read-write", name, mname)
+			}
+			if get(m, "mountPropagation") != nil {
+				t.Errorf("%s: %s has mount propagation", name, mname)
+			}
+		}
+	}
+
+	nfsArgs := strs(get(cs["nfs"], "args"))
+	if v, _ := flagValue(nfsArgs, "--drivername"); v != zcsi.DefaultDriverName {
+		t.Errorf("nfs --drivername %q, want %s", v, zcsi.DefaultDriverName)
+	}
+	if v, _ := flagValue(nfsArgs, "--endpoint"); v != "unix:///csi/csi.sock" {
+		t.Errorf("nfs --endpoint %q, want unix:///csi/csi.sock", v)
+	}
+	if v, _ := flagValue(nfsArgs, "--nodeid"); v != "$(NODE_ID)" {
+		t.Errorf("nfs --nodeid %q, want $(NODE_ID)", v)
+	}
+	for _, e := range get(cs["nfs"], "env").([]any) {
+		if get(e, "name") == "NODE_ID" && get(e, "valueFrom", "fieldRef", "fieldPath") != "spec.nodeName" {
+			t.Errorf("NODE_ID from %v, want spec.nodeName", get(e, "valueFrom"))
+		}
+	}
+	for _, name := range []string{"nfs", "node-driver-registrar", "liveness-probe"} {
+		var mount any
+		for _, m := range get(cs[name], "volumeMounts").([]any) {
+			if get(m, "name") == "socket-dir" {
+				mount = get(m, "mountPath")
+			}
+		}
+		if mount != "/csi" {
+			t.Errorf("%s: socket-dir at %v, want /csi", name, mount)
+		}
+	}
+	reg := strs(get(cs["node-driver-registrar"], "args"))
+	if v, _ := flagValue(reg, "--kubelet-registration-path"); v != pluginDir+"/csi.sock" {
+		t.Errorf("registrar --kubelet-registration-path %q, want %s/csi.sock", v, pluginDir)
+	}
+	// both hostNetwork: a port shared with upstream csi-driver-nfs's
+	// node plugin (29653) would collide on a node running both
+	probe := strs(get(cs["liveness-probe"], "args"))
+	ep, _ := flagValue(probe, "--http-endpoint")
+	_, port, _ := strings.Cut(ep, ":")
+	if !strings.HasPrefix(ep, "localhost:") || port == "29653" {
+		t.Errorf("liveness-probe --http-endpoint %q: want localhost, not upstream's port 29653", ep)
+	}
+	if p := get(cs["nfs"], "livenessProbe", "httpGet", "port"); strconv.Itoa(intOf(p)) != port {
+		t.Errorf("nfs livenessProbe port %v, liveness-probe serves %s", p, port)
+	}
+
+	// RBAC: whatever names the node account grants no more than upstream
+	// grants its own
+	image, _, _ := strings.Cut(get(cs["nfs"], "image").(string), "@")
+	rules, ok := upstreamNodeRBAC[image]
+	if !ok {
+		t.Fatalf("no upstream node RBAC recorded for %s: copy what its rbac-csi-nfs.yaml binds csi-nfs-node-sa to into upstreamNodeRBAC", image)
+	}
+	allowed := grant{}
+	rules(allowed)
+	roles := map[string]map[string]any{}
+	for _, o := range objs {
+		if k := o["kind"]; k == "ClusterRole" || k == "Role" {
+			roles[k.(string)+"/"+get(o, "metadata", "name").(string)] = o
+		}
+	}
+	for _, o := range objs {
+		if k := o["kind"]; k != "ClusterRoleBinding" && k != "RoleBinding" {
+			continue
+		}
+		for _, s := range get(o, "subjects").([]any) {
+			if get(s, "kind") != "ServiceAccount" || get(s, "name") != nodeName {
+				continue
+			}
+			role := roles[get(o, "roleRef", "kind").(string)+"/"+get(o, "roleRef", "name").(string)]
+			if role == nil {
+				t.Errorf("%s %v binds the node account to a role not shipped here", o["kind"], get(o, "metadata", "name"))
+				continue
+			}
+			for _, r := range get(role, "rules").([]any) {
+				for _, group := range strs(get(r, "apiGroups")) {
+					for _, res := range strs(get(r, "resources")) {
+						for _, v := range strs(get(r, "verbs")) {
+							if !slices.Contains(allowed[[2]string{group, res}], v) {
+								t.Errorf("the node account gets %s %q %s, which upstream does not grant its node account", v, res, group)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// ADR 0001 v2 D8: F6 is closed by deployment, and the operator reads it here
+	b, err := os.ReadFile(filepath.Join("k8s", "node.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{"2049", "AUTH_SYS", "ADR 0001"} {
+		if !strings.Contains(string(b), s) {
+			t.Errorf("node.yaml does not tell the operator about F6 (%q)", s)
+		}
+	}
+}
+
+func intOf(v any) int {
+	n, _ := v.(int)
+	return n
+}

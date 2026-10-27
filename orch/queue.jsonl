@@ -1,2 +1,1 @@
-{"id": "q-ci-rebalance", "name": "ci-rebalance", "lane": "writer", "wave": 28, "branch": "ci-rebalance", "src": "wave27/ci-drift.md", "after": "ci-guards", "items": "1 regenerate weights from artifacts; 3 drop per-VM-job upload on success; 2 nice host build (measure)", "prio": 0}
 {"id": "q-rollback-impl", "name": "rollback-impl", "lane": "writer", "wave": 28, "branch": "rollback", "src": "wave26/rollback.md", "after": "retry-fix", "prio": 1, "note": "ADR 0010: roll back fresh creates except on deadline/cancel"}
