@@ -397,8 +397,8 @@ func TestSimulateDestroyAllCases(t *testing.T) {
 			want:  "b@s",
 		},
 		{
-			name:  "-r takes the dataset and its snapshots",
-			rows:  []Row{dsRow("tank/v/b", ""), snapRow("tank/v/b@s", false), dsRow("tank/v/bb", "")},
+			name:  "-r takes the dataset, its snapshots and children, not a name sharing its prefix",
+			rows:  []Row{dsRow("tank/v/b", ""), snapRow("tank/v/b@s", false), dsRow("tank/v/b/x", ""), dsRow("tank/v/bb", "")},
 			plans: []Plan{{{Kind: OpDestroy, Target: "tank/v/b", Recursive: true}}},
 			want:  "bb",
 		},
