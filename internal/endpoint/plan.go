@@ -1,8 +1,11 @@
 package endpoint
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/wommy/empty/internal/zfs"
 )
@@ -329,13 +332,13 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 	if err != nil {
 		return nil, "", err
 	}
-	if !zfs.ValidSnapshot("x@"+name) || len(vol)+1+len(name) > 128 {
+	if name == "" || len(name) > 128 || strings.ContainsFunc(name, unicode.IsControl) {
 		return nil, "", errorf(InvalidArgument, "invalid snapshot name %q", name)
 	}
 	if strings.HasPrefix(name, cloneSourceSnapshotPrefix) {
 		return nil, "", errorf(InvalidArgument, "snapshot name prefix %q is reserved", cloneSourceSnapshotPrefix)
 	}
-	id := vol + "@" + name
+	id := vol + "@" + snapComponent(vol, name)
 	for r := range t.All() {
 		if r.Type == zfs.TypeSnapshot && r.SnapshotName == name && !r.Deferred {
 			if r.ID == id {
@@ -357,6 +360,18 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		p.Names.snapshotName():   name,
 		p.Names.snapshotSource(): vol,
 	}}}, id, nil
+}
+
+// snapComponent is the zfs snapshot name for CSI snapshot name: the name
+// itself when it is a valid zfs component and "<vol>@<name>" fits CSI's
+// 128-byte id limit, else a stable hash of it. The CSI name always lives in
+// the csi_snapshot_name property, which is what lookups match on.
+func snapComponent(vol, name string) string {
+	if zfs.ValidSnapshot("x@"+name) && len(vol)+1+len(name) <= 128 {
+		return name
+	}
+	sum := sha256.Sum256([]byte(name))
+	return "csi-" + hex.EncodeToString(sum[:16])
 }
 
 // PlanDeleteSnapshot: missing or never-issued ids are done; snapshots with
