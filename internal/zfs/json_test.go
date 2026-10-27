@@ -479,3 +479,33 @@ func FuzzDecodeGetJSON(f *testing.F) {
 		}
 	})
 }
+
+// The Sim lists datasets in zfs_compare order (zfs_iter.c), as zfs does:
+// a dataset, then its snapshots by createtxg, then its children. Plain
+// string order would put tank/a/b before tank/a@z.
+func TestSimGetOrderIsZFSCompare(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	for _, args := range [][]string{
+		{"create", "tank/a"},
+		{"snapshot", "tank/a@z"},
+		{"snapshot", "tank/a@b"},
+		{"create", "tank/a/b"},
+		{"create", "tank/a-b"},
+	} {
+		if _, err := sim.Run(ctx, "zfs", args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := zfs.New(sim).ListColumns(ctx, "tank", zfs.ListOptions{
+		Types: []zfs.Type{zfs.TypeFilesystem, zfs.TypeSnapshot}, Depth: -1, Props: []string{"type"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"tank", "tank/a", "tank/a@z", "tank/a@b", "tank/a-b", "tank/a/b"}
+	if !reflect.DeepEqual(c.Names, want) {
+		t.Fatalf("names %q, want %q", c.Names, want)
+	}
+}

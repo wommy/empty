@@ -4,6 +4,10 @@
 // state, and the stderr text real zfs prints for the failures callers must
 // classify (see internal/zfs/errors.go for the OpenZFS sources).
 //
+// `zfs get -j -p` prints the JSON OpenZFS 2.4 prints (json.go: the same
+// bytes, escapes and dataset order; TestRealGetJSONMatchesSim compares
+// them with a real pool), modelling a UTF-8 locale.
+//
 // It is an oracle for control flow, not for ZFS itself. Behaviors were
 // audited against OpenZFS 2.4.4 source (docs/research/simfidelity/) and
 // are differential-tested against an independent reference model
@@ -36,6 +40,7 @@
 package zfstest
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -1480,6 +1485,26 @@ func (s *Sim) get(args []string) ([]byte, error) {
 			}
 		}
 	}
+	// zfs_for_each walks an AVL tree ordered by zfs_compare (zfs_iter.c):
+	// by dataset name, a dataset before its snapshots, and snapshots of
+	// one dataset by createtxg. So tank/a@s comes before tank/a/b, where
+	// plain string order puts '/' before '@'.
+	slices.SortFunc(names, func(a, b string) int {
+		ads, asnap, aok := strings.Cut(a, "@")
+		bds, bsnap, bok := strings.Cut(b, "@")
+		if c := strings.Compare(ads, bds); c != 0 || aok == bok {
+			if c == 0 && aok {
+				if c = cmp.Compare(s.ds[a].txg, s.ds[b].txg); c == 0 {
+					c = strings.Compare(asnap, bsnap)
+				}
+			}
+			return c
+		}
+		if !aok {
+			return -1
+		}
+		return 1
+	})
 	var b strings.Builder
 	var js []JSONDataset
 	for _, nm := range names {
