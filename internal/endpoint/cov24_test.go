@@ -281,3 +281,49 @@ func TestExpandRollbackFailureIsReported(t *testing.T) {
 		})
 	}
 }
+
+// failRoot is a RootSetter that fails with err while err is set.
+type failRoot struct {
+	endpoint.RootSetter
+	err *error
+}
+
+func (f failRoot) SetRoot(ctx context.Context, ds, mp string, uid, gid, mode int64) error {
+	if *f.err != nil {
+		return *f.err
+	}
+	return f.RootSetter.SetRoot(ctx, ds, mp, uid, gid, mode)
+}
+
+// Item 7 (wave22): an NFS volume's root owner is set after its create, so
+// a failed SetRoot leaves a half-made volume. An unclassified failure
+// there must be retryable (Aborted), never Internal, which would stop the
+// provisioner retrying and strand it; a retry with the setter fixed
+// converges with the owner set.
+func TestFileExportCreateRootFailureIsRetryable(t *testing.T) {
+	ctx := context.Background()
+	var rootErr error
+	sim, _, ep := simNFS(t, func(c *endpoint.Config) {
+		c.Root = failRoot{c.Etab.(*zfstest.Sim), &rootErr}
+	})
+	uid := uint32(1000)
+	req := nfsCreate("pvc", "", "10.20.0.0/24")
+	req.NFS.UID = &uid
+	rootErr = errors.New("x")
+	_, err := ep.CreateVolume(ctx, req)
+	wantCode(t, err, endpoint.Aborted)
+	if !errors.Is(err, rootErr) {
+		t.Fatalf("the setter's error is not wrapped: %v", err)
+	}
+	const ds = "tank/k8s/vols/pvc"
+	if !sim.Has(ds) || sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success") == "true" {
+		t.Fatal("want the volume created and uncommitted")
+	}
+	rootErr = nil
+	if _, err := ep.CreateVolume(ctx, req); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if r, ok := sim.RootOf(ds); !ok || r.UID != uid {
+		t.Fatalf("root %+v after the retry, want uid %d", r, uid)
+	}
+}

@@ -42,4 +42,9 @@ func TestRootErrMapping(t *testing.T) {
 			t.Errorf("%s: %v does not wrap %v", tc.name, got, tc.err)
 		}
 	}
+	// a resumed provision ran its create on an earlier attempt: there the
+	// first op's unclassified failure is after a change too
+	if got := resumeErr(rootErr(plain, 0, root)); CodeOf(got) != Aborted || !errors.Is(got, plain) {
+		t.Errorf("unclassified, resumed: %v (code %d), want Aborted", got, CodeOf(got))
+	}
 }

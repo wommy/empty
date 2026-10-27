@@ -146,6 +146,12 @@ func rootErr(err error, i int, plan Plan) error {
 		code = Aborted
 	case i > 0:
 		return &Error{Code: Aborted, Msg: what + " (earlier ops applied; a retry converges)", Err: err}
+	default:
+		// unclassified on the plan's first op: Internal, keyed as a zfs
+		// failure would be, so that a resumed provision (resumeErr; the
+		// set-root of a new NFS volume is its resume's first op) remaps it
+		// to Aborted instead of stranding the half-made volume
+		return zfsFail(OpSetRoot, err, false, what)
 	}
 	return &Error{Code: code, Msg: what, Err: err}
 }
