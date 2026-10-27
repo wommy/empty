@@ -9,6 +9,22 @@ import (
 	"github.com/wommy/empty/internal/zfs/zfstest"
 )
 
+// mark names a marker under the prefix setup's endpoint reads. A marker
+// under any other prefix is an ordinary user property, so a fixture built
+// with one tests nothing about ownership (wave12 AN-02): every row would be
+// unowned for the trivial reason. The tests below also pin a positive
+// control, so a prefix drift fails instead of passing vacuously.
+func mark(k string) string { return endpoint.DefaultPropertyPrefix + ":" + k }
+
+// markIsLive fails the test unless vol, a volume the endpoint created,
+// carries its name under mark(): the fixtures' markers are the ones read.
+func markIsLive(t *testing.T, h *harness, vol string) {
+	t.Helper()
+	if got := h.Prop(h.Parent+"/"+vol, mark("csi_volume_name")); got != vol {
+		t.Fatalf("%s: %s=%q: the fixtures' marker prefix is not the endpoint's", vol, mark("csi_volume_name"), got)
+	}
+}
+
 // ADR 0003, "never touch what you don't own": a clone source must be a
 // committed volume the endpoint owns, and a snapshot source a CSI snapshot
 // of one. Anything else names no volume or snapshot the endpoint issued,
@@ -36,7 +52,7 @@ func TestCloneSourcesMustBeOwned(t *testing.T) {
 	}
 	// an uncommitted volume: an interrupted provision, never returned
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/half", map[string]string{
-		"democratic-csi:managed_resource": "true", "democratic-csi:csi_volume_name": "half",
+		mark("managed_resource"): "true", mark("csi_volume_name"): "half",
 	}, false); err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +75,15 @@ func TestCloneSourcesMustBeOwned(t *testing.T) {
 		if h.Has(h.Parent + "/" + s) {
 			t.Errorf("snapshot %s cut on a dataset the endpoint does not own", s)
 		}
+	}
+	// control: committed, the same hand-made volume is a source, so the
+	// refusal above was for "uncommitted", not for unreadable markers
+	markIsLive(t, h, "v")
+	if err := h.Z.Set(ctx, h.Parent+"/half", map[string]string{mark("provision_success"): "true"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "c6", SourceVolumeID: "half"}); err != nil {
+		t.Errorf("c6 from committed half: %v", err)
 	}
 }
 
@@ -122,8 +147,8 @@ func TestVolumeNameMustMatchID(t *testing.T) {
 	ctx := context.Background()
 	ep, h := setup(t)
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/moved", map[string]string{
-		"democratic-csi:managed_resource": "true", "democratic-csi:provision_success": "true",
-		"democratic-csi:csi_volume_name": "orig", "refquota": "1048576",
+		mark("managed_resource"): "true", mark("provision_success"): "true",
+		mark("csi_volume_name"): "orig", "refquota": "1048576",
 	}, false); err != nil {
 		t.Fatal(err)
 	}
@@ -144,6 +169,17 @@ func TestVolumeNameMustMatchID(t *testing.T) {
 	}
 	if !h.Has(h.Parent+"/moved") || h.Prop(h.Parent+"/moved", "refquota") != "1048576" {
 		t.Error("dataset touched")
+	}
+	// control: the same markers naming the dataset's own id are a volume,
+	// so the refusals above were for the name, not for unreadable markers
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/same", map[string]string{
+		mark("managed_resource"): "true", mark("provision_success"): "true",
+		mark("csi_volume_name"): "same", "refquota": "1048576",
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.GetVolume(ctx, "same"); err != nil {
+		t.Errorf("GetVolume(same), the control: %v", err)
 	}
 }
 
@@ -171,11 +207,22 @@ func TestReceivedCopyIsNotOwned(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range map[string]string{"managed_resource": "true", "provision_success": "true", "csi_volume_name": "pvc-1"} {
-		sim.Receive(cp, "democratic-csi:"+k, v)
+		sim.Receive(cp, mark(k), v)
 	}
 	for k, v := range map[string]string{"managed_resource": "true", "csi_snapshot_name": "snapA", "csi_snapshot_source_volume_id": "pvc-1"} {
-		sim.Receive(cp+"@snapA", "democratic-csi:"+k, v)
+		sim.Receive(cp+"@snapA", mark(k), v)
 	}
+	// a backup restored under its original name: the received markers name
+	// the dataset's own id, so only "received is not local" stands between
+	// it and adoption
+	rs := h.Parent + "/pvc-2"
+	if err := h.Z.CreateFilesystem(ctx, rs, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range map[string]string{"managed_resource": "true", "provision_success": "true", "csi_volume_name": "pvc-2"} {
+		sim.Receive(rs, mark(k), v)
+	}
+	markIsLive(t, h, "pvc-1")
 
 	vols, _, err := ep.ListVolumes(ctx, 0, "")
 	if err != nil || len(vols) != 1 || vols[0].ID != "pvc-1" {
@@ -197,7 +244,13 @@ func TestReceivedCopyIsNotOwned(t *testing.T) {
 	if err := ep.DeleteSnapshot(ctx, "pvc-1-copy@snapA"); endpoint.CodeOf(err) != endpoint.FailedPrecondition {
 		t.Errorf("DeleteSnapshot copy: %v", err)
 	}
-	if !h.Has(cp) || !h.Has(cp+"@snapA") {
+	if _, err := ep.GetVolume(ctx, "pvc-2"); endpoint.CodeOf(err) != endpoint.NotFound {
+		t.Errorf("GetVolume restored copy: %v", err)
+	}
+	if err := ep.DeleteVolume(ctx, "pvc-2"); endpoint.CodeOf(err) != endpoint.FailedPrecondition {
+		t.Errorf("DeleteVolume restored copy: %v", err)
+	}
+	if !h.Has(cp) || !h.Has(cp+"@snapA") || !h.Has(rs) {
 		t.Error("received copy destroyed")
 	}
 }
@@ -221,19 +274,27 @@ func TestReconcileSparesReceivedAndRenamed(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, v := range map[string]string{"managed_resource": "true", "provision_success": "true", "csi_volume_name": "keep"} {
-		sim.Receive(cp, "democratic-csi:"+k, v)
+		sim.Receive(cp, mark(k), v)
 	}
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/moved", map[string]string{
-		"democratic-csi:managed_resource": "true", "democratic-csi:provision_success": "true",
-		"democratic-csi:csi_volume_name": "orig",
+		mark("managed_resource"): "true", mark("provision_success"): "true",
+		mark("csi_volume_name"): "orig",
 	}, false); err != nil {
 		t.Fatal(err)
 	}
+	rs := h.Parent + "/restored"
+	if err := h.Z.CreateFilesystem(ctx, rs, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range map[string]string{"managed_resource": "true", "provision_success": "true", "csi_volume_name": "restored"} {
+		sim.Receive(rs, mark(k), v)
+	}
+	markIsLive(t, h, "keep")
 	p, err := later(t, ep, h).Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
 	if acts, _ := targets(p); err != nil || len(acts) != 1 || acts[0] != "gone" {
 		t.Fatalf("reconcile: %+v %v", p, err)
 	}
-	if !h.Has(cp) || !h.Has(h.Parent+"/moved") {
+	if !h.Has(cp) || !h.Has(h.Parent+"/moved") || !h.Has(rs) {
 		t.Fatal("reconcile destroyed a dataset it does not own")
 	}
 }
