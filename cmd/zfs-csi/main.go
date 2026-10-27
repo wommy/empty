@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +20,7 @@ import (
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	zcsi "github.com/wommy/empty/internal/csi"
+	"github.com/wommy/empty/internal/unixsock"
 )
 
 func main() {
@@ -56,11 +56,18 @@ func run() error {
 	defer cancel()
 	go func() {
 		<-ctx.Done()
+		// a call stuck on a hung endpoint holds the drain; it is bounded,
+		// and a second signal stops at once
 		slog.Info("shutting down")
+		again := make(chan os.Signal, 1)
+		signal.Notify(again, syscall.SIGINT, syscall.SIGTERM)
 		done := make(chan struct{})
 		go func() { srv.GracefulStop(); close(done) }()
 		select {
 		case <-done:
+		case <-again:
+			slog.Warn("second signal: stopping without drain")
+			srv.Stop()
 		case <-time.After(*drain):
 			slog.Warn("drain timed out: stopping", "after", *drain)
 			srv.Stop()
@@ -70,21 +77,12 @@ func run() error {
 	return srv.Serve(lis)
 }
 
-// listen opens the CSI socket, replacing a stale one left by a previous run.
+// listen opens the CSI socket owner-only (the sidecars share the pod's
+// user), replacing a stale one left by a previous run.
 func listen(addr string) (net.Listener, error) {
 	path, ok := strings.CutPrefix(addr, "unix://")
 	if !ok {
 		return nil, fmt.Errorf("-csi-address %q: want unix:///path", addr)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
-	}
-	if c, err := net.DialTimeout("unix", path, time.Second); err == nil {
-		c.Close()
-		return nil, fmt.Errorf("%s is already being served", path)
-	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-	return net.Listen("unix", path)
+	return unixsock.Listen(path)
 }

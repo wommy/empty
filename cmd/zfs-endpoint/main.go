@@ -21,6 +21,7 @@ import (
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/server"
+	"github.com/wommy/empty/internal/unixsock"
 	"github.com/wommy/empty/internal/zfs"
 )
 
@@ -111,25 +112,11 @@ func listener(addr string) (net.Listener, error) {
 	if !ok {
 		return net.Listen("tcp", addr)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return nil, err
-	}
-	// a live socket means another endpoint serves this path; two daemons
-	// would each hold their own locks over the same datasets
-	if c, err := net.DialTimeout("unix", path, time.Second); err == nil {
-		c.Close()
-		return nil, fmt.Errorf("%s is already being served", path)
-	}
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-	// owner-only from the moment it exists, until transport auth lands
-	// (docs/research/edges2/transport-auth.md); umask is process-wide, and
-	// nothing else runs yet
-	old := syscall.Umask(0o177)
-	l, err := net.Listen("unix", path)
-	syscall.Umask(old)
-	return l, err
+	// owner-only until transport auth lands
+	// (docs/research/edges2/transport-auth.md); a live socket means another
+	// endpoint serves this path, and two daemons would each hold their own
+	// locks over the same datasets
+	return unixsock.Listen(path)
 }
 
 // lockParent takes an exclusive, non-blocking flock on a file named after
