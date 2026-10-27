@@ -163,6 +163,40 @@ var patterns = []struct {
 	// ENOTSUP: "pool must be upgraded to set this property or value" (a
 	// feature such as zstd_compress is not enabled on the pool)
 	{KindPrecondition, "pool must be upgraded"},
+	// OpenZFS 2.4.4 texts the zfsdiff replay found classified as unknown
+	// (internal/zfs/zfsdiff/classify.go cites each source line):
+	// libzfs_dataset.c zfs_valid_proplist, a set-once property (set,
+	// clone -o): "'volblocksize' is readonly"
+	{KindInvalidProperty, "is readonly"},
+	// zfs_valid_proplist: "'volsize' does not apply to datasets of this type"
+	{KindInvalidProperty, "does not apply to datasets of this type"},
+	// zfs_valid_proplist and zfs_create: "'volsize' cannot be zero",
+	// "volume size cannot be zero"; "'volsize' must be a multiple of
+	// volume block size (16K)"
+	{KindInvalidProperty, "cannot be zero"},
+	{KindInvalidProperty, "must be a multiple of"},
+	// libzfs_util.c zprop_parse_value: "use 'none' to disable quota/refquota"
+	{KindInvalidProperty, "use 'none' to disable"},
+	// zfs_valid_proplist on a snapshot: "this property can not be
+	// modified for snapshots"
+	{KindInvalidProperty, "can not be modified for snapshots"},
+	// zfs_main.c parseprop (exit 255): "property 'atime' specified
+	// multiple times"
+	{KindInvalidProperty, "specified multiple times"},
+	// zfs_namecheck (EZFS_INVALIDNAME): a malformed name is a bad
+	// argument, final like a bad property
+	{KindInvalidProperty, "missing '@' delimiter"},
+	// libzfs_dataset.c zfs_create: a zvol as the parent, configuration
+	// only an administrator changes
+	{KindPrecondition, "parent is not a filesystem"},
+	// zfs_promote: "not a cloned filesystem"
+	{KindPrecondition, "not a cloned filesystem"},
+	// zfs_promote, EZFS_EXISTS: "conflicting snapshot 's1' from parent 'p'"
+	{KindExists, "conflicting snapshot"},
+	// libzfs_util.c EZFS_REFTAG_HOLD / EZFS_REFTAG_RELE: the hold is there
+	// already / is not there
+	{KindExists, "tag already exists"},
+	{KindNotFound, "no such tag"},
 	{KindPermission, "permission denied"},
 	// a missing pool is not a missing dataset: never let it read as absent
 	{KindUnavailable, "no such pool"},

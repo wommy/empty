@@ -46,6 +46,45 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+// TestClassify244Messages: OpenZFS 2.4.4 messages the zfsdiff replay
+// recorded as KindUnknown (wave9 zfs-diff report), with the texts the
+// reference model quotes from source (internal/zfs/zfsdiff).
+func TestClassify244Messages(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		stderr string
+		want   error
+	}{
+		// libzfs_dataset.c zfs_valid_proplist: set-once, on set and clone -o
+		{"cannot set property for 'tank/v': 'volblocksize' is readonly\n", zfs.ErrInvalidProperty},
+		{"cannot create 'tank/c': 'volblocksize' is readonly\n", zfs.ErrInvalidProperty},
+		{"cannot set property for 'tank/a': 'volsize' does not apply to datasets of this type\n", zfs.ErrInvalidProperty},
+		{"cannot set property for 'tank/v': 'volsize' cannot be zero\n", zfs.ErrInvalidProperty},
+		{"cannot create 'tank/v': volume size cannot be zero\n", zfs.ErrInvalidProperty},
+		{"cannot set property for 'tank/v': 'volsize' must be a multiple of volume block size (16K)\n", zfs.ErrInvalidProperty},
+		{"cannot set property for 'tank/a': use 'none' to disable quota/refquota\n", zfs.ErrInvalidProperty},
+		{"cannot set property for 'tank/a@s': this property can not be modified for snapshots\n", zfs.ErrInvalidProperty},
+		// zfs_main.c parseprop, exit 255
+		{"property 'atime' specified multiple times\n", zfs.ErrInvalidProperty},
+		// zfs_namecheck: a malformed argument, final like a bad property
+		{"cannot open 'tank/a': missing '@' delimiter in snapshot name\n", zfs.ErrInvalidProperty},
+		// a zvol as parent: configuration only an administrator changes
+		{"cannot create 'tank/v/a': parent is not a filesystem\n", zfs.ErrPrecondition},
+		{"cannot promote 'tank/a': not a cloned filesystem\n", zfs.ErrPrecondition},
+		// EZFS_EXISTS without the "already exists" text
+		{"cannot promote 'tank/x': conflicting snapshot 's1' from parent 'tank/a'\n", zfs.ErrExists},
+		// holds: EZFS_REFTAG_HOLD, EZFS_REFTAG_RELE
+		{"cannot hold snapshot 'tank/a@s': tag already exists on this dataset\n", zfs.ErrExists},
+		{"cannot release hold from snapshot 'tank/a@s': no such tag on this dataset\n", zfs.ErrNotFound},
+	} {
+		c := zfs.New(failRunner(tc.stderr))
+		err := c.Destroy(ctx, "tank/a", zfs.DestroyOptions{})
+		if !errors.Is(err, tc.want) {
+			t.Errorf("%q: got %v, want %v", tc.stderr, err, tc.want)
+		}
+	}
+}
+
 // An unclassified failure must never read as "absent" (zfs-localpv and others
 // treat any list error as not-found, which turns transient failures into
 // duplicate creates or false delete successes).
