@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -75,10 +76,18 @@ func TestStartupRefusals(t *testing.T) {
 // imported a moment after the daemon starts is picked up without a restart.
 func TestStartupWaitsForTheParent(t *testing.T) {
 	d, sim := simDeps(t)
-	go func() {
-		time.Sleep(300 * time.Millisecond)
-		zfs.New(sim).CreateFilesystem(context.Background(), "tank/late", nil, false)
-	}()
+	// the pool is imported during the first backoff: the injected timer
+	// creates the parent and fires at once, so no wall time passes
+	var backoffs []time.Duration
+	d.after = func(b time.Duration) <-chan time.Time {
+		backoffs = append(backoffs, b)
+		if len(backoffs) == 2 {
+			zfs.New(sim).CreateFilesystem(context.Background(), "tank/late", nil, false)
+		}
+		c := make(chan time.Time, 1)
+		c <- time.Time{}
+		return c
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sock := filepath.Join(t.TempDir(), "s.sock")
@@ -90,6 +99,10 @@ func TestStartupWaitsForTheParent(t *testing.T) {
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatal(err)
+	}
+	// backoff starts at 1s and doubles
+	if !slices.Equal(backoffs, []time.Duration{time.Second, 2 * time.Second}) {
+		t.Fatalf("backoffs %v", backoffs)
 	}
 }
 

@@ -109,7 +109,7 @@ func validParent(p string) error {
 // A parent that exists but is a volume (or anything not a filesystem) is
 // a configuration error. Each probe is bounded: a suspended pool blocks
 // zfs indefinitely.
-func waitParent(ctx context.Context, z *zfs.Client, parent string, wait time.Duration) error {
+func waitParent(ctx context.Context, z *zfs.Client, parent string, wait time.Duration, after func(time.Duration) <-chan time.Time) error {
 	deadline := time.Now().Add(wait)
 	backoff := time.Second
 	for {
@@ -134,7 +134,7 @@ func waitParent(ctx context.Context, z *zfs.Client, parent string, wait time.Dur
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(backoff):
+		case <-after(backoff):
 		}
 		backoff = min(2*backoff, 10*time.Second)
 	}

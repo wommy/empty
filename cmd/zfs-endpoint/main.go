@@ -47,6 +47,9 @@ type deps struct {
 	euid    int
 	// interrupt returns a channel closed by a second signal; nil: none.
 	interrupt func() <-chan struct{}
+	// after is the startup backoff timer; nil: time.After. Tests inject
+	// it so a parent wait costs no wall time.
+	after func(time.Duration) <-chan time.Time
 }
 
 const (
@@ -117,7 +120,11 @@ func run(ctx context.Context, args []string, d deps) error {
 		}
 	}
 	// refuse to start against a parent that is not there: never create it
-	if err := waitParent(ctx, z, *parent, *parentWait); err != nil {
+	after := d.after
+	if after == nil {
+		after = time.After
+	}
+	if err := waitParent(ctx, z, *parent, *parentWait, after); err != nil {
 		return err
 	}
 	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix})
