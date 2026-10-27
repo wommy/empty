@@ -81,7 +81,7 @@ The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or,
 The research found these, and nothing ships for them yet:
 - **Exports** and node attach. For per-LUN detach, see Trident's `RemoveLUNFromSessions` and gobrick.
 - **Reconcile/GC.** It should run off the request path and delete only against a desired set the caller supplies.
-- **Fencing for HA.** A sync channel program can do compare-and-swap on a writer-epoch user property.
+- **HA exclusivity.** A channel-program fencing epoch was designed and then **dropped** after adversarial review: the epoch can go backwards, and creates, resizes and clones can't be fenced (`docs/research/gaps/adv-fencing.md`). Exclusivity is per host, with a `flock` per parent dataset, and across hosts it belongs to the HA layer (`zpool multihost` plus pacemaker/STONITH).
 - **Changed-block tracking** (the CSI SnapshotMetadata service). No ZFS implementation exists anywhere, and the zfs send stream is the only exact source.
 - **ControllerModifyVolume.** No ZFS driver implements it.
 - **Detached snapshots,** which would let volumes be deleted while their snapshots survive.
