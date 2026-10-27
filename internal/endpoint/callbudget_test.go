@@ -32,7 +32,6 @@ var rpcCallBudget = []rpcBudget{
 	}},
 	{"CreateVolume fs new", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
-		"get type P",
 		"get mountpoint P",
 		"create P/f",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
@@ -44,7 +43,6 @@ var rpcCallBudget = []rpcBudget{
 	}},
 	{"CreateVolume nfs new", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/n",
-		"get type P",
 		"get mountpoint P",
 		"create P/n",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/n",
@@ -65,7 +63,6 @@ var rpcCallBudget = []rpcBudget{
 	}},
 	{"CreateVolume clone of snapshot new", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/c",
-		"get type P",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/b",
 		"clone P/b@s P/c",
 		"set refreservation P/c",
@@ -78,7 +75,6 @@ var rpcCallBudget = []rpcBudget{
 	}},
 	{"CreateVolume fs clone of volume new", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/cf",
-		"get type P",
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/f",
 		"get mountpoint P",
 		"snapshot P/f@volume-source-for-volume-cf",

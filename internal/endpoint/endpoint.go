@@ -557,7 +557,7 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	// whose mount only a scan can confirm) takes a second pass: the
 	// resume, which commits or says why not. Two passes at most.
 	for pass := 0; ; pass++ {
-		t, err := e.scanFor(ctx, id, r.SourceVolumeID, r.SourceSnapshotID)
+		t, missing, err := e.scanForUnproven(ctx, id, r.SourceVolumeID, r.SourceSnapshotID)
 		if err != nil {
 			return Volume{}, err
 		}
@@ -565,8 +565,17 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		p.now = e.cfg.Now().Unix()
 		if _, exists := t.Get(id); !exists && r.Kind == Filesystem {
 			// a new filesystem's mountpoint is pinned where the parent's
-			// puts it now: one read, on a create only
+			// puts it now: one read, on a create only. It proves the
+			// parent too (Unavailable when missing).
 			if p.parentMount, err = e.parentMountpoint(ctx); err != nil {
+				return Volume{}, err
+			}
+			missing = nil
+		}
+		if missing != nil {
+			// nothing read so far proves the parent: absent is not yet
+			// "create" (nor a source NotFound)
+			if err := e.proveParent(ctx, missing); err != nil {
 				return Volume{}, err
 			}
 		}
@@ -677,10 +686,26 @@ func resumeErr(err error) error {
 	return remapMutated(err, " (resuming an earlier attempt; a retry converges)")
 }
 
-// scanFor reads the volumes an operation touches (one zfs call each).
+// scanFor reads the volumes an operation touches (one zfs call each), and
+// proves the parent when one is missing (one more).
 func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
+	t, missing, err := e.scanForUnproven(ctx, ids...)
+	if missing != nil {
+		if err := e.proveParent(ctx, missing); err != nil {
+			return Table{}, err
+		}
+	}
+	return t, err
+}
+
+// scanForUnproven is scanFor that leaves the parent unproven, as
+// scanUnproven: missing is set when some volume does not exist and none
+// does (a volume that exists proves its parent). The caller proves it
+// once, if no other call of its own does.
+func (e *Endpoint) scanForUnproven(ctx context.Context, ids ...string) (t Table, missing error, err error) {
 	var rows []Row
 	var covered []string
+	found := false
 	seen := map[string]bool{}
 	for _, id := range ids {
 		vol, _, _ := strings.Cut(id, "@")
@@ -691,14 +716,22 @@ func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
 		if _, err := volumeID(vol); err != nil {
 			continue // invalid ids simply have no rows; planners report them
 		}
-		t, err := e.scan(ctx, vol)
+		t, miss, err := e.scanUnproven(ctx, vol)
 		if err != nil {
-			return Table{}, err
+			return Table{}, nil, err
+		}
+		if miss == nil {
+			found = true
+		} else if missing == nil {
+			missing = miss
 		}
 		rows = slices.AppendSeq(rows, t.All())
 		covered = append(covered, vol)
 	}
-	return newPartialTable(rows, covered...), nil
+	if found {
+		missing = nil
+	}
+	return newPartialTable(rows, covered...), missing, nil
 }
 
 func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
