@@ -9,7 +9,11 @@ set -euo pipefail
 log=$(realpath "${1:?go test -v log}")
 cd "$(dirname "$0")/.."
 # every TestExplore* function in a test file (they all carry the nightly tag)
-want=$(grep -rhoE '^func TestExplore[A-Za-z0-9_]*' --include='*_test.go' . | awk '{ print $2 }' | sort -u)
+want=$(grep -rhoE '^func TestExplore[A-Za-z0-9_]*' --include='*_test.go' . | awk '{ print $2 }' | sort -u || true)
+if [ -z "$want" ]; then
+  echo "::error::explore: no TestExplore* function in any *_test.go (renamed or deleted?): nothing to check the log against"
+  exit 1
+fi
 # top-level results only (subtests have a '/'); a SKIP does not count as ran
 got=$(grep -oE -- '^--- PASS: TestExplore[^/ ]* \(' "$log" | awk '{ print $3 }' | sort -u || true)
 if [ -z "$got" ]; then

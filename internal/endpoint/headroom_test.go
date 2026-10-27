@@ -14,6 +14,8 @@ func TestPlanReserves(t *testing.T) {
 		{Name: "tank/v/thick", ID: "thick", Type: zfs.TypeVolume, Volsize: 4 * G, Refres: 4 * G, BlockSz: 16384},
 		{Name: "tank/v/thin", ID: "thin", Type: zfs.TypeVolume, Volsize: 4 * G, BlockSz: 16384},
 		{Name: "tank/v/thin@s", ID: "thin@s", Type: zfs.TypeSnapshot, Volsize: 4 * G},
+		{Name: "tank/v/grown", ID: "grown", Type: zfs.TypeVolume, Volsize: 40 * G, BlockSz: 16384},
+		{Name: "tank/v/grown@s", ID: "grown@s", Type: zfs.TypeSnapshot, Volsize: 4 * G},
 		{Name: "tank/v/fs", ID: "fs", Type: zfs.TypeFilesystem, Refquota: 2 * G, Refres: 2 * G},
 	})
 	set := func(target string, kv ...string) Op {
@@ -40,6 +42,15 @@ func TestPlanReserves(t *testing.T) {
 			{Kind: OpClone, Source: "tank/v/thin@s", Target: "tank/v/new"},
 			set("tank/v/new", "refreservation", "auto"),
 		}, 4 * G, true},
+		{"thick clone of a snapshot older than its volume's expand: the snapshot's volsize", Plan{
+			{Kind: OpClone, Source: "tank/v/grown@s", Target: "tank/v/new"},
+			set("tank/v/new", "refreservation", "auto"),
+		}, 4 * G, true},
+		{"thick clone of the snapshot the plan cuts: the volume's volsize", Plan{
+			{Kind: OpSnapshot, Target: "tank/v/grown@cut"},
+			{Kind: OpClone, Source: "tank/v/grown@cut", Target: "tank/v/new"},
+			set("tank/v/new", "refreservation", "auto"),
+		}, 40 * G, true},
 		{"thick clone grown at once", Plan{
 			{Kind: OpClone, Source: "tank/v/thin@s", Target: "tank/v/new"},
 			set("tank/v/new", "volsize", "6442450944", "refreservation", "auto"),
@@ -120,6 +131,24 @@ func TestMinFreeBytesGuard(t *testing.T) {
 	thin.Name = "thin2"
 	if _, err := ep.CreateVolume(ctx, thin); CodeOf(err) != ResourceExhausted {
 		t.Fatalf("new thin create below the floor: %v", err)
+	}
+	// a thick restore of a 4G snapshot whose volume has since grown to
+	// 40G reserves 4G, not 40G
+	ep, sim = simEndpoint(t, Config{MinFreeBytes: G})
+	sim.PoolSize = 100 * G
+	if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: "grown", Kind: Block, CapacityBytes: 4 * G, Sparse: true}); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := ep.CreateSnapshot(ctx, "before-grow", "grown")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.ExpandVolume(ctx, "grown", 40*G, 0); err != nil {
+		t.Fatal(err)
+	}
+	sim.PoolSize = 10 * G
+	if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: "restored", Kind: Block, CapacityBytes: 4 * G, SourceSnapshotID: snap.ID}); err != nil {
+		t.Fatalf("thick 4G restore of a snapshot taken before its volume grew to 40G: %v", err)
 	}
 	// off by default
 	off, offSim := simEndpoint(t, Config{})
