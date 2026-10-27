@@ -1,0 +1,9 @@
+ 10:57:49 up 6 min,  0 user,  load average: 2.33, 1.60, 0.70
+ok  	github.com/wommy/empty/internal/endpoint	24.952s
+endpoint package with model, -race: 25.791903318s wall
+ok  	github.com/wommy/empty/internal/endpoint	3.720s
+endpoint package without model, -race: 4.687265045s wall
+    modelrun_test.go:1231: 100 sequences x 40 steps (4006 steps) in 4.19s
+ok  	github.com/wommy/empty/internal/endpoint	5.225s
+    modelrun_test.go:1231: 200 sequences x 40 steps (8014 steps) in 8.007s
+ok  	github.com/wommy/empty/internal/endpoint	9.049s

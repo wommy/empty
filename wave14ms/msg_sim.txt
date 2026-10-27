@@ -1,15 +1,14 @@
-zfstest: model user holds, rename, guid, and no datasets below a zvol
+zfstest: model rename and guid; fuzz no longer nests below a zvol
 
-The simulator gains what an operator does out of band on a real pool:
-`zfs hold`/`release` (userrefs; a plain destroy of a held snapshot is
-EBUSY with libzfs's "it's being held" text, -d marks it, the last
-release reaps it, and a held deferred origin outlives its last clone),
-`zfs rename` with guids that follow the dataset, and zfs's "parent is
-not a filesystem" for create or clone below a zvol. The new commands
-live in sim_ext.go; sim.go only gains the hooks.
+The simulator gains `zfs rename` (descendants, snapshots, holds and the
+clone/origin graph move; shares follow the new mountpoint) and a guid
+per dataset that survives the rename, so an observer can tell a renamed
+dataset from a new one. Both live in sim_ext.go; sim.go only gains the
+hooks.
 
 FuzzReconcileSafe made a child dataset below a clone of a zvol, which
-real zfs refuses; it now tracks zvol clones (seed 9abef424 kept).
+zfs refuses ("parent is not a filesystem", which the simulator now
+models); it now tracks zvol clones (seed 9abef424 kept).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

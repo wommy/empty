@@ -1,1 +1,2 @@
 {"t":"2026-10-27T08:09Z","kind":"anomaly","sha":"c1205e9","run":40471254688,"push_to_green_s":78,"note":"over 60s budget; VM test 48s, guest restore 10s, zfsdiff replay 8.87s vs weight 5.00; forwarded to b-cache-warm"}
+{"t":"2026-10-27T10:53Z","kind":"anomaly","note":"all 3 writers killed by session rate limit (08:1x-10:50Z); resumed via SendMessage with saved state; lesson: writers commit per item so WIP refs carry their work"}

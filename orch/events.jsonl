@@ -136,3 +136,7 @@
 {"ts": "2026-10-27T08:07:16Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T08:08:41Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T08:08:45Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T10:58:15Z", "id": "a53361ecab5fd8058", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T10:58:15Z", "id": "a53361ecab5fd8058", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T10:58:15Z", "id": "a53361ecab5fd8058", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T10:58:43Z", "id": "a1ef6cfe663da83d2", "from": "queued", "to": "running", "note": "b-security"}
