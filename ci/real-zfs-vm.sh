@@ -36,6 +36,17 @@
 # at 3.4s of the 4.1s to ssh in run 40505456077); no pool exists at boot,
 # the tests create theirs. No cache key change: the stored cmdline is
 # rewritten at boot.
+# systemd-udev-settle itself is masked too: with the imports masked,
+# zfsutils-linux's zfs-load-module.service (2.4.4-1ubuntu4: Wants= and
+# After=systemd-udev-settle.service) still pulled it in and ordered
+# zfs-mount, so local-fs.target and ssh, behind it (1.78s, run
+# 40511369632). A Wants= on a masked unit is no failure, and no other
+# unit of the guest's packages names it (nfs-kernel-server, nfs-common,
+# multipath-tools, udisks2, lvm2, mdadm, open-iscsi). zvol links come
+# from udevd's rules (60-zvol.rules), which still run; the endpoint waits
+# for them with `udevadm settle` (UdevSettle), a call to udevd, not this
+# unit. The boot diagnostics below print who still wants it and any
+# failed unit.
 #
 # ZFSVM_PHASE splits a run so the guest boots while the job sets up Go:
 #   boot  verify the image, start the guest, return (qemu keeps running)
@@ -113,7 +124,7 @@ cleanup() {
 # cloud-init disabled. All the runner's vCPUs and 6G: the tests run as
 # concurrent shards (three per suite) with their pools on a guest tmpfs.
 # boot <disk> [<dir with vmlinuz, initrd, cmdline>]; $noinitrd: no initrd
-masks="systemd.mask=zfs-import-cache.service systemd.mask=zfs-import-scan.service"
+masks="systemd.mask=zfs-import-cache.service systemd.mask=zfs-import-scan.service systemd.mask=systemd-udev-settle.service"
 boot() {
   local direct=() append
   if [ -n "${2:-}" ]; then
@@ -346,9 +357,12 @@ fi
 # critical-chain: what ssh and nfsd, the two the job waits for, waited for;
 # findmnt: /boot and /boot/efi stay unmounted (noauto, cloud-config)
 # blame without .device units (they filled all 15 lines in run 40505456077);
-# udev-settle: whether anything still pulls it in with the imports masked
+# udev-settle: masked (inactive), what still wants it, and any failed unit
+# (one that Requires= a masked unit fails)
 vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "!/\\.device\$/ && ++n <= 15"
-  echo "systemd-udev-settle: $(systemctl is-active systemd-udev-settle.service); zfs-import-scan: $(systemctl is-enabled zfs-import-scan.service 2>&1)"
+  echo "systemd-udev-settle: $(systemctl is-active systemd-udev-settle.service), $(systemctl is-enabled systemd-udev-settle.service 2>&1); zfs-import-scan: $(systemctl is-enabled zfs-import-scan.service 2>&1)"
+  echo "wanted by: $(systemctl show -p WantedBy -p RequiredBy --value systemd-udev-settle.service | tr "\n" " ")"
+  echo "failed units: $(systemctl --failed --plain --no-legend | awk "{ print \$1 }" | tr "\n" " ")"
   systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
   echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \
   >"$work/systemd-analyze.txt" 2>&1 &
