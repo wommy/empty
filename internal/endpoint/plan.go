@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -541,6 +542,24 @@ func (p Planner) releaseCloneSourcesFor(t Table, id string) (Plan, error) {
 		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true})
 	}
 	return plan, nil
+}
+
+// volumesOf is the volume ids plan's ops act on (a snapshot's counts as its
+// volume's), in order of first appearance: what a caller must hold locks
+// for. Targets outside the parent name no volume and are left out.
+func (p Planner) volumesOf(plan Plan) []string {
+	var vols []string
+	for _, op := range plan {
+		rel, ok := strings.CutPrefix(op.Target, p.Parent+"/")
+		if !ok {
+			continue
+		}
+		vol, _, _ := strings.Cut(rel, "@")
+		if vol != "" && !slices.Contains(vols, vol) {
+			vols = append(vols, vol)
+		}
+	}
+	return vols
 }
 
 // deletion is a volume delete as parts: the clone-source origin it
