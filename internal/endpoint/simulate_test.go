@@ -75,8 +75,28 @@ func BenchmarkPlanReconcile(b *testing.B) {
 }
 
 // One batched pass equals the sequential per-op simulation.
+//
+// The PR tier runs seeds 0..999: on the 45 mutgen mutants of
+// simulateDestroyAll the latest first failing seed is 5, and the ones that
+// survive survive all 20000 seeds this test used to run (wave10/tests.md),
+// so those cost 2.5 s (10 s under -race) for nothing. Longer exploration is
+// FuzzSimulateDestroyAllEquivalent's job (nightly).
 func TestSimulateDestroyAllEquivalent(t *testing.T) {
-	for seed := range uint64(20000) {
+	t.Parallel()
+	for seed := range uint64(1000) {
+		simulateDestroyAllEquivalent(t, seed)
+	}
+}
+
+func FuzzSimulateDestroyAllEquivalent(f *testing.F) {
+	for _, seed := range []uint64{0, 1, 2, 5} {
+		f.Add(seed)
+	}
+	f.Fuzz(simulateDestroyAllEquivalent)
+}
+
+func simulateDestroyAllEquivalent(t *testing.T, seed uint64) {
+	{
 		rng := rand.New(rand.NewPCG(seed, 1))
 		var rows []Row
 		var snaps []string
