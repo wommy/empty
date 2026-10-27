@@ -3,7 +3,10 @@
 #
 #   systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
 #
-# serves tank/k8s/vols on /run/zfs-endpoint/tank-k8s-vols.sock.
+# serves tank/k8s/vols on /run/zfs-endpoint/tank-k8s-vols.sock. That is the
+# one socket convention, /run/zfs-endpoint/<systemd-escape parent>.sock:
+# zfs-endpoint's default -listen and `zfs-csi -parent tank/k8s/vols` use
+# the same path (deploy/deploy_test.go pins it).
 #
 # For an encrypted parent, add After=zfs-load-key.service (or the matching
 # zfs-load-key@ unit) in a drop-in.
