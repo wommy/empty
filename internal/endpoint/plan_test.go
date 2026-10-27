@@ -81,6 +81,56 @@ func TestPlanExpandReplansHalfAppliedReservation(t *testing.T) {
 	}
 }
 
+// A thick filesystem's grow plans refquota before refreservation (zfs
+// refuses a reservation above the quota); when the reservation fails, the
+// rollback puts back exactly the refquota that grow raised, and nothing in
+// any other state.
+func TestPlanExpandRollback(t *testing.T) {
+	t.Parallel()
+	const gib = 1 << 30
+	thick := vol("thick", func(r *Row) { r.Refquota, r.Refres = gib, gib })
+	plan, before, err := pl.PlanExpandVolume(NewTable([]Row{thick}), "thick", 1<<50, 0)
+	if err != nil || len(plan) != 1 || plan[0].Props["refquota"] != u64(1<<50) || plan[0].Props["refreservation"] != u64(1<<50) {
+		t.Fatalf("grow: %+v %v", plan, err)
+	}
+	after := func(refquota, refres uint64) Table {
+		return NewTable([]Row{vol("thick", func(r *Row) { r.Refquota, r.Refres = refquota, refres })})
+	}
+	for _, tc := range []struct {
+		name string
+		t    Table
+		want string // refquota the rollback sets, "" for no plan
+	}{
+		{"refquota raised, reservation failed", after(1<<50, gib), u64(gib)},
+		{"neither applied", after(gib, gib), ""},
+		{"both applied", after(1<<50, 1<<50), ""},
+		{"volume gone", NewTable(nil), ""},
+	} {
+		got := pl.PlanExpandRollback(tc.t, before)
+		if setProp(got, "refquota") != tc.want || (tc.want == "" && got != nil) || len(got) > 1 {
+			t.Errorf("%s: %+v, want refquota %q", tc.name, got, tc.want)
+		}
+		if len(got) == 1 && (got[0].Target != "tank/v/thick" || len(got[0].Props) != 1) {
+			t.Errorf("%s: %+v sets more than the refquota", tc.name, got)
+		}
+	}
+	// a half-applied row from before this Expand (no rollback ran) is not
+	// this grow's to undo
+	half := vol("thick", func(r *Row) { r.Refquota, r.Refres = 1<<50, gib })
+	if _, b, err := pl.PlanExpandVolume(NewTable([]Row{half}), "thick", 2*gib, 0); err != nil || pl.PlanExpandRollback(NewTable([]Row{half}), b) != nil {
+		t.Errorf("rollback of a state this grow did not make: %v", err)
+	}
+	// thin filesystems and zvols have nothing to roll back
+	for _, r := range []Row{
+		vol("thick", func(r *Row) { r.Refquota = gib }),
+		vol("thick", func(r *Row) { r.Type, r.Volsize, r.BlockSz, r.Refres = zfs.TypeVolume, gib, 16384, gib }),
+	} {
+		if got := pl.PlanExpandRollback(NewTable([]Row{r}), r); got != nil {
+			t.Errorf("%+v: %+v", r, got)
+		}
+	}
+}
+
 // The CSI code of every planner refusal, one row each: callers (the CSI
 // sidecars) retry or give up by code, so "an error" is not enough. Rows
 // with want OK are the boundary controls of a neighbouring refusal.
@@ -342,6 +392,107 @@ func TestPlanCreateRefusesForeignAndIncompatible(t *testing.T) {
 	} {
 		if plan, err := pl.PlanCreateVolume(tab, r); code(err) != AlreadyExists || plan != nil {
 			t.Errorf("%+v: %+v %v, want AlreadyExists and no plan", r, plan, err)
+		}
+	}
+}
+
+// The resume of an uncommitted row converges thickness both ways, by the
+// rule compatible() then judges the committed row with: each plan commits,
+// and the same request on the result is compatible.
+func TestPlanResumeThickness(t *testing.T) {
+	t.Parallel()
+	zvol := func(refres uint64) func(*Row) {
+		return func(r *Row) { r.Type, r.Volsize, r.BlockSz, r.Refres = zfs.TypeVolume, 1<<30, 16384, refres }
+	}
+	fs := func(refres uint64) func(*Row) { return func(r *Row) { r.Refquota, r.Refres = 1<<30, refres } }
+	for _, tc := range []struct {
+		name    string
+		row     func(*Row)
+		r       CreateVolumeRequest
+		resv    string // refreservation the resume sets ("" none)
+		settled func(*Row)
+	}{
+		{"thick zvol, sparse request", zvol(1 << 30), CreateVolumeRequest{Kind: Block, CapacityBytes: 1 << 30, Sparse: true}, "none", zvol(0)},
+		{"thin zvol, thick request", zvol(0), CreateVolumeRequest{Kind: Block, CapacityBytes: 1 << 30}, "auto", zvol(1 << 30)},
+		{"reserved fs, plain request", fs(1 << 30), CreateVolumeRequest{CapacityBytes: 1 << 30}, "none", fs(0)},
+		{"plain fs, reserve request", fs(0), CreateVolumeRequest{CapacityBytes: 1 << 30, Reserve: true}, u64(1 << 30), fs(1 << 30)},
+		{"thin zvol, sparse request", zvol(0), CreateVolumeRequest{Kind: Block, CapacityBytes: 1 << 30, Sparse: true}, "", zvol(0)},
+	} {
+		tc.r.Name = "x"
+		half := vol("x", func(r *Row) { tc.row(r); r.Committed = false })
+		plan, err := pl.PlanCreateVolume(NewTable([]Row{half}), tc.r)
+		if err != nil || !pl.commits(plan) || setProp(plan, "refreservation") != tc.resv {
+			t.Errorf("%s: %+v %v, want refreservation %q and a commit", tc.name, plan, err, tc.resv)
+		}
+		if again, err := pl.PlanCreateVolume(NewTable([]Row{vol("x", tc.settled)}), tc.r); err != nil || again != nil {
+			t.Errorf("%s: retry on the committed result: %+v %v", tc.name, again, err)
+		}
+	}
+}
+
+// An unlimited filesystem satisfies a sized re-create, as Expand holds it
+// satisfies any capacity; a limit stays violated by unlimited, and a limited
+// filesystem below the request stays incompatible.
+func TestPlanUnlimitedFilesystemIdempotency(t *testing.T) {
+	t.Parallel()
+	tab := NewTable([]Row{vol("free", nil), vol("small", func(r *Row) { r.Refquota = 1 << 20 })})
+	for _, tc := range []struct {
+		r    CreateVolumeRequest
+		want Code
+	}{
+		{CreateVolumeRequest{Name: "free", CapacityBytes: 1 << 30}, OK},
+		{CreateVolumeRequest{Name: "free"}, OK},
+		{CreateVolumeRequest{Name: "free", LimitBytes: 1 << 30}, AlreadyExists},
+		{CreateVolumeRequest{Name: "free", CapacityBytes: 1 << 20, LimitBytes: 1 << 30}, AlreadyExists},
+		{CreateVolumeRequest{Name: "small", CapacityBytes: 1 << 30}, AlreadyExists},
+		{CreateVolumeRequest{Name: "small", CapacityBytes: 1 << 20}, OK},
+	} {
+		plan, err := pl.PlanCreateVolume(tab, tc.r)
+		if code(err) != tc.want || plan != nil {
+			t.Errorf("%+v: %+v %v, want code %d and no plan", tc.r, plan, err, tc.want)
+		}
+	}
+}
+
+// setProp is the value plan sets for prop with an OpSet ("" if none).
+func setProp(plan Plan, prop string) string {
+	v := ""
+	for _, op := range plan {
+		if s, ok := op.Props[prop]; ok && op.Kind == OpSet {
+			v = s
+		}
+	}
+	return v
+}
+
+// A filesystem clone is never smaller than its source, as a zvol clone is
+// never resized below its source's volsize: its refquota is max(requested,
+// the source's refquota). An unlimited source leaves the request as is.
+func TestPlanFilesystemCloneSize(t *testing.T) {
+	t.Parallel()
+	const mib = 1 << 20
+	tab := NewTable([]Row{
+		vol("src", func(r *Row) { r.Refquota = 10 * mib }), snap("src@s", nil),
+		vol("free", nil), snap("free@s", nil),
+		// left by a build that gave the clone the smaller request
+		vol("half", func(r *Row) {
+			r.Committed, r.Refquota, r.SourceType, r.SourceID = false, 4*mib, "snapshot", "src@s"
+		}),
+	})
+	for _, tc := range []struct {
+		r    CreateVolumeRequest
+		want string
+	}{
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"}, u64(10 * mib)},
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 4 * mib, SourceVolumeID: "src"}, u64(10 * mib)},
+		{CreateVolumeRequest{Name: "d", SourceSnapshotID: "src@s"}, u64(10 * mib)},
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 20 * mib, SourceSnapshotID: "src@s"}, u64(20 * mib)},
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 4 * mib, SourceSnapshotID: "free@s"}, u64(4 * mib)},
+		{CreateVolumeRequest{Name: "half", CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"}, u64(10 * mib)},
+	} {
+		plan, err := pl.PlanCreateVolume(tab, tc.r)
+		if err != nil || setProp(plan, "refquota") != tc.want {
+			t.Errorf("%+v: refquota %q (%v), want %s", tc.r, setProp(plan, "refquota"), err, tc.want)
 		}
 	}
 }

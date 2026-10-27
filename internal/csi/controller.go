@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -247,6 +248,27 @@ func volumeOut(v *pb.Volume) *csi.Volume {
 	return out
 }
 
+// k8sContextPrefixes mark volume_context keys Kubernetes adds to a PV's
+// attributes itself (external-provisioner's
+// storage.kubernetes.io/csiProvisionerIdentity): never issued here, and
+// not the caller's claim about the volume.
+var k8sContextPrefixes = []string{"storage.kubernetes.io/", k8sParamPrefix}
+
+// contextMismatch says why got is not (a subset of) the volume_context
+// issued for the volume, or "" when every key it names has the issued
+// value.
+func contextMismatch(issued, got map[string]string) string {
+	for k, v := range got {
+		if slices.ContainsFunc(k8sContextPrefixes, func(p string) bool { return strings.HasPrefix(k, p) }) {
+			continue
+		}
+		if want, ok := issued[k]; !ok || want != v {
+			return fmt.Sprintf("volume_context %s=%q is not the volume's (%q)", k, v, want)
+		}
+	}
+	return ""
+}
+
 func snapshotOut(s *pb.Snapshot) *csi.Snapshot {
 	return &csi.Snapshot{
 		SnapshotId:     s.GetId(),
@@ -283,9 +305,18 @@ func (c *Controller) CreateVolume(ctx context.Context, r *csi.CreateVolumeReques
 	src := r.GetVolumeContentSource()
 	switch {
 	case src == nil:
+	// an empty id would reach the endpoint as "no source" (proto3 reads an
+	// empty oneof string back as unset): a restore or clone would silently
+	// provision an empty volume
 	case src.GetSnapshot() != nil:
+		if src.GetSnapshot().GetSnapshotId() == "" {
+			return nil, invalid("volume_content_source.snapshot.snapshot_id is required")
+		}
 		req.Source = &pb.CreateVolumeRequest_SourceSnapshotId{SourceSnapshotId: src.GetSnapshot().GetSnapshotId()}
 	case src.GetVolume() != nil:
+		if src.GetVolume().GetVolumeId() == "" {
+			return nil, invalid("volume_content_source.volume.volume_id is required")
+		}
 		req.Source = &pb.CreateVolumeRequest_SourceVolumeId{SourceVolumeId: src.GetVolume().GetVolumeId()}
 	default:
 		return nil, invalid("unsupported volume_content_source")
@@ -323,6 +354,16 @@ func (c *Controller) ValidateVolumeCapabilities(ctx context.Context, r *csi.Vali
 			return &csi.ValidateVolumeCapabilitiesResponse{Message: msg}, nil
 		}
 	}
+	// the context must be the one CreateVolume issued for this volume:
+	// confirming any context echoed the caller's claims back
+	if msg := contextMismatch(volumeOut(got.GetVolume()).GetVolumeContext(), r.GetVolumeContext()); msg != "" {
+		return &csi.ValidateVolumeCapabilitiesResponse{Message: msg}, nil
+	}
+	// Parameters are only checked for being understood, not against the
+	// volume: pb.Volume carries no sparse/reserve, so a sparse=true repeat
+	// of a thick volume (which CreateVolume calls AlreadyExists) is still
+	// confirmed. Comparing them needs those fields in the endpoint API
+	// (a proto change), deferred.
 	if _, err := parseParams(r.GetParameters()); err != nil {
 		return &csi.ValidateVolumeCapabilitiesResponse{Message: status.Convert(err).Message()}, nil
 	}
@@ -373,6 +414,17 @@ func (c *Controller) ControllerExpandVolume(ctx context.Context, r *csi.Controll
 	}
 	if required == 0 && limit == 0 {
 		return nil, invalid("capacity_range needs required_bytes or limit_bytes")
+	}
+	if vc := r.GetVolumeCapability(); vc != nil {
+		// checked against the volume before anything is resized, by the
+		// rule ValidateVolumeCapabilities confirms with
+		got, err := c.EP.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: r.GetVolumeId()})
+		if err != nil {
+			return nil, err
+		}
+		if msg := capSupported(got.GetVolume().GetKind(), vc, c.EnableBlock); msg != "" {
+			return nil, invalid("volume_capability: %s", msg)
+		}
 	}
 	res, err := c.EP.ExpandVolume(ctx, &pb.ExpandVolumeRequest{VolumeId: r.GetVolumeId(), CapacityBytes: required, LimitBytes: limit})
 	if err != nil {

@@ -244,3 +244,118 @@ func TestExpandUnlimitedFilesystem(t *testing.T) {
 		t.Fatalf("%+v %v", res, err)
 	}
 }
+
+// A volume_capability on Expand is checked against the volume by the rule
+// Validate uses, before anything is resized: an unsupported one is
+// InvalidArgument and the capacity is unchanged.
+func TestExpandValidatesCapability(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep := endpointClient(t)
+	c := &zcsi.Controller{EP: ep, EnableBlock: true}
+	if _, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "fs", VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
+		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}}); err != nil {
+		t.Fatal(err)
+	}
+	multi := capability(false)
+	multi.AccessMode.Mode = csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER
+	for name, vc := range map[string]*csi.VolumeCapability{
+		"block access on a filesystem volume": capability(true),
+		"unsupported access mode":             multi,
+		"no access type":                      {AccessMode: capability(false).AccessMode},
+	} {
+		res, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+			VolumeId: "fs", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: vc,
+		})
+		if status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%s: %+v %v, want InvalidArgument", name, res, err)
+		}
+	}
+	if v, err := ep.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "fs"}); err != nil || v.GetVolume().GetCapacityBytes() != 1<<30 {
+		t.Fatalf("resized by a refused expand: %v %v", v, err)
+	}
+	// a supported capability still expands; a missing volume is NotFound
+	if _, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+		VolumeId: "fs", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(false),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+		VolumeId: "gone", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(false),
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("missing volume: %v", err)
+	}
+}
+
+// A content source with an empty id is InvalidArgument, and nothing is
+// provisioned: the endpoint reads an empty oneof id back as "no source", so
+// a restore or clone would create an empty volume and report success.
+func TestCreateEmptyContentSourceID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep := endpointClient(t)
+	c := &zcsi.Controller{EP: ep}
+	for name, src := range map[string]*csi.VolumeContentSource{
+		"snapshot": {Type: &csi.VolumeContentSource_Snapshot{Snapshot: &csi.VolumeContentSource_SnapshotSource{}}},
+		"volume":   {Type: &csi.VolumeContentSource_Volume{Volume: &csi.VolumeContentSource_VolumeSource{}}},
+	} {
+		_, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{
+			Name: "empty-" + name, VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
+			CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 20}, VolumeContentSource: src,
+		})
+		if status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%s: %v, want InvalidArgument", name, err)
+		}
+		if _, err := ep.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "empty-" + name}); status.Code(err) != codes.NotFound {
+			t.Errorf("%s: a volume was provisioned: %v", name, err)
+		}
+	}
+}
+
+// Validate confirms only the volume_context CreateVolume issued for the
+// volume (or a subset of it, plus keys Kubernetes adds itself): another
+// volume's dataset, another kind or an unknown key is not confirmed.
+// Parameters are not compared with the volume (deferred: the endpoint API
+// carries no sparse/reserve), so that half is not asserted here.
+func TestValidateComparesIssuedContext(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := &zcsi.Controller{EP: endpointClient(t)}
+	res, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "v", VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
+		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued := res.GetVolume().GetVolumeContext()
+	with := func(k, v string) map[string]string {
+		m := map[string]string{}
+		for ik, iv := range issued {
+			m[ik] = iv
+		}
+		m[k] = v
+		return m
+	}
+	for _, tc := range []struct {
+		name    string
+		vctx    map[string]string
+		confirm bool
+	}{
+		{"issued", issued, true},
+		{"none", nil, true},
+		{"subset", map[string]string{zcsi.CtxKind: "filesystem"}, true},
+		{"provisioner identity", with("storage.kubernetes.io/csiProvisionerIdentity", "123-zfs"), true},
+		{"other dataset", with(zcsi.CtxDataset, "tank/other/vol"), false},
+		{"other kind", with(zcsi.CtxKind, "block"), false},
+		{"unknown key", with("junk", "1"), false},
+	} {
+		got, err := c.ValidateVolumeCapabilities(ctx, &csi.ValidateVolumeCapabilitiesRequest{
+			VolumeId: "v", VolumeCapabilities: []*csi.VolumeCapability{capability(false)}, VolumeContext: tc.vctx,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (got.GetConfirmed() != nil) != tc.confirm {
+			t.Errorf("%s: confirmed=%v (%q), want %v", tc.name, got.GetConfirmed() != nil, got.GetMessage(), tc.confirm)
+		}
+	}
+}

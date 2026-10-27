@@ -13,6 +13,7 @@ import (
 	"context"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
@@ -25,8 +26,10 @@ const DefaultDriverName = "zfs-endpoint.wommy.github.io"
 // Identity implements csi.IdentityServer.
 type Identity struct {
 	csi.UnimplementedIdentityServer
-	EP   pb.EndpointServiceClient
-	Name string // defaults to DefaultDriverName
+	// Health is the endpoint's gRPC health service, on the endpoint's
+	// connection: Probe reports what it says about the endpoint service.
+	Health healthpb.HealthClient
+	Name   string // defaults to DefaultDriverName
 }
 
 func (s *Identity) GetPluginInfo(context.Context, *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
@@ -49,10 +52,16 @@ func (s *Identity) GetPluginCapabilities(context.Context, *csi.GetPluginCapabili
 	}}, nil
 }
 
-// Probe is ready when the endpoint answers; its error passes through.
+// Probe asks the endpoint's gRPC health service about the endpoint
+// service: ready only when it is SERVING. The daemon turns it NOT_SERVING
+// while its own probe of the parent fails (a suspended or exported pool)
+// and while it drains, so a front end in front of an unusable pool is not
+// reported ready. That is ready=false, not an error: the plugin itself is
+// fine. A failed Check (the endpoint unreachable) passes through.
 func (s *Identity) Probe(ctx context.Context, _ *csi.ProbeRequest) (*csi.ProbeResponse, error) {
-	if _, err := s.EP.GetCapabilities(ctx, &pb.GetCapabilitiesRequest{}); err != nil {
+	res, err := s.Health.Check(ctx, &healthpb.HealthCheckRequest{Service: pb.EndpointService_ServiceDesc.ServiceName})
+	if err != nil {
 		return nil, err
 	}
-	return &csi.ProbeResponse{Ready: wrapperspb.Bool(true)}, nil
+	return &csi.ProbeResponse{Ready: wrapperspb.Bool(res.GetStatus() == healthpb.HealthCheckResponse_SERVING)}, nil
 }

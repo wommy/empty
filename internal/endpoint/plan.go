@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -195,13 +196,15 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		commit.Props[p.Names.committedAt()] = strconv.FormatInt(p.now, 10)
 	}
 	// size is what a provision drives the volume to. A clone starts at its
-	// source's size and is never shrunk, and a filesystem clone without a
-	// capacity takes its source's quota. It is derived here, before the
-	// resume branch, so a retry after a failure at any op boundary reaches
-	// the end state an uninterrupted run reaches.
+	// source's size and is never shrunk: a filesystem clone gets
+	// max(requested, its source's refquota), as a zvol clone keeps its
+	// source's volsize (sizeOps only grows). An unlimited source (refquota
+	// 0) leaves the request as is, as a fresh create would. It is derived
+	// here, before the resume branch, so a retry after a failure at any op
+	// boundary reaches the end state an uninterrupted run reaches.
 	size, sizeErr := want, error(nil)
 	if n, ok := sourceSize(t, r); ok {
-		if r.Kind == Filesystem && size == 0 {
+		if r.Kind == Filesystem && n > size {
 			size = n
 		}
 		if r.LimitBytes > 0 && n > r.LimitBytes {
@@ -439,7 +442,13 @@ func cloneBlockSize(own map[string]string, src Row) error {
 }
 
 // sizeOps converges an owned-but-uncommitted (or freshly cloned) volume to
-// the requested size and reservation. It never shrinks.
+// the requested size and reservation. It never shrinks the size.
+//
+// Thick or thin converges both ways, by the rule compatible() judges a
+// committed volume with (a zvol is thick when refreservation > 0, a
+// filesystem when reserve was asked): a resume that committed a row of the
+// other kind as-is would succeed once and then make the identical retry
+// AlreadyExists.
 func (p Planner) sizeOps(id string, row Row, r CreateVolumeRequest, want uint64) Plan {
 	set := map[string]string{}
 	if r.Kind == Block {
@@ -449,12 +458,18 @@ func (p Planner) sizeOps(id string, row Row, r CreateVolumeRequest, want uint64)
 		if !r.Sparse && row.Refres == 0 {
 			set["refreservation"] = "auto"
 		}
+		if r.Sparse && row.Refres > 0 {
+			set["refreservation"] = "none"
+		}
 	} else {
 		if want > 0 && (row.Refquota == 0 || want > row.Refquota) {
 			set["refquota"] = u64(want)
 		}
 		if r.Reserve && row.Refres < want {
 			set["refreservation"] = u64(want)
+		}
+		if !r.Reserve && row.Refres > 0 {
+			set["refreservation"] = "none"
 		}
 	}
 	if len(set) == 0 {
@@ -466,7 +481,9 @@ func (p Planner) sizeOps(id string, row Row, r CreateVolumeRequest, want uint64)
 // compatible applies CSI's CreateVolume idempotency rule to a committed row.
 func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 	id, have := row.ID, row.Capacity()
-	if want > 0 && (have == 0 || have < want) {
+	// an unlimited filesystem (have 0) satisfies any capacity, as
+	// PlanExpandVolume holds; it does violate a limit ("at most limit")
+	if want > 0 && have != 0 && have < want {
 		return errorf(AlreadyExists, "volume %s exists with capacity %d < %d", id, have, want)
 	}
 	if r.LimitBytes > 0 && (have == 0 || have > r.LimitBytes) {
@@ -525,6 +542,24 @@ func (p Planner) releaseCloneSourcesFor(t Table, id string) (Plan, error) {
 		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true})
 	}
 	return plan, nil
+}
+
+// volumesOf is the volume ids plan's ops act on (a snapshot's counts as its
+// volume's), in order of first appearance: what a caller must hold locks
+// for. Targets outside the parent name no volume and are left out.
+func (p Planner) volumesOf(plan Plan) []string {
+	var vols []string
+	for _, op := range plan {
+		rel, ok := strings.CutPrefix(op.Target, p.Parent+"/")
+		if !ok {
+			continue
+		}
+		vol, _, _ := strings.Cut(rel, "@")
+		if vol != "" && !slices.Contains(vols, vol) {
+			vols = append(vols, vol)
+		}
+	}
+	return vols
 }
 
 // deletion is a volume delete as parts: the clone-source origin it
@@ -670,8 +705,9 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 	if row.Kind() == Filesystem && row.Refres > 0 && row.Refres < max(want, row.Refquota) {
 		// thick and under-reserved: an earlier Expand's set applied
 		// refquota, then refreservation failed ENOSPC (zfs applies space
-		// properties one by one). Reserve the capacity, never report it
-		// done.
+		// properties one by one), and its rollback (PlanExpandRollback)
+		// never ran: killed in between, or the rollback failed too.
+		// Reserve the capacity, never report it done.
 		set := map[string]string{"refreservation": u64(max(want, row.Refquota))}
 		if want > row.Refquota {
 			set["refquota"] = u64(want)
@@ -686,12 +722,35 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 		// refreservation follows volsize by itself when it was auto
 		set["volsize"] = u64(want)
 	} else {
+		// refquota must land first: zfs refuses a refreservation above
+		// the refquota (dsl_dataset_set_refreservation_check), so a grow
+		// cannot reserve before it raises the quota. A failed reservation
+		// is rolled back instead (PlanExpandRollback).
 		set["refquota"] = u64(want)
 		if row.Refres > 0 {
 			set["refreservation"] = u64(want)
 		}
 	}
 	return Plan{{Kind: OpSet, Target: row.Name, Props: set}}, row, nil
+}
+
+// PlanExpandRollback undoes the half of a failed thick-filesystem grow that
+// landed. zfs applies refquota, then refreservation; when the reservation
+// fails (ENOSPC: the pool cannot back the new size) the raised refquota
+// stays, and the volume would report a capacity it cannot reserve, which
+// every later Expand must then reserve (ResourceExhausted until the pool
+// grows). before is the row the failed plan was made from, t a scan after
+// the failure. The plan puts refquota back where it was, and only when
+// this grow raised it and the reservation stayed behind; otherwise nil.
+func (p Planner) PlanExpandRollback(t Table, before Row) Plan {
+	row, ok := t.Get(before.ID)
+	if !ok || row.Name != before.Name || row.Kind() != Filesystem || before.Kind() != Filesystem {
+		return nil
+	}
+	if row.Refres == 0 || row.Refres >= row.Refquota || row.Refquota <= before.Refquota {
+		return nil
+	}
+	return Plan{{Kind: OpSet, Target: row.Name, Props: map[string]string{"refquota": u64(max(before.Refquota, row.Refres))}}}
 }
 
 // PlanCreateSnapshot: CSI snapshot names are global; the same name on the

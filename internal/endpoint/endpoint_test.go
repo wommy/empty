@@ -91,7 +91,11 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
 	h := &harness{}
 	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
 		h.Z = zfs.New(zfs.LocalRunner{})
-		h.Parent = fmt.Sprintf("%s/ep-%s-%d", pool, unsafeChars.ReplaceAllString(t.Name(), "_"), time.Now().UnixNano())
+		// the name part is capped so the parent stays within
+		// endpoint.MaxParentLen whatever a subtest is called
+		name := unsafeChars.ReplaceAllString(t.Name(), "_")
+		name = name[:min(len(name), 64)]
+		h.Parent = fmt.Sprintf("%s/ep-%s-%d", pool, name, time.Now().UnixNano())
 		t.Cleanup(func() {
 			if err := h.Z.Destroy(ctx, h.Parent, zfs.DestroyOptions{Recursive: true}); err != nil {
 				t.Errorf("cleanup %s: %v", h.Parent, err)
@@ -645,43 +649,83 @@ func TestCreateVolumeProperties(t *testing.T) {
 	}
 }
 
+// An interrupted provision of the other thickness converges to the request
+// (refreservation=none), so the commit and the identical retry agree with
+// compatible(): before, the first call committed the thick row as-is and
+// the retry was AlreadyExists.
+func TestResumeConvergesThickToThin(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	own := func(name string) map[string]string {
+		return map[string]string{"zfs-endpoint:managed_resource": "true", "zfs-endpoint:csi_volume_name": name}
+	}
+	if err := h.Z.CreateVolume(ctx, h.Parent+"/z", 1<<30, false, own("z")); err != nil {
+		t.Fatal(err)
+	}
+	fsOwn := own("f")
+	fsOwn["refquota"], fsOwn["refreservation"] = "1073741824", "1073741824"
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/f", fsOwn, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []endpoint.CreateVolumeRequest{
+		{Name: "z", Kind: endpoint.Block, CapacityBytes: 1 << 30, Sparse: true},
+		{Name: "f", CapacityBytes: 1 << 30},
+	} {
+		for i := 0; i < 2; i++ {
+			if _, err := ep.CreateVolume(ctx, r); err != nil {
+				t.Fatalf("%s attempt %d: %v", r.Name, i, err)
+			}
+		}
+		if got := h.Prop(h.Parent+"/"+r.Name, "refreservation"); got != "0" {
+			t.Errorf("%s: refreservation %s, want 0", r.Name, got)
+		}
+	}
+}
+
 // A thick filesystem's Expand sets refquota and refreservation in one
 // `zfs set`; zfs applies refquota, then refreservation fails ENOSPC
-// (zfs_set_prop_nvlist applies space properties one by one). The retry
-// sees the refquota already at the new capacity and must not report the
-// volume expanded while its reservation is the old one: it re-plans the
-// refreservation. 1 PiB is beyond any test pool, so this runs on the
-// simulator's space model and on a real pool alike.
+// (zfs_set_prop_nvlist applies space properties one by one). The failed
+// grow is rolled back: the volume keeps reporting, and reserving, its old
+// size, the identical retry fails the same way, and a grow the pool can
+// back succeeds. Before, the raised refquota stayed: the volume reported
+// 1 PiB and every later Expand had to reserve it (ResourceExhausted). 1 PiB
+// is beyond any test pool, so this runs on the simulator's space model and
+// on a real pool (which may apply neither property) alike.
 func TestExpandThickFilesystemRetryAfterENOSPC(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "thick", CapacityBytes: 1 << 30, Reserve: true}); err != nil {
 		t.Fatal(err)
 	}
+	ds := h.Parent + "/thick"
+	sizes := func() string { return h.Prop(ds, "refquota") + "/" + h.Prop(ds, "refreservation") }
 	const huge = 1 << 50
-	_, err := ep.ExpandVolume(ctx, "thick", huge, 0)
-	wantCode(t, err, endpoint.ResourceExhausted)
-	half := true
-	if got := h.Prop(h.Parent+"/thick", "refquota"); got != fmt.Sprint(uint64(huge)) {
-		half = false
-		// the simulator half-applies, as 2.4.4's source reads; should a
-		// real pool not, the retries below hold all the same
-		if h.sim != nil {
-			t.Fatalf("refquota %s: the simulator must half-apply the set", got)
+	for i := 0; i < 3; i++ {
+		_, err := ep.ExpandVolume(ctx, "thick", huge, 0)
+		if endpoint.CodeOf(err) != endpoint.ResourceExhausted {
+			t.Fatalf("attempt %d: %v, want ResourceExhausted", i, err)
 		}
-		t.Logf("refquota %s: this zfs applied neither property", got)
-	}
-	for i := 0; i < 2; i++ {
-		v, err := ep.ExpandVolume(ctx, "thick", huge, 0)
-		if err == nil {
-			t.Fatalf("retry %d reported %+v expanded; refreservation is %s", i, v, h.Prop(h.Parent+"/thick", "refreservation"))
+		if got := sizes(); got != "1073741824/1073741824" {
+			t.Fatalf("attempt %d left refquota/refreservation %s, want the old 1 GiB both", i, got)
 		}
-		wantCode(t, err, endpoint.ResourceExhausted)
+		if v, err := ep.GetVolume(ctx, "thick"); err != nil || v.CapacityBytes != 1<<30 {
+			t.Fatalf("attempt %d: volume reports %+v %v", i, v, err)
+		}
 	}
-	// a smaller expand is no way out: the volume reports the 1 PiB
-	// refquota as its capacity, which a thick volume must reserve
-	if half {
-		_, err = ep.ExpandVolume(ctx, "thick", 2<<30, 0)
-		wantCode(t, err, endpoint.ResourceExhausted)
+	if v, err := ep.ExpandVolume(ctx, "thick", 2<<30, 0); err != nil || v.CapacityBytes != 2<<30 || sizes() != "2147483648/2147483648" {
+		t.Fatalf("a grow the pool backs, after the failed one: %+v %v (%s)", v, err, sizes())
+	}
+
+	// a half-applied grow the rollback never undid (killed in between):
+	// Expand re-plans the reservation, never reports it done
+	if err := h.Z.Set(ctx, ds, map[string]string{"refquota": fmt.Sprint(uint64(huge))}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []uint64{huge, 3 << 30} {
+		if v, err := ep.ExpandVolume(ctx, "thick", c, 0); endpoint.CodeOf(err) != endpoint.ResourceExhausted {
+			t.Fatalf("expand %d of a half-applied volume: %+v %v (%s), want ResourceExhausted", c, v, err, sizes())
+		}
 	}
 }

@@ -14,8 +14,10 @@ import (
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
+	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	zcsi "github.com/wommy/empty/internal/csi"
 )
 
@@ -53,7 +55,8 @@ func TestSanity(t *testing.T) {
 	if f := flag.Lookup("test.count"); f != nil && f.Value.String() != "1" {
 		t.Skip("csi-sanity (Ginkgo) runs once per process; use -count=1")
 	}
-	ep := endpointClient(t)
+	conn := endpointConn(t)
+	ep := pb.NewEndpointServiceClient(conn)
 
 	// unix socket paths are limited to ~108 bytes; t.TempDir can exceed that
 	dir, err := os.MkdirTemp("", "zfs-csi")
@@ -67,7 +70,7 @@ func TestSanity(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := grpc.NewServer()
-	csi.RegisterIdentityServer(srv, &zcsi.Identity{EP: ep})
+	csi.RegisterIdentityServer(srv, &zcsi.Identity{Health: healthpb.NewHealthClient(conn)})
 	// "mount" (the default) provisions filesystems, "block" zvols, which
 	// needs -enable-block
 	at := os.Getenv("CSI_SANITY_ACCESS_TYPE")

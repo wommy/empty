@@ -174,10 +174,20 @@ type Endpoint struct {
 	locks lock.Keyed
 }
 
+// MaxParentLen is the longest parent dataset name New accepts: zfs names are
+// at most 255 bytes, and a volume (<parent>/<id>) or snapshot
+// (<parent>/<volume>@<name>) id is up to 128 bytes, so a longer parent
+// would refuse some CSI names that are valid everywhere else. Refused at
+// startup rather than on each CreateVolume.
+const MaxParentLen = 255 - 1 - 128
+
 // New returns an Endpoint.
 func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	if !zfs.ValidDataset(cfg.Parent) {
 		return nil, fmt.Errorf("invalid parent dataset %q", cfg.Parent)
+	}
+	if len(cfg.Parent) > MaxParentLen {
+		return nil, fmt.Errorf("parent dataset %q is %d bytes, over %d: its volumes' names (up to 128 bytes more) would exceed zfs's 255", cfg.Parent, len(cfg.Parent), MaxParentLen)
 	}
 	if cfg.PropertyPrefix == "" {
 		cfg.PropertyPrefix = DefaultPropertyPrefix
@@ -539,21 +549,70 @@ func (e *Endpoint) DeleteVolume(ctx context.Context, volID string) error {
 		}
 		return err
 	}
-	release, err := e.lock(ctx, "vol:"+volID)
+	// A delete that releases a clone origin (<src>@volume-source-for-
+	// volume-<id>) touches the source volume as well, so it holds vol:<src>
+	// too, as Reconcile does. Which source is known only from the scan,
+	// after vol:<id> is held. Lock order, so this cannot invert against a
+	// CreateVolume from that source (which waits for {vol:<new>, vol:<src},
+	// sorted):
+	//   - every waiting acquisition takes its whole key set at once, in
+	//     sorted order (lock.Keyed.Acquire);
+	//   - a key added while others are held is only ever tried, never
+	//     waited for (TryAcquire). Busy, everything is released and the
+	//     whole set is waited for, sorted, then scanned and planned again.
+	// Bounded: the set only grows; a plan that keeps naming new sources is
+	// Aborted (retried by the sidecars).
+	vols := []string{volID}
+	for range 3 {
+		again, err := e.deleteLocked(ctx, volID, &vols)
+		if !again {
+			return err
+		}
+	}
+	return errorf(Aborted, "volume %s: the volumes its delete touches kept changing; retry", volID)
+}
+
+// deleteLocked is one DeleteVolume pass holding vol:<v> for each of *vols.
+// again reports that the plan touches volumes not held and not free to
+// take now: they were added to *vols, for the next pass to wait for.
+func (e *Endpoint) deleteLocked(ctx context.Context, volID string, vols *[]string) (again bool, err error) {
+	release, err := e.lock(ctx, volKeys(*vols)...)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer release()
 	// clones of this volume's snapshots live elsewhere under the parent
 	t, err := e.scan(ctx, "")
 	if err != nil {
-		return err
+		return false, err
 	}
 	plan, err := e.plan.PlanDeleteVolume(t, volID)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return e.apply(ctx, plan)
+	var extra []string
+	for _, v := range e.plan.volumesOf(plan) {
+		if !slices.Contains(*vols, v) {
+			extra = append(extra, v)
+		}
+	}
+	if len(extra) > 0 {
+		more, ok := e.locks.TryAcquire(volKeys(extra)...)
+		if !ok {
+			*vols = append(*vols, extra...)
+			return true, nil
+		}
+		defer more()
+	}
+	return false, e.apply(ctx, plan)
+}
+
+func volKeys(vols []string) []string {
+	keys := make([]string, len(vols))
+	for i, v := range vols {
+		keys[i] = "vol:" + v
+	}
+	return keys
 }
 
 // ExpandVolume grows a volume to at least capacity. Shrinking is a no-op.
@@ -570,11 +629,14 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 	if err != nil {
 		return Volume{}, err
 	}
-	plan, _, err := e.plan.PlanExpandVolume(t, volID, capacity, limit)
+	plan, before, err := e.plan.PlanExpandVolume(t, volID, capacity, limit)
 	if err != nil {
 		return Volume{}, err
 	}
 	if err := e.apply(ctx, plan); err != nil {
+		if rerr := e.rollbackExpand(ctx, before); rerr != nil {
+			return Volume{}, errors.Join(err, fmt.Errorf("rolling refquota back: %w", rerr))
+		}
 		return Volume{}, err
 	}
 	v, err := e.readVolume(ctx, volID)
@@ -589,6 +651,26 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 	}
 	return v, err
 }
+
+// rollbackExpand puts back a refquota a failed grow raised without its
+// reservation (PlanExpandRollback), still under the volume's lock. It runs
+// even when the caller's context ended (that may be why the grow failed),
+// bounded by its own timeout.
+func (e *Endpoint) rollbackExpand(ctx context.Context, before Row) error {
+	if before.ID == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	t, err := e.scan(ctx, before.ID)
+	if err != nil {
+		return err
+	}
+	return e.apply(ctx, e.plan.PlanExpandRollback(t, before))
+}
+
+// rollbackTimeout bounds rollbackExpand: one scan and one `zfs set`.
+const rollbackTimeout = 30 * time.Second
 
 // GetVolume returns a managed volume.
 func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) {

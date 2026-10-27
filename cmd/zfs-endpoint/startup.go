@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/zfs"
 )
 
@@ -94,6 +95,10 @@ func validParent(p string) error {
 		if c == "." || c == ".." {
 			return configErr("invalid parent dataset %q: %q component", p, c)
 		}
+	}
+	// endpoint.New refuses it too; checked here before waiting for the pool
+	if len(p) > endpoint.MaxParentLen {
+		return configErr("parent dataset %q is %d bytes, over %d: volume names under it would exceed zfs's 255", p, len(p), endpoint.MaxParentLen)
 	}
 	return nil
 }
