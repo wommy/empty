@@ -123,6 +123,11 @@ type Config struct {
 	// need root: libzfs writes /etc/exports.d and runs exportfs as the
 	// caller, and only root can mount. The caller decides (e.g. from the
 	// effective uid); unset, those calls are Unimplemented.
+	//
+	// It also says the endpoint can mount: CreateVolume then commits a
+	// filesystem volume zfs would mount only once it is mounted, and is
+	// Unavailable until then (Planner.RequireMounted). Without root
+	// (-allow-non-root) nothing can mount, and volumes commit unmounted.
 	FileExport bool
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.
@@ -195,7 +200,8 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		zfs:   z,
 		cfg:   cfg,
 		names: names,
-		plan:  Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize, DestroyForeignSnapshots: cfg.DestroyForeignSnapshots},
+		plan: Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize, DestroyForeignSnapshots: cfg.DestroyForeignSnapshots,
+			RequireMounted: cfg.FileExport},
 	}, nil
 }
 
@@ -432,20 +438,44 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	}
 	defer release()
 
-	t, err := e.scanFor(ctx, id, r.SourceVolumeID, r.SourceSnapshotID)
-	if err != nil {
-		return Volume{}, err
-	}
-	p := e.plan
-	p.now = e.cfg.Now().Unix()
-	plan, err := p.PlanCreateVolume(t, r)
-	if err != nil {
-		return Volume{}, err
-	}
-	if err := e.apply(ctx, plan); err != nil {
-		return Volume{}, err
+	// A create plan that leaves its commit to a re-scan (a filesystem
+	// whose mount only a scan can confirm) takes a second pass: the
+	// resume, which commits or says why not. Two passes at most.
+	for pass := 0; ; pass++ {
+		t, err := e.scanFor(ctx, id, r.SourceVolumeID, r.SourceSnapshotID)
+		if err != nil {
+			return Volume{}, err
+		}
+		p := e.plan
+		p.now = e.cfg.Now().Unix()
+		plan, err := p.PlanCreateVolume(t, r)
+		if err != nil {
+			return Volume{}, err
+		}
+		if err := e.apply(ctx, plan); err != nil {
+			if row, ok := t.Get(id); ok && !row.Committed {
+				return Volume{}, resumeErr(err)
+			}
+			return Volume{}, err
+		}
+		if pass > 0 || len(plan) == 0 || p.commits(plan) {
+			break
+		}
 	}
 	return e.readVolume(ctx, id)
+}
+
+// resumeErr maps the failure of a resumed provision. An earlier attempt
+// already changed the volume, so an unclassified zfs failure is Aborted
+// even on the resume's first op, as it was on the attempt that left the
+// row (opErr): a final Internal would strand the half-made volume, and
+// flip the code a caller saw for the same state.
+func resumeErr(err error) error {
+	var e *Error
+	if errors.As(err, &e) && e.Code == Internal && e.Err != nil {
+		return &Error{Code: Aborted, Msg: e.Msg + " (resuming an earlier attempt; a retry converges)", Err: e.Err}
+	}
+	return err
 }
 
 // scanFor reads the volumes an operation touches (one zfs call each).

@@ -62,6 +62,14 @@ type Planner struct {
 	VolBlockSize uint64
 	// DestroyForeignSnapshots: Config.DestroyForeignSnapshots.
 	DestroyForeignSnapshots bool
+	// RequireMounted: the endpoint can mount (it runs as root), so a
+	// filesystem volume zfs would mount is committed only once a scan
+	// shows it mounted. OpenZFS 2.4's `zfs create` and `zfs clone` exit 0
+	// when the mount after the create fails (zfs_main.c ignores
+	// zfs_mount_and_share), and a kill after the create ioctl skips the
+	// mount entirely; committing then hands out a mountpoint that is a
+	// plain directory of the parent.
+	RequireMounted bool
 
 	// now, when set, is stamped as committed_at by a create's commit: the
 	// caller's clock reading, so planning stays pure.
@@ -140,7 +148,10 @@ func (p Planner) validateCreate(r CreateVolumeRequest) (string, map[string]strin
 	if r.Kind == Filesystem && r.Sparse {
 		return "", nil, errorf(InvalidArgument, "sparse applies to zvols; filesystems are thin unless reserved")
 	}
-	if r.LimitBytes > 0 && p.want(r, props) > r.LimitBytes {
+	// a zvol clone rounds to its source's block size, which only the table
+	// knows: PlanCreateVolume checks its limit
+	blockClone := r.Kind == Block && (r.SourceSnapshotID != "" || r.SourceVolumeID != "")
+	if r.LimitBytes > 0 && !blockClone && p.want(r, props) > r.LimitBytes {
 		return "", nil, errorf(OutOfRange, "capacity %d (rounded) exceeds limit %d", p.want(r, props), r.LimitBytes)
 	}
 	return id, props, nil
@@ -163,6 +174,17 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	// absent means "create it" for id and "NotFound" for the source
 	if err := t.mustCover(id, srcID); err != nil {
 		return nil, err
+	}
+	// a clone keeps its source's volblocksize (cloneBlockSize), and zfs
+	// refuses a volsize that is not a multiple of the zvol's own block
+	// size: round to the source's, not to the configured default
+	if bs, ok := sourceBlockSize(t, r); ok {
+		if _, named := props[volblocksizeProp]; !named {
+			want = p.roundTo(r.CapacityBytes, bs)
+		}
+		if r.LimitBytes > 0 && want > r.LimitBytes {
+			return nil, errorf(OutOfRange, "capacity %d (rounded to the source's volblocksize %d) exceeds limit %d", want, bs, r.LimitBytes)
+		}
 	}
 	commit := Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{p.Names.success(): "true"}}
 	if p.now > 0 {
@@ -203,6 +225,11 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			// volblocksize is create-only: a row without it cannot converge
 			if bs, ok := props[volblocksizeProp]; ok && u64(row.BlockSz) != bs {
 				return nil, errorf(AlreadyExists, "volume %s exists with volblocksize %d, requested %s", id, row.BlockSz, bs)
+			}
+			if p.RequireMounted && mountable(row) && !row.Mounted {
+				// nothing is written: the retry after a mount commits
+				return nil, errorf(Unavailable, "filesystem %s is not mounted at %s (zfs create and clone succeed when the mount fails): "+
+					"mount it (zfs mount %s) or clear the mountpoint; the volume is committed once it is mounted", row.Name, row.Mount, row.Name)
 			}
 			plan := p.sizeOps(id, row, r, size)
 			if set := propSet(row, props); len(set) > 0 {
@@ -322,7 +349,51 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		}
 		plan = Plan{{Kind: OpCreateFS, Target: p.full(id), Props: own}}
 	}
+	if p.RequireMounted && r.Kind == Filesystem {
+		// whether the create (or clone) mounted is known only from a scan
+		// after it: the commit is the resume's, which checks Mounted
+		return plan, nil
+	}
 	return append(plan, commit), nil
+}
+
+// commits reports whether plan ends a provision (sets provision_success).
+// A create plan that does not leaves the commit to a re-scan and re-plan.
+func (p Planner) commits(plan Plan) bool {
+	for _, op := range plan {
+		if op.Kind == OpSet && op.Props[p.Names.success()] == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+// mountable reports whether zfs mounts row by itself: a filesystem with
+// canmount=on and a mountpoint path. canmount off/noauto and mountpoint
+// none/legacy are an administrator's choice not to.
+func mountable(row Row) bool {
+	return row.Kind() == Filesystem && row.CanMount == "on" &&
+		row.Mount != "" && row.Mount != "none" && row.Mount != "legacy"
+}
+
+// sourceBlockSize is the volblocksize of a zvol clone's source: its
+// volume's, which every snapshot of it shares.
+func sourceBlockSize(t Table, r CreateVolumeRequest) (uint64, bool) {
+	if r.Kind != Block {
+		return 0, false
+	}
+	vol := r.SourceVolumeID
+	if r.SourceSnapshotID != "" {
+		vol, _, _ = strings.Cut(r.SourceSnapshotID, "@")
+	}
+	if vol == "" {
+		return 0, false
+	}
+	src, ok := t.Get(vol)
+	if !ok || src.Type != zfs.TypeVolume || src.BlockSz == 0 {
+		return 0, false
+	}
+	return src.BlockSz, true
 }
 
 // sourceSize is the capacity a clone of r's source starts with: a zvol
