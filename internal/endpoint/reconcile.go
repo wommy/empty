@@ -519,8 +519,9 @@ func simulateDestroyAll(rows []Row, plans []Plan) []Row {
 type ReconcileRequest struct {
 	// DesiredVolumeIDs is the complete set to keep (Desired.VolumeIDs).
 	// An id that names nothing, including one the endpoint could never
-	// issue, is reported as SkipDesiredMissing; an empty id is
-	// InvalidArgument.
+	// issue, is reported as SkipDesiredMissing: the first maxMissingSkips
+	// in sorted order, then one "(N more)" entry. An empty id, or more
+	// than MaxDesiredVolumeIDs, is InvalidArgument.
 	DesiredVolumeIDs []string
 	// MinAge; 0 means DefaultReconcileMinAge, below MinReconcileMinAge is
 	// refused.

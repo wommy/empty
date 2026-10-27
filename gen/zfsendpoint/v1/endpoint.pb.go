@@ -1508,9 +1508,13 @@ type ReconcileRequest struct {
 	// cannot be told apart from a caller that sent nothing. A set naming none
 	// of the endpoint's volumes counts as empty. An id that names no volume,
 	// including one the endpoint could never issue (another driver's
-	// "ns/pv"), is reported in skipped ("desired volume does not exist") and
-	// the run goes on; it neither protects nor dooms any volume. An empty id
-	// is INVALID_ARGUMENT.
+	// "ns/pv"), neither protects nor dooms any volume, and the run goes on.
+	// skipped reports such ids ("desired volume does not exist") so that the
+	// answer stays bounded: the first 1000 in sorted order (a long id
+	// shortened), then, if more are missing, one entry whose target is
+	// "(N more)". An id absent from skipped is therefore not proof that it
+	// names a volume. An empty id, or more than 250000 ids, is
+	// INVALID_ARGUMENT.
 	DesiredVolumeIds []string `protobuf:"bytes,1,rep,name=desired_volume_ids,json=desiredVolumeIds,proto3" json:"desired_volume_ids,omitempty"`
 	// Nothing created (or committed) less than this long ago is touched
 	// (in-flight creates, volumes newer than the caller's desired set).
