@@ -236,6 +236,77 @@ func TestFileExportVerifiesKernelTable(t *testing.T) {
 	}
 }
 
+// `systemctl stop nfs-server` empties etab (exportfs -au), and the next
+// sharenfs change repopulates it although no nfsd runs (exportfs -ra does
+// not check). etab alone would report that as served (adv4 F4).
+func TestFileExportRequiresNFSD(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim.SetNFSDRunning(false)
+	for range 2 { // the second is the empty-plan path
+		_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)
+		wantCode(t, err, endpoint.Unavailable)
+		if !strings.Contains(err.Error(), "not running") {
+			t.Fatalf("unclear error: %v", err)
+		}
+		if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); !ok {
+			t.Fatal("test setup: etab not repopulated without nfsd")
+		}
+	}
+	sim.SetNFSDRunning(true)
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatalf("after start: %v", err)
+	}
+	// revoking needs no server: nothing serves the client either way
+	sim.SetNFSDRunning(false)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"); err != nil {
+		t.Fatalf("unpublish with nfsd stopped: %v", err)
+	}
+	sim.SetNFSDRunning(true)
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); ok {
+		t.Fatal("served again after restart")
+	}
+}
+
+// exportfs can drop one client and apply the rest, still exiting 0 (adv4
+// F4): only that client's publish fails, every retry re-shares, and the
+// other client is untouched.
+func TestFileExportDroppedHost(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatal(err)
+	}
+	sim.DropHost("10.0.0.2/32")
+	for range 2 {
+		from := len(sim.Calls)
+		_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.2", true)
+		wantCode(t, err, endpoint.Unavailable)
+		if sets(h, from) != 1 {
+			t.Fatalf("publish ran %d zfs set, want 1", sets(h, from))
+		}
+	}
+	if c, ok := h.served(t, v.Mountpoint, "10.0.0.1"); !ok || c.ReadOnly {
+		t.Fatalf("other client: %v %v", c, ok)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.2"); err != nil {
+		t.Fatalf("unpublish the dropped client: %v", err)
+	}
+	if val := h.Prop(v.Dataset, "sharenfs"); val != "rw=10.0.0.1/32" {
+		t.Fatalf("sharenfs %q", val)
+	}
+}
+
 // A volume adopted from democratic-csi (adoption mode) inherits sharenfs;
 // a parent shared to everyone exports it to "*". The first publish pins a
 // local value, and a sharenfs someone else set locally is refused, not

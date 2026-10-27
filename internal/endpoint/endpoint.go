@@ -114,6 +114,10 @@ type Config struct {
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.
 	Etab EtabReader
+	// NFSD reports the nfsd thread count; Publish succeeds only while
+	// nfsd runs. Default: Etab when it also implements NFSDReader (the
+	// simulator), else /proc/fs/nfsd/threads.
+	NFSD NFSDReader
 	// NFSMinPrefix is the broadest client network PublishFileExport
 	// accepts: an IPv4 prefix length, 1-32. Default DefaultNFSMinPrefix
 	// (/16). Unpublish takes any network, so raising it never strands an
@@ -159,6 +163,12 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	}
 	if cfg.Etab == nil {
 		cfg.Etab = DefaultEtab
+	}
+	if cfg.NFSD == nil {
+		cfg.NFSD = DefaultNFSD
+		if r, ok := cfg.Etab.(NFSDReader); ok {
+			cfg.NFSD = r
+		}
 	}
 	if cfg.NFSMinPrefix == 0 {
 		cfg.NFSMinPrefix = DefaultNFSMinPrefix
@@ -701,20 +711,36 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 	if err != nil {
 		return "", err
 	}
-	if len(plan) == 0 {
-		return row.Mount, nil
+	if len(plan) > 0 {
+		if err := e.apply(ctx, plan); err != nil {
+			return "", err
+		}
+		if live, err = e.readEtab(ctx); err != nil {
+			return "", err
+		}
+		if !live.serves(row.Mount, c) {
+			return "", errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s %s: "+
+				"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, c.Host, c.mode())
+		}
 	}
-	if err := e.apply(ctx, plan); err != nil {
+	// etab is no proof of a server: exportfs -ra rewrites it with nfsd
+	// stopped
+	if err := e.nfsdRunning(ctx); err != nil {
 		return "", err
-	}
-	if live, err = e.readEtab(ctx); err != nil {
-		return "", err
-	}
-	if got, ok := live.Lookup(row.Mount, c.Host); !ok || got.ReadOnly != c.ReadOnly {
-		return "", errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s %s: "+
-			"zfs does not report exportfs failures; check that the NFS server is running", row.Name, row.Mount, c.Host, c.mode())
 	}
 	return row.Mount, nil
+}
+
+// nfsdRunning is Unavailable unless nfsd threads run.
+func (e *Endpoint) nfsdRunning(ctx context.Context) error {
+	n, err := e.cfg.NFSD.NFSDThreads(ctx)
+	if err != nil {
+		return &Error{Code: Unavailable, Msg: "read the nfsd thread count", Err: err}
+	}
+	if n <= 0 {
+		return errorf(Unavailable, "the NFS server is not running on the storage host (no nfsd threads); the export is stored and is served once it starts")
+	}
+	return nil
 }
 
 // UnpublishFileExport revokes one client's NFS access to a volume. A
