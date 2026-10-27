@@ -51,6 +51,13 @@ jobs:
           # the reference model of zfs(8) against the simulator
           # (internal/zfs/zfsdiff, wave9 zfs-diff)
           - { name: FuzzDiff, pkg: ./internal/zfs/zfsdiff }
+          # the model checker's generator from fuzz bytes (simulator only),
+          # and the destroy-all simulation past the 1000 seeds the unit
+          # test runs
+          - { name: FuzzModel, pkg: ./internal/endpoint }
+          - { name: FuzzSimulateDestroyAllEquivalent, pkg: ./internal/endpoint }
+        # every func Fuzz* of the repository exactly once, in its package
+        # (ci/check-suites.sh)
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -105,9 +112,10 @@ jobs:
   #   first of each case). The simulator runs every point on every PR.
   # A harness, cleanup or suite failure (a crash case that does not
   # converge, say) files an issue; its fix lands with a test that fails
-  # without it. One job per suite, as in ci.yml (ci/real-zfs-suites.txt):
-  # the two sweeps are endpoint tests, the csi job runs the csi suite
-  # against the same guest.
+  # without it. One job per suite (ci/real-zfs-suites.txt), each unsplit:
+  # ci.yml splits the endpoint suite over two jobs (ZFSVM_PART), nightly
+  # runs it as one part of three shards. The two sweeps are endpoint
+  # tests; the csi job runs the csi suite against the same guest.
   # The csi job boots with ZFSVM_INITRD=1: through the BIOS, GRUB and the
   # disk's own initrd, unmasked, the fallback ci/real-zfs-vm.sh takes only
   # when the direct kernel boot fails, so a GRUB timeout or a slower boot
@@ -182,6 +190,9 @@ jobs:
           ZFSVM_INITRD: ${{ matrix.suite == 'csi' && '1' || '' }}
         run: ci/real-zfs-vm.sh stonking current 2.4
       - name: upload zfsdiff replay report and shard logs
+        # with the shard plan and the test lists (what ci/check-split.sh
+        # and ci/check-skips.sh read), the guest's load, and the
+        # cloud-config a boot failure needs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -189,7 +200,12 @@ jobs:
           path: |
             ${{ runner.temp }}/zfsvm/out/*.log
             ${{ runner.temp }}/zfsvm/out/test-times.tsv
+            ${{ runner.temp }}/zfsvm/out/*.list
+            ${{ runner.temp }}/zfsvm/out/*.plan
+            ${{ runner.temp }}/zfsvm/out/load.txt
+            ${{ runner.temp }}/zfsvm/out/vmstat.txt
             ${{ runner.temp }}/zfsvm/*.log
+            ${{ runner.temp }}/zfsvm/user-data
           if-no-files-found: warn
           retention-days: 30
       - name: file issue
