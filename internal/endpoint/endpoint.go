@@ -173,6 +173,20 @@ func volumeID(name string) (string, error) {
 	return name, nil
 }
 
+// issuedVolumeID validates a volume id a caller hands back. Ids are opaque
+// to callers, so a non-empty one this endpoint could never have issued
+// names no volume: NotFound (DeleteVolume turns that into OK). A missing
+// id stays InvalidArgument.
+func issuedVolumeID(id string) (string, error) {
+	if _, err := volumeID(id); err != nil {
+		if id == "" {
+			return "", err
+		}
+		return "", errorf(NotFound, "volume %q not found: not an id this endpoint issues", id)
+	}
+	return id, nil
+}
+
 func parseSnapshotID(id string) (vol, snap string, err error) {
 	i := strings.IndexByte(id, '@')
 	if i <= 0 || i == len(id)-1 || strings.Count(id, "@") != 1 {
@@ -377,7 +391,10 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 // baseline, volumes with CSI snapshots or dependent clones fail with
 // FailedPrecondition and are left untouched.
 func (e *Endpoint) DeleteVolume(ctx context.Context, volID string) error {
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
+		if CodeOf(err) == NotFound {
+			return nil // never issued, so never existed: CSI says OK
+		}
 		return err
 	}
 	release, err := e.lock(ctx, "vol:"+volID)
@@ -399,7 +416,7 @@ func (e *Endpoint) DeleteVolume(ctx context.Context, volID string) error {
 
 // ExpandVolume grows a volume to at least capacity. Shrinking is a no-op.
 func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, limit uint64) (Volume, error) {
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
 		return Volume{}, err
 	}
 	release, err := e.lock(ctx, "vol:"+volID)
@@ -418,12 +435,22 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 	if err := e.apply(ctx, plan); err != nil {
 		return Volume{}, err
 	}
-	return e.readVolume(ctx, volID)
+	v, err := e.readVolume(ctx, volID)
+	if err == nil && v.Kind == Filesystem && v.CapacityBytes == 0 {
+		// unlimited (no refquota) already satisfies the request, and a
+		// quota would shrink it; capacity after expansion is reported as
+		// what was asked for, never 0 (CSI: capacity_bytes is required)
+		v.CapacityBytes = capacity
+		if v.CapacityBytes == 0 {
+			v.CapacityBytes = limit
+		}
+	}
+	return v, err
 }
 
 // GetVolume returns a managed volume.
 func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) {
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
 		return Volume{}, err
 	}
 	t, err := e.scan(ctx, volID)

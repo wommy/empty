@@ -3,6 +3,7 @@ package csi_test
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -79,7 +80,7 @@ func TestExpandNodeExpansionRequired(t *testing.T) {
 	}{
 		{"zvol", capability(true), false}, // raw block
 		{"zvol", capability(false), true}, // filesystem on a zvol
-		{"zvol", nil, false},              // no capability given
+		{"zvol", nil, true},               // unknown: the zvol may carry a filesystem
 		{"fs", capability(false), false},  // refquota is all there is
 		{"fs", nil, false},
 	} {
@@ -145,5 +146,48 @@ func TestParametersAndAccessChecks(t *testing.T) {
 	}
 	if validate("res", capability(true)) || validate("res", multi) {
 		t.Error("unsupported capability confirmed")
+	}
+}
+
+// Ids are opaque: one this driver could never have issued names nothing.
+// DeleteVolume of a missing volume MUST be OK (CSI); the other RPCs report
+// NOT_FOUND, never INVALID_ARGUMENT (final for the resizer).
+func TestNeverIssuedIDs(t *testing.T) {
+	ctx := context.Background()
+	c := &zcsi.Controller{EP: endpointClient(t)}
+	long := strings.Repeat("x", 200)
+	for _, id := range []string{"tank/vols/pvc-1", "a@b", long} {
+		if _, err := c.DeleteVolume(ctx, &csi.DeleteVolumeRequest{VolumeId: id}); err != nil {
+			t.Errorf("DeleteVolume %q: %v", id, err)
+		}
+		_, err := c.ValidateVolumeCapabilities(ctx, &csi.ValidateVolumeCapabilitiesRequest{VolumeId: id, VolumeCapabilities: []*csi.VolumeCapability{capability(false)}})
+		if status.Code(err) != codes.NotFound {
+			t.Errorf("Validate %q: %v", id, err)
+		}
+		_, err = c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{VolumeId: id, CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}})
+		if status.Code(err) != codes.NotFound {
+			t.Errorf("Expand %q: %v", id, err)
+		}
+		_, err = c.CreateSnapshot(ctx, &csi.CreateSnapshotRequest{Name: "s", SourceVolumeId: id})
+		if status.Code(err) != codes.NotFound {
+			t.Errorf("CreateSnapshot from %q: %v", id, err)
+		}
+	}
+}
+
+// capacity_bytes is REQUIRED in the expand response and means the capacity
+// after expansion: an unlimited filesystem satisfies any request, so it
+// reports the request, never 0.
+func TestExpandUnlimitedFilesystem(t *testing.T) {
+	ctx := context.Background()
+	c := &zcsi.Controller{EP: endpointClient(t)}
+	if _, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "free", VolumeCapabilities: []*csi.VolumeCapability{capability(false)}}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+		VolumeId: "free", CapacityRange: &csi.CapacityRange{RequiredBytes: 5 << 30, LimitBytes: 6 << 30},
+	})
+	if err != nil || res.GetCapacityBytes() != 5<<30 {
+		t.Fatalf("%+v %v", res, err)
 	}
 }

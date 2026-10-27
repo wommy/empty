@@ -353,7 +353,7 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // baseline: CSI snapshots must outlive the call or it fails unchanged) or
 // cloned volumes are refused; an internal clone-source origin is released.
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
-	id, err := volumeID(volID)
+	id, err := issuedVolumeID(volID)
 	if err != nil {
 		return nil, err
 	}
@@ -383,7 +383,7 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 
 // PlanExpandVolume grows to at least capacity; shrinking is a no-op.
 func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64) (Plan, Row, error) {
-	id, err := volumeID(volID)
+	id, err := issuedVolumeID(volID)
 	if err != nil {
 		return nil, Row{}, err
 	}
@@ -421,7 +421,7 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 // PlanCreateSnapshot: CSI snapshot names are global; the same name on the
 // same volume is done, on another volume AlreadyExists.
 func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, error) {
-	vol, err := volumeID(volID)
+	vol, err := issuedVolumeID(volID)
 	if err != nil {
 		return nil, "", err
 	}
