@@ -313,9 +313,20 @@ func TestReconcileMaxDeletionsAndDigest(t *testing.T) {
 		h.vol(id, true)
 	}
 	keep := []string{"keep"}
+	// without a digest the digest gate refuses first: the max-deletions
+	// check below must be reached with one, or deleting it passes
 	_, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, MaxDeletions: 2})
-	if CodeOf(err) != FailedPrecondition || !h.has(a4Parent+"/a") {
+	if CodeOf(err) != FailedPrecondition || !strings.Contains(err.Error(), "without a plan digest") {
+		t.Fatalf("no digest: %v", err)
+	}
+	_, err = h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: keep, MaxDeletions: 2}))
+	if CodeOf(err) != FailedPrecondition || !strings.Contains(err.Error(), "more than max deletions 2") {
 		t.Fatalf("3 > 2: %v", err)
+	}
+	for _, id := range []string{"a", "b", "c"} {
+		if !h.has(a4Parent + "/" + id) {
+			t.Fatalf("%s destroyed over the max deletions", id)
+		}
 	}
 	if _, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, MaxDeletions: 2, UnlimitedDeletions: true}); CodeOf(err) != InvalidArgument {
 		t.Fatalf("both: %v", err)
@@ -337,6 +348,34 @@ func TestReconcileMaxDeletionsAndDigest(t *testing.T) {
 	h.must(err)
 	if done.Digest != dry.Digest || len(done.Actions) != 3 || h.has(a4Parent+"/a") {
 		t.Fatalf("echoed digest: %+v", done)
+	}
+}
+
+// MaxDeletions 0 is DefaultMaxDeletions, also for a digested run: 11
+// undesired volumes are refused whole.
+func TestReconcileDefaultMaxDeletionsWithDigest(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	for i := range DefaultMaxDeletions + 1 {
+		h.vol(fmt.Sprintf("x%02d", i), true)
+	}
+	r := digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	_, err := h.ep.Reconcile(ctx, r)
+	if CodeOf(err) != FailedPrecondition || !strings.Contains(err.Error(), fmt.Sprintf("more than max deletions %d", DefaultMaxDeletions)) {
+		t.Fatalf("%d > default: %v", DefaultMaxDeletions+1, err)
+	}
+	for i := range DefaultMaxDeletions + 1 {
+		if !h.has(fmt.Sprintf("%s/x%02d", a4Parent, i)) {
+			t.Fatalf("x%02d destroyed over the default max deletions", i)
+		}
+	}
+	// exactly the default passes
+	h.must(h.z.Destroy(ctx, a4Parent+"/x00", zfs.DestroyOptions{}))
+	p, err := h.ep.Reconcile(ctx, digested(ctx, t, h.ep, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
+	h.must(err)
+	if len(p.Actions) != DefaultMaxDeletions {
+		t.Fatalf("at the default: %+v", p)
 	}
 }
 
