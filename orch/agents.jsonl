@@ -88,7 +88,7 @@
 {"id": "abe0dd621404bc340", "name": "csi-quick", "lane": "writer", "wave": 25, "status": "merged", "branch": "csi-quick", "report": null, "anomaly": true, "queue": "q-csi-quick"}
 {"id": "aec3b828c6a86e68b", "name": "scan-cut", "lane": "writer", "wave": 25, "status": "merged", "branch": "scan-cut", "report": null, "anomaly": false, "queue": "q-scan-cut"}
 {"id": "a63b72f11e0c3fa4a", "name": "own-gap", "lane": "writer", "wave": 25, "status": "merged", "branch": "own-gap", "report": null, "anomaly": true, "queue": "q-own-gap"}
-{"id": "ac259b3d72ffec8e1", "name": "mutation", "lane": "reader", "wave": 25, "status": "running", "branch": null, "report": "wave25/mutation.md", "anomaly": false, "queue": "q-mutation"}
+{"id": "ac259b3d72ffec8e1", "name": "mutation", "lane": "reader", "wave": 25, "status": "done", "branch": null, "report": "wave25/mutation.md", "anomaly": false, "queue": "q-mutation"}
 {"id": "ab101d6ed5cc624ee", "name": "sanity-skips", "lane": "reader", "wave": 25, "status": "done", "branch": null, "report": "wave25/sanity-skips.md", "anomaly": false, "queue": "q-sanity-skips"}
 {"id": "a599c6ef2451a1d7b", "name": "csi-sanity", "lane": "writer", "wave": 26, "status": "merged", "branch": "csi-sanity", "report": null, "anomaly": false, "queue": "q-csi-sanity"}
 {"id": "ae7e48e54556f40be", "name": "csi-snapsize", "lane": "writer", "wave": 26, "status": "merged", "branch": "csi-snapsize", "report": null, "anomaly": false, "queue": "q-csi-snapsize2"}
@@ -104,5 +104,8 @@
 {"id": "a88911dfbc1ca4455", "name": "races", "lane": "reader", "wave": 28, "status": "done", "branch": null, "report": "wave28/races.md", "anomaly": false, "queue": "q-races"}
 {"id": "af5ac15f93157bea3", "name": "operator", "lane": "reader", "wave": 28, "status": "done", "branch": null, "report": "wave28/operator.md", "anomaly": false, "queue": "q-operator"}
 {"id": "a672364fdc0482ef0", "name": "ops-endpoint", "lane": "writer", "wave": 29, "status": "running", "branch": "ops-endpoint", "report": null, "anomaly": false, "queue": "q-ops-endpoint"}
-{"id": "a6bc4d1bdd7188707", "name": "ops-csi", "lane": "writer", "wave": 29, "status": "running", "branch": "ops-csi", "report": null, "anomaly": false, "queue": "q-ops-csi"}
+{"id": "a6bc4d1bdd7188707", "name": "ops-csi", "lane": "writer", "wave": 29, "status": "merged", "branch": "ops-csi", "report": null, "anomaly": false, "queue": "q-ops-csi"}
 {"id": "a614a1d2e842fa2d4", "name": "node-sec", "lane": "reader", "wave": 29, "status": "done", "branch": null, "report": "wave29/node-sec.md", "anomaly": false, "queue": "q-node-sec"}
+{"id": "ae3a6babc225a3e78", "name": "node-harden", "lane": "writer", "wave": 30, "status": "running", "branch": "node-harden", "report": null, "anomaly": false, "queue": "q-node-harden"}
+{"t": "2026-10-27T17:48:41Z", "lane": "reader", "name": "deploy-seam", "agent": "aa255e826ccc26911", "state": "running", "wave": 30}
+{"t": "2026-10-27T17:48:41Z", "lane": "reader", "name": "part-balance", "agent": "a804dc84a8a9138c6", "state": "running", "wave": 30}

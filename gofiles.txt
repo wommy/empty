@@ -1,5 +1,3 @@
-internal/csi/log.go
-internal/csi/log_test.go
 ci/skiplint/main.go
 ci/skiplint/main_test.go
 ci/unitprobe/main.go
@@ -31,6 +29,8 @@ internal/csi/controller_test.go
 internal/csi/harness_test.go
 internal/csi/identity.go
 internal/csi/identity_test.go
+internal/csi/log.go
+internal/csi/log_test.go
 internal/csi/main_test.go
 internal/csi/nfs_root_test.go
 internal/csi/nfs_test.go

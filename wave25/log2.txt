@@ -15,3 +15,7 @@ snapid-shape killed TestGoldenPlans (internal/csi)
 verify-exposure survived 
 pub-uncommitted killed TestReachUncommittedServed (internal/endpoint)
 pub-exposure killed TestFileExportServedBeyondRequest (internal/endpoint)
+unpub-covers killed TestFileExportUnpublishStillServed (internal/endpoint)
+unpub-lookup killed TestFileExportVerifiesKernelTable (internal/endpoint)
+csi-rootparam-range compile-fail internal/csi/controller.go:274:8: declared and not used
+csi-fstype killed TestNFS_OffWithoutServers (internal/csi)

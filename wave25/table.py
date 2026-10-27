@@ -15,6 +15,9 @@ for i, id in enumerate(order, 1):
     r = res.get(id)
     if not r: continue
     cnt[r["status"]] = cnt.get(r["status"], 0) + 1
+    if r.get("first", "").startswith("panic/timeout") and "running tests:" in r.get("tail", ""):
+        t = r["tail"].split("running tests:")[1].split()[0].split("/")[0]
+        r["first"] = t + " (hang: 5m test timeout)"
     st = r["status"] + (" (model)" if r.get("by") == "model" and r["status"] == "killed" else "")
     mut = r["note"].replace("|", "/")
     rows.append(f"| {i} | {id} | {r['file'].replace('internal/','')}:{r['line']} | {r['cat']} | {r['risk']} | {'yes' if r['conc'] else ''} | {st} | {r.get('first','').replace('|','/')} | {mut} |")

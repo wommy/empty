@@ -1,0 +1,11 @@
+server: rpc line at WARN for failed calls, ERROR for INTERNAL/UNKNOWN; request ids as fields
+
+The per-call "rpc" line was always INFO and carried no volume id, so
+`journalctl -p warning` missed every failed call and an operator found a
+PVC's calls by grepping message text. It is now INFO for OK, ERROR for
+INTERNAL and UNKNOWN, WARN for any other code, and carries the request's
+volume_id, snapshot_id, name, source_volume_id and source_snapshot_id
+where it has them (clipped like the other caller-supplied fields).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

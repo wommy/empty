@@ -1,0 +1,20 @@
+reconcile: summary and undesired lines, -fail-on-findings (exit 3) in the timer
+
+The daily report-only reconcile exited 0 whatever it found, as plain text
+nobody read. The report now ends with
+
+  undesired: N (max M[: apply would be refused])
+  summary: uncommitted=N undesired=N orphan_clone_sources=N exposures=N findings=N skipped=N skipped_<kind>=N ...
+
+and -fail-on-findings exits 3 when the summary counts a finding (an
+action, or a skip other than young, busy, changed, empty-desired-set or
+not-ours). The reconcile timer's unit passes it, so a report with findings
+fails the unit and shows in systemctl --failed.
+
+Reconcile also reports an abandoned create still exported by its own
+sharenfs (SkipUncommittedExported, counted as an exposure with
+below-floor networks), and the endpoint logs one JSON "reconcile result"
+line with the same counts per call (endpoint.ReconcileSummary).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

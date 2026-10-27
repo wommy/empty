@@ -287,7 +287,7 @@ MUTANTS = [
     m("csi-nfs-clients-req", C, "if _, ok := in[ParamNFSClients]; m.nfs && !ok {", "if _, ok := in[ParamNFSClients]; m.nfs && !ok && false {", "nfs-validation", "E", "NFS mode without nfs.clients"),
     m("csi-nfs-keys-mode", C, "if !m.nfs {\n\t\t\t\treturn params{}, invalid(\"parameter %s: the endpoint advertises", "if false && !m.nfs {\n\t\t\t\treturn params{}, invalid(\"parameter %s: the endpoint advertises", "nfs-validation", "V", "nfs.* keys outside NFS mode"),
     m("csi-unknown-param", C, "default:\n\t\t\treturn params{}, invalid(\"unsupported parameter %q\", k)", "default:\n\t\t\tcontinue", "validation", "V", "unknown StorageClass parameter silently dropped"),
-    m("csi-rootparam-range", C, "if err != nil || n > limit {", "if err != nil {", "validation", "S", "nfs.uid/gid/mode range unchecked"),
+    m("csi-rootparam-range", C, "if err != nil || n > limit {", "if err != nil || false && n > limit {", "validation", "S", "nfs.uid/gid/mode range unchecked"),
     ff("csi-noparams", C, "!strings.HasPrefix(k, k8sParamPrefix)", "validation", "V", "snapshot parameters accepted"),
     ff("csi-cap-neg", C, "r.GetRequiredBytes() < 0 || r.GetLimitBytes() < 0", "validation", "V", "negative capacity accepted"),
     ff("csi-cap-order", C, "limit > 0 && required > limit", "validation", "V", "required > limit accepted"),
