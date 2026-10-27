@@ -112,3 +112,7 @@
 {"ts": "2026-10-27T07:43:37Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T07:45:05Z", "id": "a6fdb224b604d2368", "from": "queued", "to": "running", "note": "r-budget2"}
 {"ts": "2026-10-27T07:45:05Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:47:10Z", "id": "a6fdb224b604d2368", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T07:47:10Z", "id": "a6fdb224b604d2368", "from": "reported", "to": "triaged", "note": "Cause: runner noise (uniform 1.5x). Real anomaly: my crash weight 6.0 vs 14s measured + PropertyRoundTrip unweighted -> endpoint.1 critical path. Fixed ac3ddc0. Not adopting 'judge budget over several runs' (changes the owner's accepted budget); instead target nominal <=45s for headroom against 1.5x runner variance."}
+{"ts": "2026-10-27T07:47:10Z", "id": "a6fdb224b604d2368", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T07:47:10Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
