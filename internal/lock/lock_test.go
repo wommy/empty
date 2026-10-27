@@ -4,10 +4,12 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
 func TestDoneContextTakesNoFreeKey(t *testing.T) {
+	t.Parallel()
 	var k Keyed
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -21,6 +23,11 @@ func TestDoneContextTakesNoFreeKey(t *testing.T) {
 
 // Waiters get a key in arrival order.
 func TestWaitersAreServedInOrder(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, waitersAreServedInOrder)
+}
+
+func waitersAreServedInOrder(t *testing.T) {
 	var k Keyed
 	rel, _ := k.Acquire(context.Background(), "vol:a")
 	var mu sync.Mutex
@@ -66,6 +73,11 @@ func waitWaiters(t *testing.T, k *Keyed, name string, n int) {
 
 // A waiter competing with re-acquirers in a tight loop still gets the key.
 func TestNoStarvation(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, noStarvation)
+}
+
+func noStarvation(t *testing.T) {
 	var k Keyed
 	stop := make(chan struct{})
 	var hammer sync.WaitGroup
@@ -88,18 +100,32 @@ func TestNoStarvation(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+	start := time.Now()
 	r, err := k.Acquire(ctx, "vol:a")
+	waited := time.Since(start)
 	close(stop)
+	if err == nil {
+		r()
+	}
+	hammer.Wait() // before any Fatal: the bubble must end with no goroutines
 	if err != nil {
 		t.Fatalf("victim starved: %v", err)
 	}
-	r()
-	hammer.Wait()
+	// in the bubble time is exact: first come, first served means at most
+	// one hold per hammer queued ahead of the victim, plus the current one
+	if hold := 200 * time.Microsecond; waited > 9*hold {
+		t.Fatalf("victim waited %v, %d holds; first come first served allows 9", waited, waited/hold)
+	}
 }
 
 // Waiters that give up leave nothing held and no stale queue entries, even
 // when a handover races the cancellation.
 func TestCancelledWaitersLeaveNothingBehind(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, cancelledWaitersLeaveNothingBehind)
+}
+
+func cancelledWaitersLeaveNothingBehind(t *testing.T) {
 	var k Keyed
 	for range 200 {
 		rel, _ := k.Acquire(context.Background(), "vol:a")
@@ -122,7 +148,13 @@ func TestCancelledWaitersLeaveNothingBehind(t *testing.T) {
 		}
 	}
 }
+
 func TestTryAcquire(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, tryAcquire)
+}
+
+func tryAcquire(t *testing.T) {
 	var k Keyed
 	rel, ok := k.TryAcquire("a", "b")
 	if !ok || !k.Held("a") || !k.Held("b") {
