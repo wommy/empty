@@ -401,46 +401,88 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // baseline: CSI snapshots must outlive the call or it fails unchanged) or
 // cloned volumes are refused; an internal clone-source origin is released.
 // A volume with snapshots the endpoint did not cut is refused too, unless
-// DestroyForeignSnapshots: `zfs destroy -r` would take them, and they are
-// not the endpoint's (ADR 0003).
+// DestroyForeignSnapshots (ADR 0003).
+//
+// Never `destroy -r`: the volume's own snapshots are destroyed one by one,
+// then the volume plainly, so zfs itself refuses ("has children") on
+// anything the scan cannot see, such as a dataset someone created below a
+// filesystem volume, rather than taking it along.
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
+	d, err := p.planDelete(t, volID, p.DestroyForeignSnapshots)
+	return d.plan(), err
+}
+
+// deletion is a volume delete as parts: the clone-source origin it
+// releases, the volume's snapshots, and the volume (plan gives the order).
+type deletion struct {
+	snaps  Plan
+	vol    *Op
+	origin *Op
+	src    string // the volume the origin hangs off
+}
+
+func (d deletion) plan() Plan {
+	if d.vol == nil {
+		return nil
+	}
+	// 1. the released origin first, deferred: zfs keeps it while the clone
+	//    lives and reaps it with the clone, so no crash point leaves an
+	//    orphan that a retry (volume row gone) could no longer see
+	// 2. exactly the snapshots this plan judged, then the dataset without
+	//    -r: a snapshot or child made since the scan (sanoid, an admin)
+	//    fails the last op ("has children") instead of going with it
+	var plan Plan
+	if d.origin != nil {
+		plan = append(plan, *d.origin)
+	}
+	plan = append(plan, d.snaps...)
+	return append(plan, *d.vol)
+}
+
+// planDelete is PlanDeleteVolume with the foreign-snapshot opt-in explicit:
+// Reconcile never passes it (no per-volume request asked for anything).
+func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletion, error) {
 	id, err := issuedVolumeID(volID)
 	if err != nil {
-		return nil, err
+		return deletion{}, err
 	}
 	if err := t.mustCover(id); err != nil {
-		return nil, err
+		return deletion{}, err
 	}
 	row, ok := t.Get(id)
 	if !ok {
-		return nil, nil
+		return deletion{}, nil
 	}
 	if !row.OwnedVolume() {
-		return nil, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
+		return deletion{}, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
 	}
+	var d deletion
 	var foreign []string
 	for s := range t.SnapshotsOf(id) {
 		if s.SnapshotName != "" && !s.Deferred {
-			return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
-		}
-		if _, ours := s.OwnedCloneSource(); s.SnapshotName == "" && !s.Deferred && !ours {
-			foreign = append(foreign, s.ID)
+			return deletion{}, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
 		}
 		for c := range t.ClonesOf(s.Name) {
-			if !strings.HasPrefix(c.Name, row.Name+"/") {
-				return nil, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
-			}
+			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
 		}
+		// the endpoint's own: an internal clone-source snapshot, or one
+		// already pending deferred destruction (a deleted CSI snapshot)
+		if _, ours := s.OwnedCloneSource(); !ours && !s.Deferred {
+			foreign = append(foreign, s.ID)
+		}
+		// plain, never -d: a snapshot still in use must make zfs refuse
+		d.snaps = append(d.snaps, Op{Kind: OpDestroy, Target: s.Name, OkMissing: true})
 	}
-	if len(foreign) > 0 && !p.DestroyForeignSnapshots {
-		return nil, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
+	if len(foreign) > 0 && !destroyForeign {
+		return deletion{}, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
 			id, strings.Join(foreign, ", "))
 	}
-	plan := Plan{{Kind: OpDestroy, Target: row.Name, Recursive: true, OkMissing: true}}
-	if origin, _, ok := p.releasedOrigin(t, row); ok {
-		plan = append(plan, Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true})
+	d.vol = &Op{Kind: OpDestroy, Target: row.Name, OkMissing: true}
+	if origin, src, ok := p.releasedOrigin(t, row); ok {
+		d.origin = &Op{Kind: OpDestroy, Target: origin.Name, Defer: true, OkMissing: true}
+		d.src = src
 	}
-	return plan, nil
+	return d, nil
 }
 
 // releasedOrigin is the internal clone-source snapshot that deleting row

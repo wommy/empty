@@ -29,6 +29,7 @@ const (
 	ReasonUndesired          = "not in the desired set"
 	ReasonOrphanCloneSource  = "clone-source snapshot without a clone"
 	ReasonReleasedWithVolume = "clone source of a collected volume"
+	ReasonWithVolume         = "the endpoint's snapshot of a collected volume"
 )
 
 // Reasons a reconcile leaves something alone (besides PlanDeleteVolume's
@@ -163,27 +164,27 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		var blocked []candidate
 		var plans []Plan
 		for _, c := range pending {
-			plan, err := p.PlanDeleteVolume(cur, c.id)
+			// never the foreign-snapshot opt-in: it is an operator's answer
+			// to a per-volume DeleteVolume, not to a bulk collection
+			del, err := p.planDelete(cur, c.id, false)
 			if err != nil {
 				blocked = append(blocked, c)
 				continue
 			}
+			plan := del.plan()
 			var acts []ReconcileAction
-			for i, op := range plan {
+			for _, op := range plan {
 				a := ReconcileAction{Op: op, Target: p.rel(op.Target), Reason: c.reason, Volumes: []string{c.id}}
-				if i > 0 { // the released clone-source origin
+				switch {
+				case del.origin != nil && op.Target == del.origin.Target:
 					a.Reason = ReasonReleasedWithVolume
-					row, _ := cur.Get(c.id)
-					_, src, _ := p.releasedOrigin(cur, row)
-					a.Volumes = append(a.Volumes, src)
-				}
-				if !d.covers(a.Volumes) {
-					acts = nil
-					break
+					a.Volumes = append(a.Volumes, del.src)
+				case op.Target != del.vol.Target:
+					a.Reason = ReasonWithVolume
 				}
 				acts = append(acts, a)
 			}
-			if acts == nil {
+			if slices.ContainsFunc(acts, func(a ReconcileAction) bool { return !d.covers(a.Volumes) }) {
 				skip(c.id, SkipChangedSinceScan)
 				continue
 			}
@@ -198,7 +199,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		pending = blocked
 	}
 	for _, c := range pending {
-		if _, err := p.PlanDeleteVolume(cur, c.id); err != nil {
+		if _, err := p.planDelete(cur, c.id, false); err != nil {
 			skip(c.id, err.Error())
 		}
 	}

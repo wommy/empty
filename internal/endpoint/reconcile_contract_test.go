@@ -143,8 +143,9 @@ func TestReconcileAgainstDesiredSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	acts, skips := targets(p)
-	// the clone first, its source snapshot with it, then the freed source
-	if !slices.Equal(acts, []string{"clone", "src@volume-source-for-volume-clone", "drop", "src"}) {
+	// the clone's source snapshot released (deferred) with the clone, then
+	// the freed source
+	if !slices.Equal(acts, []string{"src@volume-source-for-volume-clone", "clone", "drop", "src"}) {
 		t.Fatalf("actions %q", acts)
 	}
 	if !slices.Equal(skips, []string{"gone-pvc", "snapped"}) {

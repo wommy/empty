@@ -135,7 +135,7 @@ func TestPlanReconcile(t *testing.T) {
 			skips: []string{"b:volume b has dependent clone a"},
 		},
 		{
-			name: "fixpoint: clone and its source collected together, clone first",
+			name: "fixpoint: clone and its source collected together, source last",
 			rows: []Row{
 				vol("a", nil),
 				vol("b", nil),
@@ -144,8 +144,8 @@ func TestPlanReconcile(t *testing.T) {
 			},
 			want: desired("a"),
 			acts: []string{
-				"c:" + ReasonUndesired,
 				"b@volume-source-for-volume-c:" + ReasonReleasedWithVolume,
+				"c:" + ReasonUndesired,
 				"b:" + ReasonUndesired,
 			},
 		},
@@ -212,13 +212,13 @@ func TestPlanReconcile(t *testing.T) {
 				snap("b@volume-source-for-volume-gone", stamp),
 			},
 			want: desired("a"),
-			acts: []string{"b:" + ReasonUndesired},
+			acts: []string{"b@volume-source-for-volume-gone:" + ReasonWithVolume, "b:" + ReasonUndesired},
 		},
 		{
 			name: "deferred CSI snapshot does not block",
 			rows: []Row{vol("a", nil), vol("b", nil), snap("b@s", func(r *Row) { r.Deferred = true })},
 			want: desired("a"),
-			acts: []string{"b:" + ReasonUndesired},
+			acts: []string{"b@s:" + ReasonWithVolume, "b:" + ReasonUndesired},
 		},
 		{
 			// adv4 F6: anyone can `zfs snapshot` the reserved name
@@ -265,8 +265,8 @@ func TestPlanReconcile(t *testing.T) {
 				if op.Kind != OpDestroy || !op.OkMissing {
 					t.Fatalf("op %+v: reconcile only destroys, replay-tolerantly", op)
 				}
-				if strings.Contains(op.Target, "@") != op.Defer {
-					t.Fatalf("op %+v: snapshots are destroyed deferred, volumes not", op)
+				if op.Recursive || op.Defer && !strings.Contains(op.Target, "@") {
+					t.Fatalf("op %+v: never -r; only snapshots are destroyed deferred", op)
 				}
 			}
 		})

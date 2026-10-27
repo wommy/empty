@@ -121,12 +121,13 @@ type Config struct {
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.
 	Etab EtabReader
-	// DestroyForeignSnapshots lets DeleteVolume (and reconcile) destroy a
-	// volume together with snapshots the endpoint did not cut (no locally
-	// set csi_snapshot_name: an administrator's, a backup tool's, a
-	// received one). Default false: such a volume is refused with
-	// FailedPrecondition naming them (ADR 0003: never touch what you
-	// don't own).
+	// DestroyForeignSnapshots lets DeleteVolume destroy a volume together
+	// with snapshots the endpoint did not cut (no locally set
+	// csi_snapshot_name or clone-source stamp: an administrator's, a backup
+	// tool's, a received one), each by name. Default false: such a volume
+	// is refused with FailedPrecondition naming them (ADR 0003: never touch
+	// what you don't own). Reconcile never uses it: an operator opts in
+	// for a per-volume delete, not for a bulk collection.
 	DestroyForeignSnapshots bool
 }
 
