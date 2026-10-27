@@ -63,6 +63,8 @@ var upstreamRBAC = map[string]func(grant){
 		g.add("groupsnapshot.storage.k8s.io", "volumegroupsnapshotcontents", "get", "list", "watch", "update", "patch")
 		g.add("groupsnapshot.storage.k8s.io", "volumegroupsnapshotcontents/status", "update", "patch")
 	},
+	// livenessprobe v2.19.0 calls no Kubernetes API (deploy has no RBAC)
+	"registry.k8s.io/sig-storage/livenessprobe:v2.19.0": func(grant) {},
 }
 
 // controller returns the controller Deployment's pod spec, its
@@ -182,8 +184,8 @@ func TestNodePinLabel(t *testing.T) {
 
 // Every container: requests and a memory limit (else BestEffort, first
 // evicted on the storage host); a hostPath is mounted read-only; zfs-csi
-// gets no service account token; the grace period outlasts zfs-csi's drain;
-// the namespace admits the hostPath.
+// and the liveness probe get no service account token; the grace period
+// outlasts zfs-csi's drain; the namespace admits the hostPath.
 func TestPodHardening(t *testing.T) {
 	t.Parallel()
 	pod, _, ns := controller(t)
@@ -217,8 +219,9 @@ func TestPodHardening(t *testing.T) {
 				}
 			}
 		}
-		if (name == "zfs-csi") == token {
-			t.Errorf("%s: token mounted %v; want only the sidecars to have it", name, token)
+		// zfs-csi and the liveness probe call no Kubernetes API
+		if apiCaller := name != "zfs-csi" && name != "liveness-probe"; apiCaller != token {
+			t.Errorf("%s: token mounted %v; want only the provisioner, resizer and snapshotter to have it", name, token)
 		}
 	}
 	if get(pod, "automountServiceAccountToken") != false {
@@ -456,4 +459,79 @@ func TestNodeDaemonSet(t *testing.T) {
 func intOf(v any) int {
 	n, _ := v.(int)
 	return n
+}
+
+// The controller pod surfaces the endpoint's runtime health: the
+// sidecars call Probe only at startup, so a pool that goes NOT_SERVING
+// later was invisible from Kubernetes. The upstream livenessprobe sidecar
+// serves Probe over HTTP, at the version and digest node.yaml pins,
+// hardened as the other sidecars (TestPodHardening covers resources and
+// the token), on a port node.yaml's does not use; zfs-csi's
+// readinessProbe reads it. Readiness only, no livenessProbe (ADR 0008
+// addendum): restarting zfs-csi cannot fix the endpoint, and the sidecars
+// exit when its socket goes away. The window outlasts an endpoint restart
+// (seconds) so that does not flip the pod.
+func TestControllerHealthProbe(t *testing.T) {
+	t.Parallel()
+	objs := k8sObjects(t)
+	pod, _, _ := controller(t)
+	cs := containers(pod)
+	lp, ok := cs["liveness-probe"]
+	if !ok {
+		t.Fatal("controller pod has no liveness-probe container: a runtime NOT_SERVING is invisible")
+	}
+	node := containers(get(object(t, objs, "DaemonSet", nodeName), "spec", "template", "spec"))
+	if img := get(lp, "image"); img != get(node["liveness-probe"], "image") {
+		t.Errorf("liveness-probe image %v, want node.yaml's pinned %v", img, get(node["liveness-probe"], "image"))
+	}
+	sc := get(lp, "securityContext")
+	if get(sc, "privileged") == true || get(sc, "allowPrivilegeEscalation") != false ||
+		get(sc, "readOnlyRootFilesystem") != true || !slices.Equal(strs(get(sc, "capabilities", "drop")), []string{"ALL"}) {
+		t.Errorf("liveness-probe securityContext %v: want no escalation, a read-only root, every capability dropped", sc)
+	}
+	for _, m := range get(lp, "volumeMounts").([]any) {
+		if get(m, "readOnly") != true {
+			t.Errorf("liveness-probe: %v mounted read-write", get(m, "name"))
+		}
+	}
+
+	args := strs(get(lp, "args"))
+	ep, _ := flagValue(args, "--http-endpoint")
+	host, port, _ := strings.Cut(ep, ":")
+	nodeEP, _ := flagValue(strs(get(node["liveness-probe"], "args")), "--http-endpoint")
+	_, nodePort, _ := strings.Cut(nodeEP, ":")
+	if port == "" || port == nodePort || port == "29653" {
+		t.Errorf("liveness-probe --http-endpoint %q: want a port of its own, not node.yaml's %s or csi-driver-nfs's 29653", ep, nodePort)
+	}
+	// kubelet probes the pod IP from the host: localhost would be the
+	// node's, and on the pod network it serves nothing there
+	if get(pod, "hostNetwork") == true || host != "" {
+		t.Errorf("liveness-probe --http-endpoint %q (hostNetwork %v): want :<port> on the pod network", ep, get(pod, "hostNetwork"))
+	}
+	probeTimeout := 0 * time.Second
+	if v, ok := flagValue(args, "--probe-timeout"); ok {
+		probeTimeout, _ = time.ParseDuration(v)
+	}
+
+	z := cs["zfs-csi"]
+	if lv := get(z, "livenessProbe"); lv != nil {
+		t.Errorf("zfs-csi livenessProbe %v: restarting zfs-csi cannot fix the endpoint (ADR 0008); use readiness", lv)
+	}
+	rp := get(z, "readinessProbe")
+	if rp == nil {
+		t.Fatal("zfs-csi has no readinessProbe")
+	}
+	if get(rp, "httpGet", "path") != "/healthz" || strconv.Itoa(intOf(get(rp, "httpGet", "port"))) != port || get(rp, "httpGet", "host") != nil {
+		t.Errorf("zfs-csi readinessProbe %v: want httpGet /healthz on the pod IP, port %s", get(rp, "httpGet"), port)
+	}
+	period, fail, timeout := intOf(get(rp, "periodSeconds")), intOf(get(rp, "failureThreshold")), intOf(get(rp, "timeoutSeconds"))
+	if period == 0 || fail == 0 || timeout == 0 {
+		t.Fatalf("zfs-csi readinessProbe %v: set periodSeconds, failureThreshold and timeoutSeconds", rp)
+	}
+	if window := period * fail; window < 30 || window > 120 {
+		t.Errorf("readiness window %ds: want 30-120s, past an endpoint restart, well inside a stuck endpoint", window)
+	}
+	if time.Duration(timeout)*time.Second <= probeTimeout {
+		t.Errorf("readinessProbe timeoutSeconds %d not above liveness-probe --probe-timeout %v", timeout, probeTimeout)
+	}
 }

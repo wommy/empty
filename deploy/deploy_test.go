@@ -356,7 +356,7 @@ func TestManifests(t *testing.T) {
 			t.Errorf("%s: --csi-address %q", name, v)
 		}
 	}
-	want := []string{"zfs-csi", "csi-provisioner", "csi-resizer", "csi-snapshotter"}
+	want := []string{"zfs-csi", "csi-provisioner", "csi-resizer", "csi-snapshotter", "liveness-probe"}
 	if !slices.Equal(names, want) {
 		t.Errorf("containers %v, want %v", names, want)
 	}
