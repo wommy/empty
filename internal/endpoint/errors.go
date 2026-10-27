@@ -45,12 +45,14 @@ func errorf(code Code, format string, a ...any) *Error {
 }
 
 // CodeOf returns the Code of err (Internal for foreign errors, OK for nil).
+// A non-nil error never reads as OK: an *Error left with the zero Code is
+// a bug, and must not turn a failure into a reported success.
 func CodeOf(err error) Code {
 	if err == nil {
 		return OK
 	}
 	var e *Error
-	if errors.As(err, &e) {
+	if errors.As(err, &e) && e.Code != OK {
 		return e.Code
 	}
 	return Internal

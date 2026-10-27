@@ -34,3 +34,9 @@ func TestZfsErrCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestCodeOfNeverReportsAFailureAsOK(t *testing.T) {
+	if c := CodeOf(&Error{Msg: "zero code"}); c != Internal {
+		t.Fatalf("non-nil *Error with zero Code: %v, want Internal", c)
+	}
+}
