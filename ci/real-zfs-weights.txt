@@ -9,6 +9,15 @@
 # pool. Refresh with the durations from a newer run when shards drift apart.
 #
 # <test> <seconds>
+#
+# Estimates, not yet measured on the VM (added with the wave9 nfs-diff
+# work; replace with the durations of their first VM run). TestNFSReplay
+# runs ~46 `zfs set sharenfs`, each an exportfs -ra; it stops itself at
+# 25s and fails past 30s.
+TestNFSReplay 5.00
+TestFileExportUnpublishStillServed 0.30
+TestFileExportServedBeyondRequest 0.20
+#
 TestCreateVolumeProperties 1.27
 TestReconcileAgainstDesiredSet 0.68
 TestReserveRestoreIsIdempotent 0.57

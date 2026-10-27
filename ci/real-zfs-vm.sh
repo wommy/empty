@@ -193,6 +193,16 @@ done
 cat "$o"/endpoint.[0-9].log >"$work/endpoint.log" || rc=1
 cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" || rc=1
 cp "$o/csi-block.log" "$o/endpoint.list" "$o/csi.list" "$work/" || rc=1
+# TestNFSReplay (internal/endpoint) replays a sharenfs corpus through the
+# real libshare, exportfs and etab and diffs it against the reference
+# models (internal/nfsref) and the simulator; the guest points its report
+# at out/nfs-replay.log. Its last line is the tally.
+if [ -f "$o/nfs-replay.log" ]; then
+  { echo "<details><summary>NFS replay: $(tail -n 1 "$o/nfs-replay.log")</summary>"
+    echo; echo '```'; cat "$o/nfs-replay.log"; echo '```'; echo "</details>"; echo; } >>"$summary"
+else
+  echo "::error::vm/endpoint: TestNFSReplay wrote no nfs-replay.log"; rc=1
+fi
 {
   echo "| leg | package | skips | skipped tests |"
   echo "|---|---|---|---|"
