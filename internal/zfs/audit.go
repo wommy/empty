@@ -2,6 +2,7 @@ package zfs
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"time"
 )
@@ -34,17 +35,30 @@ type auditor struct {
 }
 
 func (a auditor) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	var out []byte
+	err := a.audit(ctx, name, args, func() (err error) {
+		out, err = a.r.Run(ctx, name, args...)
+		return err
+	})
+	return out, err
+}
+
+func (a auditor) Stream(ctx context.Context, read func(io.Reader) error, name string, args ...string) error {
+	return a.audit(ctx, name, args, func() error { return stream(ctx, a.r, read, name, args...) })
+}
+
+func (a auditor) audit(ctx context.Context, name string, args []string, run func() error) error {
 	if len(args) == 0 || !mutating[args[0]] {
-		return a.r.Run(ctx, name, args...)
+		return run()
 	}
 	argv := append([]string{name}, args...)
 	a.log.InfoContext(ctx, "zfs exec", "argv", argv)
 	start := time.Now()
-	out, err := a.r.Run(ctx, name, args...)
+	err := run()
 	if err != nil {
 		a.log.WarnContext(ctx, "zfs failed", "argv", argv, "duration", time.Since(start), "error", err)
 	} else {
 		a.log.InfoContext(ctx, "zfs done", "argv", argv, "duration", time.Since(start))
 	}
-	return out, err
+	return err
 }

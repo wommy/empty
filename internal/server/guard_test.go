@@ -27,7 +27,7 @@ func (r *deadlineRunner) Run(ctx context.Context, _ string, args ...string) ([]b
 	if ok {
 		r.left.Store(int64(time.Until(dl)))
 	}
-	return []byte(args[len(args)-1] + "\tavailable\t1000\t-\n"), nil
+	return availableJSON(args[len(args)-1]), nil
 }
 
 // H-04: a call whose client set no deadline gets the server's
@@ -99,7 +99,7 @@ func (r *panicOnce) Run(_ context.Context, _ string, args ...string) ([]byte, er
 		var a []string
 		_ = a[len(args)] // index out of range
 	}
-	return []byte(args[len(args)-1] + "\tavailable\t1000\t-\n"), nil
+	return availableJSON(args[len(args)-1]), nil
 }
 
 // H-05: grpc-go does not recover handler panics, so one would kill the

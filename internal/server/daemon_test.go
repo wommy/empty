@@ -54,7 +54,7 @@ func (r *gateRunner) Run(ctx context.Context, name string, args ...string) ([]by
 		}
 		return nil, &zfs.ExitError{Args: args, Code: -1, Stderr: "signal: terminated"}
 	}
-	return []byte(args[len(args)-1] + "\tavailable\t1000\t-\n"), nil
+	return availableJSON(args[len(args)-1]), nil
 }
 
 type daemonClient struct {
@@ -330,4 +330,11 @@ func waitFor(t *testing.T, cond func() bool) {
 			t.Fatal("condition never held")
 		}
 	}
+}
+
+// availableJSON is `zfs get -j -p available name` for a filesystem with
+// 1000 bytes available.
+func availableJSON(name string) []byte {
+	return zfstest.AppendGetJSON(nil, []zfstest.JSONDataset{{Name: name, Type: "filesystem", Createtxg: 1,
+		Props: []zfstest.JSONProp{{Name: "available", Value: "1000", Source: "-"}}}})
 }
