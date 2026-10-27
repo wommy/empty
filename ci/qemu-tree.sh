@@ -48,6 +48,18 @@ rm -rf "$dir/debs"
 find "$dir" -type l -lname '/*' -print0 | while IFS= read -r -d '' l; do
   ln -sfn "$(realpath -m --relative-to="$(dirname "$l")" "$dir$(readlink "$l")")" "$l"
 done
+# only what the job runs: qemu-system-x86_64 (KVM, pc, -display none,
+# virtio disks and virtio-net) and qemu-img. Every warm run restores this
+# tree: trimmed, it compresses to 8.4 MB instead of 25.2 MB (noble's qemu
+# 8.2.2, tar | zstd -3). Gone: qemu-system-i386 and -microvm (33 MB), the
+# other tools, other targets' firmware, keymaps (VNC only), docs, man
+# pages, and the option ROMs of NICs the job does not use. verify() checks
+# the firmware a boot loads
+find "$dir/usr/bin" -mindepth 1 \( -name qemu-system-x86_64 -o -name qemu-img \) -prune -o -print0 | xargs -0r rm -f
+find "$dir/usr/share" -mindepth 1 -maxdepth 1 ! -name qemu ! -name seabios -exec rm -rf {} +
+find "$dir/usr/share/qemu" -mindepth 1 -maxdepth 1 ! \( -name 'bios*.bin' -o -name kvmvapic.bin -o -name 'linuxboot*.bin' \
+  -o -name 'multiboot*.bin' -o -name pvh.bin -o -name 'vgabios*.bin' -o -name '*virtio*.rom' -o -name firmware \) -exec rm -rf {} +
+if [ -d "$dir/usr/lib/ipxe" ]; then find "$dir/usr/lib/ipxe" \( -type f -o -type l \) ! -name '*virtio*' -delete; fi
 # wrappers find the tree from their own path, so a cache restored
 # elsewhere still works
 cat >"$dir/bin/qemu-system-x86_64" <<'EOF'

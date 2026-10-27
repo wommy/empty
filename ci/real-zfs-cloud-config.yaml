@@ -27,5 +27,32 @@ runcmd:
   # from the next boot: this boot still copies the kernel out of /boot
   - |
     awk '$1 !~ /^#/ && ($2 == "/boot" || $2 == "/boot/efi") && $4 !~ /(^|,)noauto(,|$)/ { $4 = $4 ",noauto" } { print }' /etc/fstab >/etc/fstab.new && cat /etc/fstab.new >/etc/fstab && rm /etc/fstab.new
+  # a smaller stored disk: every warm run restores it (899 MB with cache
+  # key v4, ADR 0005 "cache bytes"). ci/real-zfs-vm.sh trims the freed
+  # blocks before it stores the disk. The version, module and nfsd checks
+  # and the tests run after this on every boot. Packages: bpftrace and bcc
+  # with the LLVM and clang libraries they pull in, kernel headers, perf
+  # (426 MB installed, ~130 MB in the qcow2); skipped whole if apt would
+  # also remove a package the guest needs
+  - |
+    keep='^(openssh-server|sudo|systemd|systemd-sysv|udev|kmod|mount|util-linux|procps|cloud-init|zfsutils-linux|libzfs.*|nfs-kernel-server|nfs-common|linux-image-.*|linux-modules-.*|linux-main-modules-zfs-.*)$'
+    pk=$(dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' bpftrace bpfcc-tools python3-bpfcc libbpfcc 'libllvm*' 'libclang*' 'linux-headers-*' 'linux-tools-*' linux-perf 2>/dev/null | awk '$1 == "ii" { print $2 }')
+    if [ -n "$pk" ]; then
+      gone=$(apt-get -s purge $pk | awk '/^Purg / { print $2 }')
+      held=$(printf '%s\n' "$gone" | awk -v k="$keep" '$0 ~ k')
+      if [ -n "$held" ]; then echo "slim: not purging, apt would remove $held"; else DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq $pk; fi
+    fi
+  # modules of hardware a virtio guest does not have (~80 MB, already
+  # zstd): GPUs, media, sound, wireless and wired NICs (virtio-net is built
+  # in), staging, comedi, iio. The disk's /boot keeps its initrd, for the
+  # GRUB fallback
+  - |
+    r=$(uname -r) && m=/lib/modules/$r/kernel &&
+      rm -rf "$m/drivers/gpu" "$m/drivers/media" "$m/sound" "$m/drivers/net/wireless" "$m/drivers/net/ethernet" "$m/drivers/staging" "$m/drivers/comedi" "$m/drivers/iio" &&
+      depmod -a "$r"
+  # docs, man pages, translations other than English, apt's lists (~60 MB)
+  - |
+    rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* /var/lib/apt/lists/* /var/cache/apt/*.bin
+    find /usr/share/locale -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} +
   # cloud-init has done its one job; a warm boot skips its four stages
   - [touch, /etc/cloud/cloud-init.disabled]

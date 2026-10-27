@@ -51,11 +51,13 @@ runs:
         # the guest part: provisioning inputs only, so editing how the
         # tests run must not reprovision. The ISO week bounds how far the
         # guest can lag zfsutils updates published after the image. v3: the
-        # cache also holds the kernel, initrd and cmdline for a direct
-        # kernel boot. v4: one entry holds the guest and the qemu tree, so
+        # cache also holds the kernel and cmdline (until v5 also the
+        # initrd) for a direct kernel boot. v4: one entry holds the guest and the qemu tree, so
         # the job pays one cache restore, not two (~2s of per-restore
-        # overhead for 23 MB, run 40494213342)
-        guest=zfsvm-v4-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)
+        # overhead for 23 MB, run 40494213342). v5: a slimmer entry (899 ->
+        # ~590 MB, ADR 0005 "cache bytes"): no initrd beside the disk, a
+        # slimmed guest, a trimmed qemu tree
+        guest=zfsvm-v5-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)
         # the qemu part: the tree is unpacked from this runner image's apt
         # view. A runner image release misses the full key but restores the
         # guest through the fallback prefix, with the old tree

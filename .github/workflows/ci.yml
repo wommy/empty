@@ -184,8 +184,10 @@ jobs:
         id: keys
         uses: ./.github/actions/real-zfs-keys
       # one entry, two trees: the provisioned guest, and qemu without apt
-      # (the packages apt would add, unpacked once per runner image version,
-      # ~90 MB; 14s of apt-get becomes ~1s). After a runner image release
+      # (the packages apt would add, unpacked once per runner image version
+      # and trimmed to what the job runs, ~8 MB compressed; 14s of apt-get
+      # becomes ~1s). The entry is ~590 MB (v5; 899 MB with v4, ADR 0005
+      # "cache bytes"). After a runner image release
       # the fallback key restores the guest with the old qemu tree, which
       # the next step verifies or rebuilds
       - name: restore the provisioned guest and qemu
