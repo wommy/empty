@@ -117,3 +117,8 @@
 {"ts": "2026-10-27T07:47:10Z", "id": "a6fdb224b604d2368", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T07:47:10Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T07:48:16Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:51:03Z", "id": "a4b19369ba5ad6297", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T07:51:03Z", "id": "a4b19369ba5ad6297", "from": "reported", "to": "triaged", "note": "4 conflicts: apply.go (settle destroy + OpMount), weights union, 2 test files = HEAD + zfsdiff's 2 new tests (HEAD had folded old ones). Gate clean. Real Expand bug fixed (thick fs under-reserved after ENOSPC). Follow-up: after half-applied huge Expand the volume is stuck ResourceExhausted (no rollback)."}
+{"ts": "2026-10-27T07:51:03Z", "id": "a4b19369ba5ad6297", "from": "triaged", "to": "merged", "note": "3ab03d5"}
+{"ts": "2026-10-27T07:51:27Z", "id": "a53361ecab5fd8058", "from": "queued", "to": "running", "note": "b-cache-warm"}
+{"ts": "2026-10-27T07:51:27Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
