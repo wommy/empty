@@ -3,8 +3,11 @@ package zfs_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/wommy/empty/internal/zfs"
 	"github.com/wommy/empty/internal/zfs/zfstest"
@@ -26,6 +29,14 @@ func TestClassify(t *testing.T) {
 		// first seen on real ZFS in CI: thick zvol volsize/refreservation
 		{"cannot set property for 'tank/a': size is greater than available space\n", zfs.ErrNoSpace},
 		{"cannot set property for 'tank/a': size is less than current used or reserved space\n", zfs.ErrInvalidProperty},
+		// texts below are OpenZFS's; see errors.go for each source
+		{"cannot create 'tank/a': pool is read-only\n", zfs.ErrUnavailable},
+		{"cannot destroy snapshot tank/a@s: it's being held. Run 'zfs holds -r tank/a@s' to see holders.\n", zfs.ErrBusy},
+		{"cannot create 'tank/enc/a': encryption root's key is not loaded or provided\n", zfs.ErrPrecondition},
+		{"cannot create 'tank/a': 'snapdir' must be one of 'hidden | visible'\n", zfs.ErrInvalidProperty},
+		{"cannot create 'tank/a': 'recordsize' must be power of 2 from 512B to 128K\n", zfs.ErrInvalidProperty},
+		{"cannot create 'tank/a': pool must be upgraded to set this property or value\n", zfs.ErrPrecondition},
+		{"cannot create 'tank/a': the loaded zfs module does not support this operation. A reboot may be required to enable this operation.\n", zfs.ErrUnavailable},
 	} {
 		c := zfs.New(failRunner(tc.stderr))
 		err := c.Destroy(ctx, "tank/a", zfs.DestroyOptions{})
@@ -125,6 +136,29 @@ type failRunner string
 
 func (f failRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return nil, &zfs.ExitError{Args: args, Code: 1, Stderr: string(f)}
+}
+
+// A command killed by its context may or may not have done its work: it
+// is reported as interrupted (outcome unknown), carrying the context's
+// error, never as an unclassified failure.
+func TestKilledCommandIsInterrupted(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	// sh dies on SIGTERM, but its child keeps stdout open: only WaitDelay
+	// stops Wait from blocking until the child exits
+	bin := filepath.Join(t.TempDir(), "zfs")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &zfs.Client{Runner: zfs.LocalRunner{WaitDelay: 200 * time.Millisecond}, Binary: bin}
+	start := time.Now()
+	_, err := c.Get(ctx, "10", "x")
+	if time.Since(start) > 5*time.Second {
+		t.Fatalf("took %v", time.Since(start))
+	}
+	if !errors.Is(err, zfs.ErrInterrupted) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("got %v, want interrupted by deadline", err)
+	}
 }
 
 // ADR 0003: ownership is a user property set locally. A received value

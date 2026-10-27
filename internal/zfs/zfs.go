@@ -122,6 +122,12 @@ func (c *Client) run(ctx context.Context, op, dataset string, args ...string) ([
 		e.Stderr = ee.Stderr
 		e.Kind = classify(ee.Stderr)
 	}
+	if cerr := ctx.Err(); cerr != nil {
+		// killed (or never started) because the caller gave up: whatever
+		// stderr says, the outcome is unknown, and the context's error says
+		// why (deadline or cancel)
+		e.Kind, e.Err = KindInterrupted, fmt.Errorf("%w (%w)", err, cerr)
+	}
 	return nil, e
 }
 
