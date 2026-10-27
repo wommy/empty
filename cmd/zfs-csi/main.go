@@ -16,10 +16,12 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	zcsi "github.com/wommy/empty/internal/csi"
+	"github.com/wommy/empty/internal/server"
 	"github.com/wommy/empty/internal/unixsock"
 )
 
@@ -31,13 +33,18 @@ func main() {
 }
 
 func run() error {
-	endpointAddr := flag.String("endpoint", "unix:///run/zfs-endpoint/endpoint.sock", "zfs-endpoint gRPC address (unix:///path or host:port)")
+	endpointAddr := flag.String("endpoint", "unix:///run/zfs-endpoint/endpoint.sock", "zfs-endpoint socket (unix:///absolute/path)")
 	csiAddr := flag.String("csi-address", "unix:///csi/csi.sock", "CSI socket to serve (unix:///path)")
 	name := flag.String("driver-name", zcsi.DefaultDriverName, "CSI driver name reported by GetPluginInfo")
 	drain := flag.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
 	flag.Parse()
 
-	conn, err := grpc.NewClient(*endpointAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// the endpoint serves only a unix socket until transport auth (ADR
+	// 0001); an "@name" abstract socket would have no permissions at all
+	if err := endpointTarget(*endpointAddr); err != nil {
+		return err
+	}
+	conn, err := grpc.NewClient(*endpointAddr, dialOptions()...)
 	if err != nil {
 		return fmt.Errorf("endpoint %s: %w", *endpointAddr, err)
 	}
@@ -75,6 +82,39 @@ func run() error {
 	}()
 	slog.Info("serving", "csi", *csiAddr, "endpoint", *endpointAddr, "driver", *name)
 	return srv.Serve(lis)
+}
+
+// endpointTarget accepts only unix:///absolute/path.
+func endpointTarget(addr string) error {
+	path, ok := strings.CutPrefix(addr, "unix://")
+	if !ok {
+		return fmt.Errorf("-endpoint %q: want unix:///absolute/path (the endpoint serves no TCP until ADR 0001)", addr)
+	}
+	if err := unixsock.CheckPath(path); err != nil {
+		return fmt.Errorf("-endpoint: %w", err)
+	}
+	return nil
+}
+
+// dialOptions for the endpoint connection:
+//   - reconnect backoff capped at 5s (gRPC's default grows to 120s, so
+//     after an endpoint outage of a few minutes, e.g. a slow pool import,
+//     calls kept failing Unavailable for up to 2 minutes after it was
+//     back);
+//   - message limits matching the endpoint's (server.MaxMsgSize), so a
+//     large Reconcile desired set or list page is never refused here.
+func dialOptions() []grpc.DialOption {
+	return []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff:           backoff.Config{BaseDelay: 200 * time.Millisecond, Multiplier: 1.6, Jitter: 0.2, MaxDelay: 5 * time.Second},
+			MinConnectTimeout: 5 * time.Second,
+		}),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(server.MaxMsgSize),
+			grpc.MaxCallSendMsgSize(server.MaxMsgSize),
+		),
+	}
 }
 
 // listen opens the CSI socket owner-only (the sidecars share the pod's

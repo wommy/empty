@@ -10,6 +10,33 @@ import (
 	"time"
 )
 
+// Limit returns a Runner that runs at most n commands of r at once (n < 1
+// means 1). The kernel serialises most zfs ioctls on the pool namespace
+// lock anyway, so more children buy no throughput, only PIDs and memory.
+// A caller waiting for a slot gives up when its context ends: the error
+// wraps ctx.Err(), and the command never started.
+func Limit(r Runner, n int) Runner {
+	return &limited{r: r, slots: make(chan struct{}, max(n, 1))}
+}
+
+type limited struct {
+	r     Runner
+	slots chan struct{}
+}
+
+func (l *limited) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("run %s: %w", name, err)
+	}
+	select {
+	case l.slots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("run %s: waiting for a free zfs slot: %w", name, ctx.Err())
+	}
+	defer func() { <-l.slots }()
+	return l.r.Run(ctx, name, args...)
+}
+
 // Runner executes a zfs (or zpool) command. It is the seam between the
 // endpoint and the host: LocalRunner today, an SSH or libzfs_core runner
 // later, a fake in tests.
@@ -39,6 +66,12 @@ func (e *ExitError) Unwrap() error { return e.Underlay }
 // When ctx ends, the child gets SIGTERM, then after WaitDelay SIGKILL, and
 // its pipes are closed, so neither a hung zfs (a suspended pool with
 // failmode=wait) nor a grandchild holding stdout can block Run forever.
+//
+// Each child runs in its own process group, so a signal sent to the
+// daemon's group (Ctrl-C in a terminal, kill -- -pgid, a cgroup-wide
+// SIGTERM) does not cut a zfs operation the shutdown drain is waiting for:
+// only the daemon decides when to stop one. On Linux the child also gets
+// SIGKILL if the daemon dies first (Pdeathsig), so no zfs outlives it.
 type LocalRunner struct {
 	// WaitDelay is the grace period between SIGTERM and SIGKILL. Default 5s.
 	WaitDelay time.Duration
@@ -47,6 +80,7 @@ type LocalRunner struct {
 func (r LocalRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.SysProcAttr = childAttr()
 	cmd.WaitDelay = r.WaitDelay
 	if cmd.WaitDelay == 0 {
 		cmd.WaitDelay = 5 * time.Second
