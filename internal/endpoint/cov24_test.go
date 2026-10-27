@@ -75,8 +75,14 @@ func (r *afterCreate) Run(ctx context.Context, name string, args ...string) ([]b
 // Item 4 (wave22): an NFS volume is committed only once its export is
 // served as asked and no wider. An ancestor's crossmnt export ("on") that
 // serves it to everyone is caught by verifyExport alone: the planner
-// cannot see it before the volume exists. The volume stays uncommitted,
-// and a retry once the ancestor stops sharing converges.
+// cannot see it before the volume exists, so it is created, then refused.
+//
+// Flipped by ADR 0010: the refused volume used to stay, uncommitted, and
+// with it the exposure (served to everyone through the ancestor), under a
+// final code after which external-provisioner gives up once the PVC is
+// deleted: stranded, exposed. The fresh create now rolls back: the
+// refusal keeps its code (it is one on purpose) and nothing is left. A
+// retry once the ancestor stops sharing creates it afresh.
 func TestFileExportCreateServedBeyondByAncestor(t *testing.T) {
 	ctx := context.Background()
 	sim, z, ep := simNFS(t, nil)
@@ -84,16 +90,17 @@ func TestFileExportCreateServedBeyondByAncestor(t *testing.T) {
 		t.Fatal(err)
 	}
 	const ds = "tank/k8s/vols/pvc"
+	from := len(sim.Calls)
 	_, err := ep.CreateVolume(ctx, nfsCreate("pvc", "", "10.20.0.0/24"))
 	wantCode(t, err, endpoint.FailedPrecondition)
-	if !strings.Contains(err.Error(), "served beyond its export") {
-		t.Fatalf("not the exposure refusal: %v", err)
+	if !strings.Contains(err.Error(), "served beyond its export") || !strings.Contains(err.Error(), "rolled back") {
+		t.Fatalf("not the exposure refusal, rolled back: %v", err)
 	}
-	if !sim.Has(ds) {
+	if !slices.ContainsFunc(sim.Calls[from:], func(c []string) bool { return c[1] == "create" && c[len(c)-1] == ds }) {
 		t.Fatal("the volume was not created before the check")
 	}
-	if got := sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success"); got == "true" {
-		t.Fatal("committed while served beyond its export")
+	if sim.Has(ds) {
+		t.Fatal("the refused volume was left behind, served beyond its export")
 	}
 	if vols, _, err := ep.ListVolumes(ctx, 0, ""); err != nil || len(vols) != 0 {
 		t.Fatalf("listed %+v (%v), want nothing committed", vols, err)
@@ -113,6 +120,13 @@ func TestFileExportCreateServedBeyondByAncestor(t *testing.T) {
 // verifyExport's other refusals: between the create and the commit, the
 // volume vanished or its sharenfs changed. Both are Aborted (a retry
 // re-plans), never a commit.
+//
+// What is left differs since ADR 0010's rollback of a fresh create, which
+// runs behind Resume's guards. "sharenfs changed" is flipped: the row is
+// still this call's (owned, this name, uncommitted), so it is rolled back
+// and gone, where it used to stay. "vanished" leaves nothing to roll back,
+// and "owner changed" is no longer ours (ADR 0003): the guard leaves it
+// alone, as before.
 func TestFileExportCreateChangedBeforeCommit(t *testing.T) {
 	ctx := context.Background()
 	const ds = "tank/k8s/vols/pvc"
@@ -120,10 +134,11 @@ func TestFileExportCreateChangedBeforeCommit(t *testing.T) {
 		name string
 		do   [][]string
 		want string
+		left bool // the dataset is there after the call
 	}{
-		{"vanished", [][]string{{"destroy", ds}}, "vanished or changed owner"},
-		{"owner changed", [][]string{{"inherit", endpoint.DefaultPropertyPrefix + ":managed_resource", ds}}, "vanished or changed owner"},
-		{"sharenfs changed", [][]string{{"set", "sharenfs=off", ds}}, "sharenfs changed during provisioning"},
+		{"vanished", [][]string{{"destroy", ds}}, "vanished or changed owner", false},
+		{"owner changed", [][]string{{"inherit", endpoint.DefaultPropertyPrefix + ":managed_resource", ds}}, "vanished or changed owner", true},
+		{"sharenfs changed", [][]string{{"set", "sharenfs=off", ds}}, "sharenfs changed during provisioning", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			sim := zfstest.New("tank")
@@ -146,6 +161,9 @@ func TestFileExportCreateChangedBeforeCommit(t *testing.T) {
 			}
 			if sim.Has(ds) && sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success") == "true" {
 				t.Fatal("committed")
+			}
+			if sim.Has(ds) != tc.left {
+				t.Fatalf("dataset left: %v, want %v", sim.Has(ds), tc.left)
 			}
 		})
 	}
@@ -303,6 +321,12 @@ func (f failRoot) SetRoot(ctx context.Context, ds, mp string, uid, gid, mode int
 // converges with the owner set. LocalRoot's own Internal (an open, stat,
 // mount table or chown failure it does not classify) is unclassified too
 // (wave25 item 1): it is what production returns, not a bare error.
+//
+// Flipped by ADR 0010 where the create is rolled back: nothing is left to
+// strand, so the code is the failure's own before any change (Internal,
+// as a setter failing on a plan's first op is), and the volume is gone,
+// where it used to stay uncommitted. Aborted still holds whenever the
+// half-made volume stays: here, when the rollback's destroy fails too.
 func TestFileExportCreateRootFailureIsRetryable(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -311,32 +335,54 @@ func TestFileExportCreateRootFailureIsRetryable(t *testing.T) {
 		{"bare error", errors.New("x")},
 		{"LocalRoot's Internal", &endpoint.Error{Code: endpoint.Internal, Msg: "open /tank/k8s/vols/pvc", Err: syscall.EIO}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			var rootErr error
-			sim, _, ep := simNFS(t, func(c *endpoint.Config) {
-				c.Root = failRoot{c.Etab.(*zfstest.Sim), &rootErr}
+		for _, stuck := range []bool{false, true} {
+			name := tc.name + "/rolled back"
+			if stuck {
+				name = tc.name + "/rollback fails"
+			}
+			t.Run(name, func(t *testing.T) {
+				ctx := context.Background()
+				var rootErr error
+				sim, _, ep := simNFS(t, func(c *endpoint.Config) {
+					c.Root = failRoot{c.Etab.(*zfstest.Sim), &rootErr}
+				})
+				if stuck {
+					sim.Fail = func(a []string) error {
+						if a[0] == "destroy" {
+							return &zfs.ExitError{Code: 1, Stderr: "cannot destroy: dataset is busy\n"}
+						}
+						return nil
+					}
+				}
+				uid := uint32(1000)
+				req := nfsCreate("pvc", "", "10.20.0.0/24")
+				req.NFS.UID = &uid
+				rootErr = tc.err
+				_, err := ep.CreateVolume(ctx, req)
+				sim.Fail = nil
+				if !errors.Is(err, rootErr) && !strings.Contains(err.Error(), rootErr.Error()) {
+					t.Fatalf("the setter's error is not wrapped: %v", err)
+				}
+				const ds = "tank/k8s/vols/pvc"
+				if !stuck {
+					wantCode(t, err, endpoint.Internal)
+					if sim.Has(ds) {
+						t.Fatal("want the volume rolled back")
+					}
+				} else {
+					wantCode(t, err, endpoint.Aborted)
+					if !sim.Has(ds) || sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success") == "true" {
+						t.Fatal("want the volume created and uncommitted")
+					}
+				}
+				rootErr = nil
+				if _, err := ep.CreateVolume(ctx, req); err != nil {
+					t.Fatalf("retry: %v", err)
+				}
+				if r, ok := sim.RootOf(ds); !ok || r.UID != uid {
+					t.Fatalf("root %+v after the retry, want uid %d", r, uid)
+				}
 			})
-			uid := uint32(1000)
-			req := nfsCreate("pvc", "", "10.20.0.0/24")
-			req.NFS.UID = &uid
-			rootErr = tc.err
-			_, err := ep.CreateVolume(ctx, req)
-			wantCode(t, err, endpoint.Aborted)
-			if !errors.Is(err, rootErr) && !strings.Contains(err.Error(), rootErr.Error()) {
-				t.Fatalf("the setter's error is not wrapped: %v", err)
-			}
-			const ds = "tank/k8s/vols/pvc"
-			if !sim.Has(ds) || sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success") == "true" {
-				t.Fatal("want the volume created and uncommitted")
-			}
-			rootErr = nil
-			if _, err := ep.CreateVolume(ctx, req); err != nil {
-				t.Fatalf("retry: %v", err)
-			}
-			if r, ok := sim.RootOf(ds); !ok || r.UID != uid {
-				t.Fatalf("root %+v after the retry, want uid %d", r, uid)
-			}
-		})
+		}
 	}
 }

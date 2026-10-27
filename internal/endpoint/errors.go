@@ -37,6 +37,10 @@ type Error struct {
 	// cell is set on a zfs failure (zfsFail): its code is errTable's, and
 	// CodeOf reads it there.
 	cell *errCell
+	// pre is the failure as it was before being re-keyed as one after a
+	// change (remapMutated, afterChange, rootErr): what beforeChange
+	// gives back once a rollback undid the change.
+	pre error
 }
 
 func (e *Error) Error() string {
@@ -139,12 +143,10 @@ var errRules = []errRule{
 	// snapshot and clone ran): ResourceExhausted is final for
 	// external-provisioner under Immediate binding, and would strand the
 	// uncommitted clone (and its source's DeleteVolume, "has dependent
-	// clone"); a retry converges once there is space. The better fix,
-	// not built: roll a fresh create back (destroy it by the guid just
-	// read) and return the classified code, Aborted only if the rollback
-	// fails; that would cover the deterministic codes mid-plan too
-	// (AlreadyExists or NotFound on a clone after its snapshot,
-	// InvalidArgument from a size set).
+	// clone"); a retry converges once there is space. A fresh
+	// CreateVolume rolls itself back (ADR 0010) and then reports the
+	// code before the change (beforeChange): this row holds where the
+	// change stays (a resume, a failed rollback, the caller's deadline).
 	{ops: mutatingOps, kinds: kinds(zfs.KindNoSpace), after: true, code: Aborted},
 	{kinds: kinds(zfs.KindNoSpace), code: ResourceExhausted},
 	{kinds: kinds(zfs.KindInvalidProperty), code: InvalidArgument},
@@ -270,5 +272,17 @@ func remapMutated(err error, because string) error {
 	if c.code() == e.cell.code() {
 		return err
 	}
-	return &Error{Code: c.code(), Msg: e.Msg + because, Err: e.Err, cell: &c}
+	return &Error{Code: c.code(), Msg: e.Msg + because, Err: e.Err, cell: &c, pre: err}
+}
+
+// beforeChange is err as it was before any re-keying as a failure after a
+// change: what a call that changed nothing would have returned. A fresh
+// CreateVolume that rolled its change back reports it (ADR 0010). Any
+// other error is unchanged.
+func beforeChange(err error) error {
+	var e *Error
+	for errors.As(err, &e) && e.pre != nil {
+		err = e.pre
+	}
+	return err
 }

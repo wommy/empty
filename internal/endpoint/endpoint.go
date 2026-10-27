@@ -587,10 +587,19 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	// resumeErr, reads included: an unclassified one is Aborted, as the
 	// error table has it after a change, since a final code strands the
 	// half-made volume. What is refused on purpose keeps its code.
+	//
+	// A fresh create (pass 0's scan, under the lock, found no volume) that
+	// made something and then fails rolls it back first (ADR 0010), unless
+	// the failure is the caller's deadline or cancellation: then the
+	// change stays for the retry to resume.
 	changed := false
+	fresh, made := false, false
 	fail := func(err error) (Volume, error) {
 		if changed {
-			return Volume{}, resumeErr(err)
+			err = resumeErr(err)
+		}
+		if fresh && made && !callerEnded(ctx, err) {
+			err = e.rollbackCreate(ctx, r, id, err)
 		}
 		return Volume{}, err
 	}
@@ -599,12 +608,16 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		if err != nil {
 			return fail(err)
 		}
-		if row, ok := t.Get(id); ok && !row.Committed {
+		row, exists := t.Get(id)
+		if exists && !row.Committed {
 			changed = true
+		}
+		if pass == 0 {
+			fresh = !exists
 		}
 		p := e.plan
 		p.now = e.cfg.Now().Unix()
-		if _, exists := t.Get(id); !exists && r.Kind == Filesystem {
+		if !exists && r.Kind == Filesystem {
 			// a new filesystem's mountpoint is pinned where the parent's
 			// puts it now: one read, on a create only. It proves the
 			// parent too (Unavailable when missing).
@@ -632,7 +645,10 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 			// an NFS volume commits only once it is served (verifyExport)
 			plan, commit = plan[:len(plan)-1], plan[len(plan)-1:]
 		}
-		if err := e.apply(ctx, plan); err != nil {
+		n, err := e.applyN(ctx, plan)
+		// an op that failed without a classified refusal may have run
+		made = made || n > 0 || err != nil && mayHaveRun(err)
+		if err != nil {
 			return fail(err)
 		}
 		changed = changed || len(plan) > 0
@@ -641,7 +657,8 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 				return fail(err)
 			}
 			if err := e.apply(ctx, commit); err != nil {
-				return Volume{}, resumeErr(err)
+				changed = true
+				return fail(err)
 			}
 		}
 		if pass == 0 && len(plan)+len(commit) == 0 {
@@ -657,12 +674,81 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	}
 	v, err := e.readVolume(ctx, id)
 	if err != nil {
-		// committed or not, this attempt changed the volume (an empty
-		// plan in both passes returns above)
-		changed = true
-		return fail(err)
+		// this attempt changed the volume (an empty plan in both passes
+		// returns above), and committed it: nothing to roll back
+		return Volume{}, resumeErr(err)
 	}
 	return v, nil
+}
+
+// callerEnded reports a failure that is the caller's own deadline or
+// cancellation, or one that happened once the caller's context had ended.
+// A fresh create never rolls back on it (ADR 0010): on a pool where a
+// clone or mount outlasts the sidecar's timeout, every attempt would make
+// and undo the volume; left, the next attempt resumes it.
+func callerEnded(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || CodeOf(err) == DeadlineExceeded ||
+		errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
+// mayHaveRun reports whether the failed op of an apply may have changed
+// the pool all the same: anything but a zfs refusal it classified (no
+// space, exists, permission, ...), which zfs makes before changing
+// anything. An unclassified failure or a killed command is unknown (its
+// answer may be what was lost), and so is a failure that is no zfs
+// failure at all.
+func mayHaveRun(err error) bool {
+	var e *Error
+	if !errors.As(err, &e) || e.cell == nil {
+		return true
+	}
+	switch e.cell.kind {
+	case errKind(zfs.KindUnknown), errKind(zfs.KindInterrupted), kindDeadline:
+		return true
+	}
+	return false
+}
+
+// rollbackCreate undoes what a fresh CreateVolume of r (volume id) made
+// before failing with err, still under the call's locks (ADR 0010). It
+// runs even when the caller's context ended (bounded by its own timeout),
+// re-scans the volume and its clone source, and applies
+// PlanRollbackCreate: Resume's guards, then planDelete's destroys, each
+// tied to the guid that scan read.
+//
+// A rollback that removed what the call made returns the failure as a
+// call that changed nothing would have (beforeChange): nothing is left to
+// strand, so its code is the truthful one. One that found nothing of the
+// call's to remove (the row vanished, or is no longer ours) returns err
+// as it is. One that failed returns err, joined with why: err's
+// after-change code stands, and the row is left for a retry to resume.
+func (e *Endpoint) rollbackCreate(ctx context.Context, r CreateVolumeRequest, id string, err error) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	undone, rerr := func() (bool, error) {
+		t, err := e.scanFor(ctx, id, r.SourceVolumeID)
+		if err != nil {
+			return false, err
+		}
+		plan, err := e.plan.PlanRollbackCreate(t, r)
+		if err != nil || len(plan) == 0 {
+			return false, err
+		}
+		return true, e.apply(ctx, plan)
+	}()
+	switch {
+	case rerr != nil:
+		joined := errors.Join(err, fmt.Errorf("rolling the create back: %w", rerr))
+		if !errors.As(err, new(*Error)) {
+			// the code is err's, never the rollback's
+			return &Error{Code: CodeOf(err), Msg: "create volume " + id, Err: joined}
+		}
+		return joined
+	case undone:
+		pre := beforeChange(err)
+		return &Error{Code: CodeOf(pre), Msg: "create volume " + id + " failed and was rolled back, nothing was left", Err: pre}
+	}
+	return err
 }
 
 // parentMountpoint reads the parent's effective mountpoint: a path, or
@@ -743,9 +829,10 @@ func resumeErr(err error) error {
 // afterChange is resumeErr for any failure after a change, because saying
 // what changed.
 func afterChange(err error, because string) error {
+	before := err
 	err = remapMutated(err, because)
 	if err != nil && CodeOf(err) == Internal {
-		return &Error{Code: Aborted, Msg: "unclassified failure" + because, Err: err}
+		return &Error{Code: Aborted, Msg: "unclassified failure" + because, Err: err, pre: before}
 	}
 	return err
 }
@@ -1011,7 +1098,10 @@ func (e *Endpoint) rollbackExpand(ctx context.Context, before Row) error {
 	return e.apply(ctx, e.plan.PlanExpandRollback(t, before))
 }
 
-// rollbackTimeout bounds rollbackExpand: one scan and one `zfs set`.
+// rollbackTimeout bounds each rollback, from the moment it starts:
+// rollbackExpand and restoreShareNFS (one scan and one `zfs set`), and
+// rollbackCreate (two scans, then at most two destroys, each after a guid
+// check, and a settle).
 const rollbackTimeout = 30 * time.Second
 
 // GetVolume returns a managed volume.

@@ -60,6 +60,11 @@ func TestBusyIsMappedByOperation(t *testing.T) {
 // An unclassified failure before any mutation is Internal. After a step of
 // the plan already changed something, it is retryable: the retry re-scans
 // and converges, while a final code would strand the half-made volume.
+//
+// Flipped by ADR 0010 for a fresh create that rolls back: nothing is left
+// to strand, and the code is Internal again, as before any mutation.
+// Aborted holds while the half-made volume stays: when the rollback's
+// destroy fails too.
 func TestUnknownFailureAfterAMutationIsRetryable(t *testing.T) {
 	t.Parallel()
 	requireSim(t)
@@ -71,6 +76,18 @@ func TestUnknownFailureAfterAMutationIsRetryable(t *testing.T) {
 	wantCode(t, err, endpoint.Internal)
 
 	failOn(h, t, "set", boom) // the commit marker, after the create
+	_, err = ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 1 << 20})
+	wantCode(t, err, endpoint.Internal)
+	if h.Has(h.Parent + "/v") {
+		t.Fatal("want the fresh create rolled back")
+	}
+
+	h.Sim(t).Fail = func(args []string) error {
+		if args[0] == "set" || args[0] == "destroy" { // the rollback fails too
+			return &zfs.ExitError{Code: 1, Stderr: boom}
+		}
+		return nil
+	}
 	_, err = ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 1 << 20})
 	wantCode(t, err, endpoint.Aborted)
 	h.Sim(t).Fail = nil

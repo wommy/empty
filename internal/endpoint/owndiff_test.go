@@ -281,7 +281,7 @@ func TestOwnershipDifferentialCrashes(t *testing.T) {
 							t.Fatalf("setup: %v", err)
 						}
 					}
-					fr := &faultRunner{Runner: h.Z.Runner, crashAt: k, after: after}
+					fr := &faultRunner{Runner: h.Z.Runner, crashAt: k, after: after, dead: true}
 					_ = c.op(ctx, crashEndpoint(t, h, fr, c.late)) // a crash is the point
 					reached = fr.crashed
 					if !reached {

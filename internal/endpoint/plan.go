@@ -724,19 +724,77 @@ func (p Planner) releaseCloneSourcesFor(t Table, id string) (Plan, error) {
 	}
 	var plan Plan
 	for src := range t.Volumes() {
-		s, ok := t.Get(src.ID + "@" + cloneSourceSnapshotPrefix + id)
-		if !ok || !src.OwnedVolume() || s.Deferred || !zfs.ValidSnapshot(s.Name) {
-			continue
+		if op, ok := p.releaseCloneSource(t, src, id); ok {
+			plan = append(plan, op)
 		}
-		if _, used := t.dependent(s, p.Parent); used {
-			continue
-		}
-		if clone, ours := s.OwnedCloneSource(); !ours || clone != id {
-			continue
-		}
-		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true, GUID: s.GUID})
 	}
 	return plan, nil
+}
+
+// releaseCloneSource is the release of the clone-source snapshot cut on
+// src for clone id, when it is the endpoint's (stamped for id, on a volume
+// it owns), unused and not yet released.
+func (p Planner) releaseCloneSource(t Table, src Row, id string) (Op, bool) {
+	s, ok := t.Get(src.ID + "@" + cloneSourceSnapshotPrefix + id)
+	if !ok || !src.OwnedVolume() || s.Deferred || !zfs.ValidSnapshot(s.Name) {
+		return Op{}, false
+	}
+	if _, used := t.dependent(s, p.Parent); used {
+		return Op{}, false
+	}
+	if clone, ours := s.OwnedCloneSource(); !ours || clone != id {
+		return Op{}, false
+	}
+	return Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true, GUID: s.GUID}, true
+}
+
+// PlanRollbackCreate undoes what a fresh CreateVolume of r made before it
+// failed (ADR 0010), from a table read after the failure that covers the
+// volume and its clone source. It touches only what passes Resume's own
+// guards: a row the endpoint owns under r's name (OwnedVolume), of r's
+// kind and source, not committed. Anything else is not the call's to undo
+// (it changed owner, or was committed by an answer that was lost) and the
+// plan is empty.
+//
+// A row that passes is deleted as DeleteVolume deletes it (planDelete):
+// its released origin first, then the dataset, each destroy tied to the
+// guid read, plain (never -r), and refused (FailedPrecondition) when
+// something hangs off it that the call did not make: children, a
+// snapshot, a hold, a clone. With no row and a source volume, the clone
+// failed after its snapshot was cut: the plan releases that one snapshot,
+// when it is stamped for this clone and unused.
+func (p Planner) PlanRollbackCreate(t Table, r CreateVolumeRequest) (Plan, error) {
+	id, err := volumeID(r.Name)
+	if err != nil {
+		return nil, err
+	}
+	srcType, srcID := sourceOf(r)
+	cover := []string{id}
+	if r.SourceVolumeID != "" {
+		cover = append(cover, r.SourceVolumeID)
+	}
+	if err := t.mustCover(cover...); err != nil {
+		return nil, err
+	}
+	row, ok := t.Get(id)
+	if !ok {
+		src, ok := t.Get(r.SourceVolumeID)
+		if r.SourceVolumeID == "" || !ok {
+			return nil, nil
+		}
+		if op, ok := p.releaseCloneSource(t, src, id); ok {
+			return Plan{op}, nil
+		}
+		return nil, nil
+	}
+	if !row.OwnedVolume() || row.Committed || row.Kind() != r.Kind || row.SourceType != srcType || row.SourceID != srcID {
+		return nil, nil
+	}
+	d, err := p.planDelete(t, id, false)
+	if err != nil {
+		return nil, err
+	}
+	return d.plan(), nil
 }
 
 // volumesOf is the volume ids plan's ops act on (a snapshot's counts as its

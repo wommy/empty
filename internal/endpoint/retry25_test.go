@@ -56,40 +56,69 @@ func isCommitOf(ds string) func([]string) bool {
 // Item 2: CreateVolume's reads after its first change (the second pass's
 // scan, verifyExport's scan, the re-read after the commit) are Aborted
 // when they fail unclassified, not Internal.
+//
+// Flipped by ADR 0010 before the commit: the fresh create rolls back, and
+// with nothing left to strand the code is the read's own, Internal, as a
+// read before any change is (TestCreateVolumeReadBeforeChangeStaysInternal).
+// Aborted still holds where the change stays: a failed rollback (stuck),
+// and the re-read after the commit, which is never rolled back.
 func TestCreateVolumeReadAfterChangeIsRetryable(t *testing.T) {
 	ctx := context.Background()
 	const ds = "tank/k8s/vols/pvc"
 	plain := endpoint.CreateVolumeRequest{Name: "pvc", CapacityBytes: 1 << 30}
 	nfs := nfsCreate("pvc", "", "10.20.0.0/24")
 	for _, tc := range []struct {
-		name    string
-		req     endpoint.CreateVolumeRequest
-		trigger func([]string) bool
-		n       int
+		name      string
+		req       endpoint.CreateVolumeRequest
+		trigger   func([]string) bool
+		n         int
+		committed bool
 	}{
-		{"second pass scan", plain, isCreateOf(ds), 1},
-		{"re-read after the commit", plain, isCommitOf(ds), 1},
-		{"NFS second pass scan", nfs, isCreateOf(ds), 1},
-		{"NFS verifyExport scan", nfs, isCreateOf(ds), 2},
-		{"NFS re-read after the commit", nfs, isCommitOf(ds), 1},
+		{"second pass scan", plain, isCreateOf(ds), 1, false},
+		{"re-read after the commit", plain, isCommitOf(ds), 1, true},
+		{"NFS second pass scan", nfs, isCreateOf(ds), 1, false},
+		{"NFS verifyExport scan", nfs, isCreateOf(ds), 2, false},
+		{"NFS re-read after the commit", nfs, isCommitOf(ds), 1, true},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			sim, _, ep := simNFS(t, nil)
-			fired := failNthScanAfter(sim, tc.n, tc.trigger)
-			_, err := ep.CreateVolume(ctx, tc.req)
-			if !*fired {
-				t.Fatalf("the scan was never failed (%v)", err)
+		for _, stuck := range []bool{false, true} {
+			name := tc.name
+			if stuck {
+				name += "/rollback fails"
 			}
-			wantCode(t, err, endpoint.Aborted)
-			sim.Fail = nil
-			v, err := ep.CreateVolume(ctx, tc.req)
-			if err != nil {
-				t.Fatalf("retry: %v", err)
-			}
-			if got := sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success"); got != "true" || v.Dataset != ds {
-				t.Fatalf("retry: committed %q, %+v", got, v)
-			}
-		})
+			t.Run(name, func(t *testing.T) {
+				sim, _, ep := simNFS(t, nil)
+				fired := failNthScanAfter(sim, tc.n, tc.trigger)
+				if stuck {
+					fail := sim.Fail
+					sim.Fail = func(a []string) error {
+						if a[0] == "destroy" {
+							return &zfs.ExitError{Code: 1, Stderr: "cannot destroy: dataset is busy\n"}
+						}
+						return fail(a)
+					}
+				}
+				_, err := ep.CreateVolume(ctx, tc.req)
+				if !*fired {
+					t.Fatalf("the scan was never failed (%v)", err)
+				}
+				if tc.committed || stuck {
+					wantCode(t, err, endpoint.Aborted)
+				} else {
+					wantCode(t, err, endpoint.Internal)
+					if sim.Has(ds) {
+						t.Fatal("want the fresh create rolled back")
+					}
+				}
+				sim.Fail = nil
+				v, err := ep.CreateVolume(ctx, tc.req)
+				if err != nil {
+					t.Fatalf("retry: %v", err)
+				}
+				if got := sim.Prop(ds, endpoint.DefaultPropertyPrefix+":provision_success"); got != "true" || v.Dataset != ds {
+					t.Fatalf("retry: committed %q, %+v", got, v)
+				}
+			})
+		}
 	}
 }
 
@@ -193,6 +222,12 @@ func TestCreateSnapshotAfterCutIsRetryable(t *testing.T) {
 // would be stranded, and with it the source's DeleteVolume ("has dependent
 // clone"). A retry once the space is there converges, and the source can
 // then be deleted after its clone.
+//
+// Flipped by ADR 0010: the fresh clone is now rolled back (the clone, and
+// the snapshot cut on its source), so nothing is stranded and the code is
+// ResourceExhausted, true again; Aborted holds where the clone stays (a
+// failed rollback, TestCreateRollbackFailureIsJoined). The retry
+// converges as before.
 func TestCloneNoSpaceAfterChangeIsRetryable(t *testing.T) {
 	ctx := context.Background()
 	sim := zfstest.New("tank")
@@ -223,7 +258,10 @@ func TestCloneNoSpaceAfterChangeIsRetryable(t *testing.T) {
 	if !fired {
 		t.Fatalf("the reservation was never failed (%v)", err)
 	}
-	wantCode(t, err, endpoint.Aborted)
+	wantCode(t, err, endpoint.ResourceExhausted)
+	if sim.Has("tank/k8s/vols/dst") || sim.Has("tank/k8s/vols/src@volume-source-for-volume-dst") {
+		t.Fatal("want the clone and its cut rolled back")
+	}
 	sim.Fail = nil
 	if _, err := ep.CreateVolume(ctx, req); err != nil {
 		t.Fatalf("retry: %v", err)
