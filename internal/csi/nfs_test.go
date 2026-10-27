@@ -11,6 +11,7 @@ package csi_test
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"net"
 	"strings"
@@ -252,6 +253,13 @@ func TestNFS_N5_ShareNFSCanonicalAndServed(t *testing.T) {
 	if p := mp.Props["mountpoint"]; p.Value != share || !p.Local() {
 		t.Errorf("mountpoint %q (%s), share %q: want the share pinned locally", p.Value, p.Source, share)
 	}
+	// a share mounted inside the parent keeps the parent from moving (its
+	// local mountpoint and sharenfs keep it out of zfs's changelist, so the
+	// parent's unmount is busy); unmounted, the parent moves without it
+	if err := f.z.Set(context.Background(), nfsParent, map[string]string{"mountpoint": "/elsewhere"}); !errors.Is(err, zfs.ErrBusy) {
+		t.Fatalf("moving the parent over a mounted share: %v, want busy", err)
+	}
+	f.sim.Unmount(ds)
 	if err := f.z.Set(context.Background(), nfsParent, map[string]string{"mountpoint": "/elsewhere"}); err != nil {
 		t.Fatal(err)
 	}

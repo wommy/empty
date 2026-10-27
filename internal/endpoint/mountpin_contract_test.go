@@ -2,16 +2,19 @@ package endpoint_test
 
 import (
 	"context"
+	"errors"
 	"path"
 	"testing"
 
 	"github.com/wommy/empty/internal/endpoint"
+	"github.com/wommy/empty/internal/zfs"
 )
 
 // csi-nfs-design §4: a volume's mountpoint, which a PV holds as
 // volume_context share, does not move when the parent's does. A volume
 // made before the pin (or adopted) follows the parent: Reconcile reports
-// it and leaves it alone.
+// it and leaves it alone. The parent itself cannot move while a pinned
+// volume is mounted inside it.
 func TestCreateVolumePinsMountpoint(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -47,8 +50,21 @@ func TestCreateVolumePinsMountpoint(t *testing.T) {
 	if _, src := h.propSource(t, h.Parent+"/legacy", "mountpoint"); src == "local" {
 		t.Fatal("the endpoint pinned an existing volume")
 	}
-	// the parent moves: the pinned volume stays, the legacy one follows
+	// the parent cannot move while the pinned volume is mounted inside it:
+	// its local mountpoint and sharenfs keep it out of zfs's changelist
+	// (libzfs change_one), so the parent's unmount is busy and nothing is
+	// set. A share in use cannot move under its clients.
 	moved := parentMP + "-moved"
+	if err := h.Z.Set(ctx, h.Parent, map[string]string{"mountpoint": moved}); !errors.Is(err, zfs.ErrBusy) {
+		t.Fatalf("moving the parent over a mounted pinned volume: %v, want busy", err)
+	}
+	if got := h.Prop(h.Parent, "mountpoint"); got != parentMP {
+		t.Fatalf("parent mountpoint %q after a refused move, want %q", got, parentMP)
+	}
+	// unmounted, the parent moves: the pinned volume stays, the legacy one follows
+	if _, err := h.Z.Runner.Run(ctx, "zfs", "unmount", v.Dataset); err != nil {
+		t.Fatal(err)
+	}
 	if err := h.Z.Set(ctx, h.Parent, map[string]string{"mountpoint": moved}); err != nil {
 		t.Fatal(err)
 	}

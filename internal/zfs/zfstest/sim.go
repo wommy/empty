@@ -157,6 +157,8 @@ func (s *Sim) Run(ctx context.Context, name string, args ...string) ([]byte, err
 		return nil, s.promote(args[1:])
 	case "mount":
 		return nil, s.mount(args[1:])
+	case "unmount":
+		return nil, s.unmount(args[1:])
 	case "hold":
 		return nil, s.hold(args[1:], true)
 	case "release":
@@ -1109,7 +1111,10 @@ func (s *Sim) set(args []string) error {
 	}
 	was := map[string]map[string]bool{}
 	for _, c := range cls {
-		was[c] = s.prefix(name, c)
+		var err error
+		if was[c], err = s.prefix(name, c); err != nil {
+			return err
+		}
 	}
 	// zfs_set_prop_nvlist: the space properties are set one by one in
 	// order, each checked by its sync task; a failure is reported per
@@ -1194,7 +1199,10 @@ func (s *Sim) inherit(args []string) error {
 		cl := tn.typ == zfs.TypeFilesystem && (prop == "mountpoint" || prop == "sharenfs" || prop == "sharesmb")
 		var was map[string]bool
 		if cl {
-			was = s.prefix(t, prop)
+			var err error
+			if was, err = s.prefix(t, prop); err != nil {
+				return err
+			}
 		}
 		delete(tn.props, prop)
 		// dsl_prop_set_sync_impl: a plain inherit on a received dataset
@@ -1630,17 +1638,37 @@ func (s *Sim) changelist(name, prop string) []string {
 	return out
 }
 
-// prefix is changelist_prefix: a mountpoint change unmounts every node.
-// It returns which nodes were mounted.
-func (s *Sim) prefix(name, prop string) map[string]bool {
+// prefix is changelist_prefix: a mountpoint change unmounts every node,
+// deepest mountpoint first (compare_mountpoints). It returns which nodes
+// were mounted. A node with a filesystem mounted below its mountpoint that
+// is not in the list (its own mountpoint and sharenfs set locally, as
+// every endpoint volume has) cannot unmount: the change fails busy before
+// anything is set, and the nodes unmounted before it stay unmounted, since
+// that path runs no postfix.
+func (s *Sim) prefix(name, prop string) (map[string]bool, error) {
+	cl := s.changelist(name, prop)
 	was := map[string]bool{}
-	for _, k := range s.changelist(name, prop) {
+	for _, k := range cl {
 		was[k] = s.ds[k].mounted
-		if prop == "mountpoint" {
-			s.ds[k].mounted = false
-		}
 	}
-	return was
+	if prop != "mountpoint" {
+		return was, nil
+	}
+	mp := func(k string) string { v, _, _ := s.value(k, "mountpoint"); return v }
+	slices.SortStableFunc(cl, func(a, b string) int { return strings.Compare(mp(b), mp(a)) })
+	for _, k := range cl {
+		if !s.ds[k].mounted {
+			continue
+		}
+		dir := mp(k)
+		for o, n := range s.ds {
+			if n.mounted && o != k && strings.HasPrefix(mp(o), dir+"/") {
+				return was, exit("cannot unmount '%s': pool or dataset is busy", dir)
+			}
+		}
+		s.ds[k].mounted = false
+	}
+	return was, nil
 }
 
 // postfix is changelist_postfix: a node that is not mounted is mounted
@@ -1735,6 +1763,33 @@ func (s *Sim) SetNFSDown(down bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nfsDown = down
+}
+
+// unmount is `zfs unmount <filesystem>`: busy while a filesystem is
+// mounted below it, as umount(2) is.
+func (s *Sim) unmount(args []string) error {
+	if len(args) != 1 {
+		return &zfs.ExitError{Code: 2, Stderr: "usage:\n\tunmount [-fu] <-a | filesystem|mountpoint>\n"}
+	}
+	name := args[0]
+	n, ok := s.ds[name]
+	switch {
+	case !ok:
+		return exit("cannot open '%s': dataset does not exist", name)
+	case !n.mounted:
+		return exit("cannot unmount '%s': not currently mounted", name)
+	}
+	dir, _, _ := s.value(name, "mountpoint")
+	for o, m := range s.ds {
+		if mp, _, _ := s.value(o, "mountpoint"); m.mounted && strings.HasPrefix(mp, dir+"/") {
+			return exit("cannot unmount '%s': pool or dataset is busy", dir)
+		}
+	}
+	n.mounted = false
+	if s.unshare(name) {
+		s.exportfs()
+	}
+	return nil
 }
 
 // Unmount unmounts a filesystem the way `zfs unmount` does: unshare, then
