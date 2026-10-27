@@ -150,7 +150,7 @@ func TestKilledCommandIsInterrupted(t *testing.T) {
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	c := &zfs.Client{Runner: zfs.LocalRunner{WaitDelay: 200 * time.Millisecond}, Binary: bin}
+	c := &zfs.Client{Runner: zfs.LocalRunner{WaitDelay: 50 * time.Millisecond}, Binary: bin}
 	start := time.Now()
 	_, err := c.Get(ctx, "10", "x")
 	if time.Since(start) > 5*time.Second {
