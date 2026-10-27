@@ -33,3 +33,13 @@ Status: accepted (decisive, reversible) · Date: 2026-10-27 · Related: ADR 0003
 
 - `table.go` and `plan.go` stay the production path.
 - Reverse this if retained memory at the target scale becomes the binding limit, or if a class of bug appears that the Table's untyped rows keep producing. The step-0 table and the differential are the first pieces such a migration would reuse.
+
+## Spec amendment: OWN-04 (2026-10-27)
+
+The wave8 spec catalogue that holds the OWN rows is not in the repository, so the amended row is recorded here. Both points describe what the code already does; neither changes it.
+
+**OWN-04, as amended.** A snapshot is a CSI snapshot only when `managed_resource` is set locally, `csi_snapshot_name` is set locally, and `csi_snapshot_source_volume_id` is empty or names the volume the snapshot is on; anything else is foreign (not listed, DeleteSnapshot FAILED_PRECONDITION).
+- **The volume need not be owned.** A CSI-marked snapshot on a volume the endpoint does not own (an alias, or managed without a name) is still a CSI snapshot: ListSnapshots lists it and DeleteSnapshot destroys it with `-d`. `Row.OwnedSnapshot` reads only the snapshot's own markers (`internal/endpoint/table.go`), and ListSnapshots (`internal/endpoint/endpoint.go`) and `PlanDeleteSnapshot` (`internal/endpoint/plan.go`) test nothing else. The endpoint always writes the source marker, so only legacy or hand-set snapshots have this shape. Cloning from such a snapshot is still refused: OWN-07 requires the source volume to be committed and owned (`src.ServedVolume()` in `PlanCreateVolume`).
+- **Overlap with OWN-13.** A snapshot named `volume-source-for-volume-<id>` that carries both a clone stamp (`managed_resource`, `clone_source_for=<id>`) and a CSI name satisfies both rows' text. OWN-04 wins: it is a CSI snapshot, not a clone source. `Row.OwnedCloneSource` requires an empty `csi_snapshot_name` (`internal/endpoint/table.go`), and so does Reconcile's orphan clone-source pass (`internal/endpoint/reconcile.go`). The endpoint never cuts such a snapshot, because CreateSnapshot refuses the reserved prefix (`internal/endpoint/plan.go`).
+
+Evidence: the ownership differential (`internal/endpoint/owndiff_test.go`) encodes the spec rows independently of the Table and compares their verdicts with `Row.OwnedSnapshot` and `Row.OwnedCloneSource`. It plants both shapes, `alias@legacy` and `half@legacy` for the first point and `a@volume-source-for-volume-w` for the second, and the two agree on each.

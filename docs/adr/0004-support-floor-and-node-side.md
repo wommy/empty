@@ -66,10 +66,7 @@ These notes record how the decision was built. They do not change it.
   - An admin's `rw=*` over our list is not rewritten.
   - Unpublish is FAILED_PRECONDITION while a foreign value still serves the host.
   - A refused Publish changes nothing.
-- **The NFS server address is addressing metadata, not export state.**
-  - CSI requires it to be fixed per volume, and OpenZFS has no place for it. So `<prefix>:nfs_server` is recorded once, in the same `zfs create`/`clone -o` as sharenfs, and read local-only (wave13 Q1).
-  - Who may mount is still sharenfs alone.
-- **NFS mode** is on iff the endpoint advertises `-nfs-server`. In that mode every CSI CreateVolume needs `nfs.clients` (wave13 Q2).
+- **The NFS server address** is recorded per volume in `<prefix>:nfs_server`, and **NFS mode** refuses a CreateVolume without `nfs.clients`: see the amendment below.
 - **Root ownership ("Root squash stays on"; wave14, branch `nfs-owner`).**
   - `NFSExport` gains `optional uint32 uid = 4, gid = 5, mode = 6`, from StorageClass `nfs.uid`, `nfs.gid` and `nfs.mode` (decimal ids up to 2^31-1, octal mode up to 7777; InvalidArgument otherwise, in zfs-csi and in the endpoint).
   - The endpoint applies them to the mounted root itself (`set-root`, `LocalRoot`): openat2 with `RESOLVE_NO_SYMLINKS`, the open directory checked against the mount table (zfs, this dataset, root `/`, same device), then fchown and fchmod on that descriptor.
@@ -82,3 +79,37 @@ These notes record how the decision was built. They do not change it.
   - **Volumes made before the pin are reported, not rewritten.** Reconcile lists a committed filesystem with an inherited path mountpoint in `skipped`. `zfs set mountpoint` unmounts and remounts the volume, and its export, under whoever uses it, so the operator picks the moment.
 - **Not built yet:**
   - the reconcile drift reports other than the leftover list, the server, the mountpoint pin and below-floor.
+
+## Client grammar (2026-10-27, wave9 nfs-diff §5)
+
+**Decision.** A client the endpoint stores is always a masked IPv4 network written with an explicit `/N`, `/32` included, in `sharenfs` and wherever it is compared. A bare IPv4 address is accepted only as request input, and only where the API takes one client: it becomes its `/32` before anything is written.
+
+- **Stored form.** `ParseShareNFS` accepts a value as the endpoint's only if every client contains `/` and is spelled as `ParseClient` spells it, and `ShareNFS` of its clients reproduces the value exactly (`internal/endpoint/export.go`). A local `sharenfs` with a bare address is therefore foreign: served, reported, never written.
+- **Input.**
+  - `PublishFileExport` and `UnpublishFileExport` take an IPv4 address or an IPv4 CIDR. `ParseClient` turns `10.0.0.5` into `10.0.0.5/32` (`TestParseClient`, `internal/endpoint/export_test.go`).
+  - CreateVolume's `nfs_export.clients`, and so StorageClass `nfs.clients`, require the `/N`. A bare address is InvalidArgument, naming the `/32` to write (`validateNFS` in `internal/endpoint/plan.go`; `TestValidateNFSExport`, `internal/endpoint/nfs_create_test.go`). These clients are never masked or completed.
+- **Why.** nfs-utils treats a client with `/` as a subnet: kept verbatim in etab, never resolved, merged only with the identical string. It treats a bare address as a host name: resolved through getaddrinfo, merged with any name client for the same address, written to etab under that client's name, and ranked before every subnet line by mountd. So only the `/N` form can be verified against etab by exact comparison, and no foreign host-name line can absorb or outrank it unseen. The model (`internal/nfsref`) and the real exportfs agree: `localhost(ro) 127.0.0.1(rw)` merges into one line, `localhost(ro) 127.0.0.1/32(rw)` gives two (`TestClientGrammarBareVsCIDR`, `internal/nfsref/grammar_test.go`).
+- **Reversible.** Taking a bare address on Publish is input leniency only; it changes no kernel state. Refusing it later would break callers, not exports.
+
+## Amendment (2026-10-27): the NFS server address and NFS mode (wave13 Q1, Q2)
+
+These two decisions extend the Decision above. Both are reversible. They supersede `docs/research/gaps/csi-nfs-design.md` §6 on `nfs.server`, which called the server "not volume state".
+
+### Q1. `<prefix>:nfs_server` is recorded per volume, local-only
+
+- **Decision.** The NFS server address a volume was created with is a user property, `<prefix>:nfs_server`: one address, no list. It is set only in the same `zfs create`/`zfs clone -o` as `sharenfs` and the managed marker, so it adds no crash point. It is read only when its source is `local`.
+- **It is addressing metadata, not export state.** `sharenfs` says who may mount; nfsd answers on every interface, so OpenZFS has no place for the address a client mounts from. "Export state lives only in `sharenfs`" still holds.
+- **Why it must be recorded.** CSI requires a volume's `volume_context` to be immutable and the same on every report (spec v1.13.0), and Kubernetes copies it once into the PV's `csi.volumeAttributes`, which cannot change. Taking "the first advertised address" instead would give an identical retry a different server after `-nfs-server` is reordered.
+- **Behaviour as built:**
+  - `volume_context.server` is the recorded value; a volume created without an export reports no `server` (`volumeView`, `internal/endpoint/endpoint.go`).
+  - Uncommitted: a retry converges the property to the request, like `sharenfs`. Committed: a different explicit `nfs.server` is ALREADY_EXISTS naming the recorded one; an omitted one returns the recorded one, even after `-nfs-server` was reordered (`internal/endpoint/plan.go`; `TestNFS_N9_Idempotency`, `TestNFS_N9_UncommittedConverges`, `internal/csi/nfs_test.go`; `TestFileExportCreateServerSurvivesRestart`, `internal/endpoint/export_create_contract_test.go`).
+  - A clone records the request's server, never its source's (`TestNFS_N13_CloneTakesRequestExport`).
+  - An inherited or received value is ignored and reported by Reconcile (`SkipNFSServerNotLocal`); a recorded server no longer advertised is still returned, because PVs hold it, and is reported (`SkipNFSServerUnadvertised`) (`internal/endpoint/reconcile.go`; `TestNFS_N16_InheritedServerIgnored`, `TestFileExportCreateServerElsewhere`).
+- **Operator rule.** Advertise stable names (a VIP or a DNS name). An address already in PVs never changes for them; removing it from `-nfs-server` does not move them.
+
+### Q2. NFS mode refuses a volume without `nfs.clients`
+
+- **Decision.** zfs-csi is in NFS mode iff the endpoint advertises at least one `-nfs-server` (`GetCapabilitiesResponse.nfs_servers`). In that mode every CreateVolume without the StorageClass parameter `nfs.clients`, clones and restores included, is InvalidArgument: "nfs.clients is required: this driver serves volumes over NFS" (`parseParams`, `internal/csi/controller.go`; `TestNFS_N15_ClientsRequired`, `internal/csi/nfs_test.go`).
+- **Why.** csi-driver-nfs, the node side, refuses a NodePublish without `server` and `share`, and a volume exported to nobody fails at mount. Either way the PVC binds and the pod hangs. Refusing at provisioning fails fast, as a ProvisioningFailed event naming the parameter.
+- **Reversible in the safe direction.** Allowing such volumes later is additive. Per-node publish, when built, will invert the rule behind its own flag (`csi-nfs-design.md` §12).
+
