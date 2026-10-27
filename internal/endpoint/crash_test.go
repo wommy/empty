@@ -494,7 +494,21 @@ func crashCaseNamed(name string) crashCase {
 	panic("no crash case " + name)
 }
 
+// swapSweep: how many destroys of a case to swap, -1 for every one. On a
+// real pool the PR leg swaps only the first destroy of each case: every case
+// still reaches the guard, and the guard is one code path for every
+// destroy, while the full sweep (19 runs) cost 19-25 test-seconds on the
+// VM's one shard (ADR 0005). The simulator leg and ZFS_CRASH_FULL=1
+// (nightly) swap every destroy.
+func swapSweep() int {
+	if os.Getenv("ZFS_TEST_POOL") == "" || os.Getenv("ZFS_CRASH_FULL") != "" {
+		return -1
+	}
+	return 1
+}
+
 func TestDestroyNeverHitsAReplacedDataset(t *testing.T) {
+	sweep := swapSweep()
 	for _, c := range swapCases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -533,6 +547,9 @@ func TestDestroyNeverHitsAReplacedDataset(t *testing.T) {
 					if k == 0 && done {
 						t.Fatal("the op made no destroy")
 					}
+					return
+				}
+				if sweep >= 0 && k+1 >= sweep {
 					return
 				}
 			}
