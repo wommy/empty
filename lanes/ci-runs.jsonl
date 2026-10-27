@@ -16,3 +16,5 @@
 {"run": 40515292150, "sha": "c1f00ba", "conclusion": "failure", "seconds": null, "cause": "A-zvol-cleanup-busy"}
 {"run": 40515962800, "sha": "8559eb1", "conclusion": "success", "seconds": 65, "cause": null, "note": "A-zvol-cleanup-busy fixed; endpoint job 62s (restore 11s, test 42s); over 60 cap by 5s: endpoint test step is the long pole"}
 {"run": 40516341443, "sha": "7048b51", "conclusion": "success", "seconds": 157, "cause": null, "note": "cold zfsvm-v5 provisioning (expected); stored guest 540M (v4 943M); direct no-initrd boot passed checks; warm timing pending next push"}
+{"run": 40518921956, "sha": "0ea9575", "conclusion": "success", "seconds": 57, "cause": null, "note": "first warm zfsvm-v5 run: restore 7-8s; endpoint test step 25s (was 42s on 8559eb1); jobs done +52s from run created; csi job re-saved guest (4s)"}
+{"run": 40519558807, "sha": "2f7cf43", "conclusion": "success", "seconds": 63, "cause": "A-ssh-penalty", "note": "first 3-VM-job run: endpoint parts test phase 10.7s/7.7s (split works); ssh up +26-29s in all VM jobs (guest booted at ~9s): poll regression"}

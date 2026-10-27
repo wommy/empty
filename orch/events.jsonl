@@ -289,3 +289,12 @@
 {"ts": "2026-10-27T14:14:27Z", "id": "a733b63aec4ec9e31", "from": "queued", "to": "running", "note": "q-ci-quiet"}
 {"ts": "2026-10-27T14:14:27Z", "id": "af7270742003065e0", "from": "queued", "to": "running", "note": "q-r-cimerge"}
 {"ts": "2026-10-27T14:14:38Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T15:54:54Z", "id": "af7270742003065e0", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T15:54:54Z", "id": "af7270742003065e0", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T15:54:55Z", "id": "af7270742003065e0", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T15:55:54Z", "id": "a72cce936e66b59ef", "from": "queued", "to": "running", "note": "q-ci-latent"}
+{"ts": "2026-10-27T15:55:54Z", "id": "ab6cbda7109c7041a", "from": "queued", "to": "running", "note": "q-r-sshpen"}
+{"ts": "2026-10-27T15:55:55Z", "id": "a28eef26cea011034", "from": "queued", "to": "running", "note": "q-r-csi"}
+{"ts": "2026-10-27T15:55:55Z", "id": "a733b63aec4ec9e31", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T15:55:55Z", "id": "a733b63aec4ec9e31", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T15:55:55Z", "id": "a733b63aec4ec9e31", "from": "triaged", "to": "merged", "note": "A merged; B (9a8b891) held for baseline run"}
