@@ -173,3 +173,4 @@
 {"ts": "2026-10-27T11:59:37Z", "id": "abc547657367f7600", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T11:59:37Z", "id": "abc547657367f7600", "from": "triaged", "to": "merged", "note": ""}
 {"ts": "2026-10-27T12:00:00Z", "id": "a2ac62479cb0b507d", "from": "queued", "to": "running", "note": "b-nfs-owner"}
+{"ts": "2026-10-27T12:00:11Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

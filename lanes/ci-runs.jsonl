@@ -1,3 +1,4 @@
 {"t":"2026-10-27T11:01Z","sha":"2a4e914","run":40492568587,"push_to_green_s":171,"note":"expected cold run after cache-key change (guest v3, go key per-sha); warm measurement pending next merge"}
 {"t":"2026-10-27T11:35Z","sha":"18cbaea","run":40497090324,"push_to_green_s":54,"note":"green; first clean real-pool run with the guid fix (1 of N; flake rate was 2/3)"}
 {"t":"2026-10-27T11:45Z","sha":"7eb878a","run":40498404896,"push_to_green_s":73,"note":"green; TestModel 2nd consecutive real-pool pass with guid fix; over budget (73s), b-ci-levers in flight"}
+{"t":"2026-10-27T12:00Z","sha":"863c432","run":40500283144,"push_to_green_s":70,"note":"green; 5 new NFS VM tests passed first real run; TestModel 3rd consecutive green; budget 70s, b-ci-levers in flight"}
