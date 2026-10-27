@@ -5,3 +5,6 @@
 {"id": 259, "file": "internal/endpoint/plan.go", "line": 321, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 36.5}
 {"id": 298, "file": "internal/endpoint/plan.go", "line": 356, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 50.0}
 {"id": 423, "file": "internal/endpoint/plan.go", "line": 472, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 38.8}
+{"id": 608, "file": "internal/endpoint/table.go", "line": 52, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 37.0}
+{"id": 621, "file": "internal/endpoint/table.go", "line": 60, "op": "REL_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 28.4}
+{"id": 677, "file": "internal/endpoint/table.go", "line": 178, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 25.0}

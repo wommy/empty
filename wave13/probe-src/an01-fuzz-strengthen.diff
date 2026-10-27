@@ -1,0 +1,47 @@
+--- internal/endpoint/reconcile_fuzz_test.go	2026-10-27 05:35:06.503773864 +0000
++++ /tmp/claude-0/-home-user-empty/d2383434-1d2e-5ac5-931d-d25ccb26a882/scratchpad/wave13/truth-copy/internal/endpoint/reconcile_fuzz_test.go	2026-10-27 07:21:04.927981839 +0000
+@@ -88,6 +88,7 @@
+ 		}
+ 		var ids, want, outside []string
+ 		busy := map[string]bool{}
++		hidden := map[string]bool{} // volumes zfs refuses to destroy for a reason the scan cannot see
+ 		for i := 0; i < len(spec) && len(ids) < 8; i++ {
+ 			b := spec[i]
+ 			var x byte
+@@ -153,6 +154,7 @@
+ 				must(z.Clone(ctx, ds+"@gone", "tank/other/d"+id, nil))
+ 				must(z.Destroy(ctx, ds+"@gone", zfs.DestroyOptions{Defer: true}))
+ 				outside = append(outside, "tank/other/d"+id)
++				hidden[id] = true
+ 			}
+ 			if b&leak != 0 {
+ 				must(z.Snapshot(ctx, ds+"@"+cloneSourceSnapshotPrefix+"gone"+id, map[string]string{
+@@ -170,6 +172,7 @@
+ 				must(z.CreateFilesystem(ctx, ds+"/kid", nil, false))
+ 				must(z.Snapshot(ctx, ds+"/kid@s", nil))
+ 				outside = append(outside, ds+"/kid", ds+"/kid@s")
++				hidden[id] = true
+ 			}
+ 			if x&failDestroy != 0 {
+ 				busy[ds] = true
+@@ -224,6 +227,20 @@
+ 		if err != nil || len(third.Actions) != 0 {
+ 			t.Fatalf("third reconcile: %+v %v", third.Actions, err)
+ 		}
++		for _, s := range third.Skipped {
++			failedHidden := strings.HasPrefix(s.Reason, SkipFailed) && hidden[s.Target]
++			if (strings.HasPrefix(s.Reason, SkipFailed) && !failedHidden) || s.Reason == SkipDependentFailed && len(hidden) == 0 {
++				t.Fatalf("third reconcile still failing %s, which no hidden child or outside clone explains: %s", s.Target, s.Reason)
++			}
++		}
++		// with nothing hidden from the scan, a converged parent plans nothing; a
++		// hidden child or outside clone keeps its group (and the groups
++		// depending on it) failing by design, so only the failures are bounded
++		again, err := ep.Reconcile(ctx, dryReq)
++		must(err)
++		if len(hidden) == 0 && len(again.Actions) != 0 {
++			t.Fatalf("dry run after convergence still plans %+v", again.Actions)
++		}
+ 
+ 		// origins an undesired clone of ours proves were cut for it: under
+ 		// the parent, from a volume of ours, named for that clone
