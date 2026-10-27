@@ -16,7 +16,9 @@
 #   suite parts 0..P-1 exactly once each, one P per suite, and P > 1 only
 #   for endpoint (the only suite with a shard plan, ci/real-zfs-plan.sh);
 # - cache-warm.yml's `ns: [...]` matrix lists real-zfs-<suite> for every
-#   suite exactly once, and no other real-zfs-* namespace.
+#   suite exactly once, and no other real-zfs-* namespace;
+# - nightly.yml's fuzz matrix (`- { name: Fuzz..., pkg: ./... }`) lists
+#   every func Fuzz* of the repository's tests exactly once, in its package.
 # At run time each job then proves its own part: ci/check-skips.sh (every
 # listed test of its binaries passed or skipped) and ci/check-split.sh
 # (the endpoint plan a partition of the list over every part, each part's
@@ -99,5 +101,23 @@ got=$(awk '$2 ~ /^real-zfs-/ { sub(/^real-zfs-/, "", $2); print $2 }' <<<"$m" | 
 }
 [ -z "$(awk '$2 == "real-zfs"' <<<"$m")" ] || err "$wf: namespace real-zfs is gone, each suite has its own"
 
+# nightly's fuzz matrix: every func Fuzz* of the repository's tests exactly
+# once, with its package. Tracked files only (git ls-files), so a local
+# worktree under the checkout is not read
+wf=.github/workflows/nightly.yml
+want=$(git ls-files -- '*_test.go' | xargs -r awk '/^func Fuzz[A-Za-z0-9_]*\(/ {
+    n = $2; sub(/\(.*/, "", n); d = FILENAME; sub(/\/[^\/]*$/, "", d); print n, "./" d }' | sort)
+got=$(awk '/^[[:space:]]*- *\{ *name: *Fuzz/ {
+    s = $0; sub(/^[^{]*\{/, "", s); sub(/\}.*$/, "", s); gsub(/[ "\047]/, "", s)
+    c = split(s, f, ","); delete kv
+    for (i = 1; i <= c; i++) { split(f[i], e, ":"); kv[e[1]] = e[2] }
+    print kv["name"], kv["pkg"] }' "$wf" | sort)
+[ -n "$want" ] || err "no func Fuzz* found in the repository's tests"
+[ "$want" = "$got" ] || {
+  err "$wf: the fuzz matrix is not every func Fuzz* exactly once (< repository, > $wf):"
+  diff <(echo "$want") <(echo "$got") || true
+}
+
+[ $rc -ne 0 ] || echo "check-suites: nightly fuzzes the $(wc -l <<<"$want") Fuzz targets"
 [ $rc -ne 0 ] || echo "check-suites: $(wc -l <<<"$suites") suites ($(tr '\n' ' ' <<<"$suites")) cover the real-pool packages ($(tr '\n' ' ' <<<"$pkgs")) once each; ci.yml, nightly.yml and cache-warm.yml run each suite (each part of it) once"
 exit $rc

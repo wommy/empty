@@ -41,11 +41,16 @@ echo "start at uptime $(up)s"
 # pools on a tmpfs: real vdevs to the real kmod, without the guest disk,
 # qcow2 and host page cache in every txg sync. Sparse 10G files, as before;
 # the tests write little, and the tmpfs cap makes a runaway write an
-# ENOSPC (pool suspends, test times out) rather than a guest OOM
+# ENOSPC on the vdev rather than a guest OOM. That write error suspends
+# the pool. With the default failmode=wait every writer then sits in D
+# state, which no -test.timeout can end; failmode=continue returns EIO to
+# new writes instead, so most tests fail rather than hang (a sync task
+# already waiting on the txg may still block). No test reads failmode or
+# expects a suspend. ci/real-zfs-vm.sh bounds the whole run either way
 vd=/run/zfsci
 mkdir -p "$vd"
 mountpoint -q "$vd" || mount -t tmpfs -o size=60% zfsci "$vd"
-mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -O compression=lz4 "$1" "$vd/$1.vdev"; }
+mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -o failmode=continue -O compression=lz4 "$1" "$vd/$1.vdev"; }
 
 pkgs=${ZFSVM_PKGS:-endpoint csi}
 has() { case " $pkgs " in *" $1 "*) return 0 ;; esac; return 1; }
@@ -65,7 +70,11 @@ if has endpoint; then
 fi
 
 rc=0
-t=(-test.count=1 -test.v -test.timeout=4m)
+# the per-shard bound: 4m, 12m for the nightly full tiers (from
+# ci/real-zfs-vm.sh, which bounds this whole script a little above it)
+tt=${ZFSVM_TEST_TIMEOUT:-}
+[ -n "$tt" ] || { tt=4m; [ -z "${ZFSDIFF_FULL:-}${ZFS_CRASH_FULL:-}" ] || tt=12m; }
+t=(-test.count=1 -test.v "-test.timeout=$tt")
 # TestNFSReplay's report (internal/endpoint/nfs_replay_test.go), copied back
 # with the logs; ci/real-zfs-vm.sh puts it in the job summary
 export NFS_REPLAY_REPORT=$out/nfs-replay.log
@@ -100,8 +109,9 @@ snap() {
     [ -r "/proc/pressure/$r" ] && awk -v r="$r" '{ print "psi", r, $0 }' "/proc/pressure/$r"
   done
 }
-# where the phase's CPU went, by source (ADR 0005, "quiet guest"): forks
-# (processes), context switches and interrupts from /proc/stat, interrupt
+# where the phase's CPU went, by source (ADR 0005, "Where the endpoint
+# phase's CPU goes"): forks (processes), context switches and interrupts
+# from /proc/stat, interrupt
 # totals from /proc/interrupts, block reads (pgpgin counts every block
 # device; vda's sectors read come from /proc/diskstats, and the rest is
 # zvols, which leave diskstats once destroyed), and the cgroup v2 CPU

@@ -23,7 +23,9 @@ outputs:
       tree, which ci/qemu-tree.sh verifies (and rebuilds if it does not run)
     value: ${{ steps.keys.outputs.vm-fallback }}
   sums:
-    description: directory holding the verified SHA256SUMS and SHA256SUMS.gpg
+    description: >-
+      directory holding the verified SHA256SUMS and SHA256SUMS.gpg, and
+      build-info.txt (the image serial) when the mirror has it
     value: ${{ steps.keys.outputs.sums }}
 runs:
   using: composite
@@ -41,8 +43,15 @@ runs:
         base=https://cloud-images.ubuntu.com/$SERIES/$BUILD
         curl -fsSL --retry 3 -o "$d/SHA256SUMS" "$base/SHA256SUMS" & a=$!
         curl -fsSL --retry 3 -o "$d/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg" & b=$!
+        # the serial behind current/, fetched beside the sums: a cold run
+        # downloads the image from that dated directory, once its sums
+        # match these (ci/real-zfs-vm.sh), not from a current/ that may
+        # have moved on since. Best effort: without it, current/ as before
+        rm -f "${d:?}/build-info.txt"
+        curl -fsSL --retry 3 -o "$d/build-info.txt" "$base/unpacked/build-info.txt" & c=$!
         wait "$a"
         wait "$b"
+        wait "$c" || { rm -f "${d:?}/build-info.txt"; echo "::warning::no $base/unpacked/build-info.txt; a cold guest downloads the image from $base"; }
         gpgv --keyring /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg "$d/SHA256SUMS.gpg" "$d/SHA256SUMS"
         f=$SERIES-server-cloudimg-amd64.img
         sum=$(awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }' "$d/SHA256SUMS")

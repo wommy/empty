@@ -121,8 +121,13 @@ now_ms() { echo $(($(date +%s%N) / 1000000)); }
 # the boot timeline in the log: milliseconds since qemu started
 mark() { echo "timeline: $* at +$(($(now_ms) - launched))ms"; }
 
-# one TCP+SSH handshake for the whole run, not one per command
+# one TCP+SSH handshake for the whole run, not one per command. Keepalives
+# on the master: slirp keeps the host's TCP connection up whatever the
+# guest does, so a hung guest kernel would otherwise hold every command
+# over the master (the test run included) until the job's timeout; 60s
+# without an answer ends the master and its commands
 common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR
+  -o ServerAliveInterval=10 -o ServerAliveCountMax=6
   -o ControlMaster=auto -o ControlPath="$work/ssh-%C" -o ControlPersist=300)
 vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
 
@@ -168,8 +173,11 @@ boot() {
   if [ -n "${2:-}" ]; then
     append="$(cat "$2/cmdline") $masks $guestcpu"
     # no initrd. panic=1 with -no-reboot: a kernel that cannot mount the
-    # root exits qemu, and wait_ssh boots again through GRUB
-    append=$(sed -E 's#(^| )root=LABEL=cloudimg-rootfs( |$)#\1root=/dev/vda1 rootfstype=ext4 rootwait\2#' <<<"$append")
+    # root exits qemu, and wait_ssh boots again through GRUB. rootwait=10
+    # (seconds, kernel >= 6.5), not a bare rootwait: a kernel whose virtio
+    # block driver is a module never sees /dev/vda1, and would wait for it
+    # forever instead of panicking into the fallback
+    append=$(sed -E 's#(^| )root=LABEL=cloudimg-rootfs( |$)#\1root=/dev/vda1 rootfstype=ext4 rootwait=10\2#' <<<"$append")
     direct=(-kernel "$2/vmlinuz" -append "$append panic=1" -no-reboot)
   fi
   qemu-system-x86_64 -enable-kvm -cpu host -m 6144 -smp "$(nproc)" -display none "${direct[@]}" \
@@ -204,28 +212,64 @@ overlay() {
 if [ "$phase" != run ]; then
   : >"$work/state"
   # image: verify the signed checksum list, then the image against it
+  # build-info.txt: the serial `current` pointed at when the sums were
+  # fetched (best effort; a cold run downloads the image from that serial)
+  rm -f "${work:?}/build-info.txt"
   if [ -n "${ZFSVM_SUMS:-}" ] && [ -s "$ZFSVM_SUMS/SHA256SUMS" ] && [ -s "$ZFSVM_SUMS/SHA256SUMS.gpg" ]; then
     cp "$ZFSVM_SUMS/SHA256SUMS" "$ZFSVM_SUMS/SHA256SUMS.gpg" "$work/"
+    [ ! -s "$ZFSVM_SUMS/build-info.txt" ] || cp "$ZFSVM_SUMS/build-info.txt" "$work/"
   else
     curl -fsSL --retry 3 -o "$work/SHA256SUMS" "$base/SHA256SUMS"
     curl -fsSL --retry 3 -o "$work/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg"
+    curl -fsSL --retry 3 -o "$work/build-info.txt" "$base/unpacked/build-info.txt" || true
   fi
   gpgv --keyring "$keyring" "$work/SHA256SUMS.gpg" "$work/SHA256SUMS"
   file="$series-server-cloudimg-amd64.img"
   sum=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
   [ -n "$sum" ] || { echo "$file is not in $base/SHA256SUMS" >&2; exit 1; }
   warm=
+  # a cache restore that failed part-way leaves what it extracted: the ok
+  # marker with a truncated disk would boot "warm" on a broken disk.
+  # qemu-img check reads only the qcow2 metadata and finds a cluster past
+  # the end of the file (16ms on a 607 MB zstd image of 20G, 57ms with a
+  # cold page cache, measured locally)
   if [ -n "$cache" ] && [ -f "$cache/ok" ] && [ "$(cat "$cache/sum")" = "$sum" ]; then
-    warm=1
+    if qemu-img check -q "$cache/disk.qcow2"; then
+      warm=1
+    else
+      echo "::warning::the restored guest's disk fails qemu-img check (a partial cache restore?); provisioning a new one"
+    fi
+  fi
+  if [ -n "$warm" ]; then
     echo "warm guest: $cache (provisioned from image $sum)"
     cp "$cache/key" "$cache/key.pub" "$cache/seed.img" "$work/"
   else
-    curl -fsSL --retry 3 -o "$img" "$base/$file"
+    # from the dated serial directory the verified sums came from, not
+    # current/, which may move to a new serial between the two fetches;
+    # used only if that directory's sums are the verified ones
+    src=$base
+    imgserial=$(awk -F= '$1 == "serial" { sub(/\r$/, "", $2); print $2 }' "$work/build-info.txt" 2>/dev/null) || imgserial=
+    if [ "$build" = current ] && [[ $imgserial =~ ^[0-9]{8}(\.[0-9]+)?$ ]]; then
+      if curl -fsSL --retry 3 -o "$work/SHA256SUMS.serial" "https://cloud-images.ubuntu.com/$series/$imgserial/SHA256SUMS" &&
+        cmp -s "$work/SHA256SUMS.serial" "$work/SHA256SUMS"; then
+        src=https://cloud-images.ubuntu.com/$series/$imgserial
+      else
+        echo "::warning::$series/$imgserial/SHA256SUMS is not the verified list; downloading the image from $base"
+      fi
+    fi
+    echo "image: $src/$file"
+    curl -fsSL --retry 3 -o "$img" "$src/$file"
     echo "$sum  $img" | sha256sum -c -
     qemu-img resize "$img" 20G
     ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
   fi
   sed "s|@SSH_KEY@|$(cat "$work/key.pub")|" ci/real-zfs-cloud-config.yaml >"$work/user-data"
+  # the workflows install cloud-image-utils on a cache miss only; a hit
+  # whose disk failed the check above provisions all the same
+  if [ -z "$warm" ] && ! command -v cloud-localds >/dev/null; then
+    echo "::warning::installing cloud-image-utils for a cold guest after a cache hit"
+    sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
+  fi
   [ -n "$warm" ] || cloud-localds "$work/seed.img" "$work/user-data"
   printf 'warm=%s\nsum=%s\n' "$warm" "$sum" >>"$work/state"
   trap cleanup EXIT
@@ -244,7 +288,10 @@ else
   # shellcheck source=/dev/null
   . "$work/state"
   trap cleanup EXIT
-  kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || { echo "the guest started by the boot phase is not running" >&2; exit 1; }
+  # a direct boot that panicked (no root without an initrd) exits qemu
+  # within seconds, before this phase starts: wait_ssh boots it through GRUB
+  kill -0 "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || [ -n "$noinitrd" ] ||
+    { echo "the guest started by the boot phase is not running" >&2; exit 1; }
 fi
 
 build=
@@ -279,31 +326,50 @@ if [ -z "${ZFSVM_PROVISION_ONLY:-}" ]; then
   build=$!
 fi
 
-# the guest's sshd banner, read with a 0.3s bound. slirp's hostfwd accepts
-# every connect at once, then sends its own SYN to the guest; until the
-# guest has its address that SYN is lost and retried after seconds. ssh
-# itself waited for the banner up to ConnectTimeout (5s), so the host saw
-# sshd 3s (endpoint) to 6s (csi) after it started (run 40513522394). A
-# probe that stalls is dropped and the next one sends a fresh SYN: the
-# host sees sshd within about 0.4s (0.06-0.36s against a fake slirp,
-# 0.2-4.3s with a 5s bound). Only then does ssh log in (and open the
+# Logins wait for the serial getty's login prompt in the console log, and
+# that wait is what made ssh prompt: getty starts after
+# systemd-user-sessions, which lifts /run/nologin. Before it, sshd answers
+# but pam_nologin refuses the login, and OpenSSH (>= 9.8) charges each
+# refusal to the source as an authentication failure (PerSourcePenalties
+# authfail:5s) and refuses every connection from it once the charge passes
+# 15s. All of the host's connections reach the guest from one address
+# (slirp), so early logins locked the host out: it saw sshd 16-19s after
+# the guest had booted, with 8 penalised drops per boot (runs 40519558807,
+# 40535710051). Without a prompt in 60s (a console that prints none) the
+# poll goes on without it.
+# Each probe first reads the sshd banner on a bare connection (bounded:
+# slirp's hostfwd accepts at once and its SYN to a guest without an
+# address is retried only after seconds, so a stalled probe is dropped and
+# the next sends a fresh SYN); only then does ssh log in (and open the
 # master), with the full ConnectTimeout for a guest busy booting.
-# Logins wait for the serial getty's login prompt in the console log:
-# getty starts after systemd-user-sessions, which lifts /run/nologin.
-# Before it, sshd answers but refuses the login, and OpenSSH (>= 9.8)
-# charges the source for each refusal (PerSourcePenalties authfail:5s)
-# and refuses every connection from it once the charge passes 15s. All of
-# the host's connections reach the guest from one address (slirp): the
-# host saw sshd 16-19s after the guest had booted, with 8 penalised drops
-# per boot (runs 40519558807, 40535710051). Without a prompt in 60s (a
-# console that prints none) the poll goes on as before.
+# A qemu that exits is seen at once, on every pass: a direct boot that
+# panics (no root without an initrd) boots again through GRUB; any other
+# exit fails the job instead of polling to the deadline.
 banner() { (exec 3<>/dev/tcp/127.0.0.1/2222 && IFS= read -r -t "$1" -n 4 b <&3 && [ "$b" = SSH- ]) 2>/dev/null; }
 wait_ssh() {
-  local up= probes=0 deadline=$((SECONDS + 600)) gate=$((SECONDS + 60)) prompt=
+  local up= probes=0 deadline=$((SECONDS + 600)) gate=$((SECONDS + 60)) prompt= qpid
+  qpid=$(cat "$work/qemu.pid" 2>/dev/null) || qpid= # qemu removes it when it exits
   # 600s: a cold run's first boot (cloud-init writes the key) included
   while [ $SECONDS -lt $deadline ]; do
+    if ! kill -0 "$qpid" 2>/dev/null; then
+      if [ -z "$noinitrd" ]; then
+        echo "qemu exited before the guest's ssh came up (console.log)" >&2
+        exit 1
+      fi
+      cp "$work/console.log" "$work/console-noinitrd.log" 2>/dev/null || true
+      echo "::warning::the guest exited booting without an initrd (console-noinitrd.log); booting it through the BIOS and GRUB, with the disk's initrd"
+      noinitrd=
+      echo "noinitrd=" >>"$work/state"
+      boot "$work/run.qcow2"
+      qpid=$(cat "$work/qemu.pid" 2>/dev/null) || qpid=
+      prompt= gate=$((SECONDS + 60))
+      continue
+    fi
     if [ -z "$prompt" ]; then
-      if awk '/ login: *\r?$/ || / login: *$/ { f = 1 } END { exit !f }' "$work/console.log" 2>/dev/null; then
+      # agetty's "<host> login: " anywhere on a line: it ends with no
+      # newline, so console output after it (kernel messages, cloud-init's
+      # streaming on a cold boot) lands on the same line; \r-safe
+      if awk '/[^ ] login:( |\r|$)/ { f = 1 } END { exit !f }' "$work/console.log" 2>/dev/null; then
         prompt=1
         mark "login prompt"
       elif [ $SECONDS -lt $gate ]; then
@@ -315,14 +381,6 @@ wait_ssh() {
     fi
     probes=$((probes + 1))
     banner 1 && vm true 2>/dev/null && { up=1; break; }
-    if [ -n "$noinitrd" ] && ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
-      cp "$work/console.log" "$work/console-noinitrd.log" 2>/dev/null || true
-      echo "::warning::the guest exited booting without an initrd (console-noinitrd.log); booting it through the BIOS and GRUB, with the disk's initrd"
-      noinitrd=
-      echo "noinitrd=" >>"$work/state"
-      boot "$work/run.qcow2"
-      prompt= gate=$((SECONDS + 60))
-    fi
     sleep 0.1
   done
   [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
@@ -364,7 +422,7 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
   ssh "${common[@]}" -O exit -p 2222 ci@127.0.0.1 2>/dev/null || true
   for _ in $(seq 1 300); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 0.2; done
   if ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
-    rm -rf "$cache" && mkdir -p "$cache"
+    rm -rf "${cache:?}" && mkdir -p "$cache"
     qemu-img convert -m 16 -W -c -O qcow2 -o compression_type=zstd "$img" "$cache/disk.qcow2"
     cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
     for f in vmlinuz cmdline kernel.release; do [ ! -e "$work/$f" ] || cp "$work/$f" "$cache/"; done
@@ -375,8 +433,15 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
     overlay
   else
     echo "guest did not power off; not caching it" >&2
-    kill "$(cat "$work/qemu.pid")" 2>/dev/null || true
-    sleep 2
+    # the new qemu binds the same host port (hostfwd 2222) and console.log:
+    # the old one must be gone first, by SIGKILL after 10s
+    qpid=$(cat "$work/qemu.pid" 2>/dev/null) || qpid=
+    if [ -n "$qpid" ]; then
+      kill "$qpid" 2>/dev/null || true
+      for _ in $(seq 1 50); do kill -0 "$qpid" 2>/dev/null || break; sleep 0.2; done
+      kill -9 "$qpid" 2>/dev/null || true
+      for _ in $(seq 1 25); do kill -0 "$qpid" 2>/dev/null || break; sleep 0.2; done
+    fi
     boot "$img"
   fi
   wait_ssh
@@ -430,12 +495,28 @@ echo "guest CPU mitigations: $vulnsum"
   echo; echo '```'; echo "$vuln"; echo '```'; echo "</details>"; echo; } >>"$summary"
 grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
   || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
-[ "$(sed -n 's/^zfs-kmod-//p' <<<"$ver")" = "$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")" ] \
-  || { echo "userland and kmod versions differ:" >&2; echo "$ver" >&2; exit 1; }
+# userland and kmod must be the same OpenZFS release; the distribution
+# revision may differ (zfs-2.4.4-1ubuntu5 userland from the archive with
+# a kernel still built against 1ubuntu4: the archive moves first), and is
+# printed, not gated
+urev=$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver") krev=$(sed -n 's/^zfs-kmod-//p' <<<"$ver")
+[ -n "$urev" ] && [ "${urev%%-*}" = "${krev%%-*}" ] \
+  || { echo "userland and kmod OpenZFS versions differ (${urev%%-*} and ${krev%%-*}):" >&2; echo "$ver" >&2; exit 1; }
+echo "zfs userland $urev, kmod $krev"
+[ "$urev" = "$krev" ] || echo "::warning::zfs userland $urev and kmod $krev: the same OpenZFS ${urev%%-*}, different distribution revisions"
 # nfs-server comes up after sshd (behind network-online.target, 2.2s
 # after ssh in run 40513522394): wait for it last, so the checks above
-# run while it starts, not for the whole boot to settle
-vm 'for _ in $(seq 1 300); do systemctl is-active -q nfs-server && break; sleep 0.1; done'
+# run while it starts, not for the whole boot to settle. Up to 120s:
+# systemd-networkd-wait-online's own bound on a link slow to come up. The
+# loop's status is whether it came up (a bare loop ends with sleep's 0);
+# if not, what it is waiting for (critical-chain only answers once the
+# boot has finished, so the pending jobs too)
+vm 'ok=; for _ in $(seq 1 1200); do if systemctl is-active -q nfs-server; then ok=1; break; fi; sleep 0.1; done; [ -n "$ok" ]' || {
+  echo "nfs-server did not become active in 120s" >&2
+  vm 'systemctl status --no-pager nfs-server 2>&1 | awk "NR <= 30"; systemctl list-jobs --no-pager 2>&1 | awk "NR <= 30"
+    systemd-analyze critical-chain nfs-server.service 2>&1 | awk "NR <= 30"' >&2 || true
+  exit 1
+}
 mark "nfs-server active"
 vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
@@ -484,10 +565,18 @@ rc=0
 # concurrent shards on tmpfs-backed pools, three per suite (ci/real-zfs-guest.sh);
 # the logs come back per shard and are merged per check below.
 # ZFSDIFF_FULL=1 replays the whole zfsdiff corpus, ZFS_CRASH_FULL=1 runs
-# every crash point on the real pool (both nightly.yml)
-vm "sudo env ZFSVM_PKGS='${pkgs[*]}' ZFSVM_UNIT=$unit ZFSVM_EP_PART=$part ZFSVM_EP_PER=$per ZFSVM_RUN=${GITHUB_RUN_ID:-local}.${GITHUB_RUN_ATTEMPT:-1} ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
+# every crash point on the real pool (both nightly.yml).
+# Bounded here too: each shard's -test.timeout (4m, 12m for the full
+# tiers; ZFSVM_TEST_TIMEOUT) cannot end a test stuck in the kernel (D
+# state on a suspended pool), and the guest's wait for its shards would
+# then hold this ssh until the job's own timeout, with no logs copied
+# back. On the bound the guest's processes stay; out/ is copied as is
+gt=4m ht=6m
+[ -z "${ZFSDIFF_FULL:-}${ZFS_CRASH_FULL:-}" ] || { gt=12m ht=14m; }
+timeout -k 10 "$ht" ssh "${common[@]}" -p 2222 ci@127.0.0.1 "sudo env ZFSVM_PKGS='${pkgs[*]}' ZFSVM_UNIT=$unit ZFSVM_EP_PART=$part ZFSVM_EP_PER=$per ZFSVM_TEST_TIMEOUT=$gt ZFSVM_RUN=${GITHUB_RUN_ID:-local}.${GITHUB_RUN_ATTEMPT:-1} ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
+case $rc in 124 | 137) echo "::error::vm: the guest's test run did not end within $ht (shard timeouts $gt); the shard logs below are as far as they got"; timeout 30 ssh "${common[@]}" -p 2222 ci@127.0.0.1 'ps -eo pid,stat,etime,wchan:32,args --sort=start_time | awk "\$2 ~ /D/"' || true ;; esac
 mkdir -p "$work/out"
-scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
+timeout -k 5 120 scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
 o=$work/out
 for f in "$o"/*.log; do
   echo "::group::$(basename "$f")"
