@@ -61,6 +61,37 @@ func (k *Keyed) Acquire(ctx context.Context, keys ...string) (func(), error) {
 	return func() { once.Do(release) }, nil
 }
 
+// TryAcquire locks every key only if none is held, without waiting. It
+// reports false (and holds nothing) when any key is busy. Never waiting
+// means it cannot take part in a wait cycle, whatever the key order.
+func (k *Keyed) TryAcquire(keys ...string) (func(), bool) {
+	keys = dedupe(keys)
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	for _, key := range keys {
+		if _, busy := k.held[key]; busy {
+			return nil, false
+		}
+	}
+	if k.held == nil {
+		k.held = map[string]chan struct{}{}
+	}
+	for _, key := range keys {
+		k.held[key] = make(chan struct{})
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			k.mu.Lock()
+			defer k.mu.Unlock()
+			for _, key := range keys {
+				close(k.held[key])
+				delete(k.held, key)
+			}
+		})
+	}, true
+}
+
 // Held reports whether key is currently locked (for tests and metrics).
 func (k *Keyed) Held(key string) bool {
 	k.mu.Lock()
