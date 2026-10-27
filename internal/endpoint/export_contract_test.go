@@ -47,6 +47,23 @@ func (h *harness) served(t *testing.T, path, host string) (endpoint.NFSClient, b
 	return endpoint.ParseEtab(b).Lookup(path, host)
 }
 
+// servedHosts lists every etab client of path as written (names, "*").
+func (h *harness) servedHosts(t *testing.T, path string) []string {
+	t.Helper()
+	b, err := h.etab().ReadEtab(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
+	var hosts []string
+	for _, c := range endpoint.ParseEtab(b)[path] {
+		hosts = append(hosts, c.Host)
+	}
+	return hosts
+}
+
 func (h *harness) propSource(t *testing.T, name, prop string) (string, string) {
 	t.Helper()
 	d, err := h.Z.Get(context.Background(), name, prop)
@@ -464,8 +481,9 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 	if val, src := h.propSource(t, h.Parent+"/old", "sharenfs"); val != "rw=10.0.0.1/32" || src != "local" {
 		t.Fatalf("sharenfs %q (%s)", val, src)
 	}
-	if _, ok := h.served(t, path, "*"); ok {
-		t.Fatal("still served to everyone")
+	// Lookup takes only addresses and networks: read the "*" line directly
+	if hosts := h.servedHosts(t, path); len(hosts) != 1 || hosts[0] != "10.0.0.1/32" {
+		t.Fatalf("served to %v, want only 10.0.0.1/32", hosts)
 	}
 
 	own["sharenfs"] = "rw=10.0.0.0/8"
