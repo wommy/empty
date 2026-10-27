@@ -1733,7 +1733,10 @@ func (s *Sim) gather(name, real string) *clist {
 	cl.nodes = s.changelist(name, prop)
 	for _, k := range cl.nodes {
 		cl.mounted[k] = s.ds[k].mounted
-		_, cl.shared[k] = s.shared[k]
+		// zfs_is_shared: false for an unmounted filesystem (no mnttab
+		// entry), even with a stale zfs.exports line
+		_, shared := s.shared[k]
+		cl.shared[k] = s.ds[k].mounted && shared
 		cl.needpost[k] = true
 	}
 	if prop == "mountpoint" {

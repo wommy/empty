@@ -477,6 +477,36 @@ func TestSimUsedByRefreservation(t *testing.T) {
 	}
 }
 
+// changelist_gather records cn_shared from zfs_is_shared, which is false
+// for an unmounted filesystem (it looks the mountpoint up in mnttab). A
+// zfs.exports line left behind while NFS was down outlives an unmount,
+// and a later sharenfs=off does not remove it: postfix unshares only
+// cn_shared nodes.
+func TestSimUnmountedIsNotShared(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	if _, err := sim.Run(ctx, "zfs", "create", "-o", "sharenfs=rw=10.0.0.0/24", "tank/fs"); err != nil {
+		t.Fatal(err)
+	}
+	stale := sim.Exports()
+	if !strings.Contains(stale, "10.0.0.0/24") {
+		t.Fatalf("not shared at create: %q", stale)
+	}
+	sim.SetNFSDown(true)
+	sim.Unmount("tank/fs") // the unshare cannot reach zfs.exports
+	sim.SetNFSDown(false)
+	if got := sim.Exports(); got != stale {
+		t.Fatalf("unmount with NFS down rewrote zfs.exports: %q", got)
+	}
+	if _, err := sim.Run(ctx, "zfs", "set", "sharenfs=off", "tank/fs"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sim.Exports(); got != stale {
+		t.Errorf("sharenfs=off on an unmounted filesystem unshared it: zfs.exports %q, want %q", got, stale)
+	}
+}
+
 // A received space property is in force like a local one (the kernel's
 // checks read the effective value, dsl_prop_get_int_ds): a thick volume
 // received under a quota'd parent charges its refreservation to the
