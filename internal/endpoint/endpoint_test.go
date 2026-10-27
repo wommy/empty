@@ -2,6 +2,9 @@ package endpoint_test
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -12,20 +15,68 @@ import (
 	"github.com/wommy/empty/internal/zfs/zfstest"
 )
 
-const parent = "tank/k8s/vols"
+// harness runs the contract tests against the simulator, or against a real
+// pool when ZFS_TEST_POOL is set (CI: a file-backed pool; see
+// .github/workflows/ci.yml). Each test gets its own parent dataset.
+type harness struct {
+	Parent string
+	Z      *zfs.Client
+	sim    *zfstest.Sim
+}
 
-func setup(t *testing.T) (*endpoint.Endpoint, *zfstest.Sim) {
+func (h *harness) Has(name string) bool {
+	ok, err := h.Z.Exists(context.Background(), name)
+	if err != nil {
+		panic(err)
+	}
+	return ok
+}
+
+func (h *harness) Prop(name, prop string) string {
+	d, err := h.Z.Get(context.Background(), name, prop)
+	if err != nil {
+		return ""
+	}
+	return d.Props[prop].Value
+}
+
+// Sim returns the simulator, skipping tests that need fault injection or
+// call accounting when running against real ZFS.
+func (h *harness) Sim(t *testing.T) *zfstest.Sim {
 	t.Helper()
-	sim := zfstest.New("tank")
-	z := zfs.New(sim)
-	if err := z.CreateFilesystem(context.Background(), parent, nil, true); err != nil {
+	if h.sim == nil {
+		t.Skip("needs the simulator (fault injection / call accounting)")
+	}
+	return h.sim
+}
+
+var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
+
+func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
+	t.Helper()
+	ctx := context.Background()
+	h := &harness{}
+	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
+		h.Z = zfs.New(zfs.LocalRunner{})
+		h.Parent = fmt.Sprintf("%s/ep-%s-%d", pool, unsafeChars.ReplaceAllString(t.Name(), "_"), time.Now().UnixNano())
+		t.Cleanup(func() {
+			if err := h.Z.Destroy(ctx, h.Parent, zfs.DestroyOptions{Recursive: true}); err != nil {
+				t.Errorf("cleanup %s: %v", h.Parent, err)
+			}
+		})
+	} else {
+		h.sim = zfstest.New("tank")
+		h.Z = zfs.New(h.sim)
+		h.Parent = "tank/k8s/vols"
+	}
+	if err := h.Z.CreateFilesystem(ctx, h.Parent, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: parent, LockWait: time.Second})
+	ep, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ep, sim
+	return ep, h
 }
 
 func wantCode(t *testing.T, err error, code endpoint.Code) {
@@ -37,7 +88,7 @@ func wantCode(t *testing.T, err error, code endpoint.Code) {
 
 func TestCreateVolumeIdempotent(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	req := endpoint.CreateVolumeRequest{Name: "pvc-1", Kind: endpoint.Block, CapacityBytes: 1<<30 + 1, Sparse: true}
 
 	v1, err := ep.CreateVolume(ctx, req)
@@ -52,7 +103,7 @@ func TestCreateVolumeIdempotent(t *testing.T) {
 	if err != nil || v2 != v1 {
 		t.Fatalf("retry: %+v %v", v2, err)
 	}
-	if sim.Prop(parent+"/pvc-1", "democratic-csi:provision_success") != "true" {
+	if h.Prop(h.Parent+"/pvc-1", "democratic-csi:provision_success") != "true" {
 		t.Fatal("commit marker missing")
 	}
 
@@ -62,7 +113,7 @@ func TestCreateVolumeIdempotent(t *testing.T) {
 	_, err = ep.CreateVolume(ctx, bigger)
 	wantCode(t, err, endpoint.AlreadyExists)
 	fs := req
-	fs.Kind = endpoint.Filesystem
+	fs.Kind, fs.Sparse = endpoint.Filesystem, false
 	_, err = ep.CreateVolume(ctx, fs)
 	wantCode(t, err, endpoint.AlreadyExists)
 	limited := req
@@ -73,10 +124,10 @@ func TestCreateVolumeIdempotent(t *testing.T) {
 
 func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	// a crash after create, before the marker: owned but not committed
-	z := zfs.New(sim)
-	if err := z.CreateFilesystem(ctx, parent+"/pvc-2", map[string]string{
+	z := h.Z
+	if err := z.CreateFilesystem(ctx, h.Parent+"/pvc-2", map[string]string{
 		"democratic-csi:managed_resource": "true",
 		"democratic-csi:csi_volume_name":  "pvc-2",
 		"refquota":                        "1073741824",
@@ -94,28 +145,28 @@ func TestCreateVolumeResumesInterruptedProvision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.CapacityBytes != 1<<30 || sim.Prop(parent+"/pvc-2", "democratic-csi:provision_success") != "true" {
+	if v.CapacityBytes != 1<<30 || h.Prop(h.Parent+"/pvc-2", "democratic-csi:provision_success") != "true" {
 		t.Fatalf("not resumed: %+v", v)
 	}
 }
 
 func TestNeverAdoptsOrDeletesUnmanaged(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
-	if err := zfs.New(sim).CreateFilesystem(ctx, parent+"/precious", nil, false); err != nil {
+	ep, h := setup(t)
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/precious", nil, false); err != nil {
 		t.Fatal(err)
 	}
 	_, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "precious"})
 	wantCode(t, err, endpoint.AlreadyExists)
 	wantCode(t, ep.DeleteVolume(ctx, "precious"), endpoint.FailedPrecondition)
-	if !sim.Has(parent + "/precious") {
+	if !h.Has(h.Parent + "/precious") {
 		t.Fatal("unmanaged dataset destroyed")
 	}
 }
 
 func TestDeleteVolume(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	if err := ep.DeleteVolume(ctx, "never-existed"); err != nil {
 		t.Fatalf("delete missing: %v", err)
 	}
@@ -127,7 +178,7 @@ func TestDeleteVolume(t *testing.T) {
 	}
 	// CSI snapshots must survive: refuse, leave everything in place
 	wantCode(t, ep.DeleteVolume(ctx, "pvc-3"), endpoint.FailedPrecondition)
-	if !sim.Has(parent + "/pvc-3@snap-a") {
+	if !h.Has(h.Parent + "/pvc-3@snap-a") {
 		t.Fatal("snapshot destroyed")
 	}
 	if err := ep.DeleteSnapshot(ctx, "pvc-3@snap-a"); err != nil {
@@ -143,7 +194,7 @@ func TestDeleteVolume(t *testing.T) {
 
 func TestSnapshotLifecycleWithClones(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: endpoint.Block, CapacityBytes: 1 << 30}); err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +229,7 @@ func TestSnapshotLifecycleWithClones(t *testing.T) {
 	if err := ep.DeleteSnapshot(ctx, "src@snap-1"); err != nil {
 		t.Fatal(err)
 	}
-	if !sim.Has(parent + "/src@snap-1") {
+	if !h.Has(h.Parent + "/src@snap-1") {
 		t.Fatal("cloned snapshot destroyed early")
 	}
 	snaps, _, err := ep.ListSnapshots(ctx, "", "", 0, "")
@@ -188,7 +239,7 @@ func TestSnapshotLifecycleWithClones(t *testing.T) {
 	if err := ep.DeleteVolume(ctx, "restored"); err != nil {
 		t.Fatal(err)
 	}
-	if sim.Has(parent + "/src@snap-1") {
+	if h.Has(h.Parent + "/src@snap-1") {
 		t.Fatal("deferred snapshot leaked after last clone")
 	}
 
@@ -203,15 +254,15 @@ func TestSnapshotLifecycleWithClones(t *testing.T) {
 
 func TestCloneFromVolumeReleasesInternalSnapshot(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "b", CapacityBytes: 1 << 30, SourceVolumeID: "a"}); err != nil {
 		t.Fatal(err)
 	}
-	internal := parent + "/a@volume-source-for-volume-b"
-	if !sim.Has(internal) {
+	internal := h.Parent + "/a@volume-source-for-volume-b"
+	if !h.Has(internal) {
 		t.Fatal("internal snapshot missing")
 	}
 	// source cannot go while a clone depends on it
@@ -219,7 +270,7 @@ func TestCloneFromVolumeReleasesInternalSnapshot(t *testing.T) {
 	if err := ep.DeleteVolume(ctx, "b"); err != nil {
 		t.Fatal(err)
 	}
-	if sim.Has(internal) {
+	if h.Has(internal) {
 		t.Fatal("internal snapshot leaked")
 	}
 	if err := ep.DeleteVolume(ctx, "a"); err != nil {
@@ -247,7 +298,7 @@ func TestExpand(t *testing.T) {
 
 func TestConcurrentCreatesSerialize(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	var wg sync.WaitGroup
 	errs := make([]error, 16)
 	for i := range errs {
@@ -264,8 +315,8 @@ func TestConcurrentCreatesSerialize(t *testing.T) {
 		}
 	}
 	creates := 0
-	for _, c := range sim.Calls {
-		if len(c) > 1 && c[1] == "create" && c[len(c)-1] == parent+"/race" {
+	for _, c := range h.Sim(t).Calls {
+		if len(c) > 1 && c[1] == "create" && c[len(c)-1] == h.Parent+"/race" {
 			creates++
 		}
 	}
@@ -308,11 +359,11 @@ func TestPagination(t *testing.T) {
 // (or an internal one) must not look owned.
 func TestInheritedOwnershipIsNotOwnership(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 1 << 30}); err != nil {
 		t.Fatal(err)
 	}
-	if err := zfs.New(sim).Snapshot(ctx, parent+"/v@admin-backup", nil); err != nil {
+	if err := h.Z.Snapshot(ctx, h.Parent+"/v@admin-backup", nil); err != nil {
 		t.Fatal(err)
 	}
 	snaps, _, err := ep.ListSnapshots(ctx, "", "", 0, "")
@@ -320,7 +371,7 @@ func TestInheritedOwnershipIsNotOwnership(t *testing.T) {
 		t.Fatalf("admin snapshot listed: %+v %v", snaps, err)
 	}
 	wantCode(t, ep.DeleteSnapshot(ctx, "v@admin-backup"), endpoint.FailedPrecondition)
-	if !sim.Has(parent + "/v@admin-backup") {
+	if !h.Has(h.Parent + "/v@admin-backup") {
 		t.Fatal("admin snapshot destroyed")
 	}
 }
@@ -343,7 +394,7 @@ func TestThickCloneRetryIsIdempotent(t *testing.T) {
 // a failure between clone and resize converges on retry
 func TestCloneResizeFailureConverges(t *testing.T) {
 	ctx := context.Background()
-	ep, sim := setup(t)
+	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: 1 << 30, Sparse: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +402,7 @@ func TestCloneResizeFailureConverges(t *testing.T) {
 		t.Fatal(err)
 	}
 	fail := true
-	sim.Fail = func(args []string) error {
+	h.Sim(t).Fail = func(args []string) error {
 		if fail && args[0] == "set" && strings.HasPrefix(args[1], "volsize=") {
 			fail = false
 			return &zfs.ExitError{Code: 1, Stderr: "internal error: Input/output error\n"}

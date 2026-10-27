@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+// ZFS endpoint: idempotent volume and snapshot lifecycle on one ZFS parent
+// dataset, for thin CSI (or other) front ends.
+//
+// Contract, mirroring CSI so front ends translate field-for-field:
+// - Create* are idempotent by name; a compatible repeat returns the existing
+//   object, an incompatible one ALREADY_EXISTS.
+// - Delete* of a missing object is OK.
+// - A busy resource is ABORTED before the caller's deadline; retry.
+// - Volumes with snapshots or dependent clones fail DeleteVolume with
+//   FAILED_PRECONDITION and are left unchanged.
+package zfsendpoint.v1;
+
+option go_package = "github.com/wommy/empty/gen/zfsendpoint/v1;zfsendpointv1";
+
+service EndpointService {
+  // Feature detection: front ends of any version ask what this daemon does.
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse);
+
+  rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
+  rpc DeleteVolume(DeleteVolumeRequest) returns (DeleteVolumeResponse);
+  rpc ExpandVolume(ExpandVolumeRequest) returns (ExpandVolumeResponse);
+  rpc GetVolume(GetVolumeRequest) returns (GetVolumeResponse);
+  rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
+
+  rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse);
+  rpc DeleteSnapshot(DeleteSnapshotRequest) returns (DeleteSnapshotResponse);
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+
+  rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+}
+
+enum Capability {
+  CAPABILITY_UNSPECIFIED = 0;
+  CAPABILITY_VOLUMES = 1;
+  CAPABILITY_SNAPSHOTS = 2;
+  CAPABILITY_CLONE_FROM_SNAPSHOT = 3;
+  CAPABILITY_CLONE_FROM_VOLUME = 4;
+  CAPABILITY_EXPAND = 5;
+  CAPABILITY_LIST = 6;
+  CAPABILITY_CAPACITY = 7;
+  // reserved for upcoming edges: exports, metadata (CBT), modify
+}
+
+message GetCapabilitiesRequest {}
+message GetCapabilitiesResponse {
+  repeated Capability capabilities = 1;
+  // the parent dataset this endpoint manages
+  string parent = 2;
+  string version = 3;
+}
+
+enum VolumeKind {
+  VOLUME_KIND_UNSPECIFIED = 0; // treated as FILESYSTEM
+  VOLUME_KIND_FILESYSTEM = 1;
+  VOLUME_KIND_BLOCK = 2;
+}
+
+message Volume {
+  string id = 1;
+  string name = 2;
+  string dataset = 3;
+  VolumeKind kind = 4;
+  uint64 capacity_bytes = 5;
+  // "snapshot", "volume" or empty
+  string source_type = 6;
+  string source_id = 7;
+  string device_path = 8; // BLOCK, on the storage host
+  string mountpoint = 9;  // FILESYSTEM
+}
+
+message Snapshot {
+  string id = 1; // "<volume id>@<name>"
+  string name = 2;
+  string source_volume_id = 3;
+  uint64 size_bytes = 4;
+  int64 creation_unix = 5;
+  bool ready_to_use = 6;
+}
+
+message CreateVolumeRequest {
+  string name = 1;
+  VolumeKind kind = 2;
+  uint64 capacity_bytes = 3;
+  uint64 limit_bytes = 4;
+  bool sparse = 5;  // BLOCK: no refreservation
+  bool reserve = 6; // FILESYSTEM: refreservation = capacity
+  oneof source {
+    string source_snapshot_id = 7;
+    string source_volume_id = 8;
+  }
+}
+
+message DeleteVolumeRequest { string volume_id = 1; }
+message DeleteVolumeResponse {}
+
+message ExpandVolumeRequest {
+  string volume_id = 1;
+  uint64 capacity_bytes = 2;
+  uint64 limit_bytes = 3;
+}
+
+message GetVolumeRequest { string volume_id = 1; }
+
+message ListVolumesRequest {
+  int32 max_entries = 1;
+  string starting_token = 2;
+}
+message ListVolumesResponse {
+  repeated Volume volumes = 1;
+  string next_token = 2;
+}
+
+message CreateSnapshotRequest {
+  string name = 1;
+  string source_volume_id = 2;
+}
+message DeleteSnapshotRequest { string snapshot_id = 1; }
+message DeleteSnapshotResponse {}
+
+message ListSnapshotsRequest {
+  string snapshot_id = 1;
+  string source_volume_id = 2;
+  int32 max_entries = 3;
+  string starting_token = 4;
+}
+message ListSnapshotsResponse {
+  repeated Snapshot snapshots = 1;
+  string next_token = 2;
+}
+
+message GetCapacityRequest {}
+message GetCapacityResponse { uint64 available_bytes = 1; }
+
+message CreateVolumeResponse { Volume volume = 1; }
+
+message ExpandVolumeResponse { Volume volume = 1; }
+
+message GetVolumeResponse { Volume volume = 1; }
+
+message CreateSnapshotResponse { Snapshot snapshot = 1; }

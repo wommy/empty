@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/wommy/empty/internal/zfs"
 )
@@ -10,7 +11,7 @@ import (
 // apply runs a plan in order. Each op's tolerance makes replays converge:
 // a retry after a partial failure re-plans from a fresh scan and re-applies.
 func (e *Endpoint) apply(ctx context.Context, plan Plan) error {
-	for _, op := range plan {
+	for i, op := range plan {
 		var err error
 		switch op.Kind {
 		case OpCreateFS:
@@ -35,7 +36,7 @@ func (e *Endpoint) apply(ctx context.Context, plan Plan) error {
 		case op.Kind == OpClone && zfs.IsNotFound(err):
 			return &Error{Code: NotFound, Msg: "clone source " + op.Source + " not found", Err: err}
 		default:
-			return zfsErr(err, opName(op.Kind)+" "+op.Target)
+			return zfsErr(err, fmt.Sprintf("op %d/%d %s %s", i+1, len(plan), opName(op.Kind), op.Target))
 		}
 	}
 	return nil

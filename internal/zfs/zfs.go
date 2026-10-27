@@ -361,3 +361,93 @@ func (c *Client) List(ctx context.Context, parent string, o ListOptions) ([]Data
 	sort.Slice(res, func(i, j int) bool { return res[i].Name < res[j].Name })
 	return res, nil
 }
+
+// Columns is a scan result in flat, columnar form: one Prop per (dataset,
+// property) in a single slice, instead of a map per dataset. Cell(i, j) is
+// dataset i's value for Props[j]; properties zfs did not print read as "-".
+type Columns struct {
+	Props []string
+	Names []string
+	Cells []Prop
+}
+
+// Cell returns dataset i's value for property j.
+func (c *Columns) Cell(i, j int) Prop { return c.Cells[i*len(c.Props)+j] }
+
+// Col returns the index of prop in Props, or -1.
+func (c *Columns) Col(prop string) int {
+	for j, p := range c.Props {
+		if p == prop {
+			return j
+		}
+	}
+	return -1
+}
+
+// ListColumns is List in columnar form, including root itself. The whole
+// output is parsed before anything is returned: callers plan destructive
+// operations from it, so a partial result must never escape.
+func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*Columns, error) {
+	if !ValidDataset(root) {
+		return nil, &Error{Kind: KindInvalidProperty, Op: "list", Dataset: root, Stderr: "invalid name"}
+	}
+	types := o.Types
+	if len(types) == 0 {
+		types = []Type{TypeFilesystem, TypeVolume}
+	}
+	ts := make([]string, len(types))
+	for i, t := range types {
+		ts[i] = string(t)
+	}
+	args := []string{"get", "-Hp", "-o", "name,property,value,source", "-t", strings.Join(ts, ",")}
+	if o.Depth < 0 {
+		args = append(args, "-r")
+	} else {
+		args = append(args, "-d", strconv.Itoa(o.Depth+1))
+	}
+	args = append(args, strings.Join(o.Props, ","), root)
+	out, err := c.run(ctx, "list", root, args...)
+	if err != nil {
+		return nil, err
+	}
+	cols, err := parseColumns(out, o.Props)
+	if err != nil {
+		return nil, &Error{Op: "list", Dataset: root, Err: err}
+	}
+	return cols, nil
+}
+
+func parseColumns(out []byte, props []string) (*Columns, error) {
+	col := make(map[string]int, len(props))
+	for j, p := range props {
+		col[p] = j
+	}
+	c := &Columns{Props: props}
+	row := map[string]int{}
+	unset := Prop{Value: "-", Source: "-"}
+	for i, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		f := strings.SplitN(line, "\t", 3)
+		last := strings.LastIndexByte(line, '\t')
+		if len(f) != 3 || last <= len(f[0])+len(f[1])+1 {
+			return nil, fmt.Errorf("line %d: want 4 fields: %q", i+1, line)
+		}
+		r, ok := row[f[0]]
+		if !ok {
+			r = len(c.Names)
+			row[f[0]] = r
+			c.Names = append(c.Names, f[0])
+			for range props {
+				c.Cells = append(c.Cells, unset)
+			}
+		}
+		j, ok := col[f[1]]
+		if !ok {
+			continue // a property we did not ask for
+		}
+		c.Cells[r*len(props)+j] = Prop{Value: line[len(f[0])+len(f[1])+2 : last], Source: line[last+1:]}
+	}
+	return c, nil
+}

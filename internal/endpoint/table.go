@@ -2,7 +2,8 @@ package endpoint
 
 import (
 	"context"
-	"sort"
+	"iter"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -52,63 +53,70 @@ func (r Row) Kind() VolumeKind {
 	return Filesystem
 }
 
-// Table is a sorted set of rows with an index by ID.
+// Table is an immutable, ID-sorted set of rows with secondary indexes built
+// once: snapshots by volume and clones by origin. Planners only read it.
 type Table struct {
-	Rows []Row
-	idx  map[string]int
+	rows        []Row
+	snapsOfVol  map[string][]int // volume id -> snapshot rows
+	clonesOfSrc map[string][]int // origin snapshot full name -> clone rows
 }
 
-// Get returns the row with id.
-func (t Table) Get(id string) (Row, bool) {
-	i, ok := t.idx[id]
-	if !ok {
-		return Row{}, false
-	}
-	return t.Rows[i], true
-}
-
-// Volumes returns filesystem/volume rows (in name order).
-func (t Table) Volumes() []Row {
-	var out []Row
-	for _, r := range t.Rows {
-		if r.Type != zfs.TypeSnapshot {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-// SnapshotsOf returns the snapshots of volume id.
-func (t Table) SnapshotsOf(id string) []Row {
-	var out []Row
-	for _, r := range t.Rows {
-		if r.Type == zfs.TypeSnapshot && strings.HasPrefix(r.ID, id+"@") {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-// ClonesOf returns rows whose origin is the snapshot with full name snap.
-func (t Table) ClonesOf(snap string) []Row {
-	var out []Row
-	for _, r := range t.Rows {
-		if r.Origin == snap {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-// NewTable builds a Table from rows (used by Scan and by tests).
+// NewTable sorts rows by ID and indexes them. rows is taken over.
 func NewTable(rows []Row) Table {
-	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
-	t := Table{Rows: rows, idx: make(map[string]int, len(rows))}
+	slices.SortFunc(rows, func(a, b Row) int { return strings.Compare(a.ID, b.ID) })
+	t := Table{rows: rows, snapsOfVol: map[string][]int{}, clonesOfSrc: map[string][]int{}}
 	for i, r := range rows {
-		t.idx[r.ID] = i
+		if vol, _, ok := strings.Cut(r.ID, "@"); ok {
+			t.snapsOfVol[vol] = append(t.snapsOfVol[vol], i)
+		}
+		if r.Origin != "" {
+			t.clonesOfSrc[r.Origin] = append(t.clonesOfSrc[r.Origin], i)
+		}
 	}
 	return t
 }
+
+// Len is the number of rows.
+func (t Table) Len() int { return len(t.rows) }
+
+// Get returns the row with id.
+func (t Table) Get(id string) (Row, bool) {
+	i, ok := slices.BinarySearchFunc(t.rows, id, func(r Row, id string) int { return strings.Compare(r.ID, id) })
+	if !ok {
+		return Row{}, false
+	}
+	return t.rows[i], true
+}
+
+// All yields every row in ID order.
+func (t Table) All() iter.Seq[Row] { return slices.Values(t.rows) }
+
+// Volumes yields filesystem/volume rows in ID order.
+func (t Table) Volumes() iter.Seq[Row] {
+	return func(yield func(Row) bool) {
+		for _, r := range t.rows {
+			if r.Type != zfs.TypeSnapshot && !yield(r) {
+				return
+			}
+		}
+	}
+}
+
+func (t Table) pick(idx []int) iter.Seq[Row] {
+	return func(yield func(Row) bool) {
+		for _, i := range idx {
+			if !yield(t.rows[i]) {
+				return
+			}
+		}
+	}
+}
+
+// SnapshotsOf yields the snapshots of volume id.
+func (t Table) SnapshotsOf(id string) iter.Seq[Row] { return t.pick(t.snapsOfVol[id]) }
+
+// ClonesOf yields rows whose origin is the snapshot with full name snap.
+func (t Table) ClonesOf(snap string) iter.Seq[Row] { return t.pick(t.clonesOfSrc[snap]) }
 
 // columns fetched by every scan; decode below is the only place they are read.
 func (n props) columns() []string {
@@ -120,50 +128,63 @@ func (n props) columns() []string {
 	}
 }
 
-func (n props) decode(parent string, d zfs.Dataset) Row {
-	u := func(p string) uint64 { v, _ := d.Props[p].Uint(); return v }
-	s := func(p string) string { return userValue(d.Props[p]) }
-	// ownership must be set on the dataset itself: user properties inherit,
-	// so every snapshot (and any child) would otherwise look owned
-	own := func(p string) string {
-		if !d.Props[p].Local() {
+// decodeColumns turns a columnar scan into rows: each column is located
+// once, then every dataset is a straight read of its cells.
+func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
+	j := func(p string) int { return c.Col(p) }
+	cType, cVolsize, cBlock, cRefquota, cRefres := j("type"), j("volsize"), j("volblocksize"), j("refquota"), j("refreservation")
+	cOrigin, cCreation, cDefer, cMount := j("origin"), j("creation"), j("defer_destroy"), j("mountpoint")
+	cManaged, cSuccess, cVolName := j(n.managed()), j(n.success()), j(n.volumeName())
+	cSrcType, cSrcID, cSnapName, cSnapSrc := j(n.sourceType()), j(n.sourceID()), j(n.snapshotName()), j(n.snapshotSource())
+
+	rows := make([]Row, 0, len(c.Names))
+	for i, name := range c.Names {
+		cell := func(k int) zfs.Prop { return c.Cell(i, k) }
+		u := func(k int) uint64 { v, _ := cell(k).Uint(); return v }
+		// ownership must be set on the dataset itself: user properties
+		// inherit, so every snapshot (and child) would otherwise look owned
+		own := func(k int) string {
+			if p := cell(k); p.Local() {
+				return userValue(p)
+			}
 			return ""
 		}
-		return userValue(d.Props[p])
+		r := Row{
+			Name:           name,
+			ID:             strings.TrimPrefix(name, parent+"/"),
+			Type:           zfs.Type(cell(cType).Value),
+			Volsize:        u(cVolsize),
+			Refquota:       u(cRefquota),
+			Refres:         u(cRefres),
+			BlockSz:        u(cBlock),
+			Origin:         userValue(cell(cOrigin)),
+			Deferred:       cell(cDefer).Value == "on",
+			Mount:          userValue(cell(cMount)),
+			Managed:        own(cManaged) == "true",
+			Committed:      own(cSuccess) == "true",
+			VolumeName:     own(cVolName),
+			SourceType:     own(cSrcType),
+			SourceID:       own(cSrcID),
+			SnapshotName:   own(cSnapName),
+			SnapshotSource: own(cSnapSrc),
+		}
+		if v, err := strconv.ParseInt(cell(cCreation).Value, 10, 64); err == nil {
+			r.Creation = v
+		}
+		rows = append(rows, r)
 	}
-	r := Row{
-		Name:           d.Name,
-		ID:             strings.TrimPrefix(d.Name, parent+"/"),
-		Type:           d.Type(),
-		Volsize:        u("volsize"),
-		Refquota:       u("refquota"),
-		Refres:         u("refreservation"),
-		BlockSz:        u("volblocksize"),
-		Origin:         s("origin"),
-		Deferred:       d.Props["defer_destroy"].Value == "on",
-		Mount:          s("mountpoint"),
-		Managed:        own(n.managed()) == "true",
-		Committed:      own(n.success()) == "true",
-		VolumeName:     own(n.volumeName()),
-		SourceType:     own(n.sourceType()),
-		SourceID:       own(n.sourceID()),
-		SnapshotName:   own(n.snapshotName()),
-		SnapshotSource: own(n.snapshotSource()),
-	}
-	if c, err := strconv.ParseInt(d.Props["creation"].Value, 10, 64); err == nil {
-		r.Creation = c
-	}
-	return r
+	return rows
 }
 
-// scan reads the parent's volumes and their snapshots in one zfs call.
-// With only set, it reads that one volume and its snapshots instead.
+// scan reads the parent's volumes and snapshots in one zfs call; with only
+// set, that one volume and its snapshots. The parent itself and anything
+// deeper than a volume are dropped.
 func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 	root, depth := e.cfg.Parent, 1 // parent/vol and parent/vol@snap
 	if only != "" {
 		root, depth = e.dataset(only), 0 // vol and vol@snap
 	}
-	list, err := e.zfs.List(ctx, root, zfs.ListOptions{
+	cols, err := e.zfs.ListColumns(ctx, root, zfs.ListOptions{
 		Types: []zfs.Type{zfs.TypeFilesystem, zfs.TypeVolume, zfs.TypeSnapshot},
 		Depth: depth,
 		Props: e.names.columns(),
@@ -174,25 +195,10 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 		}
 		return Table{}, zfsErr(err, "scan "+root)
 	}
-	if only != "" {
-		// List excludes the root itself; fetch it alongside
-		d, err := e.zfs.Get(ctx, root, e.names.columns()...)
-		if err != nil {
-			if zfs.IsNotFound(err) {
-				return NewTable(nil), nil
-			}
-			return Table{}, zfsErr(err, "scan "+root)
-		}
-		list = append(list, d)
-	}
-	rows := make([]Row, 0, len(list))
-	for _, d := range list {
-		r := e.names.decode(e.cfg.Parent, d)
-		// only direct children of the parent are volumes
-		if vol, _, _ := strings.Cut(r.ID, "@"); strings.Contains(vol, "/") {
-			continue
-		}
-		rows = append(rows, r)
-	}
+	rows := e.names.decodeColumns(e.cfg.Parent, cols)
+	rows = slices.DeleteFunc(rows, func(r Row) bool {
+		vol, _, _ := strings.Cut(r.ID, "@")
+		return r.Name == e.cfg.Parent || vol == "" || strings.Contains(vol, "/")
+	})
 	return NewTable(rows), nil
 }

@@ -92,6 +92,15 @@ func (p Planner) validateCreate(r CreateVolumeRequest) (string, error) {
 	if r.Kind == Block && r.CapacityBytes == 0 && r.SourceSnapshotID == "" && r.SourceVolumeID == "" {
 		return "", errorf(InvalidArgument, "block volume needs a capacity")
 	}
+	if r.Kind == Filesystem && r.Reserve && p.want(r) == 0 && r.SourceSnapshotID == "" && r.SourceVolumeID == "" {
+		return "", errorf(InvalidArgument, "reserve needs a capacity or limit")
+	}
+	if r.Kind == Block && r.Reserve {
+		return "", errorf(InvalidArgument, "reserve applies to filesystems; use sparse for zvols")
+	}
+	if r.Kind == Filesystem && r.Sparse {
+		return "", errorf(InvalidArgument, "sparse applies to zvols; filesystems are thin unless reserved")
+	}
 	if r.LimitBytes > 0 && p.want(r) > r.LimitBytes {
 		return "", errorf(OutOfRange, "capacity %d (rounded) exceeds limit %d", p.want(r), r.LimitBytes)
 	}
@@ -259,11 +268,11 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	if !row.Managed {
 		return nil, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
 	}
-	for _, s := range t.SnapshotsOf(id) {
+	for s := range t.SnapshotsOf(id) {
 		if s.SnapshotName != "" && !s.Deferred {
 			return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
 		}
-		for _, c := range t.ClonesOf(s.Name) {
+		for c := range t.ClonesOf(s.Name) {
 			if !strings.HasPrefix(c.Name, row.Name+"/") {
 				return nil, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
 			}
@@ -327,7 +336,7 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		return nil, "", errorf(InvalidArgument, "snapshot name prefix %q is reserved", cloneSourceSnapshotPrefix)
 	}
 	id := vol + "@" + name
-	for _, r := range t.Rows {
+	for r := range t.All() {
 		if r.Type == zfs.TypeSnapshot && r.SnapshotName == name && !r.Deferred {
 			if r.ID == id {
 				return nil, id, nil

@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -307,7 +308,7 @@ func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
 		if err != nil {
 			return Table{}, err
 		}
-		rows = append(rows, t.Rows...)
+		rows = slices.AppendSeq(rows, t.All())
 	}
 	return NewTable(rows), nil
 }
@@ -418,7 +419,7 @@ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToke
 		return nil, "", err
 	}
 	var vols []Volume
-	for _, r := range t.Volumes() {
+	for r := range t.Volumes() {
 		if r.Managed && r.Committed {
 			vols = append(vols, volumeView(r))
 		}
@@ -467,7 +468,7 @@ func (e *Endpoint) ListSnapshots(ctx context.Context, snapshotID, sourceVolumeID
 		return nil, "", err
 	}
 	var snaps []Snapshot
-	for _, r := range t.Rows {
+	for r := range t.All() {
 		if r.Type != zfs.TypeSnapshot || !r.Managed || r.Deferred {
 			continue
 		}
