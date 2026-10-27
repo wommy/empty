@@ -393,6 +393,7 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 // scanFor reads the volumes an operation touches (one zfs call each).
 func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
 	var rows []Row
+	var covered []string
 	seen := map[string]bool{}
 	for _, id := range ids {
 		vol, _, _ := strings.Cut(id, "@")
@@ -408,8 +409,9 @@ func (e *Endpoint) scanFor(ctx context.Context, ids ...string) (Table, error) {
 			return Table{}, err
 		}
 		rows = slices.AppendSeq(rows, t.All())
+		covered = append(covered, vol)
 	}
-	return NewTable(rows), nil
+	return newPartialTable(rows, covered...), nil
 }
 
 func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {

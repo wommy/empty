@@ -83,16 +83,34 @@ func (r Row) OwnedSnapshot() bool {
 
 // Table is an immutable, ID-sorted set of rows with secondary indexes built
 // once: snapshots by volume and clones by origin. Planners only read it.
+//
+// A table also records what it covers: the whole parent, or only the
+// volumes it was read for. A row missing from a table means "not there"
+// only for what the table covers; planners that conclude from absence
+// check coverage (mustCover) instead of reading "not scanned" as "gone".
 type Table struct {
 	rows        []Row
 	snapsOfVol  map[string][]int // volume id -> snapshot rows
 	clonesOfSrc map[string][]int // origin snapshot full name -> clone rows
+	whole       bool             // every volume under the parent was read
+	covered     map[string]bool  // else: the volumes that were read
 }
 
-// NewTable sorts rows by ID and indexes them. rows is taken over.
+// NewTable sorts rows by ID and indexes them; they are everything under
+// the parent (whole coverage). rows is taken over.
 func NewTable(rows []Row) Table {
+	t := newPartialTable(rows)
+	t.whole = true
+	return t
+}
+
+// newPartialTable is a table read for vols only (with their snapshots).
+func newPartialTable(rows []Row, vols ...string) Table {
 	slices.SortFunc(rows, func(a, b Row) int { return strings.Compare(a.ID, b.ID) })
-	t := Table{rows: rows, snapsOfVol: map[string][]int{}, clonesOfSrc: map[string][]int{}}
+	t := Table{rows: rows, snapsOfVol: map[string][]int{}, clonesOfSrc: map[string][]int{}, covered: map[string]bool{}}
+	for _, v := range vols {
+		t.covered[v] = true
+	}
 	for i, r := range rows {
 		if vol, _, ok := strings.Cut(r.ID, "@"); ok {
 			t.snapsOfVol[vol] = append(t.snapsOfVol[vol], i)
@@ -102,6 +120,40 @@ func NewTable(rows []Row) Table {
 		}
 	}
 	return t
+}
+
+// Whole reports whether the table covers every volume under the parent.
+func (t Table) Whole() bool { return t.whole }
+
+// Covers reports whether the table can say volume vol (or a snapshot of
+// it) is absent. An id that cannot name a volume has no rows anywhere, so
+// any table covers it.
+func (t Table) Covers(vol string) bool {
+	vol, _, _ = strings.Cut(vol, "@")
+	if t.whole || t.covered[vol] {
+		return true
+	}
+	_, err := volumeID(vol)
+	return err != nil
+}
+
+// mustCover refuses a table that does not cover ids (volume or snapshot
+// ids; empty ones are skipped): a planner bug, never "missing".
+func (t Table) mustCover(ids ...string) error {
+	for _, id := range ids {
+		if id != "" && !t.Covers(id) {
+			return errorf(Internal, "table does not cover %s", id)
+		}
+	}
+	return nil
+}
+
+// mustBeWhole refuses a table that does not cover the whole parent.
+func (t Table) mustBeWhole(what string) error {
+	if !t.whole {
+		return errorf(Internal, "%s needs a scan of the whole parent", what)
+	}
+	return nil
 }
 
 // Len is the number of rows.
@@ -242,7 +294,7 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 			// only an existing parent makes a missing volume truly absent
 			ok, perr := e.zfs.Exists(ctx, e.cfg.Parent)
 			if perr == nil && ok {
-				return NewTable(nil), nil
+				return newPartialTable(nil, only), nil
 			}
 			return Table{}, parentUnavailable(e.cfg.Parent, err)
 		}
@@ -256,5 +308,8 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 		vol, _, _ := strings.Cut(r.ID, "@")
 		return vol == "" || strings.Contains(vol, "/")
 	})
+	if only != "" {
+		return newPartialTable(rows, only), nil
+	}
 	return NewTable(rows), nil
 }

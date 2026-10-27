@@ -212,7 +212,10 @@ func TestPlanReconcile(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			tab := table(c.rows...)
-			plan := pl.PlanReconcile(tab, c.want)
+			plan, err := pl.PlanReconcile(tab, c.want)
+			if err != nil {
+				t.Fatal(err)
+			}
 			acts, skips := summary(plan)
 			if !slices.Equal(acts, c.acts) || !slices.Equal(skips, c.skips) {
 				t.Fatalf("actions %q\nskipped %q\nwant    %q\n        %q", acts, skips, c.acts, c.skips)
@@ -237,7 +240,11 @@ func TestPlanReconcileLocksEveryTarget(t *testing.T) {
 		snap("b@volume-source-for-volume-c", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
 		vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
 	)
-	for _, a := range pl.PlanReconcile(tab, desired("a")).Actions {
+	plan, err := pl.PlanReconcile(tab, desired("a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range plan.Actions {
 		vol, _, _ := strings.Cut(a.Target, "@")
 		if !slices.Contains(a.Volumes, vol) {
 			t.Errorf("%s: locks %v miss its volume", a.Target, a.Volumes)
@@ -259,7 +266,11 @@ func TestPlanReconcileHeldLimitsActions(t *testing.T) {
 	)
 	d := desired("a")
 	d.held = map[string]bool{"b": true}
-	acts, skips := summary(pl.PlanReconcile(tab, d))
+	plan, err := pl.PlanReconcile(tab, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acts, skips := summary(plan)
 	if len(acts) != 0 || !slices.Equal(skips, []string{"c:" + SkipChangedSinceScan, "b:volume b has dependent clone c"}) {
 		t.Fatalf("actions %q skipped %q", acts, skips)
 	}

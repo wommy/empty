@@ -137,6 +137,10 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	}
 	want := p.want(r, props)
 	srcType, srcID := sourceOf(r)
+	// absent means "create it" for id and "NotFound" for the source
+	if err := t.mustCover(id, srcID); err != nil {
+		return nil, err
+	}
 	commit := Op{Kind: OpSet, Target: p.full(id), Props: map[string]string{p.Names.success(): "true"}}
 	// size is what a provision drives the volume to. A clone starts at its
 	// source's size and is never shrunk, and a filesystem clone without a
@@ -370,6 +374,9 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := t.mustCover(id); err != nil {
+		return nil, err
+	}
 	row, ok := t.Get(id)
 	if !ok {
 		return nil, nil
@@ -398,6 +405,9 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64) (Plan, Row, error) {
 	id, err := issuedVolumeID(volID)
 	if err != nil {
+		return nil, Row{}, err
+	}
+	if err := t.mustCover(id); err != nil {
 		return nil, Row{}, err
 	}
 	row, ok := t.Get(id)
@@ -450,6 +460,10 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		// carry even a hashed component within CSI's limit
 		return nil, "", errorf(InvalidArgument, "volume id %q too long to address snapshots within 128 bytes", vol)
 	}
+	// snapshot names are global: only the whole parent says one is free
+	if err := t.mustBeWhole("CreateSnapshot"); err != nil {
+		return nil, "", err
+	}
 	for r := range t.All() {
 		if r.OwnedSnapshot() && r.SnapshotName == name && !r.Deferred {
 			if r.ID == id {
@@ -490,6 +504,9 @@ func snapComponent(vol, name string) string {
 func (p Planner) PlanDeleteSnapshot(t Table, snapID string) (Plan, error) {
 	if _, _, err := parseSnapshotID(snapID); err != nil {
 		return nil, nil
+	}
+	if err := t.mustCover(snapID); err != nil {
+		return nil, err
 	}
 	row, ok := t.Get(snapID)
 	if !ok || row.Deferred {

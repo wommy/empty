@@ -258,6 +258,10 @@ func (p Planner) exportRow(t Table, volID string) (Row, []NFSClient, bool, error
 	if err != nil {
 		return Row{}, nil, false, err
 	}
+	// absent is NotFound for publish and done for unpublish
+	if err := t.mustCover(id); err != nil {
+		return Row{}, nil, false, err
+	}
 	row, ok := t.Get(id)
 	if !ok || !row.OwnedVolume() {
 		return Row{}, nil, false, nil

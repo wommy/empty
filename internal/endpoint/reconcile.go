@@ -106,7 +106,12 @@ func (r ReconcilePlan) Plan() Plan {
 // Volume deletions are planned to a fixpoint: a volume blocked only by a
 // clone that is itself collected goes in the same plan, after the clone, so
 // reconciling the result again plans nothing.
-func (p Planner) PlanReconcile(t Table, d Desired) ReconcilePlan {
+func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
+	// everything not wanted is collected: only the whole parent says what
+	// exists
+	if err := t.mustBeWhole("reconcile"); err != nil {
+		return ReconcilePlan{}, err
+	}
 	var out ReconcilePlan
 	want := map[string]bool{}
 	for _, id := range d.VolumeIDs {
@@ -227,7 +232,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) ReconcilePlan {
 			Target: r.ID, Reason: ReasonOrphanCloneSource, Volumes: vols,
 		})
 	}
-	return out
+	return out, nil
 }
 
 func (p Planner) rel(name string) string { return strings.TrimPrefix(name, p.Parent+"/") }
@@ -323,7 +328,10 @@ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (Reconcile
 	if err != nil {
 		return ReconcilePlan{}, err
 	}
-	plan := e.plan.PlanReconcile(t, d)
+	plan, err := e.plan.PlanReconcile(t, d)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
 	if r.DryRun || len(plan.Actions) == 0 {
 		return plan, nil
 	}
@@ -348,7 +356,9 @@ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (Reconcile
 		return ReconcilePlan{}, err
 	}
 	d.Now, d.held = e.cfg.Now(), held
-	plan = e.plan.PlanReconcile(t, d)
+	if plan, err = e.plan.PlanReconcile(t, d); err != nil {
+		return ReconcilePlan{}, err
+	}
 	if err := e.apply(ctx, plan.Plan()); err != nil {
 		return ReconcilePlan{}, err
 	}
