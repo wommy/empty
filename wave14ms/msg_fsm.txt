@@ -1,0 +1,37 @@
+endpoint: recovery FSM explorer runs nightly, and the guard that it ran
+
+The wave5 lifecycle explorer comes in as TestExploreLifecycle under
+`//go:build nightly`: breadth-first to depth 4 over both volume kinds and
+both property prefixes, with crashes at every mutation, deadline kills,
+partial commands and out-of-band races, about 40 s on 4 cores. It now
+fails on any finding instead of only writing a report.
+
+Its classifier moves to fsm_classify_test.go (untagged, pure) with a row
+table test, TestClassify, and two fixes:
+- AN-09: the clone source CreateVolume-from-volume stamps (managed +
+  clone_source_for, Row.OwnedCloneSource) is a legal state,
+  OwnCloneSrc-live/orphan/deferred, not IMPOSSIBLE.
+- a deferred snapshot kept by a user hold, without clones, is legal.
+
+The explorer also gains a user hold and a dataset below a volume as
+out-of-band actions, a reconcile with a proper subset of the committed
+volumes as desired, "failed" groups in the reconcile response (a group
+that fails on every run made no action, so it read as idempotent), and a
+raw `zfs get userrefs` in each world's identity, so a scan that drops
+children or holds cannot merge worlds zfs tells apart.
+
+ci/check-explore-ran.sh is wired after the explore step in nightly.yml:
+a run in which no TestScale*/TestExplore* test passed fails. Locally:
+with -tags nightly 1 test passed and the guard exits 0; without the tag
+the same command is "[no tests to run]" and the guard exits 1.
+
+Mutants (explorer at depth 3):
+- classify AN-09 fix reverted: TestClassify, TestExploreLifecycle
+- scan ignores userrefs: TestExploreLifecycle
+- scan or planner ignores children: TestExploreLifecycle
+- planner ignores holds: survives the explorer (no path to an undesired
+  committed volume with a held snapshot within depth 4); the planner and
+  simulator tests kill it
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
