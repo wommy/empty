@@ -56,9 +56,9 @@
 # (0.98s, 2.6s in the csi job, run 40513522394), and the other two held
 # local-fs.target, so ssh and nfs-server (1.05s in csi). No pool exists at
 # boot, so zfs-mount had nothing to mount. The checks below load zfs
-# explicitly (`modprobe zfs`, timed) before anything uses it and start
-# zed, which skipped its boot start (ConditionPathIsDirectory=
-# /sys/module/zfs). nfsd is not in modules-load.d: mounting
+# explicitly (`modprobe zfs`, timed) before anything uses it. zed skipped
+# its boot start (ConditionPathIsDirectory=/sys/module/zfs) and is left
+# stopped: see "quiet guest" below. nfsd is not in modules-load.d: mounting
 # /proc/fs/nfsd loads it, as before. A GRUB boot (the cold run, the panic
 # fallback) masks nothing.
 #
@@ -364,13 +364,11 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
 fi
 # the zfs module: a direct boot masks its load (systemd-modules-load,
 # zfs-load-module), so it is loaded here, timed, before anything uses it;
-# on a GRUB boot it is already loaded and modprobe returns at once. zed
-# skipped its boot start without the module (ConditionPathIsDirectory=
-# /sys/module/zfs) and is started as the boot would have; best effort, the
-# diagnostics below print its state. In the background over the master:
-# the checks that do not need zfs run beside it
-vm 's=$(date +%s%N); sudo modprobe zfs; r=$?; echo "modprobe zfs: $((($(date +%s%N) - s) / 1000000))ms, exit $r"
-  [ $r -ne 0 ] || sudo systemctl start --no-block zfs-zed.service || true; exit $r' >"$work/modprobe.txt" 2>&1 &
+# on a GRUB boot it is already loaded and modprobe returns at once. zed is
+# not started (quiet guest, below). In the background over the master: the
+# checks that do not need zfs run beside it
+vm 's=$(date +%s%N); sudo modprobe zfs; r=$?; echo "modprobe zfs: $((($(date +%s%N) - s) / 1000000))ms, exit $r"; exit $r' \
+  >"$work/modprobe.txt" 2>&1 &
 modprobe=$!
 vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
 serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
@@ -418,6 +416,21 @@ grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}
 # run while it starts, not for the whole boot to settle
 vm 'for _ in $(seq 1 300); do systemctl is-active -q nfs-server && break; sleep 0.1; done'
 mark "nfs-server active"
+# quiet guest (ADR 0005, "quiet guest"): no zfs-zed and no udisks2 during
+# the tests. Every zfs(8) command posts history zevents, and zed forks
+# zedlets for each; every zvol add/change/remove and every mount makes
+# udisks2 probe and re-read mountinfo. No test reads zed's or udisks2's
+# work (no zedlet, `zpool events`, zfs-list.cache or UDisks2 use in any Go
+# file; the zvol links come from udevd's 60-zvol.rules, which still run),
+# so they are CPU taken from the shards. zed is stopped (a GRUB boot
+# started it; a direct boot never did); udisks2 is masked for this boot
+# (it is D-Bus-activatable) and stopped. After nfs-server is up, so the
+# daemon-reload of the mask does not slow the boot; in the background,
+# waited for before the tests. Best effort: one line of state per unit
+vm 'sudo systemctl stop zfs-zed.service; sudo systemctl mask --runtime --now udisks2.service 2>/dev/null
+  for u in zfs-zed udisks2; do echo "quiet guest: $u $(systemctl is-active $u.service), $(systemctl is-enabled $u.service 2>&1)"; done' \
+  >"$work/quiet.txt" 2>&1 &
+quiet=$!
 vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
 if [ -n "${stored:-}" ]; then
@@ -439,12 +452,12 @@ fi
 # blame without .device units (they filled all 15 lines in run 40505456077);
 # udev-settle: masked (inactive), what still wants it, and any failed unit
 # (one that Requires= a masked unit fails); systemd-modules-load,
-# zfs-load-module and zfs-mount (masked) and zed (started after the
-# modprobe), and what modules-load.d lists, which a masked boot skipped
+# zfs-load-module and zfs-mount (masked), zed (stopped) and udisks2
+# (masked for this boot, stopped), and what modules-load.d lists, which a masked boot skipped
 vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "!/\\.device\$/ && ++n <= 15"
   echo "systemd-udev-settle: $(systemctl is-active systemd-udev-settle.service), $(systemctl is-enabled systemd-udev-settle.service 2>&1); zfs-import-scan: $(systemctl is-enabled zfs-import-scan.service 2>&1)"
   echo "wanted by: $(systemctl show -p WantedBy -p RequiredBy --value systemd-udev-settle.service | tr "\n" " ")"
-  for u in systemd-modules-load zfs-load-module zfs-mount zfs-zed; do printf "%s: %s, %s; " $u "$(systemctl is-active $u.service)" "$(systemctl is-enabled $u.service 2>&1)"; done; echo
+  for u in systemd-modules-load zfs-load-module zfs-mount zfs-zed udisks2; do printf "%s: %s, %s; " $u "$(systemctl is-active $u.service)" "$(systemctl is-enabled $u.service 2>&1)"; done; echo
   echo "modules-load.d (not loaded at boot when masked): $(cat /etc/modules-load.d/*.conf /run/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf 2>/dev/null | awk "!/^[#;]/ && NF" | tr "\n" " ")"
   echo "failed units: $(systemctl --failed --plain --no-legend | awk "{ print \$1 }" | tr "\n" " ")"
   systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
@@ -459,6 +472,8 @@ has endpoint && bins+=("$work/endpoint.plan")
 [ -z "$unit" ] || bins+=("$work/zfs-endpoint" "$work/unitprobe" ci/real-zfs-unit.sh deploy/systemd/zfs-endpoint@.service \
   deploy/systemd/zfs-endpoint@.service.d/hardening.conf)
 scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/test-times.awk ci@127.0.0.1:
+wait "$quiet" || true
+cat "$work/quiet.txt" 2>/dev/null || true
 rc=0
 # concurrent shards on tmpfs-backed pools, three per suite (ci/real-zfs-guest.sh);
 # the logs come back per shard and are merged per check below.

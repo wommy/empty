@@ -206,7 +206,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - **The poll reads the banner, bounded at 0.3s** (`banner` in `ci/real-zfs-vm.sh`, a bash `/dev/tcp` read). A probe that stalls is dropped, and the next one makes slirp send a fresh SYN. Only once a banner comes does ssh log in and open the master, with its full ConnectTimeout. Against a fake slirp (accept and stall, accept and close, or refuse until T), the host saw the banner 0.03–0.40s after T. The old shape (a 5s bound) took 2.2s at T = 3s and 4.3s at T = 6s. Every 40th probe (about 16s) waits 5s, so a guest whose sshd answers slower than 0.3s is still reached (measured: a 1s banner was reached at 17s). The deadline is explicit: 600s. Before, it was 900 polls, 3 to 78 minutes depending on how they failed. The panic fallback is unchanged: qemu exits, and the loop boots again through GRUB.
   - **systemd-modules-load, zfs-load-module and zfs-mount masked** on the kernel command line (direct boots only, no key change). zfs is loaded explicitly by `modprobe zfs` after ssh, in the background over the master, beside the checks that do not need it. Its time is logged (`modprobe zfs: …ms`). The version check (`zfs-kmod-2.4.x`) then gates on it, as before.
     - zfs-mount: no pool exists at boot, so `zfs mount -a` had nothing to do. Its upstream unit has `ConditionPathIsDirectory=/sys/module/zfs` anyway.
-    - zfs-zed has the same condition, so it skips its boot start without the module. It is started (`--no-block`) after the modprobe, so it runs during the tests as before.
+    - zfs-zed has the same condition, so it skips its boot start without the module. It was started (`--no-block`) after the modprobe; since the quiet guest (below) it is left stopped.
     - zfs-share has the same condition and only orders before nfs-server.
     - The zfs-endpoint unit (`Wants=zfs-mount.service`) is fine: a `Wants=` on a masked unit is no failure. It starts after the modprobe, so libzfs never needs `@module`.
     - nfsd is not in modules-load.d. Mounting `/proc/fs/nfsd` loads it, as before, and the nfsd-threads check gates it.
@@ -222,7 +222,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
 - **The first runs must confirm:**
   - `ssh up (N probes)` within about 0.4s of ssh.service in the critical chain (uptime + about 0.8s);
   - `modprobe zfs: …ms, exit 0` and `zfs loaded` before `nfs-server active`;
-  - `systemd-modules-load: inactive, masked-runtime; zfs-load-module: inactive, masked-runtime; zfs-mount: inactive, masked-runtime; zfs-zed: active, enabled`;
+  - `systemd-modules-load: inactive, masked-runtime; zfs-load-module: inactive, masked-runtime; zfs-mount: inactive, masked-runtime; zfs-zed: active, enabled` (since the quiet guest: `zfs-zed: inactive, enabled; udisks2: inactive, masked-runtime`);
   - the `modules-load.d` line lists only `zfs`, or nothing a test needs;
   - no failed units, and both suites and the unit check pass.
   - If modules-load turns out not to gate the path unit, local-fs.target and nfs-server do not move, and the masks gain only csi's 1.05s on the poll's ready time.
@@ -231,6 +231,20 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - Predicted saving: 1.5–3s on the endpoint phase. This is unmeasured.
   - The summary prints the guest's `/proc/cmdline` and `/sys/devices/system/cpu/vulnerabilities/*` once (`guest CPU mitigations: N of M vulnerable`).
   - Adopt it if the endpoint phase drops by at least 1s. Otherwise revert it.
+
+### Quiet guest: no zed, no udisks2 during the tests
+
+- **Data.** The first run on 2f7cf43 (endpoint suite in two parts, `mitigations=off init_on_alloc=0`): the endpoint part's test phase took 10.7s at 93% busy (user 32%, sys+irq 60%), so about 40 CPU-s, of which about 26 are sys+irq. The phase is CPU-contended, so its wall drops about in proportion to the CPU-s removed: 1s of wall is about 3.7 CPU-s.
+- **Lever taken (a separate commit, so it can be reverted alone):**
+  - **zfs-zed is not started.** Before, it was started after the modprobe. Now `ci/real-zfs-vm.sh` stops it, which is a no-op on a direct boot, where its `ConditionPathIsDirectory=/sys/module/zfs` skipped it; a GRUB boot started it. Every zfs(8) command posts `history_event` zevents, and zed forks the matching zedlets for each one: `all-syslog.sh` matches every event and sources zed.rc and zed-functions.sh before its subclass filter drops the event. That is about 2 short shells per event over thousands of events.
+  - **udisks2 is masked for this boot (`mask --runtime --now`) and stopped.** It reacts to every block uevent (zd* add, change, remove) by probing the device, and to every mount and umount by re-reading the whole mountinfo. The tests make hundreds of datasets, so each change costs O(mounts). The mask is needed because it is D-Bus-activatable. It may also hold /dev/zdN open, which makes destroys busy.
+  - Both run after `nfs-server active`, in the background over the master, so the mask's daemon-reload does not slow the boot. They are waited for before the tests. The job log prints one line per unit: `quiet guest: zfs-zed inactive, …` and `quiet guest: udisks2 inactive, masked-runtime`. The boot diagnostics list both units.
+  - **No test depends on either.** No Go file mentions zed, a zedlet, `zpool events`, sysevents, `history_event`, `zfs-list.cache` or UDisks. sharenfs goes through libzfs inside zfs(8), not zed. The /dev/zvol links come from udevd's `60-zvol.rules`, which still run, and the endpoint waits on udevd (`udevadm settle`), not on udisks2. The zfs-list cache only feeds the mount generator at boot. Production hosts run zed, but the endpoint does not consume its output, so the CI guest still exercises the endpoint's contract.
+- **Predicted:** from the unsplit run's estimate (zed 2–6s, udisks2 0.5–2s of a 22.8s, 83 CPU-s phase), scaled to a part's phase of about 40 CPU-s with cheaper forks after `mitigations=off`: about **4–10 CPU-s**, so **−1 to −2.7s** on each endpoint part's test phase, and about the same on push-to-green, since the endpoint parts bind it. The csi job gains less, since it makes fewer zfs(8) calls.
+- **Decision rule.** Keep the quiet guest only if the endpoint test phase drops by at least 1.5s against runs without it, or if the zfs-zed and udisks2 cgroups together used at least 6 CPU-s over the phase in a run without it (the counters above; with the quiet guest those two rows print `-`). Otherwise revert its commit.
+- **Rejected or deferred (they change what the real-ZFS tests exercise):**
+  - skipping udev's blkid probing on zd* (a `UDEV_DISABLE_PERSISTENT_STORAGE_RULES_FLAG` rule): it narrows the real window in which udev holds a new zvol open, which the endpoint's settle-and-retry path is built for. Deferred until the counters show the zvol reads matter;
+  - `zvol_volmode=none` or `zvol_inhibit_dev=1`: no /dev/zvol at all, so the real device lifecycle is gone from the only real-pool run. Rejected.
 
 ## Consequences
 
