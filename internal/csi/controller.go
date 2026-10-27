@@ -27,10 +27,22 @@ type Controller struct {
 	// block capability with InvalidArgument and ValidateVolumeCapabilities
 	// does not confirm one; an existing zvol still expands.
 	EnableBlock bool
+	// EnableLocalFilesystem admits mount access when the endpoint
+	// advertises no NFS server (ADR 0009). Off by default: no node plugin
+	// mounts a bare dataset (csi-driver-nfs needs an export, ADR 0004), so
+	// such a PVC would bind and its pod never start. Off, CreateVolume
+	// refuses mount access outside NFS mode with InvalidArgument and
+	// ValidateVolumeCapabilities does not confirm it; an existing volume
+	// still expands and deletes.
+	EnableLocalFilesystem bool
 }
 
 // errBlockDisabled is the reason a block capability is refused.
 const errBlockDisabled = "block access is disabled: no node plugin can attach a zvol yet; start zfs-csi with -enable-block to provision block volumes anyway"
+
+// errLocalFilesystemDisabled is the reason mount access outside NFS mode
+// is refused (ADR 0009).
+const errLocalFilesystemDisabled = "mount access without NFS is disabled: the endpoint advertises no NFS server, so no node plugin can mount the volume; start zfs-endpoint with -nfs-server (NFS mode), or zfs-csi with -enable-local-filesystem to provision node-local filesystems anyway"
 
 // StorageClass parameters understood here; each maps to an endpoint field.
 const (
@@ -176,8 +188,9 @@ func readOnly(caps []*csi.VolumeCapability) bool {
 
 // kindOf maps the request's access type: block to BLOCK, mount to
 // FILESYSTEM. Mixed or missing access types are invalid, and so is block
-// unless enabled, and always in NFS mode.
-func kindOf(caps []*csi.VolumeCapability, enableBlock bool, m mode) (pb.VolumeKind, error) {
+// unless enabled, and always in NFS mode, and mount outside NFS mode
+// unless local filesystems are enabled.
+func (c *Controller) kindOf(caps []*csi.VolumeCapability, m mode) (pb.VolumeKind, error) {
 	if len(caps) == 0 {
 		return 0, invalid("volume_capabilities are required")
 	}
@@ -192,11 +205,14 @@ func kindOf(caps []*csi.VolumeCapability, enableBlock bool, m mode) (pb.VolumeKi
 			if m.nfs {
 				return 0, invalid(errNFSBlock)
 			}
-			if !enableBlock {
+			if !c.EnableBlock {
 				return 0, invalid(errBlockDisabled)
 			}
 			k = pb.VolumeKind_VOLUME_KIND_BLOCK
 		case vc.GetMount() != nil:
+			if !m.nfs && !c.EnableLocalFilesystem {
+				return 0, invalid(errLocalFilesystemDisabled)
+			}
 			if fs := vc.GetMount().GetFsType(); fs != "" && fs != m.fsType() {
 				return 0, invalid("fs_type %q: mount volumes are %s", fs, m.fsType())
 			}
@@ -215,10 +231,11 @@ func kindOf(caps []*csi.VolumeCapability, enableBlock bool, m mode) (pb.VolumeKi
 // capSupported reports whether an existing volume can serve vc. A zvol
 // may also carry a filesystem (mount access, e.g. one adopted from the
 // baseline); a ZFS filesystem can never be a raw block device. Block access
-// is never confirmed unless enabled, as CreateVolume never grants it. In
+// is never confirmed unless enabled, as CreateVolume never grants it, and
+// neither is mount access outside NFS mode unless local filesystems are. In
 // NFS mode only an exported filesystem is mountable, and an export with
 // only ro= clients takes no writer.
-func capSupported(v *pb.Volume, vc *csi.VolumeCapability, enableBlock bool, m mode) string {
+func (c *Controller) capSupported(v *pb.Volume, vc *csi.VolumeCapability, m mode) string {
 	kind := v.GetKind()
 	if !m.supports(vc.GetAccessMode().GetMode()) {
 		return fmt.Sprintf("access mode %v is not supported", vc.GetAccessMode().GetMode())
@@ -228,7 +245,7 @@ func capSupported(v *pb.Volume, vc *csi.VolumeCapability, enableBlock bool, m mo
 		if m.nfs {
 			return errNFSBlock
 		}
-		if !enableBlock {
+		if !c.EnableBlock {
 			return errBlockDisabled
 		}
 		if kind != pb.VolumeKind_VOLUME_KIND_BLOCK {
@@ -237,6 +254,9 @@ func capSupported(v *pb.Volume, vc *csi.VolumeCapability, enableBlock bool, m mo
 	case vc.GetMount() != nil:
 		fs := vc.GetMount().GetFsType()
 		if !m.nfs {
+			if !c.EnableLocalFilesystem {
+				return errLocalFilesystemDisabled
+			}
 			if kind != pb.VolumeKind_VOLUME_KIND_BLOCK && fs != "" && fs != "zfs" {
 				return fmt.Sprintf("fs_type %q: filesystem volumes are zfs", fs)
 			}
@@ -445,7 +465,7 @@ func (c *Controller) CreateVolume(ctx context.Context, r *csi.CreateVolumeReques
 	if err != nil {
 		return nil, err
 	}
-	kind, err := kindOf(r.GetVolumeCapabilities(), c.EnableBlock, m)
+	kind, err := c.kindOf(r.GetVolumeCapabilities(), m)
 	if err != nil {
 		return nil, err
 	}
@@ -518,7 +538,7 @@ func (c *Controller) ValidateVolumeCapabilities(ctx context.Context, r *csi.Vali
 		return nil, err
 	}
 	for _, vc := range r.GetVolumeCapabilities() {
-		if msg := capSupported(got.GetVolume(), vc, c.EnableBlock, m); msg != "" {
+		if msg := c.capSupported(got.GetVolume(), vc, m); msg != "" {
 			return &csi.ValidateVolumeCapabilitiesResponse{Message: msg}, nil
 		}
 	}

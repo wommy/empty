@@ -1,0 +1,20 @@
+# NFS mode for zfs-endpoint@.service (ADR 0004, ADR 0009). Install as
+# /etc/systemd/system/zfs-endpoint@.service.d/nfs.conf (every instance) or
+# zfs-endpoint@<systemd-escape parent>.service.d/nfs.conf (one), replace
+# the address, then `systemctl daemon-reload` and restart the instance.
+# Unedited, the placeholder is not an address and the endpoint exits 78.
+#
+# - The address is what clients mount from, recorded in every volume and
+#   PV at create and never recomputed (ADR 0004 Q1): advertise a stable
+#   VIP or DNS name, never an address that may change. Repeat
+#   -nfs-server=<address> (space-separated) for more; the first is the
+#   default, StorageClass nfs.server picks another.
+# - NFS export needs root (the unit runs as root) and a running
+#   nfs-server; StorageClass nfs.clients is then required on every volume.
+# - AUTH_SYS: close F6 by deployment before serving tenants (ADR 0001 v2
+#   D8; deploy/k8s/node.yaml lists the controls): deny pod egress to this
+#   host's 2049 (and 111, 20048), and limit 2049 to the node subnet with a
+#   host firewall.
+
+[Service]
+Environment=ZFS_ENDPOINT_NFS=-nfs-server=<nfs-vip-or-dns-name>

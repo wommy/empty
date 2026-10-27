@@ -83,6 +83,9 @@ spec:
             - -csi-address=unix:///csi/csi.sock
             # block volumes stay off until a node plugin exists (ADR 0006)
             # - -enable-block
+            # filesystem volumes without NFS stay off: no node plugin
+            # mounts them; this deployment is NFS mode (ADR 0009)
+            # - -enable-local-filesystem
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

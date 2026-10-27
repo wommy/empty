@@ -115,7 +115,9 @@ func TestSanity(t *testing.T) {
 	}
 	srv := grpc.NewServer()
 	csi.RegisterIdentityServer(srv, &zcsi.Identity{Health: healthpb.NewHealthClient(conn)})
-	csi.RegisterControllerServer(srv, &zcsi.Controller{EP: ep, EnableBlock: at == "block"})
+	// mount mode without NFS provisions node-local filesystems, which
+	// are opt-in (ADR 0009)
+	csi.RegisterControllerServer(srv, &zcsi.Controller{EP: ep, EnableBlock: at == "block", EnableLocalFilesystem: !nfs && at != "block"})
 	csi.RegisterNodeServer(srv, cleanupNode{})
 	go srv.Serve(lis)
 	t.Cleanup(srv.Stop)

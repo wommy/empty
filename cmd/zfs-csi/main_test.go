@@ -67,6 +67,30 @@ func TestEndpointAddress(t *testing.T) {
 	}
 }
 
+// The opt-in flags reach the controller, and both are off by default
+// (ADR 0006 for block, ADR 0009 for node-local filesystems).
+func TestControllerFlags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		args           []string
+		block, localFS bool
+	}{
+		{nil, false, false},
+		{[]string{"-enable-block"}, true, false},
+		{[]string{"-enable-local-filesystem"}, false, true},
+		{[]string{"-enable-local-filesystem", "-enable-block"}, true, true},
+	} {
+		o, err := parseFlags(append([]string{"-parent", "tank/k8s/vols"}, tc.args...))
+		if err != nil {
+			t.Fatalf("%v: %v", tc.args, err)
+		}
+		c := o.controller(nil)
+		if c.EnableBlock != tc.block || c.EnableLocalFilesystem != tc.localFS {
+			t.Errorf("%v: block %v, local filesystem %v; want %v, %v", tc.args, c.EnableBlock, c.EnableLocalFilesystem, tc.block, tc.localFS)
+		}
+	}
+}
+
 // -version prints the build version (set by -ldflags -X, see
 // internal/version) and exits 0 before anything else is checked.
 func TestVersionFlag(t *testing.T) {

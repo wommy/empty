@@ -17,6 +17,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	zcsi "github.com/wommy/empty/internal/csi"
+	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/unixsock"
 )
 
@@ -106,6 +107,57 @@ func TestUnitServesTheConventionalSocket(t *testing.T) {
 	}
 }
 
+// NFS mode is one drop-in away (ADR 0009): the unit ends its ExecStart
+// with an unbraced $ZFS_ENDPOINT_NFS, which systemd splits into words and
+// drops when empty (the unit's default), and the shipped example drop-in
+// sets only that variable, to -nfs-server= words. An operator never
+// restates ExecStart, so the socket convention above still holds.
+func TestUnitNFSDropIn(t *testing.T) {
+	t.Parallel()
+	const env = "ZFS_ENDPOINT_NFS"
+	args, _ := unitFile(t)
+	if len(args) == 0 || args[len(args)-1] != "$"+env {
+		t.Errorf("ExecStart does not end with $%s: %q", env, args)
+	}
+	unit, _ := directives(t, filepath.Join("systemd", "zfs-endpoint@.service"))
+	if !slices.Contains(unit["Environment"], env+"=") {
+		t.Errorf("unit Environment=%q: want %s= (empty: not NFS mode)", unit["Environment"], env)
+	}
+
+	example := filepath.Join("systemd", "zfs-endpoint@.service.d", "nfs.conf.example")
+	b, err := os.ReadFile(example)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "\n[Service]\n") {
+		t.Errorf("%s has no [Service] section", example)
+	}
+	dropIn, _ := directives(t, example)
+	if len(dropIn) != 1 || len(dropIn["Environment"]) != 1 {
+		t.Fatalf("%s sets %v: want one Environment= line only", example, dropIn)
+	}
+	v, ok := strings.CutPrefix(dropIn["Environment"][0], env+"=")
+	words := strings.Fields(v)
+	if !ok || len(words) == 0 {
+		t.Fatalf("%s: Environment=%s, want %s=-nfs-server=...", example, dropIn["Environment"][0], env)
+	}
+	for _, w := range words {
+		a, ok := strings.CutPrefix(w, "-nfs-server=")
+		if !ok || a == "" {
+			t.Errorf("%s: %q is not -nfs-server=<address>", example, w)
+		}
+		// a placeholder: installed unedited, zfs-endpoint refuses it (78)
+		// rather than advertise an address someone else may hold
+		if endpoint.ValidNFSServer(a) == nil {
+			t.Errorf("%s: %q is a valid address; ship a placeholder the endpoint refuses", example, a)
+		}
+	}
+	// a template, not loaded as is: systemd reads only *.conf drop-ins
+	if strings.HasSuffix(example, ".conf") {
+		t.Errorf("%s would be loaded unedited", example)
+	}
+}
+
 // k8sObjects decodes every document in deploy/k8s.
 func k8sObjects(t *testing.T) []map[string]any {
 	t.Helper()
@@ -141,6 +193,32 @@ func k8sObjects(t *testing.T) []map[string]any {
 		}
 	}
 	return out
+}
+
+// Object names in deploy/k8s, by kind: each test selects the object it
+// pins by name, so a second ClusterRole or ServiceAccount (the node
+// plugin's) never silently replaces the controller's.
+const (
+	namespace      = "zfs-csi"
+	controllerName = "zfs-csi-controller"
+	nodeName       = "zfs-csi-node"
+	className      = "zfs"
+)
+
+// object returns the one decoded document of that kind and name; it fails
+// the test when there is none or more than one.
+func object(t *testing.T, objs []map[string]any, kind, name string) map[string]any {
+	t.Helper()
+	var found []map[string]any
+	for _, o := range objs {
+		if o["kind"] == kind && get(o, "metadata", "name") == name {
+			found = append(found, o)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("%d %s objects named %q, want one", len(found), kind, name)
+	}
+	return found[0]
 }
 
 // get walks a decoded document: string keys index maps, ints index lists.
@@ -185,28 +263,34 @@ var (
 func TestManifests(t *testing.T) {
 	t.Parallel()
 	objs := k8sObjects(t)
-	kinds := map[string]map[string]any{}
-	for _, o := range objs {
-		kinds[o["kind"].(string)] = o
+	for _, k := range [][2]string{
+		{"Namespace", namespace}, {"ServiceAccount", controllerName}, {"ClusterRole", controllerName},
+		{"ClusterRoleBinding", controllerName}, {"Deployment", controllerName},
+		{"StorageClass", className}, {"VolumeSnapshotClass", className},
+	} {
+		object(t, objs, k[0], k[1])
 	}
-	for _, k := range []string{"Namespace", "ServiceAccount", "ClusterRole", "ClusterRoleBinding", "CSIDriver", "Deployment", "StorageClass", "VolumeSnapshotClass"} {
-		if kinds[k] == nil {
-			t.Errorf("no %s", k)
+	// one CSIDriver, this one: never csi-driver-nfs's nfs.csi.k8s.io, whose
+	// node plugin runs here under this driver's name (node.yaml)
+	var drivers []any
+	for _, o := range objs {
+		if o["kind"] == "CSIDriver" {
+			drivers = append(drivers, get(o, "metadata", "name"))
 		}
 	}
-
-	drv := kinds["CSIDriver"]
-	if get(drv, "metadata", "name") != zcsi.DefaultDriverName {
-		t.Errorf("CSIDriver %v, want %s", get(drv, "metadata", "name"), zcsi.DefaultDriverName)
+	if len(drivers) != 1 || drivers[0] != zcsi.DefaultDriverName {
+		t.Errorf("CSIDrivers %v, want only %s", drivers, zcsi.DefaultDriverName)
 	}
+	drv := object(t, objs, "CSIDriver", zcsi.DefaultDriverName)
 	if get(drv, "spec", "attachRequired") != false || get(drv, "spec", "podInfoOnMount") != false {
 		t.Errorf("CSIDriver spec %v: want attachRequired and podInfoOnMount false", get(drv, "spec"))
 	}
-	if get(kinds["StorageClass"], "provisioner") != zcsi.DefaultDriverName || get(kinds["VolumeSnapshotClass"], "driver") != zcsi.DefaultDriverName {
+	if get(object(t, objs, "StorageClass", className), "provisioner") != zcsi.DefaultDriverName ||
+		get(object(t, objs, "VolumeSnapshotClass", className), "driver") != zcsi.DefaultDriverName {
 		t.Error("a class names another driver")
 	}
 
-	pod := get(kinds["Deployment"], "spec", "template", "spec")
+	pod := get(object(t, objs, "Deployment", controllerName), "spec", "template", "spec")
 	vols := map[string]any{}
 	for _, v := range get(pod, "volumes").([]any) {
 		vols[get(v, "name").(string)] = v
@@ -262,6 +346,9 @@ func TestManifests(t *testing.T) {
 			}
 			if slices.Contains(args, "-enable-block") {
 				t.Error("the example enables block (ADR 0006: opt-in)")
+			}
+			if slices.Contains(args, "-enable-local-filesystem") {
+				t.Error("the example enables node-local filesystems (ADR 0009: the shipped deployment is NFS mode)")
 			}
 			continue
 		}

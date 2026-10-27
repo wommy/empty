@@ -79,7 +79,10 @@ func (f *nfsFix) restart(t *testing.T, servers ...string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { conn.Close() })
-	f.ctl = &zcsi.Controller{EP: pb.NewEndpointServiceClient(conn)}
+	// without servers the endpoint is not in NFS mode: its mount volumes
+	// are the ones -enable-local-filesystem makes (ADR 0009), what a
+	// pre-NFS deployment holds
+	f.ctl = &zcsi.Controller{EP: pb.NewEndpointServiceClient(conn), EnableLocalFilesystem: true}
 }
 
 func mountCap(mode csi.VolumeCapability_AccessMode_Mode, fsType string) *csi.VolumeCapability {
