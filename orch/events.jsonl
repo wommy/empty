@@ -193,3 +193,5 @@
 {"ts": "2026-10-27T12:39:17Z", "id": "a2ac62479cb0b507d", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-27T12:39:17Z", "id": "a2ac62479cb0b507d", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T12:39:17Z", "id": "a2ac62479cb0b507d", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T12:40:44Z", "id": "a1e5b2325b8cc4919", "from": "queued", "to": "running", "note": "b-ci-split"}
+{"ts": "2026-10-27T12:40:44Z", "id": "a6be5a13a601fd70e", "from": "queued", "to": "running", "note": "b-json-getlist"}
