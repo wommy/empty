@@ -20,7 +20,7 @@
 # ci/real-zfs-cloud-config.yaml (what provisioning installs). Every
 # boot still runs the version, module and nfsd checks below, so a stale
 # disk fails them rather than testing another ZFS. A cold run also stores
-# the guest's kernel, initrd and cmdline, and warm boots load them directly
+# the guest's kernel and cmdline, and warm boots load them directly
 # (-kernel): no SeaBIOS, no GRUB, no BIOS-speed read of the kernel and
 # initrd (qemu start to the guest kernel's clock took 3.5-5.8s in runs
 # 40468413047 and 40469622947). A disk stored without them boots as before.
@@ -28,8 +28,11 @@
 # partition 1) skips the initrd too: the kernel has virtio-pci, virtio-blk
 # and ext4 built in (=y in config-7.3.0-9-generic), so it mounts /dev/vda1
 # itself, and the 4.6s initrd stage (run 40505456077) goes. If that kernel
-# cannot (it panics, qemu exits: -no-reboot), the guest boots again with
-# the stored initrd and the job warns. ZFSVM_INITRD=1 always uses it.
+# cannot (it panics, qemu exits: -no-reboot), the guest boots again through
+# the BIOS and GRUB, from the disk's own /boot (kernel and initrd), and the
+# job warns. ZFSVM_INITRD=1 always boots that way. The initrd is not stored
+# beside the disk (since cache key v5): it is already on the disk, and the
+# 66 MB copy was in every warm restore for a fallback that reads the disk.
 # Every direct boot masks zfs-import-cache and zfs-import-scan from the
 # kernel command line: they Require systemd-udev-settle, which held
 # local-fs.target, so sshd, until every device settled (zfs-import.target
@@ -129,14 +132,10 @@ boot() {
   local direct=() append
   if [ -n "${2:-}" ]; then
     append="$(cat "$2/cmdline") $masks"
-    if [ -n "$noinitrd" ]; then
-      # panic=1 with -no-reboot: a kernel that cannot mount the root exits
-      # qemu, and wait_ssh boots again with the initrd
-      append=$(sed -E 's#(^| )root=LABEL=cloudimg-rootfs( |$)#\1root=/dev/vda1 rootfstype=ext4 rootwait\2#' <<<"$append")
-      direct=(-kernel "$2/vmlinuz" -append "$append panic=1" -no-reboot)
-    else
-      direct=(-kernel "$2/vmlinuz" -initrd "$2/initrd" -append "$append")
-    fi
+    # no initrd. panic=1 with -no-reboot: a kernel that cannot mount the
+    # root exits qemu, and wait_ssh boots again through GRUB
+    append=$(sed -E 's#(^| )root=LABEL=cloudimg-rootfs( |$)#\1root=/dev/vda1 rootfstype=ext4 rootwait\2#' <<<"$append")
+    direct=(-kernel "$2/vmlinuz" -append "$append panic=1" -no-reboot)
   fi
   qemu-system-x86_64 -enable-kvm -cpu host -m 6144 -smp "$(nproc)" -display none "${direct[@]}" \
     -drive file="$1",if=virtio,discard=unmap,cache=unsafe -drive file="$work/seed.img",if=virtio,format=raw \
@@ -145,21 +144,24 @@ boot() {
   launched=$(now_ms)
   echo "launched=$launched" >>"$work/state"
 }
-# the stored disk, through a throwaway overlay; its own kernel when stored
+# the stored disk, through a throwaway overlay; its own kernel, directly
+# and with no initrd, when stored; otherwise through the BIOS and GRUB
 overlay() {
   qemu-img create -q -f qcow2 -F qcow2 -b "$cache/disk.qcow2" "$work/run.qcow2" 20G
-  if [ -s "$cache/vmlinuz" ] && [ -s "$cache/initrd" ] && [ -s "$cache/cmdline" ] && [ -s "$cache/kernel.release" ]; then
+  kernel= noinitrd=
+  if [ -s "$cache/vmlinuz" ] && [ -s "$cache/cmdline" ] && [ -s "$cache/kernel.release" ]; then
     kernel=$(cat "$cache/kernel.release")
     echo "kernel=$kernel" >>"$work/state"
     # the stored cmdline names the cloud image's root by label, which only
     # an initrd resolves; partition 1 of the image carries that label
-    noinitrd=
     if [ -z "${ZFSVM_INITRD:-}" ] && grep -Eq '(^| )root=LABEL=cloudimg-rootfs( |$)' "$cache/cmdline"; then noinitrd=1; fi
-    echo "noinitrd=$noinitrd" >>"$work/state"
-    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline"), initrd $(du -k "$cache/initrd" | cut -f1) KiB${noinitrd:+, not loaded (root=/dev/vda1)}"
+  fi
+  echo "noinitrd=$noinitrd" >>"$work/state"
+  if [ -n "$noinitrd" ]; then
+    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline"), no initrd (root=/dev/vda1)"
     boot "$work/run.qcow2" "$cache"
   else
-    kernel=
+    echo "boot through the BIOS and GRUB, with the disk's kernel and initrd${kernel:+ ($kernel)}"
     boot "$work/run.qcow2"
   fi
 }
@@ -241,10 +243,10 @@ wait_ssh() {
     vm true 2>/dev/null && { up=1; break; }
     if [ -n "$noinitrd" ] && ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
       cp "$work/console.log" "$work/console-noinitrd.log" 2>/dev/null || true
-      echo "::warning::the guest exited booting without an initrd (console-noinitrd.log); booting it with the stored initrd"
+      echo "::warning::the guest exited booting without an initrd (console-noinitrd.log); booting it through the BIOS and GRUB, with the disk's initrd"
       noinitrd=
       echo "noinitrd=" >>"$work/state"
-      boot "$work/run.qcow2" "$cache"
+      boot "$work/run.qcow2"
     fi
     sleep 0.2
   done
@@ -263,21 +265,26 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
   # store the provisioned disk, then carry on from an overlay of it, as a
   # warm run would; failing to store only costs the next run its speed
   t0=$SECONDS
-  # the running kernel, its initrd and command line, for direct kernel
-  # boots of the stored disk; best effort, a warm boot without them goes
-  # through the BIOS and GRUB
+  # what the cloud-config's slimming did (a purge it skipped says why), and
+  # the space in use: the data behind the stored size
+  vm 'sudo awk "/^slim:/" /var/log/cloud-init-output.log; df -h / /boot' || true
+  # the running kernel and its command line, for direct kernel boots of
+  # the stored disk (no initrd: the fallback boots the disk's own through
+  # GRUB); best effort, a warm boot without them goes through the BIOS
   rel=$(vm 'uname -r')
-  if vm "sudo cat /boot/vmlinuz-$rel" >"$work/vmlinuz" && vm "sudo cat /boot/initrd.img-$rel" >"$work/initrd" &&
+  if vm "sudo cat /boot/vmlinuz-$rel" >"$work/vmlinuz" &&
     vm 'sed -E "s/(^| )BOOT_IMAGE=[^ ]*//; s/^ +//" /proc/cmdline' >"$work/cmdline" &&
-    [ -s "$work/vmlinuz" ] && [ -s "$work/initrd" ] && [ -s "$work/cmdline" ]; then
+    [ -s "$work/vmlinuz" ] && [ -s "$work/cmdline" ]; then
     echo "$rel" >"$work/kernel.release"
   else
     echo "::warning::could not copy the guest's kernel $rel; warm boots will go through the BIOS"
-    rm -f "$work/vmlinuz" "$work/initrd" "$work/cmdline" "$work/kernel.release"
+    rm -f "$work/vmlinuz" "$work/cmdline" "$work/kernel.release"
   fi
   # trimmed (discard=unmap) and zstd-compressed: the cached disk shrinks
-  # from 2.3G, which every warm run restores and writes out
-  vm 'sudo apt-get clean; sudo fstrim -av; sudo sync'
+  # from 2.3G, which every warm run restores and writes out. The
+  # provisioning journal goes too (the slimming itself is in the
+  # cloud-config, which keys the guest)
+  vm 'sudo apt-get clean; sudo journalctl --rotate >/dev/null 2>&1; sudo journalctl --vacuum-size=1 >/dev/null 2>&1; sudo fstrim -av; sudo sync'
   vm 'sudo systemctl poweroff' 2>/dev/null || true
   ssh "${common[@]}" -O exit -p 2222 ci@127.0.0.1 2>/dev/null || true
   for _ in $(seq 1 300); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 0.2; done
@@ -285,7 +292,7 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
     rm -rf "$cache" && mkdir -p "$cache"
     qemu-img convert -m 16 -W -c -O qcow2 -o compression_type=zstd "$img" "$cache/disk.qcow2"
     cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
-    for f in vmlinuz initrd cmdline kernel.release; do [ ! -e "$work/$f" ] || cp "$work/$f" "$cache/"; done
+    for f in vmlinuz cmdline kernel.release; do [ ! -e "$work/$f" ] || cp "$work/$f" "$cache/"; done
     echo "$sum" >"$cache/sum"
     # cacheable only once a boot from it passes the checks below
     stored=1
@@ -314,7 +321,7 @@ running=$(vm 'uname -r')
 {
   echo "### real ZFS VM: $series/$build, suite $suite (${pkgs[*]})"
   echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
-  echo "- kernel: \`$running\`${kernel:+ (direct kernel boot${noinitrd:+, no initrd})}"
+  echo "- kernel: \`$running\` ($([ -n "$noinitrd" ] && echo "direct kernel boot, no initrd" || echo "BIOS, GRUB and the disk's initrd"))"
   echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
 } >>"$summary"
 grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \

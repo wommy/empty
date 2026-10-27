@@ -201,8 +201,9 @@ jobs:
             ${{ runner.temp }}/qemu
           key: ${{ steps.keys.outputs.vm }}
       - name: delete superseded guests on this branch
-        # each is ~0.9 GB of the repository's 10 GB cache budget; this also
-        # removes the v3 guest entries. The v3-era qemu-tree-* entries
+        # each is ~0.6 GB (v5; v4 was 0.9 GB) of the repository's 10 GB
+        # cache budget; this also removes older keys' guest entries (v3, v4,
+        # all under zfsvm-). The v3-era qemu-tree-* entries
         # (23 MB) age out unused after 7 days
         if: steps.saveguest.outcome == 'success'
         env:
