@@ -197,8 +197,9 @@ func (g *parked) Run(ctx context.Context, name string, args ...string) ([]byte, 
 	return g.Runner.Run(ctx, name, args...)
 }
 
-// Reconcile takes the lock of everything it touches: an operation holding
-// one makes it Aborted, with nothing applied. A dry run takes no locks.
+// Reconcile takes the lock of everything it touches, without waiting: a
+// volume another operation holds is skipped as busy, and the rest of the
+// run goes on. A dry run takes no locks.
 func TestReconcileLocksTargets(t *testing.T) {
 	ctx := context.Background()
 	ep0, h := setup(t)
@@ -208,7 +209,7 @@ func TestReconcileLocksTargets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"keep", "busy"} {
+	for _, name := range []string{"keep", "busy", "free"} {
 		if _, err := ep0.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
 			t.Fatal(err)
 		}
@@ -220,10 +221,16 @@ func TestReconcileLocksTargets(t *testing.T) {
 	<-g.entered
 
 	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
-	_, err = ep.Reconcile(ctx, keep)
-	wantCode(t, err, endpoint.Aborted)
+	p, err := ep.Reconcile(ctx, keep)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !h.Has(h.Parent + "/busy") {
 		t.Fatal("destroyed a volume another operation held")
+	}
+	if acts, skips := targets(p); !slices.Equal(acts, []string{"free"}) || !slices.Equal(skips, []string{"busy"}) ||
+		p.Skipped[0].Reason != endpoint.SkipBusy || h.Has(h.Parent+"/free") {
+		t.Fatalf("busy volume: %+v", p)
 	}
 	dry := keep
 	dry.DryRun = true

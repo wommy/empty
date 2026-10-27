@@ -241,6 +241,33 @@ func TestReconcileSkipsSourceOfFailedClone(t *testing.T) {
 	}
 }
 
+// F8: Reconcile took every key at once; one busy volume (any op longer
+// than LockWait) aborted the whole run.
+func TestAdv4OneBusyLockAbortsWholeRun(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.vol("a", true)
+	h.vol("z", true)
+	release, err := h.ep.lock(ctx, "vol:z") // e.g. a slow DeleteVolume/expand on z
+	h.must(err)
+	defer release()
+	start := time.Now()
+	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	if err != nil || h.has(a4Parent+"/a") || !h.has(a4Parent+"/z") {
+		t.Fatalf("a not collected because z is busy: %+v %v", p, err)
+	}
+	if len(p.Skipped) != 1 || p.Skipped[0].Target != "z" || p.Skipped[0].Reason != SkipBusy {
+		t.Fatalf("busy z not reported: %+v", p)
+	}
+	if time.Since(start) >= h.ep.cfg.LockWait {
+		t.Fatal("waited for the busy lock")
+	}
+	if h.ep.locks.Held("vol:a") {
+		t.Fatal("lock not released")
+	}
+}
+
 // F6: clone-source snapshots were recognised by name alone. A snapshot an
 // admin or another tool cut with that name on a desired volume was
 // collected.
