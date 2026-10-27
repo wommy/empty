@@ -306,14 +306,21 @@ if [ -z "${ZFSVM_PROVISION_ONLY:-}" ]; then
   # locally; in parallel, so it adds what the test link does not cover.
   # In the background: the wait for ssh and the guest checks below run
   # beside the build (they took 0.7s after ssh in run 40505456077), and
-  # the scp waits for it
+  # the scp waits for it.
+  # At nice 19: the build shares the runner's 4 CPUs with the booting
+  # guest's vCPU threads, and the guest is the critical path. The build
+  # finished 3-5s before the guest was ready (+6.0-8.8s against the login
+  # prompt at +10.4-12.7s, runs 40548715833 and 40549402887), and the
+  # guest's userspace boot grew 1.2-2.6s as the build grew, so the boot
+  # gets the CPU first and the build the rest. Kept only if measured
+  # (ADR 0005, "Host build at nice 19"); else revert this commit
   (
     unitbuild=
     if [ -n "$unit" ]; then
-      CGO_ENABLED=0 go build -o "$work/" ./cmd/zfs-endpoint ./ci/unitprobe &
+      CGO_ENABLED=0 nice -n 19 go build -o "$work/" ./cmd/zfs-endpoint ./ci/unitprobe &
       unitbuild=$!
     fi
-    CGO_ENABLED=0 go test -c -o "$work/" "${pkgs[@]/#/./internal/}"
+    CGO_ENABLED=0 nice -n 19 go test -c -o "$work/" "${pkgs[@]/#/./internal/}"
     # the endpoint plan, from the binary's list (static; -test.list runs no
     # test) and the weights: every part of the suite computes the same plan
     # from the same commit (ci/real-zfs-plan.sh), the guest runs this
@@ -641,7 +648,8 @@ fi
 # TestZFSDiffReplay replays zfs(8) sequences (internal/zfs/zfsdiff) on the
 # pool, the simulator and the reference model. Divergences are reported,
 # not failed (ZFSDIFF_STRICT=1 would); the summary gets the verdict per
-# sequence, the workflow uploads the whole report. Its last line is the
+# sequence, the job log has the whole report (the zfsdiff.log group;
+# uploaded too when the job fails). Its last line is the
 # tally with the replay's wall time.
 if ! inpart TestZFSDiffReplay; then
   :
@@ -663,8 +671,14 @@ else
   echo "::error::vm: the unit check wrote no unit-hardening.log"; rc=1
 fi
 # per-test time (ci/test-times.awk): the data ci/real-zfs-weights.sh turns
-# into ci/real-zfs-weights.txt; the workflow uploads test-times.tsv
+# into ci/real-zfs-weights.txt. Whole into the job log, as the group
+# "test-times.tsv" that ci/real-zfs-weights.sh reads from a saved log: an
+# endpoint job uploads it as an artifact only when it fails, since the
+# upload cost 1-2s of push-to-green on every green run (ADR 0005)
 if [ -s "$o/test-times.tsv" ]; then
+  echo "::group::test-times.tsv"
+  cat "$o/test-times.tsv"
+  echo "::endgroup::"
   {
     echo "<details><summary>real-ZFS shard walls and slowest tests (out/test-times.tsv)</summary>"
     echo

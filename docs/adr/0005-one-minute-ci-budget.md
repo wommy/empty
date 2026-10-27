@@ -58,7 +58,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
     - `t.Parallel` inside a shard is the follow-up. Each test owns its datasets (one child per test).
   - **Time cost as data (adopted):**
     - `ci/real-zfs-weights.txt` is the time cost of each real-pool test, next to `ci/expected-skips.txt`, and it drives the sharding.
-    - The guest writes `test-times.tsv` on every run: each test's own time, its time with parallel subtests summed, and its wall. The file goes into the job summary and an artifact.
+    - The guest writes `test-times.tsv` on every run: each test's own time, its time with parallel subtests summed, and its wall. The file goes into the job summary and the test step's log (group `test-times.tsv`). The endpoint jobs upload it as an artifact only when they fail, and the csi job always uploads it (wave 27: the upload cost 1-2s at the end of the critical job).
     - `ci/real-zfs-weights.sh` regenerates the weights from that file, so refreshing them is mechanical.
     - Weights only balance the shards. They never decide what runs.
   - **The VM starts warm (adopted):**
@@ -155,13 +155,15 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
 - **Cost.**
   - Runner time per push grows by about 24s: two endpoint jobs of about 34s each (about 22.3s fixed plus 12s), against one of about 44s. Billed per job, rounded up to a minute, that is one more minute, which is free on a public repo.
   - Each push restores the guest entry three times instead of twice, which is about 590 MB more cache egress.
-  - The weights still come from the uploaded `test-times.tsv`. There is one per part (`real-zfs-report-endpoint-<p>`). `ci/real-zfs-weights.sh` sums the parts of a run (the `run=` header) before it averages runs.
+  - The weights still come from `test-times.tsv`. There is one per part: in the test step's log on a green run, and in the artifact `real-zfs-report-endpoint-<p>` on a failed one. `ci/real-zfs-weights.sh` reads either, and sums the parts of a run (the `run=` header) before it averages runs.
 - **The first runs must confirm the following:**
   - both endpoint jobs print the same list and plan sha256;
   - `check-split: part p/2: … each in exactly its planned shard`;
   - each part's `guest load` phase is near 12s;
   - the csi job is now the last to finish.
 - **Measured.** Each part's phase took 6.6–10.4s (runs 40536056973, 40536341101, 40536492611; 10.7s and 7.7s on the first three-job run, 40519558807). With the parts this short, no job is reliably last (csi was, on 40535710051): push-to-green is bound by the slowest of the three VM jobs in each run, whichever that is.
+- **Measured, wave 27 (runs 76-90 of PR #1).** The median push-to-green grew from about 38s to about 45s, and the critical test step from 17.8s to 21.4s. Hand-raised weights (TestRealFacts 11.50 against a measured 4.2-6.3, the TestFileExport\* group about 2x high) put 62% of the endpoint work in part 0, whose phase reached 9.3-10.4s against 5.0-7.4s for part 1. The weights were regenerated from runs 40549402887 and 40548715833 by `ci/real-zfs-weights.sh` (job logs: the artifacts could not be fetched where this ran), which moves the plan from 38.1/23.5 measured seconds per part to 30.8/30.8. Expected: 2-3s off the median. Part 0's numbers were measured overloaded (about 1.3-1.5x high), so the weights are to be regenerated again from the first green runs after this change. The endpoint jobs' artifact upload now runs only on failure: 1-1.5s more. Expected median after both is about 41-42s, under the 45s target.
+- **Host build at nice 19 (wave 27, on probation).** `ci/real-zfs-vm.sh` runs the host's `go test -c` and `go build` at `nice -n 19`, so the booting guest's vCPU threads get the runner's 4 CPUs first. The build finished 3-5s before the guest was ready (+6.0-8.8s against a login prompt at +10.4-12.7s, runs 40548715833 and 40549402887), and the guest's userspace boot grew 1.2-2.6s as the build grew. Predicted: 1-2s earlier guest-ready. **Keep rule:** over the next three green runs, the median `timeline: login prompt` of the endpoint jobs must be at least 1s earlier than in runs 40548715833 and 40549402887 (median +12.15s over their four endpoint jobs, +10.4-12.7s), and `test binaries built` must still come before it. Otherwise revert the commit, which is separate so it can be reverted alone. Unlike the guest kernel flags below, it does not stay unmeasured.
 
 ### Cache bytes (zfsvm-v5)
 

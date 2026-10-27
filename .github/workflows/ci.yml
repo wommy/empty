@@ -281,15 +281,20 @@ jobs:
           ZFSVM_PART: ${{ matrix.part }}/${{ matrix.parts }}
         run: ci/real-zfs-vm.sh stonking current 2.4
       - name: upload zfsdiff replay report and test times
-        # every run: TestZFSDiffReplay reports real pool vs simulator vs
-        # reference model divergences without failing the job (the job
-        # summary has the verdicts; the full replay is in nightly.yml).
-        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh (both
-        # endpoint parts: real-zfs-report-endpoint-*), endpoint.plan is the
-        # shard plan both parts ran; load.txt + vmstat.txt: the guest's CPU
-        # and pressure in the tests. zfsdiff.log is in the part that ran
-        # TestZFSDiffReplay
-        if: always()
+        # TestZFSDiffReplay reports real pool vs simulator vs reference
+        # model divergences without failing the job (the job summary has
+        # the verdict per sequence; the full replay is in nightly.yml).
+        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh,
+        # endpoint.plan is the shard plan both parts ran; load.txt +
+        # vmstat.txt: the guest's CPU and pressure in the tests.
+        # zfsdiff.log is in the part that ran TestZFSDiffReplay.
+        # The endpoint parts upload only when they fail: the step cost
+        # 1-2s at the end of the critical job on every green run (ADR
+        # 0005). On a green run the test step's log carries test-times.tsv
+        # (its group "test-times.tsv", which ci/real-zfs-weights.sh reads
+        # from a saved job log), the summary the zfsdiff verdicts, and the
+        # load and plan. csi, with 5-10s of slack, always uploads
+        if: always() && (matrix.suite != 'endpoint' || !success())
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: real-zfs-report-${{ matrix.suite }}${{ matrix.parts != 1 && format('-{0}', matrix.part) || '' }}
