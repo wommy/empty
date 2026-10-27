@@ -1,0 +1,116 @@
+name: nightly
+
+# The slow tier of ADR 0005. Nothing here gates a PR. A failure files an issue
+# carrying the reproducer; the reproducer is then committed as a seed-corpus
+# entry (testdata/fuzz/<Target>/<hash>) so the PR tier replays it forever.
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC, off the hour
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: Per-target fuzz duration (Go duration)
+        default: 5m
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  GOTOOLCHAIN: local
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: FuzzCreateConverges, pkg: ./internal/endpoint }
+          - { name: FuzzReconcileSafe, pkg: ./internal/endpoint }
+          - { name: FuzzParseColumns, pkg: ./internal/zfs }
+          - { name: FuzzClassify, pkg: ./internal/zfs }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-name: nightly-fuzz
+      - name: fuzz ${{ matrix.target.name }}
+        id: fuzz
+        run: go test -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime "${{ inputs.fuzztime || '5m' }}" -fuzzminimizetime 30s ${{ matrix.target.pkg }}
+      - name: collect reproducer
+        if: failure() && steps.fuzz.conclusion == 'failure'
+        run: |
+          mkdir -p "$RUNNER_TEMP/repro"
+          # go test writes a failing input to <pkg>/testdata/fuzz/<Target>/<hash>
+          git ls-files --others --exclude-standard -- '*/testdata/fuzz/*' | tee "$RUNNER_TEMP/repro/files.txt"
+          xargs -a "$RUNNER_TEMP/repro/files.txt" -r -I{} cp --parents {} "$RUNNER_TEMP/repro/"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure() && steps.fuzz.conclusion == 'failure'
+        with:
+          name: fuzz-repro-${{ matrix.target.name }}
+          path: ${{ runner.temp }}/repro
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: file issue
+        if: failure() && steps.fuzz.conclusion == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ matrix.target.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Nightly fuzz of \`$TARGET\` failed: $RUN_URL"
+            echo
+            echo "Add each reproducer below to the seed corpus at the path shown, with a test or fix, so the PR tier replays it."
+            while read -r f; do
+              echo; echo "### \`$f\`"; echo '```'; cat "$f"; echo '```'
+            done < "$RUNNER_TEMP/repro/files.txt"
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly fuzz failure: $TARGET" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
+
+  # The scale tests and the model-based FSM explorer. Contract with the test
+  # code: they carry `//go:build nightly` and are named TestScale* and
+  # TestExplore*, and take their budget from -timeout. Until such tests exist
+  # this step runs nothing and passes.
+  explore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-name: nightly-explore
+      - name: scale tests and FSM explorer
+        id: explore
+        run: go test -tags nightly -count=1 -timeout 25m -run '^Test(Scale|Explore)' -v ./... | tee "$RUNNER_TEMP/explore.log"
+      - name: file issue
+        if: failure() && steps.explore.conclusion == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Nightly scale/explorer run failed: $RUN_URL"
+            echo; echo '```'; grep -E '^(--- FAIL|FAIL|panic)' -A5 "$RUNNER_TEMP/explore.log" | head -80; echo '```'
+          } > "$RUNNER_TEMP/issue.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly explorer failure" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
