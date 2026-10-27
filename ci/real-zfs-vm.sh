@@ -16,7 +16,8 @@
 # runs: guest apt took 47-73s per run, varying with the mirror. A cold run
 # provisions, powers off and stores the disk; a warm run boots a copy-on-
 # write overlay of it and skips the image download and apt. The workflow
-# keys the directory by the image's sha256 and this script's hash. Every
+# keys the directory by the image's sha256 and the hash of
+# ci/real-zfs-cloud-config.yaml (what provisioning installs). Every
 # boot still runs the version, module and nfsd checks below, so a stale
 # disk fails them rather than testing another ZFS.
 set -euo pipefail
@@ -54,27 +55,16 @@ else
   qemu-img resize "$img" 20G
   ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
 fi
-cat >"$work/user-data" <<EOF
-#cloud-config
-users:
-  - name: ci
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    shell: /bin/bash
-    ssh_authorized_keys: [$(cat "$work/key.pub")]
-package_update: true
-packages: [zfsutils-linux, nfs-kernel-server]
-runcmd:
-  - [modprobe, zfs]
-  - [systemctl, enable, --now, nfs-server]
-EOF
+sed "s|@SSH_KEY@|$(cat "$work/key.pub")|" ci/real-zfs-cloud-config.yaml >"$work/user-data"
 [ -n "$warm" ] || cloud-localds "$work/seed.img" "$work/user-data"
 
 # -display none, not -nographic: QEMU refuses -nographic with -daemonize.
-# A warm boot reuses the cold boot's seed: same instance-id, so cloud-init
-# does not provision again.
+# A warm boot reuses the cold boot's seed, though the provisioned disk has
+# cloud-init disabled. All the runner's vCPUs and 6G: the tests run as six
+# concurrent shards with their pools on a guest tmpfs.
 boot() {
-  qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -display none \
-    -drive file="$1",if=virtio -drive file="$work/seed.img",if=virtio,format=raw \
+  qemu-system-x86_64 -enable-kvm -cpu host -m 6144 -smp "$(nproc)" -display none \
+    -drive file="$1",if=virtio,discard=unmap,cache=unsafe -drive file="$work/seed.img",if=virtio,format=raw \
     -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
     -serial file:"$work/console.log" -daemonize -pidfile "$work/qemu.pid"
 }
@@ -85,7 +75,9 @@ overlay() {
 # boot first: provisioning (or a warm boot) overlaps the test compile below
 if [ -n "$warm" ]; then overlay; else boot "$img"; fi
 
-common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
+# one TCP+SSH handshake for the whole run, not one per command
+common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR
+  -o ControlMaster=auto -o ControlPath="$work/ssh-%C" -o ControlPersist=300)
 vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
 
 # on failure, show what the guest printed (console: boot errors) and, if it
@@ -98,7 +90,7 @@ diag() {
   timeout 60 ssh "${common[@]}" -p 2222 ci@127.0.0.1 \
     'cloud-init status --long; sudo tail -n 80 /var/log/cloud-init-output.log; sudo dmesg | grep -iE "zfs|spl|nfsd" | tail -n 20' || true
 }
-trap 'rc=$?; [ $rc -eq 0 ] || diag; [ -f "$work/qemu.pid" ] && kill "$(cat "$work/qemu.pid")" 2>/dev/null; exit $rc' EXIT
+trap 'rc=$?; [ $rc -eq 0 ] || diag; ssh "${common[@]}" -O exit -p 2222 ci@127.0.0.1 2>/dev/null || true; kill "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || true; exit $rc' EXIT
 
 # test binaries: static, so the VM needs no Go toolchain; built as the
 # runner user, only the binaries run as root
@@ -108,7 +100,8 @@ done
 
 wait_ssh() {
   local up=
-  for _ in $(seq 1 180); do vm true 2>/dev/null && { up=1; break; }; sleep 1; done
+  # sshd refuses at once until it is up, so a short poll costs nothing
+  for _ in $(seq 1 900); do vm true 2>/dev/null && { up=1; break; }; sleep 0.2; done
   [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
 }
 wait_ssh
@@ -123,15 +116,19 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
   # store the provisioned disk, then carry on from an overlay of it, as a
   # warm run would; failing to store only costs the next run its speed
   t0=$SECONDS
-  vm 'sudo apt-get clean; sudo sync'
+  # trimmed (discard=unmap) and zstd-compressed: the cached disk shrinks
+  # from 2.3G, which every warm run restores and writes out
+  vm 'sudo apt-get clean; sudo fstrim -av; sudo sync'
   vm 'sudo systemctl poweroff' 2>/dev/null || true
-  for _ in $(seq 1 60); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 1; done
+  ssh "${common[@]}" -O exit -p 2222 ci@127.0.0.1 2>/dev/null || true
+  for _ in $(seq 1 300); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 0.2; done
   if ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
     rm -rf "$cache" && mkdir -p "$cache"
-    qemu-img convert -O qcow2 "$img" "$cache/disk.qcow2"
+    qemu-img convert -m 16 -W -c -O qcow2 -o compression_type=zstd "$img" "$cache/disk.qcow2"
     cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
     echo "$sum" >"$cache/sum"
-    touch "$cache/ok"
+    # cacheable only once a boot from it passes the checks below
+    stored=1
     echo "stored provisioned guest in $cache ($(du -sh "$cache" | cut -f1), $((SECONDS - t0))s)"
     overlay
   else
@@ -142,8 +139,9 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
   fi
   wait_ssh
 fi
-# services (zfs module, nfsd) come up after sshd on a reboot
-vm 'systemctl is-system-running --wait >/dev/null || true'
+# services (zfs module, nfsd) come up after sshd on a reboot; wait for the
+# two the tests need, not for the whole boot to settle
+vm 'for _ in $(seq 1 300); do systemctl is-active -q nfs-server && break; sleep 0.1; done'
 # cloud-init's runcmd ran only on the provisioning boot
 vm 'sudo modprobe zfs'
 vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
@@ -169,30 +167,32 @@ vm 'sudo sh -c "command -v exportfs"' >/dev/null \
 vm 'ls -ld /etc/exports.d /var/lib/nfs/etab 2>&1 || true' # context for an export test failure
 vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
+if [ -n "${stored:-}" ]; then
+  touch "$cache/ok"
+  echo "the stored guest booted and passed the version, module and nfsd checks: cacheable"
+fi
 
 bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
-scp "${common[@]}" -P 2222 "${bins[@]}" ci@127.0.0.1:
+scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci@127.0.0.1:
 rc=0
-vm 'set -eo pipefail
-  # 10G on a 20G guest disk that also holds the OS: the sparse vdev must
-  # not outgrow the filesystem under it, or the pool suspends on ENOSPC
-  truncate -s 10G vdev0
-  sudo zpool create -f -O compression=lz4 zfsep-test "$PWD/vdev0"
-  env=(ZFS_TEST_POOL=zfsep-test ZFS_REQUIRE_REAL=1)
-  rc=0
-  t=(-test.count=1 -test.v -test.timeout=8m)
-  ./endpoint.test -test.list ".*" >endpoint.list
-  ./csi.test -test.list ".*" >csi.list
-  sudo "${env[@]}" ./endpoint.test "${t[@]}" 2>&1 | tee endpoint.log || rc=$?
-  # csi-sanity, Identity and Controller groups, for filesystems and zvols;
-  # the non-sanity csi tests do not depend on the access type, run them once
-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" 2>&1 | tee csi-mount.log || rc=$?
-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run "^TestSanity\$" 2>&1 | tee csi-block.log || rc=$?
-  sudo zpool destroy -f zfsep-test
-  exit $rc' || rc=$?
-
-scp "${common[@]}" -P 2222 'ci@127.0.0.1:*.log' 'ci@127.0.0.1:*.list' "$work/" || rc=1
+# six concurrent shards on six tmpfs-backed pools (ci/real-zfs-guest.sh);
+# the logs come back per shard and are merged per check below
+vm 'sudo bash real-zfs-guest.sh' || rc=$?
+mkdir -p "$work/out"
+scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
+o=$work/out
+for f in "$o"/*.log; do
+  echo "::group::$(basename "$f")"
+  cat "$f"
+  echo "::endgroup::"
+done
+# what check-skips reads: endpoint = the union of its shards (it must
+# cover endpoint.list); csi-mount = the non-sanity tests plus csi-sanity on
+# filesystems (it must cover csi.list); csi-block = csi-sanity on zvols
+cat "$o"/endpoint.[0-9].log >"$work/endpoint.log" || rc=1
+cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" || rc=1
+cp "$o/csi-block.log" "$o/endpoint.list" "$o/csi.list" "$work/" || rc=1
 {
   echo "| leg | package | skips | skipped tests |"
   echo "|---|---|---|---|"

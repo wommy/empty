@@ -1,0 +1,23 @@
+#cloud-config
+# Provisions the real-ZFS guest once (ci/real-zfs-vm.sh, cold run); the
+# result is cached keyed by the image's sha256 and this file's hash, so
+# editing it reprovisions and editing the test runner does not.
+# @SSH_KEY@ is replaced with the run's public key.
+users:
+  - name: ci
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys: [@SSH_KEY@]
+package_update: true
+packages: [zfsutils-linux, nfs-kernel-server]
+runcmd:
+  - [modprobe, zfs]
+  - [systemctl, enable, --now, nfs-server]
+  # every later (warm) boot: zfs loaded by systemd, nothing on the boot path
+  # the tests do not need. The version, module and nfsd checks run on every
+  # boot regardless
+  - [sh, -c, 'echo zfs >/etc/modules-load.d/zfs.conf']
+  - [sh, -c, 'for p in snapd unattended-upgrades; do if dpkg -s $p >/dev/null 2>&1; then apt-get purge -y -qq $p; fi; done']
+  - [sh, -c, 'for u in apt-daily.timer apt-daily-upgrade.timer motd-news.timer man-db.timer e2scrub_all.timer fstrim.timer fwupd-refresh.timer ModemManager.service multipathd.service multipathd.socket lxd-installer.socket; do if systemctl list-unit-files "$u" --no-legend | grep -q .; then systemctl mask "$u"; fi; done']
+  # cloud-init has done its one job; a warm boot skips its four stages
+  - [touch, /etc/cloud/cloud-init.disabled]
