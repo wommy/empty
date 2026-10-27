@@ -1,0 +1,34 @@
+# FSM explore: kind=block prefix=democratic-csi depth=4
+distinct worlds=409 edges=1820 crash/retry runs=5680 combos=212 time=14.909s
+
+## row states observed
+  Adopted-dcsi                                                 5886
+  CSI-snap                                                     4985
+  CSI-snap-deferred                                            133
+  Clone-uncommitted                                            1118
+  Committed                                                    8395
+  Committed-clone                                              2698
+  Created-uncommitted                                          1444
+  Foreign                                                      1210
+  Foreign(recv)                                                1367
+  Foreign-snap                                                 3538
+  Foreign-snap(recv)                                           246
+  OwnCloneSrc-deferred                                         778
+  OwnCloneSrc-live                                             2630
+  OwnCloneSrc-orphan                                           1652
+
+## findings (minimal depth first)
+
+[retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Adopted-dcsi a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Adopted-dcsi]
+  trace: X:dcsi-create(a) ; CV(b<-a,reserve) CRASH@1/3 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+    uncrashed: a:Adopted-dcsi a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+    retried:   a:Adopted-dcsi resp=0
+    diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+    then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+
+[retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Committed]
+  trace: CV(a) ; CV(b<-a,reserve) CRASH@1/3 ; CV(b,reserve) ; DV(b) CRASH@1/1 ; retry DV(b)
+    uncrashed: a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+    retried:   a:Committed resp=0
+    diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+    then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""

@@ -205,3 +205,7 @@
 {"ts": "2026-10-27T12:51:18Z", "id": "addbb299d1cba5653", "from": "queued", "to": "running", "note": "r-explore-diverges"}
 {"ts": "2026-10-27T12:51:18Z", "id": "a878ddc98879e709a", "from": "queued", "to": "running", "note": "b-ci-boot"}
 {"ts": "2026-10-27T12:51:18Z", "id": "aee97a973bae59884", "from": "queued", "to": "running", "note": "b-step1"}
+{"ts": "2026-10-27T12:51:26Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T12:55:52Z", "id": "addbb299d1cba5653", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T12:55:52Z", "id": "addbb299d1cba5653", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T12:55:52Z", "id": "addbb299d1cba5653", "from": "triaged", "to": "done", "note": ""}

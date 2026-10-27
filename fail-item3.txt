@@ -1,0 +1,6 @@
+--- FAIL: TestRealFacts (0.00s)
+    --- FAIL: TestRealFacts/OWN-06/snapshot (0.00s)
+        realfacts_test.go:325: `zfs send -p | zfs recv` keeps a snapshot's user properties (source `received`) and its guid: zfs-endpoint:csi_snapshot_name="-" (source "-"), guid 1001->1001
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.006s
+FAIL

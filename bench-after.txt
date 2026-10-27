@@ -9,4 +9,8 @@ BenchmarkScan/10000-4 	       6	 190699984 ns/op	 139.07 MB/s	18838228 B/op	    
 BenchmarkScan/10000-4 	       5	 245085677 ns/op	 108.21 MB/s	18838273 B/op	     109 allocs/op
 BenchmarkScanPipe/10000-4         	       4	 378436116 ns/op	  70.08 MB/s	43764872 B/op	     254 allocs/op
 BenchmarkScanPipe/10000-4         	       3	 392454087 ns/op	  67.58 MB/s	43762170 B/op	     256 allocs/op
-BenchmarkScanPipe/10000-4         	
+BenchmarkScanPipe/10000-4         	       3	 346085699 ns/op	  76.63 MB/s	43764584 B/op	     253 allocs/op
+BenchmarkScanPipe/10000-4         	       4	 273142123 ns/op	  97.10 MB/s	43765004 B/op	     257 allocs/op
+BenchmarkScanPipe/10000-4         	       4	 276001709 ns/op	  96.09 MB/s	43763052 B/op	     257 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	92.494s

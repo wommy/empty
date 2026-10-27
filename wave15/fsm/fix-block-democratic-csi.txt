@@ -1,0 +1,20 @@
+# FSM explore: kind=block prefix=democratic-csi depth=4
+distinct worlds=409 edges=1820 crash/retry runs=5688 combos=212 time=17.669s
+
+## row states observed
+  Adopted-dcsi                                                 5902
+  CSI-snap                                                     4985
+  CSI-snap-deferred                                            133
+  Clone-uncommitted                                            1118
+  Committed                                                    8413
+  Committed-clone                                              2698
+  Created-uncommitted                                          1446
+  Foreign                                                      1210
+  Foreign(recv)                                                1367
+  Foreign-snap                                                 3542
+  Foreign-snap(recv)                                           246
+  OwnCloneSrc-deferred                                         782
+  OwnCloneSrc-live                                             2630
+  OwnCloneSrc-orphan                                           1616
+
+## findings (minimal depth first)

@@ -1,0 +1,28 @@
+diff --git a/internal/endpoint/plan.go b/internal/endpoint/plan.go
+index e0ac7ba..d9c99d2 100644
+--- a/internal/endpoint/plan.go
++++ b/internal/endpoint/plan.go
+@@ -678,10 +678,20 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
+ // needs the whole parent: they hang off whichever volume was the source.
+ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
+ 	d, err := p.planDelete(t, volID, p.DestroyForeignSnapshots)
+-	if err != nil || d.vol != nil {
+-		return d.plan(), err
++	if err != nil {
++		return nil, err
++	}
++	rel, err := p.releaseCloneSourcesFor(t, volID)
++	if err != nil || d.vol == nil {
++		return rel, err
++	}
++	var plan Plan
++	for _, op := range rel {
++		if d.origin == nil || op.Target != d.origin.Target {
++			plan = append(plan, op)
++		}
+ 	}
+-	return p.releaseCloneSourcesFor(t, volID)
++	return append(plan, d.plan()...), nil
+ }
+ 
+ // releaseCloneSourcesFor plans the release (destroy -d, as a clone delete
