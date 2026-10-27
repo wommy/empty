@@ -1129,23 +1129,25 @@ func (s *Sim) set(args []string) error {
 			list[i].v = autoResv(vs, s.volblocksize(n))
 		}
 	}
-	var cls []string
+	// zfs_prop_set_list_flags: a changelist per property, gathered and
+	// prefixed in order; only mountpoint and the share properties gather
+	// nodes (changelist_gather: any other list is empty, and its postfix
+	// does nothing, not even exportfs), and -u (CL_GATHER_DONT_UNMOUNT)
+	// does neither prefix nor postfix
+	var cls []*clist
 	for _, p := range list {
 		switch {
 		case noMount || n.typ != zfs.TypeFilesystem:
 		case p.k == "mountpoint" || p.k == "sharenfs" || p.k == "sharesmb":
-			cls = append(cls, p.k)
+			cl := s.gather(name, p.k)
+			if err := s.prefix(cl); err != nil {
+				return err
+			}
+			cls = append(cls, cl)
 		case p.k == "canmount" && p.v == "off":
 			// only canmount=off goes through the changelist, and it
 			// unmounts (zfs_prop_set_list_flags)
 			n.mounted = false
-		}
-	}
-	was := map[string]map[string]bool{}
-	for _, c := range cls {
-		var err error
-		if was[c], err = s.prefix(name, c); err != nil {
-			return err
 		}
 	}
 	// zfs_set_prop_nvlist: the space properties are set one by one in
@@ -1167,13 +1169,9 @@ func (s *Sim) set(args []string) error {
 	if len(errs) > 0 {
 		return exit("%s", strings.Join(errs, "\n"))
 	}
-	for _, c := range cls {
-		s.postfix(c, was[c])
+	for _, cl := range cls {
+		s.postfix(cl)
 	}
-	if noMount {
-		return nil // -u: no changelist postfix, so no mount and no (re)share
-	}
-	s.reshare(name)
 	return nil
 }
 
@@ -1228,11 +1226,12 @@ func (s *Sim) inherit(args []string) error {
 		if _, bad := misfit(map[string]string{prop: ""}, tn.typ); bad {
 			continue
 		}
-		cl := tn.typ == zfs.TypeFilesystem && (prop == "mountpoint" || prop == "sharenfs" || prop == "sharesmb")
-		var was map[string]bool
-		if cl {
-			var err error
-			if was, err = s.prefix(t, prop); err != nil {
+		// zfs_prop_inherit: one changelist per dataset, as set has (a
+		// user property takes a path without one)
+		var cl *clist
+		if tn.typ == zfs.TypeFilesystem && (prop == "mountpoint" || prop == "sharenfs" || prop == "sharesmb") {
+			cl = s.gather(t, prop)
+			if err := s.prefix(cl); err != nil {
 				return err
 			}
 		}
@@ -1248,11 +1247,10 @@ func (s *Sim) inherit(args []string) error {
 			}
 			tn.inh[prop] = true
 		}
-		if cl {
-			s.postfix(prop, was)
+		if cl != nil {
+			s.postfix(cl)
 		}
 	}
-	s.reshare(name)
 	return nil
 }
 
@@ -1682,53 +1680,124 @@ func (s *Sim) changelist(name, prop string) []string {
 	return out
 }
 
-// prefix is changelist_prefix: a mountpoint change unmounts every node,
-// deepest mountpoint first (compare_mountpoints). It returns which nodes
-// were mounted. A node with a filesystem mounted below its mountpoint that
-// is not in the list (its own mountpoint and sharenfs set locally, as
-// every endpoint volume has) cannot unmount: the change fails busy before
-// anything is set, and the nodes unmounted before it stay unmounted, since
-// that path runs no postfix.
-func (s *Sim) prefix(name, prop string) (map[string]bool, error) {
-	cl := s.changelist(name, prop)
-	was := map[string]bool{}
-	for _, k := range cl {
-		was[k] = s.ds[k].mounted
+// clist is a gathered changelist (libzfs_changelist.c prop_changelist_t):
+// prop is cl_prop, real cl_realprop. Not modelled: cl_waslegacy (it
+// changes only the unshare branch of a filesystem whose mountpoint was
+// legacy or none, and its name ordering), the SMB unshare in prefix, and
+// zoned.
+type clist struct {
+	prop, real string
+	nodes      []string        // deepest mountpoint first for mountpoint
+	mounted    map[string]bool // cn_mounted
+	shared     map[string]bool // cn_shared
+	needpost   map[string]bool // cn_needpost
+}
+
+// gather is changelist_gather for real at name.
+func (s *Sim) gather(name, real string) *clist {
+	prop := real
+	cl := &clist{prop: prop, real: real, mounted: map[string]bool{}, shared: map[string]bool{}, needpost: map[string]bool{}}
+	cl.nodes = s.changelist(name, prop)
+	for _, k := range cl.nodes {
+		cl.mounted[k] = s.ds[k].mounted
+		_, cl.shared[k] = s.shared[k]
+		cl.needpost[k] = true
 	}
-	if prop != "mountpoint" {
-		return was, nil
+	if prop == "mountpoint" {
+		mp := func(k string) string { v, _, _ := s.value(k, "mountpoint"); return v }
+		slices.SortStableFunc(cl.nodes, func(a, b string) int { return strings.Compare(mp(b), mp(a)) })
+	}
+	return cl
+}
+
+// prefix is changelist_prefix: for a mountpoint changelist every mounted
+// node is unmounted (zfs_unmount: unshare, commit, umount), deepest
+// mountpoint first (compare_mountpoints). A node with a filesystem
+// mounted below its mountpoint that is not in the list (its own
+// mountpoint and sharenfs set locally, as every endpoint volume has)
+// cannot unmount: the change fails busy before anything is set, and the
+// nodes unmounted before it stay unmounted.
+func (s *Sim) prefix(cl *clist) error {
+	if cl.prop != "mountpoint" {
+		return nil
 	}
 	mp := func(k string) string { v, _, _ := s.value(k, "mountpoint"); return v }
-	slices.SortStableFunc(cl, func(a, b string) int { return strings.Compare(mp(b), mp(a)) })
-	for _, k := range cl {
-		if !s.ds[k].mounted {
-			continue
+	for _, k := range cl.nodes {
+		if !s.mounted(k) {
+			continue // zfs_unmount of an unmounted filesystem does nothing
 		}
 		dir := mp(k)
 		for o, n := range s.ds {
 			if n.mounted && o != k && strings.HasPrefix(mp(o), dir+"/") {
-				return was, exit("cannot unmount '%s': pool or dataset is busy", dir)
+				return exit("cannot unmount '%s': pool or dataset is busy", dir)
 			}
 		}
+		s.unshare(k)
+		s.commitShares()
 		s.ds[k].mounted = false
 	}
-	return was, nil
+	return nil
 }
 
-// postfix is changelist_postfix: a node that is not mounted is mounted
-// when it was mounted before, or when canmount=on and the property is
-// mountpoint or a share property is on.
-func (s *Sim) postfix(prop string, was map[string]bool) {
-	for k, wasMounted := range was {
+// postfix is changelist_postfix: walking the nodes in reverse (parents
+// first), a node that is not mounted is mounted when it was mounted
+// before, or when canmount=on and the property is mountpoint itself or a
+// share property is on; then a mounted node with sharenfs on is shared,
+// and one that was shared is unshared otherwise. exportfs runs when any
+// node took either branch, so an empty changelist runs nothing (it
+// returns at uu_avl_last == NULL).
+func (s *Sim) postfix(cl *clist) {
+	commit := false
+	for i := len(cl.nodes) - 1; i >= 0; i-- {
+		k := cl.nodes[i]
 		n := s.ds[k]
-		if n == nil || n.mounted || !s.mountable(k) {
+		if n == nil || !cl.needpost[k] {
+			continue
+		}
+		cl.needpost[k] = false
+		if n.typ != zfs.TypeFilesystem {
 			continue
 		}
 		nfs, _, _ := s.value(k, "sharenfs")
 		smb, _, _ := s.value(k, "sharesmb")
-		if wasMounted || (prop == "mountpoint" || nfs != "off" || smb != "off") && s.canmount(k) == "on" {
+		if !n.mounted && s.mountable(k) && (cl.mounted[k] || (cl.prop == "mountpoint" && cl.real == "mountpoint" || nfs != "off" || smb != "off") && s.canmount(k) == "on") {
 			n.mounted = true
 		}
+		switch {
+		case nfs != "off" && n.mounted:
+			s.shareOne(k)
+			commit = true
+		case cl.shared[k]:
+			s.unshare(k)
+			commit = true
+		}
+	}
+	if commit {
+		s.commitShares()
+	}
+}
+
+// shareOne is zfs_share for NFS: it writes name's zfs.exports line when
+// name is mountable and mounted and sharenfs is on (no exportfs).
+func (s *Sim) shareOne(name string) {
+	if s.nfsDown || !s.mounted(name) || !s.mountable(name) {
+		return
+	}
+	v, _, _ := s.value(name, "sharenfs")
+	if v == "off" {
+		return
+	}
+	mp, _, _ := s.value(name, "mountpoint")
+	if f, err := nfsref.ShareFile(s.exports, mp, v); err == nil {
+		s.exports, s.shared[name] = f, mp
+	}
+}
+
+// commitShares is zfs_commit_shares for NFS: exportfs -ra, whatever
+// changed (nfs_commit_shares), unless NFS is down.
+func (s *Sim) commitShares() {
+	if !s.nfsDown {
+		s.exportfs()
 	}
 }
 
