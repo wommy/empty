@@ -311,3 +311,51 @@ func TestCreateEmptyContentSourceID(t *testing.T) {
 		}
 	}
 }
+
+// Validate confirms only the volume_context CreateVolume issued for the
+// volume (or a subset of it, plus keys Kubernetes adds itself): another
+// volume's dataset, another kind or an unknown key is not confirmed.
+// Parameters are not compared with the volume (deferred: the endpoint API
+// carries no sparse/reserve), so that half is not asserted here.
+func TestValidateComparesIssuedContext(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := &zcsi.Controller{EP: endpointClient(t)}
+	res, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "v", VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
+		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued := res.GetVolume().GetVolumeContext()
+	with := func(k, v string) map[string]string {
+		m := map[string]string{}
+		for ik, iv := range issued {
+			m[ik] = iv
+		}
+		m[k] = v
+		return m
+	}
+	for _, tc := range []struct {
+		name    string
+		vctx    map[string]string
+		confirm bool
+	}{
+		{"issued", issued, true},
+		{"none", nil, true},
+		{"subset", map[string]string{zcsi.CtxKind: "filesystem"}, true},
+		{"provisioner identity", with("storage.kubernetes.io/csiProvisionerIdentity", "123-zfs"), true},
+		{"other dataset", with(zcsi.CtxDataset, "tank/other/vol"), false},
+		{"other kind", with(zcsi.CtxKind, "block"), false},
+		{"unknown key", with("junk", "1"), false},
+	} {
+		got, err := c.ValidateVolumeCapabilities(ctx, &csi.ValidateVolumeCapabilitiesRequest{
+			VolumeId: "v", VolumeCapabilities: []*csi.VolumeCapability{capability(false)}, VolumeContext: tc.vctx,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (got.GetConfirmed() != nil) != tc.confirm {
+			t.Errorf("%s: confirmed=%v (%q), want %v", tc.name, got.GetConfirmed() != nil, got.GetMessage(), tc.confirm)
+		}
+	}
+}

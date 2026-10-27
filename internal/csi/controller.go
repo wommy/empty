@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -247,6 +248,27 @@ func volumeOut(v *pb.Volume) *csi.Volume {
 	return out
 }
 
+// k8sContextPrefixes mark volume_context keys Kubernetes adds to a PV's
+// attributes itself (external-provisioner's
+// storage.kubernetes.io/csiProvisionerIdentity): never issued here, and
+// not the caller's claim about the volume.
+var k8sContextPrefixes = []string{"storage.kubernetes.io/", k8sParamPrefix}
+
+// contextMismatch says why got is not (a subset of) the volume_context
+// issued for the volume, or "" when every key it names has the issued
+// value.
+func contextMismatch(issued, got map[string]string) string {
+	for k, v := range got {
+		if slices.ContainsFunc(k8sContextPrefixes, func(p string) bool { return strings.HasPrefix(k, p) }) {
+			continue
+		}
+		if want, ok := issued[k]; !ok || want != v {
+			return fmt.Sprintf("volume_context %s=%q is not the volume's (%q)", k, v, want)
+		}
+	}
+	return ""
+}
+
 func snapshotOut(s *pb.Snapshot) *csi.Snapshot {
 	return &csi.Snapshot{
 		SnapshotId:     s.GetId(),
@@ -332,6 +354,16 @@ func (c *Controller) ValidateVolumeCapabilities(ctx context.Context, r *csi.Vali
 			return &csi.ValidateVolumeCapabilitiesResponse{Message: msg}, nil
 		}
 	}
+	// the context must be the one CreateVolume issued for this volume:
+	// confirming any context echoed the caller's claims back
+	if msg := contextMismatch(volumeOut(got.GetVolume()).GetVolumeContext(), r.GetVolumeContext()); msg != "" {
+		return &csi.ValidateVolumeCapabilitiesResponse{Message: msg}, nil
+	}
+	// Parameters are only checked for being understood, not against the
+	// volume: pb.Volume carries no sparse/reserve, so a sparse=true repeat
+	// of a thick volume (which CreateVolume calls AlreadyExists) is still
+	// confirmed. Comparing them needs those fields in the endpoint API
+	// (a proto change), deferred.
 	if _, err := parseParams(r.GetParameters()); err != nil {
 		return &csi.ValidateVolumeCapabilitiesResponse{Message: status.Convert(err).Message()}, nil
 	}
