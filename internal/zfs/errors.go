@@ -197,6 +197,9 @@ var patterns = []struct {
 	// already / is not there
 	{KindExists, "tag already exists"},
 	{KindNotFound, "no such tag"},
+	// zfs_main.c share_mount_one, `zfs mount` of a mounted filesystem:
+	// "cannot mount 'tank/a': filesystem already mounted"
+	{KindExists, "filesystem already mounted"},
 	{KindPermission, "permission denied"},
 	// a missing pool is not a missing dataset: never let it read as absent
 	{KindUnavailable, "no such pool"},

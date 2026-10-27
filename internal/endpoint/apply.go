@@ -41,6 +41,8 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 			err = e.zfs.Set(ctx, op.Target, op.Props)
 		case OpDestroy:
 			err = e.zfs.Destroy(ctx, op.Target, zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer})
+		case OpMount:
+			err = e.zfs.Mount(ctx, op.Target)
 		default:
 			// unreachable after the check above; never treat it as done
 			return i, &Error{Code: Internal, Msg: "unknown op kind " + op.Kind.String()}

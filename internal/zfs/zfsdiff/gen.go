@@ -185,8 +185,8 @@ func (g *Gen) Step() Step {
 			add("-r")
 		}
 		add(g.pick([]string{"t1", "t2"}), g.snap())
-	case w < 90 && !g.Full:
-		return g.Step()
+	case w < 90 && !g.Full: // mount (rename's share when Full)
+		add("mount", g.head())
 	case w < 90: // rename
 		add("rename")
 		if g.coin(0.5) {

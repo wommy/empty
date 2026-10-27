@@ -57,6 +57,10 @@ var classes = []struct {
 	{"conflict", "conflicting snapshot"},                    // libzfs_dataset.c:4142
 	{"crosssnap", "must be part of same dataset"},           // libzfs_dataset.c:4519
 	{"descendant", "cannot be a descendant"},                // libzfs_dataset.c:4555
+	{"mounted", "filesystem already mounted"},               // zfs_main.c:7386
+	{"nomount", "'canmount' property is set to 'off'"},      // zfs_main.c:7275
+	{"nomount", "no mountpoint set"},                        // zfs_main.c:7255
+	{"nomount", "legacy mountpoint"},                        // zfs_main.c:7245
 	{"badname", "invalid character"},                        // zfs_namecheck messages
 	{"badname", "missing '@' delimiter"},
 	{"badname", "multiple '@' delimiters"},

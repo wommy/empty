@@ -114,6 +114,8 @@ func (m *Model) Run(_ context.Context, name string, args ...string) ([]byte, err
 			e = m.rename(args[1:])
 		case "promote":
 			e = m.promote(args[1:])
+		case "mount":
+			e = m.mount(args[1:])
 		case "get":
 			out, e = m.get(args[1:])
 		default:

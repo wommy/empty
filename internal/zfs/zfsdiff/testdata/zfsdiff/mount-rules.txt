@@ -1,0 +1,17 @@
+# zfs mount (share_mount_one, OP_MOUNT, explicit): mounts what create -u
+# left unmounted, noauto included; refuses mounted, off, none, legacy, zvols
+# covers: mount
+zfs create -u $R/a
+zfs mount $R/a
+zfs mount $R/a
+zfs create -u -o canmount=noauto $R/n
+zfs mount $R/n
+zfs create -u -o canmount=off $R/o
+zfs mount $R/o
+zfs create -u -o mountpoint=none $R/m
+zfs mount $R/m
+zfs create -u -o mountpoint=legacy $R/l
+zfs mount $R/l
+zfs create -V 67108864 $R/v
+zfs mount $R/v
+zfs mount $R/missing

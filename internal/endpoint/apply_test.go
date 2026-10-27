@@ -30,7 +30,7 @@ func TestApplyRefusesAnUnknownOpKind(t *testing.T) {
 func TestOpKindString(t *testing.T) {
 	for k, want := range map[OpKind]string{
 		OpCreateFS: "create-filesystem", OpCreateVol: "create-volume", OpSnapshot: "snapshot",
-		OpClone: "clone", OpSet: "set", OpDestroy: "destroy", 0: "OpKind(0)", 99: "OpKind(99)",
+		OpClone: "clone", OpSet: "set", OpDestroy: "destroy", OpMount: "mount", 0: "OpKind(0)", 99: "OpKind(99)",
 	} {
 		if got := k.String(); got != want {
 			t.Errorf("%d: %q, want %q", k, got, want)

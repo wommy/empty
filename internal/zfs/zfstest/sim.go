@@ -139,6 +139,8 @@ func (s *Sim) Run(ctx context.Context, name string, args ...string) ([]byte, err
 		return nil, s.inherit(args[1:])
 	case "promote":
 		return nil, s.promote(args[1:])
+	case "mount":
+		return nil, s.mount(args[1:])
 	case "hold":
 		return nil, s.hold(args[1:], true)
 	case "release":
@@ -915,6 +917,38 @@ func (s *Sim) hold(args []string, holding bool) error {
 			s.remove(k)
 		}
 	}
+	return nil
+}
+
+// mount is `zfs mount FS` (zfs_main.c share_mount_one, OP_MOUNT,
+// explicit): legacy and none mountpoints and canmount=off refuse,
+// noauto mounts, an already mounted filesystem is an error. It mounts
+// without sharing (zfs_mount, not zfs_mount_and_share).
+func (s *Sim) mount(args []string) error {
+	if len(args) != 1 || strings.HasPrefix(args[0], "-") {
+		return exit("invalid option or arguments: the simulator models `zfs mount FS` only")
+	}
+	name := args[0]
+	n, ok := s.ds[name]
+	if !ok {
+		return exit("cannot open '%s': dataset does not exist", name)
+	}
+	if n.typ != zfs.TypeFilesystem {
+		return exit("cannot open '%s': operation not applicable to datasets of this type", name)
+	}
+	switch mp, _, _ := s.value(name, "mountpoint"); mp {
+	case "legacy":
+		return exit("cannot mount '%s': legacy mountpoint\nuse mount(8) to mount this filesystem", name)
+	case "none":
+		return exit("cannot mount '%s': no mountpoint set", name)
+	}
+	if s.canmount(name) == "off" {
+		return exit("cannot mount '%s': 'canmount' property is set to 'off'", name)
+	}
+	if n.mounted {
+		return exit("cannot mount '%s': filesystem already mounted", name)
+	}
+	n.mounted = true
 	return nil
 }
 

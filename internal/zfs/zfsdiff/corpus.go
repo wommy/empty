@@ -39,13 +39,14 @@ func Corpus() ([]Seq, error) {
 
 // PRSample is the corpus subset the PR tier replays on the real pool
 // (ADR 0005: the VM job stays under a minute; the whole corpus replays
-// nightly). It is about a fifth of the corpus's zfs invocations (242 of
-// 1,228), chosen for what the endpoint does and what is unsettled: its
+// nightly). It is about a fifth of the corpus's zfs invocations (253 of
+// 1,272), chosen for what the endpoint does and what is unsettled: its
 // Expand, shrink and clone patterns, the three ambiguities, mount
-// changelists, holds and deferred destroys, the space model. No step
-// turns a share on: on PR the replay shares a guest with the NFS tests
-// but not their shard, and a share would run exportfs -ra on their
-// export table (the nightly full replay is sharded with them).
+// changelists and its mount-then-commit resume, holds and deferred
+// destroys, the space model. No step turns a share on: on PR the replay
+// shares a guest with the NFS tests but not their shard, and a share
+// would run exportfs -ra on their export table (the nightly full replay
+// is sharded with them).
 var PRSample = []string{
 	"expand-pattern", "shrink-pattern", "create-vol-resv-auto", "refquota-zero",
 	"recv-quota-none", "defer-endpoint-clone-vol", "clone-vol-default-resv",
@@ -53,6 +54,7 @@ var PRSample = []string{
 	"share-off-unmounted", "recv-canmount-off", "hold-destroy", "destroy-r-held-child",
 	"destroy-r-deferred-origin-inside", "create-vol-rounding", "resv-too-big",
 	"volsize-enospc-revert", "promote-conflict", "inherit-native-from-pool",
+	"mount-endpoint-resume",
 }
 
 // Sample returns the sequences of seqs named in names, in seqs' order.

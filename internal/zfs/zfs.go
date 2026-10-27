@@ -328,6 +328,18 @@ func (c *Client) Inherit(ctx context.Context, name, prop string) error {
 	return err
 }
 
+// Mount runs `zfs mount name`: it mounts a filesystem at its mountpoint
+// (canmount=noauto included) and does not share it. A filesystem that is
+// already mounted fails with KindExists; a legacy or none mountpoint and
+// canmount=off fail unclassified.
+func (c *Client) Mount(ctx context.Context, name string) error {
+	if !ValidDataset(name) {
+		return &Error{Kind: KindInvalidProperty, Op: "mount", Dataset: name, Stderr: "invalid name"}
+	}
+	_, err := c.run(ctx, "mount", name, "mount", name)
+	return err
+}
+
 // Promote runs `zfs promote name`.
 func (c *Client) Promote(ctx context.Context, name string) error {
 	if !ValidDataset(name) {

@@ -92,7 +92,7 @@ jobs:
           } > "$RUNNER_TEMP/issue.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly fuzz failure: $TARGET" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
 
-  # The real-pool replay of the whole zfsdiff corpus (100 sequences, ~1,230
+  # The real-pool replay of the whole zfsdiff corpus (102 sequences, ~1,270
   # zfs invocations, estimated 15-30s): too slow for ADR 0005's PR budget,
   # where the VM replays zfsdiff.PRSample. It runs the same VM suite as
   # ci.yml with ZFSDIFF_FULL=1. Divergences are reported, not failed, until

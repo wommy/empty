@@ -1396,6 +1396,43 @@ func (m *Model) promote(args []string) *exitErr {
 	return nil
 }
 
+// ---- mount ------------------------------------------------------------------------
+
+// mount is `zfs mount FS`: share_mount (cmd/zfs/zfs_main.c:7486) opens the
+// one filesystem (zfs_open with ZFS_TYPE_FILESYSTEM, :7702-7703) and runs
+// share_mount_one(OP_MOUNT, explicit) (:7170). It mounts and does not
+// share (zfs_mount, not zfs_mount_and_share). Options are not modelled.
+func (m *Model) mount(args []string) *exitErr {
+	if len(args) > 0 && strings.HasPrefix(args[0], "-") {
+		return &exitErr{code: 3, msg: "zfsdiff model: mount options not modelled"}
+	}
+	if len(args) == 0 {
+		return &exitErr{code: 3, msg: "zfsdiff model: mount listing not modelled"}
+	}
+	if len(args) > 1 {
+		return usage("too many arguments") // :7697-7701
+	}
+	d, e := m.open(args[0], kFS)
+	if e != nil {
+		return e
+	}
+	errbuf := fmt.Sprintf("cannot mount '%s'", d.name)
+	switch m.effective(d, "mountpoint") {
+	case "legacy": // :7241-7247
+		return fail("%s: legacy mountpoint\nuse mount(8) to mount this filesystem", errbuf)
+	case "none": // :7251-7257
+		return fail("%s: no mountpoint set", errbuf)
+	}
+	if m.effective(d, "canmount") == "off" { // :7270-7277; noauto passes when explicit
+		return fail("%s: 'canmount' property is set to 'off'", errbuf)
+	}
+	if d.mounted { // :7380-7388
+		return fail("%s: filesystem already mounted", errbuf)
+	}
+	d.mounted = true
+	return nil
+}
+
 // ---- get --------------------------------------------------------------------------
 
 // allProps is the property list `zfs get all` prints in the model.

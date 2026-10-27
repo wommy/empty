@@ -85,6 +85,64 @@ func TestClassify244Messages(t *testing.T) {
 	}
 }
 
+// `zfs mount` on the simulator: what create -u left unmounted mounts
+// (noauto too); mounted again is Exists; off, none, legacy and zvols
+// refuse; the mount shares nothing.
+func TestMountAgainstSim(t *testing.T) {
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	c := zfs.New(sim)
+	mounted := func(name string) string {
+		t.Helper()
+		d, err := c.Get(ctx, name, "mounted")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d.Props["mounted"].Value
+	}
+	for name, props := range map[string]map[string]string{
+		"tank/a": {"sharenfs": "on"},
+		"tank/n": {"canmount": "noauto"},
+		"tank/o": {"canmount": "off"},
+		"tank/m": {"mountpoint": "none"},
+		"tank/l": {"mountpoint": "legacy"},
+	} {
+		if _, err := sim.Run(ctx, "zfs", append(append([]string{"create", "-u"}, propOpts(props)...), name)...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.CreateVolume(ctx, "tank/v", 1<<20, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"tank/a", "tank/n"} {
+		if err := c.Mount(ctx, name); err != nil || mounted(name) != "yes" {
+			t.Fatalf("mount %s: %v, mounted=%s", name, err, mounted(name))
+		}
+		if err := c.Mount(ctx, name); !errors.Is(err, zfs.ErrExists) {
+			t.Fatalf("mount %s again: %v, want Exists", name, err)
+		}
+	}
+	if etab, _ := sim.ReadEtab(ctx); len(etab) != 0 {
+		t.Fatalf("zfs mount shared: %q", etab)
+	}
+	for _, name := range []string{"tank/o", "tank/m", "tank/l", "tank/v"} {
+		if err := c.Mount(ctx, name); err == nil || errors.Is(err, zfs.ErrExists) {
+			t.Fatalf("mount %s: %v, want a refusal", name, err)
+		}
+	}
+	if err := c.Mount(ctx, "tank/missing"); !zfs.IsNotFound(err) {
+		t.Fatalf("mount missing: %v", err)
+	}
+}
+
+func propOpts(props map[string]string) []string {
+	var out []string
+	for k, v := range props {
+		out = append(out, "-o", k+"="+v)
+	}
+	return out
+}
+
 // An unclassified failure must never read as "absent" (zfs-localpv and others
 // treat any list error as not-found, which turns transient failures into
 // duplicate creates or false delete successes).
