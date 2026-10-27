@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/server"
 	"github.com/wommy/empty/internal/unixsock"
+	"github.com/wommy/empty/internal/version"
 	"github.com/wommy/empty/internal/zfs"
 )
 
@@ -47,6 +49,8 @@ type deps struct {
 	euid    int
 	// interrupt returns a channel closed by a second signal; nil: none.
 	interrupt func() <-chan struct{}
+	// stdout receives -version; nil: os.Stdout.
+	stdout io.Writer
 }
 
 const (
@@ -59,7 +63,8 @@ const (
 func run(ctx context.Context, args []string, d deps) error {
 	fs := flag.NewFlagSet("zfs-endpoint", flag.ContinueOnError)
 	parent := fs.String("parent", "", "parent dataset to manage, e.g. tank/k8s/vols (required)")
-	listen := fs.String("listen", "unix:///run/zfs-endpoint/endpoint.sock", "unix:///absolute/path to serve on (TCP is refused until transport auth, ADR 0001)")
+	listen := fs.String("listen", "", "unix:///absolute/path to serve on (TCP is refused until transport auth, ADR 0001); default "+unixsock.EndpointAddr("<parent>")+", systemd-escaped, as zfs-endpoint@.service serves it")
+	showVersion := fs.Bool("version", false, "print the version and exit")
 	prefix := fs.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
 	lockWait := fs.Duration("lock-wait", 30*time.Second, "max wait for a busy resource")
 	drain := fs.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
@@ -75,6 +80,14 @@ func run(ctx context.Context, args []string, d deps) error {
 		}
 		return configErr("%v", err)
 	}
+	if *showVersion {
+		out := d.stdout
+		if out == nil {
+			out = os.Stdout
+		}
+		_, err := fmt.Fprintln(out, version.Version)
+		return err
+	}
 	if fs.NArg() > 0 {
 		return configErr("unexpected arguments %q", fs.Args())
 	}
@@ -84,7 +97,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err := validParent(*parent); err != nil {
 		return err
 	}
-	sock, err := socketPath(*listen)
+	sock, err := socketPath(listenAddr(*listen, *parent))
 	if err != nil {
 		return err
 	}
@@ -148,7 +161,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	served := make(chan error, 1)
 	go func() { served <- dmn.GRPC.Serve(lis) }()
 	notify("READY=1\nSTATUS=serving " + *parent)
-	slog.Info("serving", "listen", *listen, "parent", *parent, "max_zfs", *maxZFS)
+	slog.Info("serving", "listen", "unix://"+sock, "parent", *parent, "max_zfs", *maxZFS, "version", version.Version)
 	select {
 	case err := <-served:
 		return fmt.Errorf("serve: %w", err)
@@ -185,6 +198,16 @@ func secondSignal() <-chan struct{} {
 	again := make(chan struct{})
 	go func() { <-sig; close(again) }()
 	return again
+}
+
+// listenAddr is -listen, or by default the one socket convention for parent
+// (unixsock.EndpointAddr): the path zfs-endpoint@.service serves and
+// zfs-csi -parent dials.
+func listenAddr(listen, parent string) string {
+	if listen == "" {
+		return unixsock.EndpointAddr(parent)
+	}
+	return listen
 }
 
 // socketPath accepts only unix:///absolute/path. TCP served the
