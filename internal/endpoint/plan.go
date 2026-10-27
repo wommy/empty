@@ -193,7 +193,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			return nil, err
 		}
 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, srcID
-		plan = Plan{{Kind: OpClone, Source: snap.Name, Target: p.full(id), Props: own, OkExists: true}}
+		plan = Plan{{Kind: OpClone, Source: snap.Name, Target: p.full(id), Props: own}}
 		plan = append(plan, p.sizeOps(id, Row{Type: kindType(r.Kind), Volsize: snap.Volsize}, r, want)...)
 		if r.Kind == Filesystem {
 			// filesystem clones start without refquota; size from the source
@@ -225,7 +225,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		own[p.Names.sourceType()], own[p.Names.sourceID()] = srcType, r.SourceVolumeID
 		plan = Plan{
 			{Kind: OpSnapshot, Target: internal, OkExists: true},
-			{Kind: OpClone, Source: internal, Target: p.full(id), Props: own, OkExists: true},
+			{Kind: OpClone, Source: internal, Target: p.full(id), Props: own},
 		}
 		base := src
 		if r.Kind == Filesystem && want == 0 {
@@ -323,7 +323,7 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	if !ok {
 		return nil, nil
 	}
-	if !row.Managed {
+	if !row.OwnedVolume() {
 		return nil, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
 	}
 	for s := range t.SnapshotsOf(id) {
@@ -350,7 +350,7 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 		return nil, Row{}, err
 	}
 	row, ok := t.Get(id)
-	if !ok || !row.Managed {
+	if !ok || !row.OwnedVolume() {
 		return nil, Row{}, errorf(NotFound, "volume %s not found", id)
 	}
 	want := capacity
@@ -400,7 +400,7 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		return nil, "", errorf(InvalidArgument, "volume id %q too long to address snapshots within 128 bytes", vol)
 	}
 	for r := range t.All() {
-		if r.Type == zfs.TypeSnapshot && r.SnapshotName == name && !r.Deferred {
+		if r.OwnedSnapshot() && r.SnapshotName == name && !r.Deferred {
 			if r.ID == id {
 				return nil, id, nil
 			}
@@ -408,7 +408,7 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		}
 	}
 	src, ok := t.Get(vol)
-	if !ok || src.Type == zfs.TypeSnapshot || !src.Managed {
+	if !ok || !src.OwnedVolume() {
 		return nil, "", errorf(NotFound, "source volume %s not found", vol)
 	}
 	if r, ok := t.Get(id); ok {
@@ -444,7 +444,7 @@ func (p Planner) PlanDeleteSnapshot(t Table, snapID string) (Plan, error) {
 	if !ok || row.Deferred {
 		return nil, nil
 	}
-	if !row.Managed {
+	if !row.OwnedSnapshot() {
 		return nil, errorf(FailedPrecondition, "snapshot %s is not managed", snapID)
 	}
 	return Plan{{Kind: OpDestroy, Target: row.Name, Defer: true, OkMissing: true}}, nil

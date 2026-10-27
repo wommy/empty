@@ -12,8 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/wommy/empty/internal/zfs"
 )
 
 // File export (NFS). The desired client list of a volume is a locally set
@@ -261,7 +259,7 @@ func (p Planner) exportRow(t Table, volID string) (Row, []NFSClient, bool, error
 		return Row{}, nil, false, err
 	}
 	row, ok := t.Get(id)
-	if !ok || !row.Managed || row.Type == zfs.TypeSnapshot {
+	if !ok || !row.OwnedVolume() {
 		return Row{}, nil, false, nil
 	}
 	if row.Kind() == Block {

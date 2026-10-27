@@ -343,8 +343,9 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 		return Volume{}, err
 	}
 	row, ok := t.Get(id)
-	if !ok {
-		return Volume{}, errorf(Internal, "volume %s vanished after provisioning", id)
+	if !ok || !row.OwnedVolume() {
+		// only ours is ever returned: something replaced it after the plan
+		return Volume{}, errorf(Aborted, "volume %s vanished or changed owner after provisioning", id)
 	}
 	return volumeView(row), nil
 }
@@ -407,7 +408,7 @@ func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) 
 		return Volume{}, err
 	}
 	row, ok := t.Get(volID)
-	if !ok || !row.Managed {
+	if !ok || !row.OwnedVolume() {
 		return Volume{}, errorf(NotFound, "volume %s not found", volID)
 	}
 	return volumeView(row), nil
@@ -444,7 +445,7 @@ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToke
 	}
 	var vols []Volume
 	for r := range t.Volumes() {
-		if r.Managed && r.Committed {
+		if r.OwnedVolume() && r.Committed {
 			vols = append(vols, volumeView(r))
 		}
 	}
@@ -493,7 +494,7 @@ func (e *Endpoint) ListSnapshots(ctx context.Context, snapshotID, sourceVolumeID
 	}
 	var snaps []Snapshot
 	for r := range t.All() {
-		if r.Type != zfs.TypeSnapshot || !r.Managed || r.Deferred {
+		if !r.OwnedSnapshot() || r.Deferred {
 			continue
 		}
 		s := snapshotView(t, r)

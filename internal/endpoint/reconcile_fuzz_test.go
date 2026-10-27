@@ -18,8 +18,8 @@ import (
 //
 //   - no op targets a desired, unowned or CSI-snapshotted volume, a CSI
 //     snapshot, or anything younger than the minimum age
-//   - after applying, every desired, unowned or snapshotted volume and
-//     every CSI snapshot still exists
+//   - after applying, every desired, unowned (received copies included)
+//     or snapshotted volume and every CSI snapshot still exists
 //   - reconciling again plans nothing
 func FuzzReconcileSafe(f *testing.F) {
 	f.Add([]byte{0x07, 0x03, 0x23, 0x00, 0x83})
@@ -84,6 +84,12 @@ func FuzzReconcileSafe(f *testing.F) {
 			if b&managed != 0 && b&committed != 0 {
 				if err := z.Set(ctx, parent+"/"+id, map[string]string{names.success(): "true"}); err != nil {
 					t.Fatal(err)
+				}
+			}
+			if b&managed == 0 && b&committed != 0 {
+				// a received copy (zfs recv): every marker, none of them local
+				for k, v := range map[string]string{names.managed(): "true", names.success(): "true", names.volumeName(): id} {
+					sim.Receive(parent+"/"+id, k, v)
 				}
 			}
 			if b&csiSnap != 0 {

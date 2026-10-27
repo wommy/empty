@@ -127,7 +127,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) ReconcilePlan {
 	}
 	var pending []candidate
 	for r := range t.Volumes() {
-		if !r.Managed || want[r.ID] {
+		if !r.OwnedVolume() || want[r.ID] {
 			continue
 		}
 		reason := ReasonUncommitted
@@ -206,7 +206,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) ReconcilePlan {
 		if hasAny(cur.ClonesOf(r.Name)) {
 			continue // in use
 		}
-		if src, ok := cur.Get(vol); !ok || !src.Managed {
+		if src, ok := cur.Get(vol); !ok || !src.OwnedVolume() {
 			skip(r.ID, SkipUnmanagedSource)
 			continue
 		}
