@@ -21,11 +21,11 @@ import (
 //   - a stale socket is replaced, but anything that is not a socket (a
 //     file, a directory, a symlink) is never deleted: a misconfigured
 //     address must not remove what it names;
-//   - the socket is created 0600 (umask 0177 around bind), so it is never
-//     reachable by others, not even between bind and a chmod.
-//
-// umask is process-wide: call Listen during startup, before anything else
-// creates files.
+//   - the socket is never reachable by others, not even between bind and a
+//     chmod: it is bound in a fresh 0700 directory beside path, made 0600
+//     there, then renamed into place (bindPrivate). The process umask is
+//     never touched, so Listen is safe beside anything else creating
+//     files.
 func Listen(path string) (net.Listener, error) {
 	return listen(path, SecureDir)
 }
@@ -81,10 +81,66 @@ func listen(path string, checkDir func(string) error) (net.Listener, error) {
 			return nil, err
 		}
 	}
-	old := syscall.Umask(0o177)
-	l, err := net.Listen("unix", path)
-	syscall.Umask(old)
-	return l, err
+	return bindPrivate(path)
+}
+
+// bindPrivate binds a unix socket at path that only this euid can ever
+// reach: bind(2) gives the socket 0777 less the umask, so it is bound in a
+// fresh 0700 directory beside path, chmodded 0600 there, then renamed into
+// place. A process-wide umask around bind would race with every other
+// goroutine creating files (a parallel test's t.TempDir came out 0600 and
+// unsearchable).
+//
+// The bound name is the private directory's when that fits sun_path, else
+// /proc/self/fd/<dir>/s, which always does.
+func bindPrivate(path string) (net.Listener, error) {
+	dir, err := os.MkdirTemp(filepath.Dir(path), ".")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	tmp := filepath.Join(dir, "s")
+	bind := tmp
+	if len(tmp) > MaxPathLen {
+		d, err := os.Open(dir)
+		if err != nil {
+			return nil, err
+		}
+		defer d.Close()
+		bind = fmt.Sprintf("/proc/self/fd/%d/s", d.Fd())
+	}
+	l, err := net.ListenUnix("unix", &net.UnixAddr{Name: bind, Net: "unix"})
+	if err != nil {
+		return nil, err
+	}
+	// the bound name is gone after the rename: Close unlinks path instead
+	l.SetUnlinkOnClose(false)
+	if err := os.Chmod(tmp, 0o600); err != nil {
+		l.Close()
+		return nil, err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		l.Close()
+		return nil, err
+	}
+	return &listener{l, path}, nil
+}
+
+// listener is a socket renamed into place: it reports path as its address
+// and unlinks it on Close, as net.Listen's own listener does its name.
+type listener struct {
+	*net.UnixListener
+	path string
+}
+
+func (l *listener) Addr() net.Addr { return &net.UnixAddr{Name: l.path, Net: "unix"} }
+
+func (l *listener) Close() error {
+	err := l.UnixListener.Close()
+	if rerr := os.Remove(l.path); err == nil && rerr != nil && !os.IsNotExist(rerr) {
+		err = rerr
+	}
+	return err
 }
 
 // ShareWithGroup opens the socket at path, which Listen created 0600, to

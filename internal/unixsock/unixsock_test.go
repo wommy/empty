@@ -323,3 +323,95 @@ func TestSystemdEscape(t *testing.T) {
 		t.Errorf("EndpointAddr = %q", got)
 	}
 }
+
+// The socket is renamed into place: it reports path, a client connects
+// there, Close unlinks it, and no private bind directory is left behind.
+func TestListenRenamesIntoPlace(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "run")
+	path := filepath.Join(dir, "x.sock")
+	l, err := unixsock.Listen(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := l.Addr().String(); got != path {
+		t.Errorf("Addr %q, want %q", got, path)
+	}
+	c, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+	if ents, _ := os.ReadDir(dir); len(ents) != 1 || ents[0].Name() != "x.sock" {
+		t.Errorf("directory holds %v, want only x.sock", ents)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(path); !os.IsNotExist(err) {
+		t.Errorf("socket still there after Close: %v", err)
+	}
+}
+
+// A path whose private bind name would not fit sun_path binds through
+// /proc/self/fd and still lands 0600 at path.
+func TestListenLongPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, strings.Repeat("d", unixsock.MaxPathLen-len(dir)-1))
+	if len(path) != unixsock.MaxPathLen {
+		t.Fatalf("path is %d bytes, want %d", len(path), unixsock.MaxPathLen)
+	}
+	l, err := unixsock.Listen(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	fi, err := os.Stat(path)
+	if err != nil || fi.Mode()&os.ModeSocket == 0 || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("socket %v %v, want 0600", fi.Mode(), err)
+	}
+	c, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+}
+
+// Listen never touches the process umask: directories made beside it, as
+// parallel tests' t.TempDir are, keep the mode the umask gives them. With
+// a umask around bind, some came out 0600 and unsearchable.
+func TestListenLeavesUmaskAlone(t *testing.T) {
+	probe := func() os.FileMode {
+		d, err := os.MkdirTemp(t.TempDir(), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fi, err := os.Stat(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fi.Mode().Perm()
+	}
+	want := probe()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 300; i++ {
+			l, err := unixsock.Listen(filepath.Join(t.TempDir(), "x.sock"))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			l.Close()
+		}
+	}()
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		if got := probe(); got != want {
+			t.Fatalf("a directory made beside Listen is %v, want %v: the umask changed", got, want)
+		}
+	}
+}
