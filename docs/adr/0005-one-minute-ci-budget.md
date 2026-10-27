@@ -36,15 +36,15 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
     - pure planner tables;
     - simulator tests;
     - the seed-corpus run of each fuzz target as plain `go test`;
-    - the real-ZFS VM suite.
-  - **Nightly:**
-    - exploratory fuzzing (long runs);
-    - the model-based FSM explorer;
-    - scale tests;
-    - real-pool mutant samples;
-    - the full real-pool crash sweep (`ZFS_CRASH_FULL=1`). The PR's real leg runs each crash case uninterrupted plus one crash point, rotated across cases; the simulator leg runs every point on every PR. The full sweep cost about 29s of the VM's two vCPUs (run 40468062545), and it slowed every other shard.
+    - the real-ZFS VM suites, one job and VM per suite (see the two VM jobs below).
+  - **Nightly** (`nightly.yml`, 03:17 UTC and on dispatch; nothing in it gates a PR). Three jobs:
+    - `fuzz`: exploratory fuzzing of the nine targets in its matrix, 5 minutes each by default (the `fuzztime` input).
+    - `real-zfs-full`: the same suite matrix as `ci.yml` (`endpoint`, `csi`), one VM per suite, with `ZFSDIFF_FULL=1` and `ZFS_CRASH_FULL=1`. Both sweeps are endpoint tests; the csi job runs the csi suite against the same guest.
+      - `ZFSDIFF_FULL=1` replays the whole zfsdiff corpus on the real pool. Its divergences are reported, not failed, until the three ambiguities are settled (`ZFSDIFF_STRICT`).
+      - `ZFS_CRASH_FULL=1` runs every crash point of every case on the real pool. The PR's real leg runs each crash case uninterrupted plus one crash point, rotated across cases; the simulator leg runs every point on every PR. The full sweep cost about 29s of the VM's two vCPUs (run 40468062545), and it slowed every other shard.
+    - `explore`: every `TestScale*` and `TestExplore*` test, which carry the `nightly` build tag, within a 25-minute timeout. Today that is the recovery FSM explorer (`TestExploreLifecycle`) and the model sweeps (`TestExploreModelSweep`, `TestExploreModelMasksStillBite`); no `TestScale*` test exists yet. `ci/check-explore-ran.sh` fails a run in which none of them passed.
 
-    A nightly failure files an issue (label `needs-triage`) with the reproducer attached. A human then commits the reproducer as a seed-corpus entry (`testdata/fuzz/<Target>/<hash>`), or as a test for the real-pool jobs, together with the fix, so the PR tier keeps it. The workflow never pushes. Both real-pool sweeps run in `nightly.yml`'s `real-zfs-full` job, which sets `ZFSDIFF_FULL=1` and `ZFS_CRASH_FULL=1`.
+    Each job files an issue labelled `needs-triage` when it fails: `fuzz` with each reproducer inline (and as an artifact), `real-zfs-full` with the failing tests and the zfsdiff summary (the shard logs are an artifact), `explore` with the failing lines of its log. A human then commits a fuzz reproducer as a seed-corpus entry (`testdata/fuzz/<Target>/<hash>`), and a real-pool or explorer failure as a test, together with the fix, so the PR tier keeps it. The workflow never pushes: its only write permission is `issues`.
 - **Mechanisms.** Measured in waves 10 and 13 and adopted where noted. The first CI run of each one confirms the estimates (see the wave 13 notes):
   - **No real waiting in tests:** clocks and durations are injected, and `testing/synctest` is used where no exec is involved.
   - **Assert at the lowest level that proves the row:**

@@ -66,7 +66,7 @@ As built, the floor is **not** part of the ownership grammar. It applies to new 
 
 | key | mode | meaning |
 |---|---|---|
-| `nfs.clients` | static (required there) | Comma-separated IPv4 CIDRs, e.g. `10.20.0.0/24,10.20.1.0/24`. Each CIDR is validated as in §2 and refused if non-canonical: host bits set, no `/N`, overlap, or below the floor. The value is never silently masked. In per-node mode it is refused (InvalidArgument). |
+| `nfs.clients` | static (required there, for every CreateVolume including clones and restores: ADR 0004, amendment Q2) | Comma-separated IPv4 CIDRs, e.g. `10.20.0.0/24,10.20.1.0/24`. Each CIDR is validated as in §2 and refused if non-canonical: host bits set, no `/N`, overlap, or below the floor. The value is never silently masked. In per-node mode it is refused (InvalidArgument). |
 | `nfs.server` | both, optional | The address put into volume_context `server`. It must be one of the endpoint's advertised `nfs_servers`, otherwise InvalidArgument. The default is the first advertised entry. |
 
 - The endpoint's flag `-nfs-server` is repeatable: IPv4 or DNS name, advertised in `GetCapabilitiesResponse.nfs_servers`. The endpoint is the one place that knows its storage addresses. On a multi-homed host the SC chooses among them (§9.5).
@@ -113,7 +113,7 @@ volume_context (§5) also needs dataset root ownership (§11 Q1). Under `root_sq
 
 `server`, `share` (the volume's mountpoint), plus the existing `dataset`, `kind`, `mountpoint`.
 
-`server` is the address recorded at create in the local `<prefix>:nfs_server`: `nfs.server`, or the first advertised one. It is never recomputed (wave13 Q1), because CSI requires a volume to "always report the same volume_context" and a PV's attributes are immutable. Both keys are present only for a volume created with an export. A volume created before that reports neither, which is what it was created with. An inherited or received `nfs_server` belongs to no volume. It is ignored and reported (reconcile).
+`server` is the address recorded at create in the local `<prefix>:nfs_server`: `nfs.server`, or the first advertised one. It is never recomputed (ADR 0004, amendment Q1), because CSI requires a volume to "always report the same volume_context" and a PV's attributes are immutable. Both keys are present only for a volume created with an export. A volume created before that reports neither, which is what it was created with. An inherited or received `nfs_server` belongs to no volume. It is ignored and reported (reconcile).
 
 Nothing else:
 - No `subdir`.
@@ -129,7 +129,7 @@ The CSI name maps to a volume id. Then:
   - Equal: OK. Return the volume. It does not re-verify etab, because reconcile owns that (§10).
   - Different: **ALREADY_EXISTS** ("exported rw to X, requested Y"). This holds even when the difference is an admin's in-grammar edit, so the message names the current value. It matches the existing rule for `properties`.
 - **Committed, FOREIGN or INHERITED.** **ALREADY_EXISTS** with the raw value. This covers adopted volumes, which are not re-created through CreateVolume anyway.
-- **`nfs.server`** (retracted: "not volume state" contradicted the spec's immutable volume_context; wave13 Q1).
+- **`nfs.server`.** Retracted and superseded by ADR 0004, amendment Q1. This bullet first said a different `nfs.server` is "not compared. It is not volume state, and the response carries the new value". That contradicted the CSI spec, which makes a volume's volume_context immutable. What holds instead:
   - Uncommitted: converges to the request, like sharenfs.
   - Committed: a different explicit server is **ALREADY_EXISTS**, naming the recorded one. An omitted server returns the recorded one, even after `-nfs-server` was reordered.
   - A recorded server that is no longer advertised is still returned. The PVs hold it, and reconcile reports it (D8).
