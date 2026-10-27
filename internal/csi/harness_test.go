@@ -27,9 +27,13 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
 	ctx := context.Background()
 	var z *zfs.Client
 	var parent string
+	var settle func(context.Context) error
 	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
 		z = zfs.New(zfs.LocalRunner{})
 		parent = fmt.Sprintf("%s/csi-%d", pool, time.Now().UnixNano())
+		// as cmd/zfs-endpoint: csi-sanity deletes a zvol right after
+		// creating it, while udev may still be probing the new device
+		settle = endpoint.UdevSettle
 		t.Cleanup(func() {
 			if err := z.Destroy(ctx, parent, zfs.DestroyOptions{Recursive: true}); err != nil {
 				t.Errorf("cleanup %s: %v", parent, err)
@@ -44,7 +48,7 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
 	if err := z.CreateFilesystem(ctx, parent, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: parent})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: parent, Settle: settle})
 	if err != nil {
 		t.Fatal(err)
 	}

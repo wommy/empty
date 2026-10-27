@@ -84,6 +84,9 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
 	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true, PropertyPrefix: prefix}
 	if h.sim != nil {
 		cfg.Etab = h.sim
+	} else {
+		// as cmd/zfs-endpoint: a zvol udev is still probing is not in use
+		cfg.Settle = endpoint.UdevSettle
 	}
 	ep, err := endpoint.New(h.Z, cfg)
 	if err != nil {

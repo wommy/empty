@@ -40,7 +40,7 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 		case OpSet:
 			err = e.zfs.Set(ctx, op.Target, op.Props)
 		case OpDestroy:
-			err = e.zfs.Destroy(ctx, op.Target, zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer})
+			err = e.destroy(ctx, op)
 		default:
 			// unreachable after the check above; never treat it as done
 			return i, &Error{Code: Internal, Msg: "unknown op kind " + op.Kind.String()}
@@ -56,6 +56,23 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 		}
 	}
 	return len(plan), nil
+}
+
+// destroy runs a destroy op. A busy destroy settles the host's device
+// events once (Config.Settle) and is retried once: the hold may be udev
+// probing a zvol device the endpoint just created. Still busy, it is the
+// caller's busy (opErr: FAILED_PRECONDITION on a destroy). A failed settle
+// reports the busy it was meant to clear.
+func (e *Endpoint) destroy(ctx context.Context, op Op) error {
+	o := zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer}
+	err := e.zfs.Destroy(ctx, op.Target, o)
+	if e.cfg.Settle == nil || !errors.Is(err, zfs.ErrBusy) {
+		return err
+	}
+	if e.cfg.Settle(ctx) != nil {
+		return err
+	}
+	return e.zfs.Destroy(ctx, op.Target, o)
 }
 
 // opErr maps the failure of op i of plan by operation as well as by Kind:

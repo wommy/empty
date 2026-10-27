@@ -29,6 +29,7 @@ func main() {
 		lockDir:   lockDir,
 		euid:      os.Geteuid(),
 		interrupt: secondSignal,
+		settle:    endpoint.UdevSettle,
 	})
 	cancel()
 	if err != nil {
@@ -47,6 +48,9 @@ type deps struct {
 	euid    int
 	// interrupt returns a channel closed by a second signal; nil: none.
 	interrupt func() <-chan struct{}
+	// settle is Config.Settle (endpoint.UdevSettle); nil for the
+	// simulator, which has no devices.
+	settle func(context.Context) error
 }
 
 const (
@@ -120,7 +124,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err := waitParent(ctx, z, *parent, *parentWait); err != nil {
 		return err
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})
 	if err != nil {
 		return configErr("%v", err)
 	}

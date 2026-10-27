@@ -149,6 +149,19 @@ type Config struct {
 	// what you don't own). Reconcile never uses it: an operator opts in
 	// for a per-volume delete, not for a bulk collection.
 	DestroyForeignSnapshots bool
+	// Settle waits until the host's device manager has handled the device
+	// events already raised (UdevSettle: `udevadm settle`). A zvol is
+	// long-held while anything has its /dev/zdN open, and its destroy is
+	// then EBUSY. Right after `zfs create -V` (or a clone) udev's rules for
+	// the new device (zvol_id, blkid) hold it open for as long as udev
+	// takes to reach the event, so a delete soon after a create can meet a
+	// hold nobody asked for. A busy destroy therefore settles once and
+	// retries once; still busy is a volume in use (FAILED_PRECONDITION).
+	// OpenZFS does the same in its own create error path: it waits out
+	// the zvol's async minor handling and retries the destroy
+	// (zfs_ioctl.c zfs_ioc_create). Nil: no settle and no retry (the
+	// simulator, which has no devices).
+	Settle func(context.Context) error
 }
 
 // Endpoint is the volume service.
