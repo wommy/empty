@@ -98,7 +98,7 @@ serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
 } >>"$summary"
 grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
   || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
-vm 'n=$(cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
+vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
 
 bins=()
