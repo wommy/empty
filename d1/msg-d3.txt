@@ -1,0 +1,24 @@
+deploy: StorageClass nfs.clients placeholder the controller refuses
+
+The shipped class set only reserve. In NFS mode every PVC from it failed
+with "nfs.clients is required" (final), and without NFS mode it bound and
+the pod hung (ADR 0009). It now sets nfs.clients: "<node-subnet>/24",
+which does not parse: the endpoint refuses it with InvalidArgument naming
+the value, a ProvisioningFailed the operator can read, until the node
+network is written in. Not a TEST-NET or other plausible CIDR: that would
+parse, export to nobody and bring back the hung pod. The header now lists
+the nfs.* keys, the -nfs-min-prefix bound, and that parameters are
+immutable.
+
+TestStorageClassClientsPlaceholder (failed first: no nfs.clients) runs the
+shipped class's parameters through zfs-csi over an NFS-mode endpoint on
+the simulator: refused, naming the placeholder; with a real network in its
+place the same class provisions. TestManifests also refuses
+-enable-local-filesystem in the shipped controller (commented out there,
+next to -enable-block).
+
+README: the deployment row names the three things the operator sets
+(nfs.conf, nfs.clients, F6) and the node DaemonSet.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

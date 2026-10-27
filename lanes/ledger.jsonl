@@ -97,3 +97,5 @@
 {"lane": "reader", "id": "rollback", "tokens": 150515, "tools": 27, "ms": 365285, "outcome": "recommend rollback except deadline/cancel; queued after retry-fix", "t": "2026-10-27T17:19:51Z"}
 {"t": "2026-10-27T17:27:02Z", "lane": "reader", "id": "ci-drift", "agent": "ad09e32994f9b0fb5", "growth_s": "3.5-5", "noise": "run 89 +16s restore/queue", "outcome": "q-ci-rebalance after ci-guards"}
 {"t": "2026-10-27T17:28:13Z", "lane": "writer", "id": "ci-guards", "tokens": 126113, "tools": 62, "ms": 461406, "outcome": "merged 240ee30; skiplint static ~0.2s warm"}
+{"t": "2026-10-27T17:34:08Z", "lane": "writer", "id": "retry-fix", "tokens": 190218, "tools": 114, "ms": 973448, "claims_held": 5, "outcome": "merged 040e38b"}
+{"t": "2026-10-27T17:34:08Z", "lane": "writer", "id": "csi-local", "tokens": 228137, "tools": 99, "ms": 834039, "commits": 4, "outcome": "merged; ADR 0009"}

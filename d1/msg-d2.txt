@@ -1,0 +1,23 @@
+deploy: -nfs-server by drop-in ($ZFS_ENDPOINT_NFS, nfs.conf.example)
+
+Turning NFS mode on meant restating the unit's ExecStart in full, whose
+socket paths and -parent %I must match the convention
+TestUnitServesTheConventionalSocket pins. The unit now ends ExecStart with
+an unbraced $ZFS_ENDPOINT_NFS, which systemd splits at whitespace and drops
+when empty, and sets ZFS_ENDPOINT_NFS= (empty: not NFS mode, as before).
+
+deploy/systemd/zfs-endpoint@.service.d/nfs.conf.example sets only that
+variable, to -nfs-server=<nfs-vip-or-dns-name>, with notes on stable
+addresses (ADR 0004 Q1), root and nfs-server, and the F6 controls (ADR
+0001 v2 D8). Not a .conf, so systemd ignores it until installed; the
+placeholder fails endpoint.ValidNFSServer, so installed unedited the
+endpoint exits 78 instead of advertising someone else's address.
+
+TestUnitNFSDropIn (failed first: no $ZFS_ENDPOINT_NFS, no example) pins
+both; TestUnitLint's namespace ban also covers the example.
+systemd-analyze verify parses the unit with and without the drop-in
+(only the absent binary is reported); ci/real-zfs-unit.sh starts the unit
+on the VM leg, so a broken ExecStart fails there.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

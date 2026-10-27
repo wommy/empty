@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Regenerate ci/real-zfs-weights.txt from the per-test times of real-ZFS VM
+# runs: the test-times.tsv the guest writes (ci/test-times.awk), one per
+# part of the endpoint suite. ci.yml's endpoint jobs print it into their
+# job log (the group "test-times.tsv" of the test step) on every run, and
+# upload it (artifact real-zfs-report-endpoint-<p>) only when the job
+# fails: the upload sat on push-to-green (ADR 0005). Either works here.
+#
+# usage: ci/real-zfs-weights.sh [-s <source note>] [-l <endpoint.list>] <test-times.tsv or job log>...
+#   from the job logs (a green run): the test step's log of each endpoint
+#   part, e.g. `gh run view <run> --log --job <job>` or the GitHub MCP
+#   get_job_logs, saved one file per part:
+#     ci/real-zfs-weights.sh -s "run <run>" -l endpoint.list <run>/ep0.log <run>/ep1.log
+#   from the artifacts (a failed run):
+#     gh run download <run> -p 'real-zfs-report-endpoint-*' -D /tmp/tt
+#     ci/real-zfs-weights.sh -s "run <run>" /tmp/tt/*/test-times.tsv
+# A job log is recognised by its "<timestamp>Z " line prefix. A log from
+# before the test-times.tsv group was printed (runs up to 40549402887)
+# is read from its endpoint shard logs (the groups endpoint.<i>.log)
+# through ci/test-times.awk, without timestamps (no wall_s), with nproc
+# from its "on <n> vCPUs" line; such a log has no run= header, so the
+# parts of one run go in one directory, which stands for the run.
+# endpoint.list drops old weights of tests that no longer exist: an
+# artifact carries the run's next to the TSV (the first file's is used
+# when -l is not given); with logs, give -l (the commit's list:
+# `go test -c -o /tmp/e.test ./internal/endpoint && /tmp/e.test -test.list '.*'`),
+# or old weights of removed tests stay. The parts of one run (the TSV
+# header's run=<id>) are one measurement: their rows add up as one
+# file's would. The old file's `# note:` lines are carried over, with a
+# reminder: drop each whose hand-set weight the new runs now measure.
+#

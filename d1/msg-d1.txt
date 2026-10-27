@@ -1,0 +1,34 @@
+deploy: ship csi-driver-nfs's node DaemonSet under this driver's name
+
+Nothing registered zfs-endpoint.wommy.github.io on a node, so kubelet
+failed every NodePublish ("driver name ... not found in the list of
+registered CSI drivers"). ADR 0004 delegates the node side to
+csi-driver-nfs with --drivername; deploy/k8s/node.yaml now runs it.
+
+Copied from upstream deploy/v4.13.6/csi-nfs-node.yaml (the latest tag),
+with images pinned by tag and digest from kubernetes/k8s.io's promoter
+images.yaml at 56620372 (registry.k8s.io itself is unreachable here):
+nfsplugin v4.13.6, csi-node-driver-registrar v2.17.0, livenessprobe
+v2.19.0. Changes from upstream: our driver name and plugin path, no
+CSIDriver nfs.csi.k8s.io and no controller, no service account token
+(upstream binds csi-nfs-node-sa to no role), the registrar and the
+liveness probe unprivileged with a read-only root and the socket mounted
+read-only, the probe on 29663 so it does not collide with upstream's
+29653 on the host network. The header carries ADR 0001 v2 D8's F6
+controls. The namespace's Pod Security privileged label already admits it.
+
+Test seam first: controller() and TestManifests' kinds map kept the last
+object of each kind, so a second ClusterRole replaced the controller's in
+TestSidecarRBAC (a ClusterRole added after it gave 43 false "lacks"
+errors; one with a superset of rules would have passed silently). Each
+object is now selected by kind and name (object()).
+
+TestNodeDaemonSet (failed first: no DaemonSet) pins the driver name, the
+registration path, digests, requests and limits, the hardened fields, the
+liveness port pairing, the node account's RBAC against what upstream
+grants its node account at the pinned tag (upstreamNodeRBAC, keyed by
+image tag), and the F6 header. TestManifests now also refuses any
+CSIDriver but ours.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
