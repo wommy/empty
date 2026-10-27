@@ -1,0 +1,115 @@
+== CreateVolume block new (5 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+   zfs get -j -p type tank/k8s/vols
+   zfs create -V 1073741824 -o zfs-endpoint:csi_volume_name=b1 -o zfs-endpoint:managed_resource=true tank/k8s/vols/b1
+   zfs set zfs-endpoint:committed_at=1793118516 zfs-endpoint:provision_success=true tank/k8s/vols/b1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+== CreateVolume block retry (2 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+== CreateVolume fs new (7 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs get -j -p type tank/k8s/vols
+   zfs get -j -p mountpoint tank/k8s/vols
+   zfs create -o devices=off -o exec=off -o mountpoint=/tank/k8s/vols/f1 -o refquota=1073741824 -o setuid=off -o sharenfs=off -o sharesmb=off -o zfs-endpoint:csi_volume_name=f1 -o zfs-endpoint:managed_resource=true tank/k8s/vols/f1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs set zfs-endpoint:committed_at=1793118516 zfs-endpoint:provision_success=true tank/k8s/vols/f1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+== CreateVolume fs retry (2 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+== CreateVolume nfs new (8 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/n1
+   zfs get -j -p type tank/k8s/vols
+   zfs get -j -p mountpoint tank/k8s/vols
+   zfs create -o devices=off -o exec=off -o mountpoint=/tank/k8s/vols/n1 -o refquota=1073741824 -o setuid=off -o sharenfs=rw=10.1.2.3/32 -o sharesmb=off -o zfs-endpoint:csi_volume_name=n1 -o zfs-endpoint:managed_resource=true -o zfs-endpoint:nfs_server=10.0.0.1 tank/k8s/vols/n1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/n1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/n1
+   zfs set zfs-endpoint:committed_at=1793118516 zfs-endpoint:provision_success=true tank/k8s/vols/n1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/n1
+== CreateVolume nfs retry (2 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/n1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/n1
+== GetVolume (1 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+== ListVolumes (1 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 2 <cols> tank/k8s/vols
+== CreateSnapshot new (3 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 2 <cols> tank/k8s/vols
+   zfs snapshot -o zfs-endpoint:csi_snapshot_name=s1 -o zfs-endpoint:csi_snapshot_source_volume_id=b1 -o zfs-endpoint:managed_resource=true tank/k8s/vols/b1@s1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+== CreateSnapshot retry (1 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 2 <cols> tank/k8s/vols
+== ListSnapshots (1 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 2 <cols> tank/k8s/vols
+== CreateVolume from snapshot (7 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c1
+   zfs get -j -p type tank/k8s/vols
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+   zfs clone -o zfs-endpoint:csi_volume_content_source_id=b1@s1 -o zfs-endpoint:csi_volume_content_source_type=snapshot -o zfs-endpoint:csi_volume_name=c1 -o zfs-endpoint:managed_resource=true tank/k8s/vols/b1@s1 tank/k8s/vols/c1
+   zfs set refreservation=auto tank/k8s/vols/c1
+   zfs set zfs-endpoint:committed_at=1793118516 zfs-endpoint:provision_success=true tank/k8s/vols/c1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c1
+== CreateVolume from snapshot retry (3 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c1
+== CreateVolume from volume (11 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c2
+   zfs get -j -p type tank/k8s/vols
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs get -j -p mountpoint tank/k8s/vols
+   zfs snapshot -o zfs-endpoint:clone_source_for=c2 -o zfs-endpoint:managed_resource=true tank/k8s/vols/f1@volume-source-for-volume-c2
+   zfs clone -o devices=off -o exec=off -o mountpoint=/tank/k8s/vols/c2 -o setuid=off -o sharenfs=off -o sharesmb=off -o zfs-endpoint:csi_volume_content_source_id=f1 -o zfs-endpoint:csi_volume_content_source_type=volume -o zfs-endpoint:csi_volume_name=c2 -o zfs-endpoint:managed_resource=true tank/k8s/vols/f1@volume-source-for-volume-c2 tank/k8s/vols/c2
+   zfs set refquota=1073741824 tank/k8s/vols/c2
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c2
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs set zfs-endpoint:committed_at=1793118516 zfs-endpoint:provision_success=true tank/k8s/vols/c2
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c2
+== ExpandVolume (3 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs set refquota=2147483648 tank/k8s/vols/f1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+== ExpandVolume retry (2 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+== Publish (2 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs set sharenfs=rw=10.9.9.9/32 tank/k8s/vols/f1
+== Publish retry (1 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+== Unpublish (2 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs set sharenfs=off tank/k8s/vols/f1
+== Unpublish retry (1 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+== DeleteSnapshot (has clone) (3 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/b1
+   zfs get -j -p guid tank/k8s/vols/b1@s1
+   zfs destroy -d tank/k8s/vols/b1@s1
+== DeleteVolume c2 (clone of f1) (7 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c2
+   zfs get -j -p -t snapshot -d 2 type tank/k8s/vols
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs get -j -p guid tank/k8s/vols/f1@volume-source-for-volume-c2
+   zfs destroy -d tank/k8s/vols/f1@volume-source-for-volume-c2
+   zfs get -j -p guid tank/k8s/vols/c2
+   zfs destroy tank/k8s/vols/c2
+== DeleteVolume c1 (4 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/c1
+   zfs get -j -p -t snapshot -d 2 type tank/k8s/vols
+   zfs get -j -p guid tank/k8s/vols/c1
+   zfs destroy tank/k8s/vols/c1
+== DeleteVolume f1 (4 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs get -j -p -t snapshot -d 2 type tank/k8s/vols
+   zfs get -j -p guid tank/k8s/vols/f1
+   zfs destroy tank/k8s/vols/f1
+== DeleteVolume f1 retry (3 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/f1
+   zfs get -j -p type tank/k8s/vols
+   zfs get -j -p -t snapshot -d 2 type tank/k8s/vols
+== DeleteVolume missing (3 calls) err=<nil>
+   zfs get -j -p -t filesystem,volume,snapshot -d 1 <cols> tank/k8s/vols/nope
+   zfs get -j -p type tank/k8s/vols
+   zfs get -j -p -t snapshot -d 2 type tank/k8s/vols

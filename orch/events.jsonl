@@ -363,3 +363,7 @@
 {"ts": "2026-10-27T16:24:30Z", "id": "a4d747b6e8fa52105", "from": "queued", "to": "running", "note": "q-scan-reduction"}
 {"ts": "2026-10-27T16:24:30Z", "id": "ac1787ce6d014e384", "from": "queued", "to": "running", "note": "q-csi-recheck"}
 {"ts": "2026-10-27T16:24:30Z", "id": "a62addd0d2b7fd9ff", "from": "queued", "to": "running", "note": "q-weakening"}
+{"ts": "2026-10-27T16:29:15Z", "id": "a3f0a5f1f843a9fe2", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T16:29:15Z", "id": "a3f0a5f1f843a9fe2", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T16:29:15Z", "id": "a3f0a5f1f843a9fe2", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T16:29:15Z", "id": "a3b322c80ba25f7fc", "from": "queued", "to": "running", "note": "q-cov-tests"}
