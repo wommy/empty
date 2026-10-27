@@ -48,6 +48,9 @@ type Sim struct {
 	Fail func(args []string) error
 	// PoolSize is reported as available space at the pool root.
 	PoolSize uint64
+	// OpenZFS22 makes index properties parse and print with OpenZFS 2.2's
+	// tables (index.go) instead of 2.4's.
+	OpenZFS22 bool
 	// Clock stamps the creation property of new datasets and snapshots
 	// (unix seconds). Nil is the wall clock.
 	Clock func() int64
@@ -228,6 +231,9 @@ func (s *Sim) create(args []string) error {
 	if k, bad := misfit(props, typ); bad {
 		return exit("cannot create '%s': '%s' does not apply to datasets of this type", name, k)
 	}
+	if msg, ok := s.canonProps(props); !ok {
+		return exit("cannot create '%s': %s", name, msg)
+	}
 	n := &node{typ: zfs.TypeFilesystem, props: props, birth: s.now()}
 	if volsize != "" {
 		v, err := strconv.ParseUint(volsize, 10, 64)
@@ -296,6 +302,9 @@ func (s *Sim) clone(args []string) error {
 	}
 	if k, bad := misfit(props, typ); bad {
 		return exit("cannot create '%s': '%s' does not apply to datasets of this type", name, k)
+	}
+	if msg, ok := s.canonProps(props); !ok {
+		return exit("cannot create '%s': %s", name, msg)
 	}
 	n := &node{typ: typ, props: props, origin: snap, birth: s.now()}
 	if typ == zfs.TypeVolume {
@@ -441,6 +450,11 @@ func (s *Sim) set(args []string) error {
 		if k, bad := misfit(map[string]string{p[0]: p[1]}, n.typ); bad {
 			return exit("cannot set property for '%s': '%s' does not apply to datasets of this type", name, k)
 		}
+		c, msg, ok := s.canonIndex(p[0], p[1])
+		if !ok {
+			return exit("cannot set property for '%s': %s", name, msg)
+		}
+		p[1] = c
 		if p[0] == "volblocksize" {
 			return exit("cannot set property for '%s': 'volblocksize' is readonly", name)
 		}
@@ -646,6 +660,9 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 	if prop == "volsize" && n.typ == zfs.TypeSnapshot {
 		// a zvol snapshot reports the volume's size at snapshot time
 		return s.ds[parent(name)].props["volsize"], "-", true
+	}
+	if prop == "xattr" && s.OpenZFS22 {
+		return "on", "default", true // 2.2's default is the dir-based xattr
 	}
 	if v, ok := defaults[prop]; ok {
 		return v, "default", true
