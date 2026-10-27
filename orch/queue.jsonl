@@ -1,0 +1,1 @@
+{"id": "q-scan-slots", "name": "scan-slots", "lane": "writer", "wave": 30, "branch": "scan-slots", "src": "wave28/races.md", "items": "F1 delete listing takes a slot; F2 reserved slot for lock-holding scans (CreateSnapshot, reconcile rescan)", "prio": 1, "after": "rollback"}

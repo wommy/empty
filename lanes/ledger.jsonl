@@ -101,3 +101,4 @@
 {"t": "2026-10-27T17:34:08Z", "lane": "writer", "id": "csi-local", "tokens": 228137, "tools": 99, "ms": 834039, "commits": 4, "outcome": "merged; ADR 0009"}
 {"t": "2026-10-27T17:38:16Z", "lane": "writer", "id": "ci-rebalance", "tokens": 187373, "tools": 81, "ms": 563844, "outcome": "merged f389474; nice on probation: keep if median endpoint login prompt <= +11.15s over next 3 green runs"}
 {"t": "2026-10-27T17:39:13Z", "lane": "reader", "id": "operator", "agent": "af5ac15f93157bea3", "tokens": 191089, "tools": 31, "ms": 284907, "gaps": 10, "outcome": "-> ops-endpoint + ops-csi writers"}
+{"t": "2026-10-27T17:41:43Z", "lane": "reader", "id": "races", "agent": "a88911dfbc1ca4455", "correctness_races": 0, "resource_issues": 2, "outcome": "queued q-scan-slots (after rollback: both touch endpoint.go)"}

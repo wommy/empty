@@ -41,3 +41,5 @@
 {"t": "2026-10-27T17:34:08Z", "id": "A-final-code-after-change", "state": "closed", "fix": "040e38b"}
 {"t": "2026-10-27T17:34:08Z", "id": "A-root-owner-internal-strands", "state": "closed", "fix": "9849c08"}
 {"t": "2026-10-27T17:38:16Z", "id": "A-hand-weights-unbalance-parts", "state": "fixed-pending-ci", "fix": "118a958"}
+{"id":"A-part0-still-heavier","sev":"med","state":"open","note":"planned 30.83/30.83 but measured phase 9.9s/5.5s; shard0 15.68 single heavy group; regenerate after 2 more runs or split the heavy test"}
+{"t": "2026-10-27T17:41:43Z", "id": "A-scan-slot-bypass-and-inversion", "sev": "med", "state": "open", "note": "delete listing bypasses maxWholeScans; CreateSnapshot waits slot while holding vol: -> Aborted on neighbours"}
