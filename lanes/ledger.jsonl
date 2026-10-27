@@ -68,3 +68,4 @@
 {"t":"2026-10-27T16:20Z","lane":"writer","agent":"ab0261b5194e01777","name":"review-fix","tokens":147154,"tools":34,"outcome":"merged 16d7c27 (local)","notes":"6/6 fixed test-first; interrupted by rate limit, resumed"}
 {"t":"2026-10-27T16:20Z","lane":"reader","agent":"ab6cbda7109c7041a","name":"r-sshpenalty","tokens":118172,"tools":35,"outcome":"done; nologin->authfail 5s confirmed from source; found my sshd -T diag pattern bug (fixed 4ed91de)"}
 {"t":"2026-10-27T16:25Z","lane":"writer","agent":"a72cce936e66b59ef","name":"ci-latent","tokens":148931,"tools":60,"outcome":"merged","notes":"33/33 harness"}
+{"t":"2026-10-27T16:30Z","lane":"reader","agent":"a28eef26cea011034","name":"r-csi-seams","tokens":172382,"tools":35,"findings":8,"actionable":7,"outcome":"done -> q-csi-code, q-csi-deploy; HIGH deployment cannot mount"}
