@@ -40,16 +40,25 @@ import (
 // decode (invalid UTF-8; under LC_ALL=C any byte >= 0x80) stops the
 // printer mid-document with exit 0. The second is always a syntax error
 // here, because the top-level object is closed only at the very end.
-func decodeGetJSON(r io.Reader, props []string) (*Columns, error) {
+//
+// rows is a capacity hint, the number of datasets the document probably
+// holds (0 if unknown): Names and Cells are allocated once at that size
+// instead of grown by doubling. A wrong hint costs memory, never
+// correctness.
+func decodeGetJSON(r io.Reader, props []string, rows int) (*Columns, error) {
 	s := &jsonScan{
 		// Invalid UTF-8 stays an error (the default). jsontext's generic
 		// duplicate-name check costs a namespace per object (13% of CPU);
 		// every object below checks its own members instead.
 		dec:   jsontext.NewDecoder(r, jsontext.AllowDuplicateNames(true)),
-		names: map[string]struct{}{},
+		names: make(map[string]struct{}, rows),
 		props: props,
 		col:   make(map[string]int, len(props)),
-		c:     &Columns{Props: props},
+		c: &Columns{
+			Props: props,
+			Names: make([]string, 0, rows),
+			Cells: make([]Prop, 0, rows*len(props)),
+		},
 	}
 	for j, p := range props {
 		if p == "" || p == "all" {
@@ -337,123 +346,128 @@ func (s *jsonScan) properties() error {
 	return nil
 }
 
-// prop reads {"value": string, "source": {"type": T, "data": D}} and spells
-// the source the way zprop_print_one_property does in text mode.
+// prop reads one property, which zfs prints in exactly one form (the
+// nvlist printer writes no whitespace, members in insertion order):
+//
+//	{"value":"<v>","source":{"type":"<T>","data":"<D>"}}
+//
+// jsontext reads it as one value, which checks its syntax and UTF-8; the
+// form is then matched byte for byte, so anything else, from whitespace to
+// a repeated or extra member, is refused. One ReadValue instead of eleven
+// tokens: properties are nearly all of a scan. The source is spelled the
+// way zprop_print_one_property does in text mode.
 func (s *jsonScan) prop() (Prop, error) {
-	if err := s.delim('{'); err != nil {
+	raw, err := s.dec.ReadValue()
+	if err != nil {
 		return Prop{}, err
 	}
+	val, typ, data, ok := propForm(raw)
+	if !ok {
+		return Prop{}, fmt.Errorf("%w: property is not {\"value\":string,\"source\":{\"type\":string,\"data\":string}}: %.80s", errSchema, raw)
+	}
 	var p Prop
-	var got uint8
-	for {
-		k, end, err := s.member()
-		if err != nil {
-			return p, err
-		}
-		if end {
-			break
-		}
-		switch string(k) {
-		case "value":
-			if got&1 != 0 {
-				return p, fmt.Errorf("%w: value twice", errSchema)
-			}
-			got |= 1
-			v, err := s.str()
-			if err != nil {
-				return p, err
-			}
-			p.Value = s.keep(v)
-		case "source":
-			if got&2 != 0 {
-				return p, fmt.Errorf("%w: source twice", errSchema)
-			}
-			got |= 2
-			if p.Source, err = s.source(); err != nil {
-				return p, err
-			}
-		default:
-			return p, fmt.Errorf("%w: unknown member %q", errSchema, k)
-		}
+	if p.Source, err = s.source(typ, data); err != nil {
+		return p, err
 	}
-	if got != 3 {
-		return p, fmt.Errorf("%w: value or source missing", errSchema)
+	// the value last: unquote reuses s.buf
+	v, err := s.unquote(val)
+	if err != nil {
+		return p, err
 	}
+	p.Value = s.keep(v)
 	return p, nil
 }
 
-func (s *jsonScan) source() (string, error) {
-	if err := s.delim('{'); err != nil {
-		return "", err
+var (
+	formValue  = []byte(`{"value":`)
+	formSource = []byte(`,"source":{"type":`)
+	formData   = []byte(`,"data":`)
+	formEnd    = []byte(`}}`)
+)
+
+// propForm splits a property object, already valid JSON, into its three
+// quoted strings, or reports that it is not in zfs's form.
+func propForm(raw []byte) (val, typ, data []byte, ok bool) {
+	rest, ok := bytes.CutPrefix(raw, formValue)
+	if ok {
+		val, rest, ok = cutString(rest)
 	}
-	var typ, data string
-	var got uint8
-	for {
-		k, end, err := s.member()
+	if ok {
+		rest, ok = bytes.CutPrefix(rest, formSource)
+	}
+	if ok {
+		typ, rest, ok = cutString(rest)
+	}
+	if ok {
+		rest, ok = bytes.CutPrefix(rest, formData)
+	}
+	if ok {
+		data, rest, ok = cutString(rest)
+	}
+	return val, typ, data, ok && bytes.Equal(rest, formEnd)
+}
+
+// cutString cuts the quoted JSON string b starts with. b comes from a
+// value jsontext has validated, so every escape is complete: a backslash
+// always has a character after it.
+func cutString(b []byte) (str, rest []byte, ok bool) {
+	if len(b) == 0 || b[0] != '"' {
+		return nil, b, false
+	}
+	for i := 1; i < len(b); i++ {
+		switch b[i] {
+		case '\\':
+			i++
+		case '"':
+			return b[:i+1], b[i+1:], true
+		}
+	}
+	return nil, b, false
+}
+
+// unquote returns the contents of the quoted string q, valid until the
+// next read or unquote.
+func (s *jsonScan) unquote(q []byte) ([]byte, error) {
+	if bytes.IndexByte(q, '\\') < 0 {
+		return q[1 : len(q)-1], nil
+	}
+	var err error
+	s.buf, err = jsontext.AppendUnquote(s.buf[:0], q)
+	return s.buf, err
+}
+
+// source spells a property source (quoted type and data) the way -Hp does.
+func (s *jsonScan) source(typ, data []byte) (string, error) {
+	var t string
+	switch string(typ) {
+	case `"NONE"`:
+		t = "-"
+	case `"DEFAULT"`:
+		t = "default"
+	case `"LOCAL"`:
+		t = "local"
+	case `"TEMPORARY"`:
+		t = "temporary"
+	case `"RECEIVED"`:
+		t = "received"
+	case `"INHERITED"`:
+		d, err := s.unquote(data)
 		if err != nil {
 			return "", err
 		}
-		if end {
-			break
+		if len(d) == 0 || string(d) == "-" {
+			return "", errors.New("inherited source without a dataset")
 		}
-		// k is only valid until the next read: classify it first
-		isType := string(k) == "type"
-		if !isType && string(k) != "data" {
-			return "", fmt.Errorf("%w: unknown member %q", errSchema, k)
-		}
-		v, err := s.str()
-		if err != nil {
-			return "", err
-		}
-		bit := uint8(2)
-		if isType {
-			bit = 1
-		}
-		if got&bit != 0 {
-			return "", fmt.Errorf("%w: source member repeated", errSchema)
-		}
-		switch {
-		case isType:
-			got |= 1
-			switch string(v) {
-			case "NONE":
-				typ = "-"
-			case "DEFAULT":
-				typ = "default"
-			case "LOCAL":
-				typ = "local"
-			case "TEMPORARY":
-				typ = "temporary"
-			case "RECEIVED":
-				typ = "received"
-			case "INHERITED":
-				typ = "inherited"
-			default:
-				return "", fmt.Errorf("unknown source type %q", v)
-			}
-		default:
-			got |= 2
-			data = "-"
-			if string(v) != "-" {
-				data = s.keepPrefixed("inherited from ", v)
-			}
-		}
-	}
-	if got != 3 {
-		return "", fmt.Errorf("%w: source type or data missing", errSchema)
+		return s.keepPrefixed("inherited from ", d), nil
+	default:
+		return "", fmt.Errorf("unknown source type %s", typ)
 	}
 	// data is "-" for everything but INHERITED (RECEIVED carries the
 	// received value only when -o received is asked for, which we never do)
-	if typ == "inherited" {
-		if data == "-" || data == "inherited from " {
-			return "", errors.New("inherited source without a dataset")
-		}
-		return data, nil
+	if string(data) != `"-"` {
+		return "", fmt.Errorf("source %s carries data %s", typ, data)
 	}
-	if data != "-" {
-		return "", fmt.Errorf("source %s carries data %q", typ, data)
-	}
-	return typ, nil
+	return t, nil
 }
 
 // member reads the next object member name, or the closing '}' (end=true).

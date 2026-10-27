@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/wommy/empty/internal/zfs"
@@ -110,5 +111,26 @@ func TestTableVolumesSkipsSnapshots(t *testing.T) {
 	}
 	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Errorf("Volumes = %v, want [a b]", got)
+	}
+}
+
+// SnapshotsOf is a range of the ID-sorted rows: ids that sort between a
+// volume and its snapshots ("a-b" < "a/c" < "a@s") never leak into it.
+func TestTableSnapshotsOf(t *testing.T) {
+	t.Parallel()
+	tab := NewTable([]Row{
+		snap("a@s2", nil), vol("a-b", nil), snap("a-b@s", nil), vol("a", nil), snap("a@s1", nil),
+		vol("a/c", nil), snap("a/c@s", nil), vol("ab", nil), snap("ab@s", nil), vol("x", nil),
+	})
+	for vol, want := range map[string][]string{
+		"a": {"a@s1", "a@s2"}, "a-b": {"a-b@s"}, "a/c": {"a/c@s"}, "ab": {"ab@s"}, "x": nil, "none": nil, "": nil,
+	} {
+		var got []string
+		for r := range tab.SnapshotsOf(vol) {
+			got = append(got, r.ID)
+		}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("SnapshotsOf(%q) = %v, want %v", vol, got, want)
+		}
 	}
 }

@@ -37,7 +37,7 @@ func golden(t testing.TB, name string) []byte {
 }
 
 func decode(b []byte, props []string) (*zfs.Columns, error) {
-	return zfs.DecodeGetJSON(bytes.NewReader(b), props)
+	return zfs.DecodeGetJSON(bytes.NewReader(b), props, 0)
 }
 
 // columns builds the Columns a decode should produce: per dataset, its
@@ -220,6 +220,11 @@ func TestDecodeStrict(t *testing.T) {
 		"repeated source data":         rep(`"source":{"type":"LOCAL","data":"-"}`, `"source":{"type":"LOCAL","data":"-","data":"-"}`),
 		"repeated datasets object":     strings.TrimSuffix(base, "}\n") + `,"datasets":{}}` + "\n",
 		"duplicate output_version key": rep(`"datasets":{`, `"output_version":{"command":"zfs get","vers_major":0,"vers_minor":1},"datasets":{`),
+		"whitespace in a property":     rep(`{"value":"pvc-b",`, `{"value": "pvc-b",`),
+		"source before value":          rep(`{"value":"pvc-b","source":{"type":"LOCAL","data":"-"}}`, `{"source":{"type":"LOCAL","data":"-"},"value":"pvc-b"}`),
+		"data before type":             rep(`{"value":"pvc-b","source":{"type":"LOCAL","data":"-"}}`, `{"value":"pvc-b","source":{"data":"-","type":"LOCAL"}}`),
+		"escaped source type":          rep(`{"value":"pvc-b","source":{"type":"LOCAL","data":"-"}}`, `{"value":"pvc-b","source":{"type":"LOC\u0041L","data":"-"}}`),
+		"property is a string":         rep(`"p:name":{"value":"pvc-b","source":{"type":"LOCAL","data":"-"}}`, `"p:name":"pvc-b"`),
 	} {
 		if c, err := decode([]byte(doc), basicProps); err == nil {
 			t.Errorf("%s: accepted: %v", name, c.Names)

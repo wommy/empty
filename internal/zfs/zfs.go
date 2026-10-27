@@ -476,7 +476,10 @@ func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*
 	if err != nil {
 		return nil, err
 	}
-	cols, err := decodeGetJSON(bytes.NewReader(out), o.Props)
+	// every dataset object has exactly one "properties" member, and the
+	// sequence cannot occur inside a string, where '"' is escaped
+	rows := bytes.Count(out, []byte(`"properties":{`))
+	cols, err := decodeGetJSON(bytes.NewReader(out), o.Props, rows)
 	if err != nil {
 		return nil, &Error{Op: "list", Dataset: root, Err: err}
 	}
