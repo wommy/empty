@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +31,13 @@ const MaxMsgSize = 64 << 20
 // (zfs.Limit); this bounds the goroutines and buffered requests queued in
 // front of them.
 const MaxConcurrentStreams = 64
+
+// DefaultCallTimeout bounds a call whose client set no deadline (a
+// direct gRPC client: grpcurl, a script). Without it a zfs hung on a
+// suspended pool (failmode=wait) would hold its zfs slot, its volume lock
+// and its goroutine until a restart. It is well above the slowest
+// planned Reconcile; CSI sidecars set their own, shorter deadlines.
+const DefaultCallTimeout = 10 * time.Minute
 
 // ServiceName is the health service name front ends watch.
 var ServiceName = pb.EndpointService_ServiceDesc.ServiceName
@@ -147,9 +156,15 @@ func (d *Daemon) Shutdown(drain, stopWait time.Duration, interrupt <-chan struct
 	}
 }
 
-// unary assigns the request id, refuses calls once draining, counts calls
-// in flight, and logs one line per call.
+// unary assigns the request id, bounds a call that has no deadline,
+// refuses calls once draining, counts calls in flight, turns a handler
+// panic into Internal, and logs one line per call.
 func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, DefaultCallTimeout)
+		defer cancel()
+	}
 	id := incomingRequestID(ctx)
 	ctx = WithRequestID(ctx, id)
 	_ = grpc.SetHeader(ctx, metadata.Pairs(requestIDKey, id))
@@ -158,7 +173,7 @@ func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo,
 	}
 	defer d.calls.end()
 	start := time.Now()
-	resp, err := handler(ctx, req)
+	resp, err := d.call(ctx, req, info, handler)
 	if !strings.HasPrefix(info.FullMethod, "/grpc.health.") {
 		attrs := []any{"method", info.FullMethod, "code", status.Code(err).String(), "duration", time.Since(start)}
 		if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
@@ -170,6 +185,21 @@ func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo,
 		d.log.InfoContext(ctx, "rpc", attrs...)
 	}
 	return resp, err
+}
+
+// call runs handler. grpc-go does not recover a handler's panic: it would
+// kill the daemon, every call in flight and (Pdeathsig) their zfs children
+// mid-operation. A panic is logged with its stack and answered Internal;
+// the stack never reaches the caller. Locks and zfs slots are released by
+// their defers as the panic unwinds.
+func (d *Daemon) call(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			d.log.ErrorContext(ctx, "handler panic", "method", info.FullMethod, "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
+			resp, err = nil, status.Error(codes.Internal, "internal error: the handler failed; see the endpoint log")
+		}
+	}()
+	return handler(ctx, req)
 }
 
 // inflight counts unary calls and, once draining, refuses new ones.
