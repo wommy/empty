@@ -581,10 +581,26 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	// A create plan that leaves its commit to a re-scan (a filesystem
 	// whose mount only a scan can confirm) takes a second pass: the
 	// resume, which commits or says why not. Two passes at most.
+	//
+	// Once the volume is changed (a pass applied an op, or the scan found
+	// it uncommitted: an earlier attempt's), every failure goes through
+	// resumeErr, reads included: an unclassified one is Aborted, as the
+	// error table has it after a change, since a final code strands the
+	// half-made volume. What is refused on purpose keeps its code.
+	changed := false
+	fail := func(err error) (Volume, error) {
+		if changed {
+			return Volume{}, resumeErr(err)
+		}
+		return Volume{}, err
+	}
 	for pass := 0; ; pass++ {
 		t, missing, err := e.scanForUnproven(ctx, id, r.SourceVolumeID, r.SourceSnapshotID)
 		if err != nil {
-			return Volume{}, err
+			return fail(err)
+		}
+		if row, ok := t.Get(id); ok && !row.Committed {
+			changed = true
 		}
 		p := e.plan
 		p.now = e.cfg.Now().Unix()
@@ -593,7 +609,7 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 			// puts it now: one read, on a create only. It proves the
 			// parent too (Unavailable when missing).
 			if p.parentMount, err = e.parentMountpoint(ctx); err != nil {
-				return Volume{}, err
+				return fail(err)
 			}
 			missing = nil
 		}
@@ -601,15 +617,15 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 			// nothing read so far proves the parent: absent is not yet
 			// "create" (nor a source NotFound)
 			if err := e.proveParent(ctx, missing); err != nil {
-				return Volume{}, err
+				return fail(err)
 			}
 		}
 		plan, err := p.PlanCreateVolume(t, r)
 		if err != nil {
-			return Volume{}, err
+			return fail(err)
 		}
 		if err := e.headroom(ctx, t, plan, "create volume "+id); err != nil {
-			return Volume{}, err
+			return fail(err)
 		}
 		commit := Plan(nil)
 		if r.NFS != nil && p.commits(plan) {
@@ -617,27 +633,36 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 			plan, commit = plan[:len(plan)-1], plan[len(plan)-1:]
 		}
 		if err := e.apply(ctx, plan); err != nil {
-			if row, ok := t.Get(id); ok && !row.Committed {
-				return Volume{}, resumeErr(err)
-			}
-			return Volume{}, err
+			return fail(err)
 		}
+		changed = changed || len(plan) > 0
 		if commit != nil {
 			if err := e.verifyExport(ctx, id); err != nil {
-				return Volume{}, err
+				return fail(err)
 			}
 			if err := e.apply(ctx, commit); err != nil {
 				return Volume{}, resumeErr(err)
 			}
 		}
 		if pass == 0 && len(plan)+len(commit) == 0 {
-			return e.servedFrom(ctx, t, id) // a compatible repeat
+			v, err := e.servedFrom(ctx, t, id) // a compatible repeat
+			if err != nil {
+				return fail(err)
+			}
+			return v, nil
 		}
 		if pass > 0 || commit != nil || p.commits(plan) {
 			break
 		}
 	}
-	return e.readVolume(ctx, id)
+	v, err := e.readVolume(ctx, id)
+	if err != nil {
+		// committed or not, this attempt changed the volume (an empty
+		// plan in both passes returns above)
+		changed = true
+		return fail(err)
+	}
+	return v, nil
 }
 
 // parentMountpoint reads the parent's effective mountpoint: a path, or
@@ -706,9 +731,23 @@ func (e *Endpoint) verifyExport(ctx context.Context, id string) error {
 // already changed the volume, so an unclassified zfs failure is Aborted
 // even on the resume's first op, as it was on the attempt that left the
 // row (opErr): a final Internal would strand the half-made volume, and
-// flip the code a caller saw for the same state.
+// flip the code a caller saw for the same state. A read is keyed the same
+// way (the error table's after-change row covers every op), and an
+// Internal that is no zfs failure at all (a scan's output that does not
+// decode) is unclassified too: Aborted. Every other code is a refusal
+// made on purpose and is kept.
 func resumeErr(err error) error {
-	return remapMutated(err, " (resuming an earlier attempt; a retry converges)")
+	return afterChange(err, " (resuming an earlier attempt; a retry converges)")
+}
+
+// afterChange is resumeErr for any failure after a change, because saying
+// what changed.
+func afterChange(err error, because string) error {
+	err = remapMutated(err, because)
+	if err != nil && CodeOf(err) == Internal {
+		return &Error{Code: Aborted, Msg: "unclassified failure" + because, Err: err}
+	}
+	return err
 }
 
 // scanFor reads the volumes an operation touches (one zfs call each), and
@@ -1067,14 +1106,17 @@ func (e *Endpoint) CreateSnapshot(ctx context.Context, name, sourceVolumeID stri
 	if err := e.apply(ctx, plan); err != nil {
 		return Snapshot{}, err
 	}
+	// once the snapshot is cut, nothing is final: external-snapshotter
+	// drops its being-created annotation on a final code, and the content
+	// can then be deleted without a DeleteSnapshot, leaking the snapshot
 	if len(plan) > 0 {
 		if t, err = e.scan(ctx, sourceVolumeID); err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, afterChange(err, " (the snapshot is cut; a retry converges)")
 		}
 	}
 	row, ok := t.Get(id)
 	if !ok {
-		return Snapshot{}, errorf(Internal, "snapshot %s vanished after creation", id)
+		return Snapshot{}, errorf(Aborted, "snapshot %s vanished after creation; a retry re-plans", id)
 	}
 	return snapshotView(t, row), nil
 }

@@ -37,6 +37,10 @@ func TestRootErrMapping(t *testing.T) {
 		{"canceled", context.Canceled, 0, root, Aborted, "op 1/1"},
 		{"unclassified, first op", plain, 0, root, Internal, "op 1/1 set-root tank/v/a"},
 		{"unclassified, after a change", plain, 1, plan, Aborted, "earlier ops applied"},
+		// LocalRoot's own Internal is no classification: it is an
+		// unclassified failure, as a bare error is
+		{"Internal, first op", &Error{Code: Internal, Msg: "open"}, 0, root, Internal, "op 1/1 set-root tank/v/a"},
+		{"Internal, after a change", &Error{Code: Internal, Msg: "open"}, 1, plan, Aborted, "earlier ops applied"},
 	} {
 		got := rootErr(tc.err, tc.i, tc.plan)
 		if CodeOf(got) != tc.code || !strings.Contains(got.Error(), tc.msg) {
@@ -51,6 +55,10 @@ func TestRootErrMapping(t *testing.T) {
 	// first op's unclassified failure is after a change too
 	if got := resumeErr(rootErr(plain, 0, root)); CodeOf(got) != Aborted || !errors.Is(got, plain) {
 		t.Errorf("unclassified, resumed: %v (code %d), want Aborted", got, CodeOf(got))
+	}
+	internal := &Error{Code: Internal, Msg: "open", Err: plain}
+	if got := resumeErr(rootErr(internal, 0, root)); CodeOf(got) != Aborted || !errors.Is(got, plain) {
+		t.Errorf("Internal, resumed: %v (code %d), want Aborted", got, CodeOf(got))
 	}
 }
 

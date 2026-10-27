@@ -109,8 +109,10 @@ func CodeOf(err error) Code {
 // DeleteSnapshot report as FAILED_PRECONDITION. An unclassified failure
 // after a change is Aborted, not Internal: a retry re-scans and converges,
 // while a final code would strand the half-applied plan
-// (external-provisioner never deletes what it never got). Before any
-// change it stays Internal.
+// (external-provisioner never deletes what it never got). That holds for
+// a read too (a scan or get after the change, opRead mutated): the change
+// is what a retry must finish, whatever command failed. Before any change
+// it stays Internal.
 //
 // A destroy whose target no longer has the guid the plan read (OWN-15:
 // renamed away, another dataset made under the name) is not a zfs failure
@@ -133,9 +135,20 @@ var errRules = []errRule{
 	// never Internal; a retry re-scans and re-plans
 	{kinds: []errKind{kindDeadline}, code: DeadlineExceeded},
 	{kinds: kinds(zfs.KindInterrupted), code: Aborted},
+	// no space after a change (a fresh clone's reservation, set after its
+	// snapshot and clone ran): ResourceExhausted is final for
+	// external-provisioner under Immediate binding, and would strand the
+	// uncommitted clone (and its source's DeleteVolume, "has dependent
+	// clone"); a retry converges once there is space. The better fix,
+	// not built: roll a fresh create back (destroy it by the guid just
+	// read) and return the classified code, Aborted only if the rollback
+	// fails; that would cover the deterministic codes mid-plan too
+	// (AlreadyExists or NotFound on a clone after its snapshot,
+	// InvalidArgument from a size set).
+	{ops: mutatingOps, kinds: kinds(zfs.KindNoSpace), after: true, code: Aborted},
 	{kinds: kinds(zfs.KindNoSpace), code: ResourceExhausted},
 	{kinds: kinds(zfs.KindInvalidProperty), code: InvalidArgument},
-	{ops: mutatingOps, kinds: kinds(zfs.KindUnknown), after: true, code: Aborted},
+	{kinds: kinds(zfs.KindUnknown), after: true, code: Aborted},
 	{kinds: kinds(zfs.KindUnknown), code: Internal},
 }
 

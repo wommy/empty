@@ -113,14 +113,19 @@ TestBusyIsMappedByOperation 0.00
 TestCheckFloor 0.00
 TestClassify 0.00
 TestCloneFailureAfterCloneConvergesToSameState 0.00
+TestCloneNoSpaceAfterChangeIsRetryable 0.00
 TestCloneOfLargeBlockZvolProvisions 0.00
 TestCloneRefusesUnstampedReservedSnapshot 0.00
 TestCloneResizeFailureConverges 0.00
 TestCodeOfNeverReportsAFailureAsOK 0.00
 TestConcurrentCreatesSerialize 0.00
 TestCreateNeverStampsRowWithoutName 0.00
+TestCreateNoSpaceBeforeChangeStaysExhausted 0.00
 TestCreateResumeFailureStaysAborted 0.00
+TestCreateSnapshotAfterCutIsRetryable 0.00
 TestCreateUnmountedFilesystemMountsThenCommits 0.00
+TestCreateVolumeReadAfterChangeIsRetryable 0.00
+TestCreateVolumeReadBeforeChangeStaysInternal 0.00
 TestDecodeRejectsImpossibleZvolSizes 0.00
 TestDeleteCloneInterruptedThenRetriedReleasesOrigin 0.00
 TestDeleteCloneWaitsForBusySource 0.00
@@ -144,6 +149,7 @@ TestFileExportCreateNeedsServers 0.00
 TestFileExportCreateNotServed 0.00
 TestFileExportCreateRootFailureIsRetryable 0.00
 TestFileExportCreateServedBeyondByAncestor 0.00
+TestFileExportCreateUnderUnmountedParentIsRefused 0.00
 TestFileExportDroppedHost 0.00
 TestFileExportReceivedShareNFS 0.00
 TestFileExportRefusedPublishRestoresLocalList 0.00
@@ -219,6 +225,7 @@ TestReconcileRescanFailureDestroysNothing 0.00
 TestReconcileSkipsNonIssuableDesiredID 0.00
 TestReconcileSkipsSourceOfFailedClone 0.00
 TestReconcileSparesReceivedAndRenamed 0.00
+TestResumeErrKeepsRefusals 0.00
 TestRootErrMapping 0.00
 TestRootPropsRoundTrip 0.00
 TestRowKindAndCapacity 0.00

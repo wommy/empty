@@ -40,12 +40,17 @@ func TestZfsErrCodes(t *testing.T) {
 		{OpDestroy, &zfs.Error{Kind: zfs.KindUnavailable}, true, Unavailable},
 		{opRead, &zfs.Error{Kind: zfs.KindInvalidProperty}, false, InvalidArgument},
 		{opRead, &zfs.Error{Kind: zfs.KindNoSpace}, false, ResourceExhausted},
+		{OpCreateVol, &zfs.Error{Kind: zfs.KindNoSpace}, false, ResourceExhausted},
+		// no space after a change: the clone a reservation failed on
+		{OpSet, &zfs.Error{Kind: zfs.KindNoSpace}, true, Aborted},
 		{opRead, &zfs.Error{Kind: zfs.KindInterrupted, Err: fmt.Errorf("run: %w", context.DeadlineExceeded)}, false, DeadlineExceeded},
 		{opRead, &zfs.Error{Kind: zfs.KindInterrupted, Err: fmt.Errorf("run: %w", context.Canceled)}, false, Aborted},
 		{OpClone, &zfs.Error{Kind: zfs.KindNotFound}, true, NotFound},
 		// unclassified: final before any change, retryable after one
 		{opRead, &zfs.Error{Kind: zfs.KindUnknown}, false, Internal},
-		{opRead, &zfs.Error{Kind: zfs.KindUnknown}, true, Internal}, // a read changes nothing
+		// a read after a change: the change is what a retry must finish
+		{opRead, &zfs.Error{Kind: zfs.KindUnknown}, true, Aborted},
+		{opReadParent, &zfs.Error{Kind: zfs.KindUnknown}, true, Aborted},
 		{OpCreateFS, &zfs.Error{Kind: zfs.KindUnknown}, false, Internal},
 		{OpCreateFS, &zfs.Error{Kind: zfs.KindUnknown}, true, Aborted},
 		{OpSet, errors.New("not a zfs error"), true, Aborted},
@@ -79,12 +84,12 @@ func TestErrTableMatchesHead(t *testing.T) {
 			var got, want error
 			switch {
 			case c.op == opRead:
-				got, want = zfsFail(opRead, err, c.mutated, "scan tank"), headZfsErr(err, "scan tank")
+				got, want = zfsFail(opRead, err, c.mutated, "scan tank"), sinceHead(c, headZfsErr(err, "scan tank"), "")
 				if !c.mutated {
 					got = zfsErr(err, "scan tank")
 				}
 			case c.op == opReadParent:
-				got, want = zfsFail(opReadParent, err, c.mutated, "scan tank"), headReadParent(err, "scan tank")
+				got, want = zfsFail(opReadParent, err, c.mutated, "scan tank"), sinceHead(c, headReadParent(err, "scan tank"), "")
 				if zfs.IsNotFound(err) {
 					g, w := parentUnavailable("tank", err), headParentUnavailable("tank", err)
 					if CodeOf(g) != CodeOf(w) || g.Error() != w.Error() {
@@ -93,10 +98,11 @@ func TestErrTableMatchesHead(t *testing.T) {
 				}
 			default:
 				plan, i := planAt(c)
-				got, want = opErr(err, i, plan), headApplyErr(err, i, plan)
+				got, want = opErr(err, i, plan), sinceHead(c, headApplyErr(err, i, plan), " (earlier ops applied; a retry converges)")
 				// a resumed provision: an earlier attempt changed the pool
 				first, _ := planAt(errCell{op: c.op})
-				g, w := resumeErr(opErr(err, 0, first)), headResumeErr(headApplyErr(err, 0, first))
+				resumed := errCell{op: c.op, kind: c.kind, mutated: true}
+				g, w := resumeErr(opErr(err, 0, first)), sinceHead(resumed, headResumeErr(headApplyErr(err, 0, first)), " (resuming an earlier attempt; a retry converges)")
 				if CodeOf(g) != CodeOf(w) || g.Error() != w.Error() {
 					t.Errorf("%+v %v resumed: got %d %q, head %d %q", c, err, CodeOf(g), g, CodeOf(w), w)
 				}
@@ -223,8 +229,41 @@ var headTable = sync.OnceValue(func() (t [nErrOps][nErrKinds][2]Code) {
 	return t
 })
 
-// headCode is the code HEAD gave the cell c.
+// changedSinceHead are the cells changed on purpose since 7f5637f. The
+// rule is "an unclassified failure after a change is Aborted"; wave 25
+// widened it to reads (a scan or get after a change: what a retry must
+// finish is the change, whatever op failed), and made no space after a
+// change Aborted (ResourceExhausted is final for external-provisioner
+// under Immediate binding, and strands the half-made volume).
+func changedSinceHead(c errCell) bool {
+	if !c.mutated {
+		return false
+	}
+	switch c.kind {
+	case errKind(zfs.KindUnknown):
+		return c.op == opRead || c.op == opReadParent
+	case errKind(zfs.KindNoSpace):
+		return slicesContains(mutatingOps, c.op)
+	}
+	return false
+}
+
+// sinceHead is the head mapping err of the cell c, amended where c changed
+// on purpose since (changedSinceHead): Aborted, its message extended by
+// because, as remapMutated does.
+func sinceHead(c errCell, err error, because string) error {
+	if !changedSinceHead(c) {
+		return err
+	}
+	e := err.(*Error)
+	return &Error{Code: Aborted, Msg: e.Msg + because, Err: e.Err}
+}
+
+// headCode is the code HEAD gave the cell c, amended by changedSinceHead.
 func headCode(c errCell) Code {
+	if changedSinceHead(c) {
+		return Aborted
+	}
 	err := errsOfKind(c.kind)[0]
 	switch c.op {
 	case opRead:
@@ -342,5 +381,34 @@ func TestErrorText(t *testing.T) {
 func TestCodeOfNeverReportsAFailureAsOK(t *testing.T) {
 	if c := CodeOf(&Error{Msg: "zero code"}); c != Internal {
 		t.Fatalf("non-nil *Error with zero Code: %v, want Internal", c)
+	}
+}
+
+// resumeErr (wave 25 item 2): after a change, an unclassified failure is
+// Aborted whatever made it (an op, a read, a scan whose output does not
+// decode); a refusal made on purpose keeps its code.
+func TestResumeErrKeepsRefusals(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		err  error
+		want Code
+	}{
+		{"unclassified read", zfsErr(&zfs.Error{Kind: zfs.KindUnknown, Stderr: "boom"}, "scan"), Aborted},
+		{"undecodable scan", errorf(Internal, "scan: tank/a: unparsable number %q", "x"), Aborted},
+		{"read: not found", zfsErr(&zfs.Error{Kind: zfs.KindNotFound}, "scan"), NotFound},
+		{"read: busy", zfsErr(&zfs.Error{Kind: zfs.KindBusy}, "scan"), Unavailable},
+		{"served beyond its export", errorf(FailedPrecondition, "served beyond its export"), FailedPrecondition},
+		{"source not found", errorf(NotFound, "source not found"), NotFound},
+		{"not served yet", errorf(Unavailable, "not served"), Unavailable},
+		{"vanished", errorf(Aborted, "vanished"), Aborted},
+	} {
+		got := resumeErr(tc.err)
+		if CodeOf(got) != tc.want || !errors.Is(got, tc.err) && got != tc.err {
+			t.Errorf("%s: %v (code %d), want code %d wrapping %v", tc.name, got, CodeOf(got), tc.want, tc.err)
+		}
+	}
+	if resumeErr(nil) != nil {
+		t.Error("resumeErr(nil) is not nil")
 	}
 }
