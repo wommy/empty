@@ -18,7 +18,10 @@
 # - cache-warm.yml's `ns: [...]` matrix lists real-zfs-<suite> for every
 #   suite exactly once, and no other real-zfs-* namespace;
 # - nightly.yml's fuzz matrix (`- { name: Fuzz..., pkg: ./... }`) lists
-#   every func Fuzz* of the repository's tests exactly once, in its package.
+#   every func Fuzz* of the repository's tests exactly once, in its package;
+# - ci/expected-skips.txt has a vm entry for every test (or subtest) of
+#   those packages that skips on a real pool, and none for a test that is
+#   gone (ci/skiplint).
 # At run time each job then proves its own part: ci/check-skips.sh (every
 # listed test of its binaries passed or skipped) and ci/check-split.sh
 # (the endpoint plan a partition of the list over every part, each part's
@@ -48,6 +51,14 @@ real=$(grep -rl --include='*_test.go' 'ZFS_TEST_POOL' internal | awk -F/ '{ prin
   err "the suites' packages differ from the packages whose tests read ZFS_TEST_POOL (< suites, > real-pool packages):"
   diff <(sort -u <<<"$pkgs") <(echo "$real") || true
 }
+
+# the skip budget, statically: every test of the real-pool packages that
+# skips on a real pool (calls requireSim, harness.Sim or a helper that
+# does) has its ci/expected-skips.txt entry for the vm leg, and every vm
+# entry names a test that exists, here rather than a VM run later
+# (ci/skiplint; ci/check-skips.sh proves the same on the VM's logs)
+# shellcheck disable=SC2086 # one argument per package
+go run ./ci/skiplint -list ci/expected-skips.txt -leg vm $pkgs || err "ci/expected-skips.txt does not match the simulator-only tests (above)"
 
 # matrix <workflow> <key>: the entries of every `<key>: [a, b]` line, one
 # per line, prefixed with the line's number among them
