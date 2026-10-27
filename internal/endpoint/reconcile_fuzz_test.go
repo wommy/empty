@@ -34,9 +34,14 @@ import (
 //   - afterwards every row the endpoint does not own still exists, and so
 //     does everything outside the scan (children, datasets elsewhere)
 //   - once failures clear, the next run converges and the one after it
-//     does nothing
+//     does nothing: it applies nothing and no group in it fails, except a
+//     volume zfs refuses for a reason the scan cannot see (a child dataset,
+//     an outside clone of a deferred snapshot); with no such volume a dry
+//     run then plans nothing. A group failing on every run shows only in
+//     Skipped, so counting applied actions alone would miss it.
 func FuzzReconcileSafe(f *testing.F) {
 	f.Add([]byte{0x07, 0x00, 0x03, 0x00, 0x23, 0x00, 0x00, 0x83, 0x00})
+	f.Add([]byte{0x87, 0x00}) // a desired volume with a stamped orphan clone source: the only seed that plans ReasonOrphanCloneSource
 	f.Add([]byte{0x01, 0x00, 0x00, 0x21, 0x00, 0x00, 0x21, 0x00, 0x01})
 	f.Add([]byte{0x13, 0x00, 0x00, 0x2b, 0x20, 0x00, 0x09, 0x00})
 	f.Add([]byte{0x00, 0x00, 0x00, 0x05, 0x00})
@@ -88,6 +93,7 @@ func FuzzReconcileSafe(f *testing.F) {
 		}
 		var ids, want, outside []string
 		busy := map[string]bool{}
+		hidden := map[string]bool{} // volumes zfs refuses to destroy for a reason the scan cannot see
 		for i := 0; i < len(spec) && len(ids) < 8; i++ {
 			b := spec[i]
 			var x byte
@@ -153,6 +159,7 @@ func FuzzReconcileSafe(f *testing.F) {
 				must(z.Clone(ctx, ds+"@gone", "tank/other/d"+id, nil))
 				must(z.Destroy(ctx, ds+"@gone", zfs.DestroyOptions{Defer: true}))
 				outside = append(outside, "tank/other/d"+id)
+				hidden[id] = true
 			}
 			if b&leak != 0 {
 				must(z.Snapshot(ctx, ds+"@"+cloneSourceSnapshotPrefix+"gone"+id, map[string]string{
@@ -170,6 +177,7 @@ func FuzzReconcileSafe(f *testing.F) {
 				must(z.CreateFilesystem(ctx, ds+"/kid", nil, false))
 				must(z.Snapshot(ctx, ds+"/kid@s", nil))
 				outside = append(outside, ds+"/kid", ds+"/kid@s")
+				hidden[id] = true
 			}
 			if x&failDestroy != 0 {
 				busy[ds] = true
@@ -223,6 +231,20 @@ func FuzzReconcileSafe(f *testing.F) {
 		third, err := ep.Reconcile(ctx, req)
 		if err != nil || len(third.Actions) != 0 {
 			t.Fatalf("third reconcile: %+v %v", third.Actions, err)
+		}
+		for _, s := range third.Skipped {
+			failed := strings.HasPrefix(s.Reason, SkipFailed)
+			if failed && !hidden[s.Target] || s.Reason == SkipDependentFailed && len(hidden) == 0 {
+				t.Fatalf("third reconcile still failing %s, which no hidden child or outside clone explains: %s", s.Target, s.Reason)
+			}
+		}
+		// with nothing hidden from the scan, a converged parent plans nothing; a
+		// hidden child or outside clone keeps its group (and the groups
+		// depending on it) failing by design, so only the failures are bounded
+		again, err := ep.Reconcile(ctx, dryReq)
+		must(err)
+		if len(hidden) == 0 && len(again.Actions) != 0 {
+			t.Fatalf("dry run after convergence still plans %+v", again.Actions)
 		}
 
 		// origins an undesired clone of ours proves were cut for it: under
