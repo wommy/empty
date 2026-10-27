@@ -6,6 +6,10 @@
 // an operation names every resource it touches, keys are taken in sorted
 // order (no deadlock between overlapping key sets), and callers wait up to
 // their context deadline before giving up.
+//
+// Each key is handed over first come, first served: a release passes the
+// key straight to its oldest waiter, so a steady stream of re-acquirers
+// cannot starve one that has been waiting.
 package lock
 
 import (
@@ -16,49 +20,89 @@ import (
 
 // Keyed is a set of named locks. The zero value is ready to use.
 type Keyed struct {
-	mu    sync.Mutex
-	held  map[string]chan struct{} // closed when released
-	count int
+	mu   sync.Mutex
+	held map[string]*key // present while held
 }
 
+// key is a held key and its waiters, oldest first. A waiter's channel is
+// closed when the key is handed to it.
+type key struct{ waiters []chan struct{} }
+
 // Acquire locks every key, waiting for holders to release. It returns a
-// release func, or ctx.Err() if the context ends first (nothing is held then).
+// release func, or ctx.Err() if the context ends first (nothing is held
+// then). A context that has already ended takes nothing, not even a free
+// key: the caller has no time left to use it.
 func (k *Keyed) Acquire(ctx context.Context, keys ...string) (func(), error) {
 	keys = dedupe(keys)
 	var taken []string
 	release := func() {
 		k.mu.Lock()
 		defer k.mu.Unlock()
-		for _, key := range taken {
-			close(k.held[key])
-			delete(k.held, key)
+		for _, name := range taken {
+			k.unlock(name)
 		}
 		taken = nil
 	}
-	for _, key := range keys {
-		for {
-			k.mu.Lock()
-			if k.held == nil {
-				k.held = map[string]chan struct{}{}
-			}
-			ch, busy := k.held[key]
-			if !busy {
-				k.held[key] = make(chan struct{})
-				taken = append(taken, key)
-				k.mu.Unlock()
-				break
-			}
+	for _, name := range keys {
+		k.mu.Lock()
+		if err := ctx.Err(); err != nil {
 			k.mu.Unlock()
+			release()
+			return nil, err
+		}
+		if k.held == nil {
+			k.held = map[string]*key{}
+		}
+		h, busy := k.held[name]
+		if !busy {
+			k.held[name] = &key{}
+			taken = append(taken, name)
+			k.mu.Unlock()
+			continue
+		}
+		ch := make(chan struct{})
+		h.waiters = append(h.waiters, ch)
+		k.mu.Unlock()
+		select {
+		case <-ch:
+			taken = append(taken, name)
+		case <-ctx.Done():
+			k.mu.Lock()
 			select {
 			case <-ch:
-			case <-ctx.Done():
-				release()
-				return nil, ctx.Err()
+				// handed over while we gave up: ours, so pass it on
+				taken = append(taken, name)
+			default:
+				h.remove(ch)
 			}
+			k.mu.Unlock()
+			release()
+			return nil, ctx.Err()
 		}
 	}
 	var once sync.Once
 	return func() { once.Do(release) }, nil
+}
+
+// unlock hands name to its oldest waiter, or frees it. k.mu is held.
+func (k *Keyed) unlock(name string) {
+	h := k.held[name]
+	if len(h.waiters) == 0 {
+		delete(k.held, name)
+		return
+	}
+	next := h.waiters[0]
+	h.waiters = h.waiters[1:]
+	close(next)
+}
+
+func (h *key) remove(ch chan struct{}) {
+	for i, w := range h.waiters {
+		if w == ch {
+			h.waiters = append(h.waiters[:i], h.waiters[i+1:]...)
+			return
+		}
+	}
 }
 
 // Held reports whether key is currently locked (for tests and metrics).
