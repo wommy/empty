@@ -1,0 +1,14 @@
+{"id": "aa3129c3b9e3b1a3b", "name": "model-based test suite", "lane": "reader", "wave": 8, "status": "running", "branch": null, "report": "wave8/model.md", "anomaly": false, "ledger": null}
+{"id": "a5b209d5d474fd39e", "name": "diff-fuzz zfs model vs sim vs real", "lane": "reader", "wave": 9, "status": "running", "branch": null, "report": "wave9/zfs-diff.md", "anomaly": false, "ledger": null}
+{"id": "a5e4557dcef93f7c8", "name": "diff-fuzz nfs sharenfs/etab", "lane": "reader", "wave": 9, "status": "running", "branch": null, "report": "wave9/nfs-diff.md", "anomaly": false, "ledger": null}
+{"id": "ab47454fc8465c866", "name": "diff-fuzz csi vs endpoint vs spec", "lane": "reader", "wave": 9, "status": "done", "branch": null, "report": "wave9/csi-diff.md", "anomaly": false, "ledger": "wave9-csi-diff"}
+{"id": "a3777e1ab243b4e78", "name": "speed: measure test & CI time", "lane": "reader", "wave": 10, "status": "running", "branch": null, "report": "wave10/timing.md", "anomaly": false, "ledger": null}
+{"id": "a7831adbe6c6a0b0b", "name": "speed: VM critical path", "lane": "writer", "wave": 10, "status": "running", "branch": "speed-vm", "report": "wave10/vm.md", "anomaly": false, "ledger": null}
+{"id": "a0f85a155c91152de", "name": "speed: test-suite refactor", "lane": "writer", "wave": 10, "status": "running", "branch": "speed-tests", "report": "wave10/tests.md", "anomaly": false, "ledger": null}
+{"id": "aa10b675f25f16eab", "name": "builder: mutation-kill tests + bugs", "lane": "writer", "wave": 7, "status": "running", "branch": "fixes-mutation", "report": "wave7/port.md", "anomaly": false, "ledger": null}
+{"id": "a12cc5177ef7ae6a6", "name": "speed: CI topology", "lane": "writer", "wave": 10, "status": "merged", "branch": "speed-ci", "report": "wave10/ci.md", "anomaly": false, "ledger": "wave10-ci"}
+{"id": "a93f821712281b771", "name": "spec extractor + adversary", "lane": "reader", "wave": 8, "status": "done", "branch": null, "report": "wave8/spec.md", "anomaly": false, "ledger": "wave8-spec-adversary"}
+{"id": "ab470fa70726c08f1", "name": "mutation testing", "lane": "reader", "wave": 7, "status": "done", "branch": null, "report": "wave7/mutation.md", "anomaly": false, "ledger": "wave7-mutation"}
+{"id": "aee8daeb5af165bf5", "name": "test suite as data", "lane": "reader", "wave": 7, "status": "done", "branch": null, "report": "wave7/suite.md", "anomaly": false, "ledger": "wave7-suite"}
+{"id": "a0caadbc7721f48a8", "name": "first-principles DOD core", "lane": "reader", "wave": 8, "status": "done", "branch": null, "report": "wave8/core.md", "anomaly": false, "ledger": "wave8-core"}
+{"id": "a2adf9af7595af207", "name": "build & download queue + supply chain", "lane": "reader", "wave": 11, "status": "running", "branch": null, "report": "wave11/build-queue.md", "anomaly": true, "queue": "w11-buildq"}

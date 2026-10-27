@@ -1,5 +1,6 @@
 # RESUME (read first)
 Durable copies: branch claude/gallant-johnson-1qaxp5-state (this scratchpad, text only) and claude/gallant-johnson-1qaxp5-wip/<branch> (unmerged builder work). Restore: see checkpoint.sh header.
+Drive work with `python3 -I scratchpad/orch/judge.py` (state machine; tables in orch/, transitions via orch.py). Caps: readers 5, writers 3, total 8.
 Run `scratchpad/checkpoint.sh "<what changed>"` after: every merge/push, every agent report, every owner rule, every volley launch. Lane ledger: lanes/ledger.jsonl (score.py). Rules: see OWNER RULE sections below (latest wins).
 
 # CHECKPOINT — zfs-endpoint (re-read this first after compaction)

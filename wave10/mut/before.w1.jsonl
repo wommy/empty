@@ -50,3 +50,5 @@
 {"id": 614, "file": "internal/endpoint/table.go", "line": 60, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["TestExpandNodeExpansionRequired", "TestParametersAndAccessChecks", "TestPlanCreateConvergesUncommittedClone", "TestPlanExpand", "TestRoundTripAndCodes"], "pkgfail": ["FAIL", "github.com/wommy/empty/internal/endpoint"], "secs": 49.7}
 {"id": 619, "file": "internal/endpoint/table.go", "line": 60, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 68.4}
 {"id": 621, "file": "internal/endpoint/table.go", "line": 60, "op": "REL_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 73.2}
+{"id": 635, "file": "internal/endpoint/table.go", "line": 80, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["FuzzReconcileSafe", "TestCloneSourcesMustBeOwned", "TestInheritedOwnershipIsNotOwnership", "TestMessageSizes", "TestReceivedCopyIsNotOwned", "TestSanity", "TestSnapshotLifecycleWithClones"], "pkgfail": ["FAIL"], "secs": 69.9}
+{"id": 638, "file": "internal/endpoint/table.go", "line": 80, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 57.9}

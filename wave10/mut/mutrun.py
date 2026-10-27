@@ -13,10 +13,10 @@ import json, os, re, subprocess, sys, time
 D = os.path.dirname(os.path.abspath(__file__))
 tree, outp, W, N = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 muts = json.load(open(os.path.join(D, "mutants-head.json")))
-ref = os.path.join(D, "before0")
+ref = os.path.join(D, "ref")  # pristine HEAD export: never mutated
 seen = set()
 if os.path.exists(outp):
-    seen = {json.loads(l)["id"] for l in open(outp)}
+    seen = {json.loads(l)["id"] for l in open(outp) if json.loads(l)["status"] not in ("MISMATCH",)}
 out = open(outp, "a")
 env = dict(os.environ, GOTOOLCHAIN="go1.27.3")
 

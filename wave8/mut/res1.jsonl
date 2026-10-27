@@ -59,3 +59,6 @@
 {"id": 557, "fails": ["TestPlanReconcileLocksEveryTarget"], "build_fail": false, "secs": 55.4}
 {"id": 563, "fails": ["TestDeleteVolumeSparesForeignSnapshots", "TestModel", "TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestReconcileAgainstDesiredSet", "TestReconcileCollectsAbandonedCreate", "TestReconcileCollectsLeakedCloneSource", "TestReconcileLocksTargets", "TestReconcileSparesReceivedAndRenamed"], "build_fail": false, "secs": 29.1}
 {"id": 569, "fails": ["TestModel", "TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestReconcileAgainstDesiredSet", "TestReconcileCollectsLeakedCloneSource"], "build_fail": false, "secs": 28.4}
+{"id": 605, "fails": ["FuzzCreateConverges", "TestCloneLargerThanLimitIsOutOfRange", "TestCloneResizeFailureConverges", "TestCreateVolumeIdempotent", "TestCreateVolumeProperties", "TestExpand", "TestExpandNodeExpansionRequired", "TestModel", "TestPlanCreatePropertiesRetry", "TestSnapshotLifecycleWithClones", "TestThickCloneRetryIsIdempotent"], "build_fail": false, "secs": 45.6}
+{"id": 608, "fails": [], "build_fail": false, "secs": 52.1}
+{"id": 614, "fails": ["TestExpandNodeExpansionRequired", "TestParametersAndAccessChecks", "TestPlanCreateConvergesUncommittedClone", "TestPlanExpand"], "build_fail": false, "secs": 32.1}

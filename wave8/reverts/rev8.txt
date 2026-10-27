@@ -18,3 +18,42 @@
            2 CreateSnapshot(v2, s0)
 === R4
 --- existing:
+--- FAIL: TestCloneFailureAfterCloneConvergesToSameState (0.00s)
+--- FAIL: TestReserveRestoreIsIdempotent (0.00s)
+--- model:
+    modelrun_test.go:1273: model check failed: detected after 7.125s and 4368 steps; shrunk by 7.224s (seed 205, replay: MODEL_SEED=205 go test ./internal/endpoint -run TestModel)
+        minimal trace (3 of 19 steps):
+           0 CreateVolume(v0 filesystem cap=3145733)
+           1 CreateSnapshot(v0, s0)
+           2 CreateVolume(v3 filesystem cap=0 reserve from-snap=v0@s0)
+=== R6
+--- existing:
+--- FAIL: TestBusyIsMappedByOperation (0.00s)
+--- FAIL: TestUnknownFailureAfterAMutationIsRetryable (0.00s)
+--- model:
+    modelrun_test.go:1273: model check failed: detected after 223ms and 200 steps; shrunk by 266ms (seed 13, replay: MODEL_SEED=13 go test ./internal/endpoint -run TestModel)
+        minimal trace (1 of 37 steps):
+           0 CreateVolume(v2 filesystem cap=0) !errBefore@1
+=== R7
+--- existing:
+--- FAIL: TestFileExportPreconditions (0.00s)
+--- FAIL: TestNeverIssuedIDs (0.01s)
+--- FAIL: TestPlanPublishExport (0.01s)
+--- FAIL: TestPlanUnpublishExport (0.00s)
+--- model:
+    modelrun_test.go:1273: model check failed: detected after 404ms and 120 steps; shrunk by 455ms (seed 9, replay: MODEL_SEED=9 go test ./internal/endpoint -run TestModel)
+        minimal trace (1 of 22 steps):
+           0 DeleteVolume(not/issued)
+=== R8
+--- existing:
+--- FAIL: TestNeverIssuedIDs (0.01s)
+--- FAIL: TestPlannersRequireACoveringTable (0.00s)
+--- FAIL: TestSanity (1.02s)
+--- FAIL: TestSnapshotLifecycleWithClones (0.01s)
+--- model:
+    modelrun_test.go:1273: model check failed: detected after 2ms and 40 steps; shrunk by 9ms (seed 1, replay: MODEL_SEED=1 go test ./internal/endpoint -run TestModel)
+        minimal trace (2 of 13 steps):
+           0 CreateVolume(v3 block cap=2097152 sparse)
+           1 CreateSnapshot(v3, s0)
+=== R10
+--- existing:
