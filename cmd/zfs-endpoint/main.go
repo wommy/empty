@@ -106,6 +106,11 @@ func run(ctx context.Context, args []string, d deps) error {
 	}
 	sock, err := socketPath(listenAddr(*listen, *parent))
 	if err != nil {
+		if *listen == "" {
+			// the unit's %i.sock: each byte of -parent outside
+			// [A-Za-z0-9:_.], '-' included, is \xNN there, 4 bytes
+			return configErr("%v (the default socket, named after the systemd-escaped -parent); pass a shorter -listen", err)
+		}
 		return err
 	}
 	if *maxZFS < 1 {

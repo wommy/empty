@@ -100,6 +100,31 @@ func TestListenRefusesAbstractAndRelativePaths(t *testing.T) {
 	}
 }
 
+// A path bind cannot take (sun_path: 107 bytes and a NUL) is refused up
+// front, by Listen and by Target alike; 107 bytes is served.
+func TestSocketPathFitsSunPath(t *testing.T) {
+	dir := t.TempDir()
+	at := filepath.Join(dir, strings.Repeat("x", unixsock.MaxPathLen-len(dir)-1))
+	if len(at) != unixsock.MaxPathLen {
+		t.Fatalf("setup: %d bytes", len(at))
+	}
+	l, err := unixsock.Listen(at)
+	if err != nil {
+		t.Fatalf("%d bytes: %v", len(at), err)
+	}
+	l.Close()
+	over := at + "x"
+	if l, err := unixsock.Listen(over); err == nil || !strings.Contains(err.Error(), "108") {
+		if l != nil {
+			l.Close()
+		}
+		t.Errorf("%d bytes: %v", len(over), err)
+	}
+	if _, err := unixsock.Target("unix://" + over); err == nil {
+		t.Errorf("Target accepted %d bytes", len(over))
+	}
+}
+
 // An existing socket directory others could write (or a symlink to one,
 // or one another user owns) is refused: they could swap the socket.
 func TestListenRefusesAnUnsafeDirectory(t *testing.T) {
