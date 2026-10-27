@@ -201,3 +201,6 @@ Currently running writers (pre-rule): tests a0f85a15, ci a12cc517, vm a7831adb, 
 ## OWNER RULE: never ask the owner an unresearched question (research + adversarial first; owner: it eliminates 88%+). Decisive + reversible -> decide and record in an ADR with evidence; ask only contested, irreversible or outward-facing ones, with recommendation + evidence. Enforced in orch/judge.py.
 - Lesson: phrase security briefs defensively (hardening review, regression tests) — 'attacker/PoC/injection' wording tripped an API safeguard and killed an agent.
 - a02c5b0 FIRST WARM RUN: 62s push->green; VM job 57s (guest restore 12s, qemu 4s, test 29s), static 12s, test 17s. Remaining: overlap guest restore; default-branch warm job.
+
+## Process anomaly (07:40)
+Launched b-test-truth (a4a564b240376ea44) without `orch.py launch`; judge then proposed launching it again. Rule: every Agent launch is followed in the same turn by `orch.py launch <queue-id> <agent-id> <model>`. Before LAUNCH, cross-check running agents against the harness's running-task list.
