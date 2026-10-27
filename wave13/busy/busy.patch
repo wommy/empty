@@ -1,0 +1,269 @@
+diff --git a/cmd/zfs-endpoint/main.go b/cmd/zfs-endpoint/main.go
+index 231cfc5..9ef88e4 100644
+--- a/cmd/zfs-endpoint/main.go
++++ b/cmd/zfs-endpoint/main.go
+@@ -29,6 +29,7 @@ func main() {
+ 		lockDir:   lockDir,
+ 		euid:      os.Geteuid(),
+ 		interrupt: secondSignal,
++		settle:    endpoint.UdevSettle,
+ 	})
+ 	cancel()
+ 	if err != nil {
+@@ -47,6 +48,9 @@ type deps struct {
+ 	euid    int
+ 	// interrupt returns a channel closed by a second signal; nil: none.
+ 	interrupt func() <-chan struct{}
++	// settle is Config.Settle (endpoint.UdevSettle); nil for the
++	// simulator, which has no devices.
++	settle func(context.Context) error
+ }
+ 
+ const (
+@@ -120,7 +124,7 @@ func run(ctx context.Context, args []string, d deps) error {
+ 	if err := waitParent(ctx, z, *parent, *parentWait); err != nil {
+ 		return err
+ 	}
+-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix})
++	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})
+ 	if err != nil {
+ 		return configErr("%v", err)
+ 	}
+diff --git a/internal/csi/harness_test.go b/internal/csi/harness_test.go
+index 9a5b89b..877f7a4 100644
+--- a/internal/csi/harness_test.go
++++ b/internal/csi/harness_test.go
+@@ -27,9 +27,13 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
+ 	ctx := context.Background()
+ 	var z *zfs.Client
+ 	var parent string
++	var settle func(context.Context) error
+ 	if pool := os.Getenv("ZFS_TEST_POOL"); pool != "" {
+ 		z = zfs.New(zfs.LocalRunner{})
+ 		parent = fmt.Sprintf("%s/csi-%d", pool, time.Now().UnixNano())
++		// as cmd/zfs-endpoint: csi-sanity deletes a zvol right after
++		// creating it, while udev may still be probing the new device
++		settle = endpoint.UdevSettle
+ 		t.Cleanup(func() {
+ 			if err := z.Destroy(ctx, parent, zfs.DestroyOptions{Recursive: true}); err != nil {
+ 				t.Errorf("cleanup %s: %v", parent, err)
+@@ -44,7 +48,7 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
+ 	if err := z.CreateFilesystem(ctx, parent, nil, true); err != nil {
+ 		t.Fatal(err)
+ 	}
+-	ep, err := endpoint.New(z, endpoint.Config{Parent: parent})
++	ep, err := endpoint.New(z, endpoint.Config{Parent: parent, Settle: settle})
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/internal/endpoint/apply.go b/internal/endpoint/apply.go
+index f46ebfd..711aa3e 100644
+--- a/internal/endpoint/apply.go
++++ b/internal/endpoint/apply.go
+@@ -40,7 +40,7 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
+ 		case OpSet:
+ 			err = e.zfs.Set(ctx, op.Target, op.Props)
+ 		case OpDestroy:
+-			err = e.zfs.Destroy(ctx, op.Target, zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer})
++			err = e.destroy(ctx, op)
+ 		default:
+ 			// unreachable after the check above; never treat it as done
+ 			return i, &Error{Code: Internal, Msg: "unknown op kind " + op.Kind.String()}
+@@ -58,6 +58,23 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
+ 	return len(plan), nil
+ }
+ 
++// destroy runs a destroy op. A busy destroy settles the host's device
++// events once (Config.Settle) and is retried once: the hold may be udev
++// probing a zvol device the endpoint just created. Still busy, it is the
++// caller's busy (opErr: FAILED_PRECONDITION on a destroy). A failed settle
++// reports the busy it was meant to clear.
++func (e *Endpoint) destroy(ctx context.Context, op Op) error {
++	o := zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer}
++	err := e.zfs.Destroy(ctx, op.Target, o)
++	if e.cfg.Settle == nil || !errors.Is(err, zfs.ErrBusy) {
++		return err
++	}
++	if e.cfg.Settle(ctx) != nil {
++		return err
++	}
++	return e.zfs.Destroy(ctx, op.Target, o)
++}
++
+ // opErr maps the failure of op i of plan by operation as well as by Kind:
+ //   - busy on a destroy is "in use", which CSI's DeleteVolume and
+ //     DeleteSnapshot report as FAILED_PRECONDITION; elsewhere it is
+diff --git a/internal/endpoint/endpoint.go b/internal/endpoint/endpoint.go
+index 8ef6ad4..139f30a 100644
+--- a/internal/endpoint/endpoint.go
++++ b/internal/endpoint/endpoint.go
+@@ -149,6 +149,19 @@ type Config struct {
+ 	// what you don't own). Reconcile never uses it: an operator opts in
+ 	// for a per-volume delete, not for a bulk collection.
+ 	DestroyForeignSnapshots bool
++	// Settle waits until the host's device manager has handled the device
++	// events already raised (UdevSettle: `udevadm settle`). A zvol is
++	// long-held while anything has its /dev/zdN open, and its destroy is
++	// then EBUSY. Right after `zfs create -V` (or a clone) udev's rules for
++	// the new device (zvol_id, blkid) hold it open for as long as udev
++	// takes to reach the event, so a delete soon after a create can meet a
++	// hold nobody asked for. A busy destroy therefore settles once and
++	// retries once; still busy is a volume in use (FAILED_PRECONDITION).
++	// OpenZFS does the same in its own create error path: it waits out
++	// the zvol's async minor handling and retries the destroy
++	// (zfs_ioctl.c zfs_ioc_create). Nil: no settle and no retry (the
++	// simulator, which has no devices).
++	Settle func(context.Context) error
+ }
+ 
+ // Endpoint is the volume service.
+diff --git a/internal/endpoint/endpoint_test.go b/internal/endpoint/endpoint_test.go
+index 89b90de..d1c8cd6 100644
+--- a/internal/endpoint/endpoint_test.go
++++ b/internal/endpoint/endpoint_test.go
+@@ -84,6 +84,9 @@ func setupPrefix(t *testing.T, prefix string) (*endpoint.Endpoint, *harness) {
+ 	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true, PropertyPrefix: prefix}
+ 	if h.sim != nil {
+ 		cfg.Etab = h.sim
++	} else {
++		// as cmd/zfs-endpoint: a zvol udev is still probing is not in use
++		cfg.Settle = endpoint.UdevSettle
+ 	}
+ 	ep, err := endpoint.New(h.Z, cfg)
+ 	if err != nil {
+diff --git a/internal/endpoint/settle.go b/internal/endpoint/settle.go
+new file mode 100644
+index 0000000..8c74340
+--- /dev/null
++++ b/internal/endpoint/settle.go
+@@ -0,0 +1,31 @@
++package endpoint
++
++import (
++	"context"
++	"errors"
++	"os/exec"
++	"strconv"
++	"time"
++)
++
++// maxSettle bounds one UdevSettle when the caller has no deadline:
++// udevadm's own default is 120s.
++const maxSettle = 10 * time.Second
++
++// UdevSettle is Config.Settle for a host running systemd-udevd: `udevadm
++// settle`, which returns once udevd has handled every event already raised
++// (it pings udevd, so an event the kernel sent before the call is
++// included), bounded by ctx's deadline and maxSettle. A host without
++// udevadm has no udev rules to wait for: nil.
++func UdevSettle(ctx context.Context) error {
++	timeout := maxSettle
++	if dl, ok := ctx.Deadline(); ok {
++		timeout = min(timeout, time.Until(dl))
++	}
++	secs := max(int(timeout/time.Second), 1)
++	err := exec.CommandContext(ctx, "udevadm", "settle", "--timeout="+strconv.Itoa(secs)).Run()
++	if errors.Is(err, exec.ErrNotFound) {
++		return nil
++	}
++	return err
++}
+diff --git a/internal/endpoint/settle_test.go b/internal/endpoint/settle_test.go
+new file mode 100644
+index 0000000..1ce6352
+--- /dev/null
++++ b/internal/endpoint/settle_test.go
+@@ -0,0 +1,93 @@
++package endpoint_test
++
++import (
++	"context"
++	"testing"
++
++	"github.com/wommy/empty/internal/endpoint"
++	"github.com/wommy/empty/internal/zfs"
++	"github.com/wommy/empty/internal/zfs/zfstest"
++)
++
++// A zvol is long-held, so `zfs destroy` is EBUSY ("dataset is busy"), while
++// anything has its /dev/zdN open (zvol_first_open owns the objset;
++// dsl_destroy_head_check_impl refuses a long-held dataset). zfs create -V
++// returns once the minor exists (dmu_objset_create waits on the zvol
++// taskq), but the device's add uevent is still being handled: udev's
++// 60-zvol.rules runs zvol_id on it and the persistent-storage rules run
++// blkid, both opening it. A DeleteVolume right after CreateVolume (csi-sanity
++// "SingleNodeWriter NoCapacity", CI 0a0bea3: busy ~150ms after the create)
++// meets that hold. OpenZFS's own create error path waits out its async
++// minor handling and retries the destroy (zfs_ioctl.c zfs_ioc_create);
++// the endpoint's equivalent is to settle the device events once and retry
++// once. A destroy still busy after that is a volume in use:
++// FAILED_PRECONDITION, as before, and never a retry loop.
++//
++// The simulator models the transient hold as "busy until the device events
++// have settled": the settle is what releases it, so no clock is involved.
++func TestDeleteVolumeSettlesDeviceEventsOnBusy(t *testing.T) {
++	ctx := context.Background()
++	sim := zfstest.New("tank")
++	z := zfs.New(sim)
++	const parent = "tank/k8s/vols"
++	if err := z.CreateFilesystem(ctx, parent, nil, true); err != nil {
++		t.Fatal(err)
++	}
++	settles := 0
++	ep, err := endpoint.New(z, endpoint.Config{Parent: parent, Settle: func(context.Context) error {
++		settles++
++		return nil
++	}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	busy := &zfs.ExitError{Code: 1, Stderr: "cannot destroy 'x': dataset is busy\n"}
++	destroys := 0
++	create := func(name string) endpoint.Volume {
++		t.Helper()
++		v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, Kind: endpoint.Block, CapacityBytes: 1 << 20})
++		if err != nil {
++			t.Fatal(err)
++		}
++		return v
++	}
++
++	// udev still has the new device open: busy until the events settle
++	v := create("fresh")
++	held := settles
++	sim.Fail = func(a []string) error {
++		if a[0] != "destroy" {
++			return nil
++		}
++		destroys++
++		if settles == held {
++			return busy
++		}
++		return nil
++	}
++	if err := ep.DeleteVolume(ctx, v.ID); err != nil {
++		t.Fatalf("DeleteVolume of a zvol udev was still probing: %v", err)
++	}
++	if settles != held+1 || destroys != 2 {
++		t.Fatalf("settles %d, destroys %d; want one settle between two destroys", settles-held, destroys)
++	}
++	if ok, err := z.Exists(ctx, v.Dataset); err != nil || ok {
++		t.Fatalf("%s still exists (%v)", v.Dataset, err)
++	}
++
++	// held open by a consumer: still busy after the settle, so in use
++	sim.Fail = nil
++	v = create("in-use")
++	held, destroys = settles, 0
++	sim.Fail = func(a []string) error {
++		if a[0] == "destroy" {
++			destroys++
++			return busy
++		}
++		return nil
++	}
++	wantCode(t, ep.DeleteVolume(ctx, v.ID), endpoint.FailedPrecondition)
++	if settles != held+1 || destroys != 2 {
++		t.Fatalf("settles %d, destroys %d; want exactly one settle and one retry", settles-held, destroys)
++	}
++}

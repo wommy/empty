@@ -13,3 +13,11 @@
 {"id": 850, "file": "internal/zfs/errors.go", "line": 91, "op": "EQ_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 29.2}
 {"id": 859, "file": "internal/zfs/errors.go", "line": 103, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 27.1}
 {"id": 876, "file": "internal/zfs/errors.go", "line": 132, "op": "PATTERN_KIND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 23.2}
+{"id": 882, "file": "internal/zfs/errors.go", "line": 135, "op": "PATTERN_KIND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 23.4}
+{"id": 896, "file": "internal/zfs/errors.go", "line": 147, "op": "PATTERN_KIND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 30.7}
+{"id": 912, "file": "internal/zfs/errors.go", "line": 166, "op": "PATTERN_KIND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 28.4}
+{"id": 916, "file": "internal/zfs/errors.go", "line": 169, "op": "PATTERN_KIND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 26.2}
+{"id": 933, "file": "internal/zfs/zfs.go", "line": 444, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 26.0}
+{"id": 10591, "file": "internal/endpoint/reconcile.go", "line": 200, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 21.4}
+{"id": 10572, "file": "internal/endpoint/reconcile.go", "line": 108, "op": "GUARD_DELETE", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 26.4}
+{"id": 10995, "file": "internal/zfs/zfs.go", "line": 459, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 24.1}

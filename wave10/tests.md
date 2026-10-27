@@ -1,6 +1,6 @@
 # wave10: a faster test suite (branch `speed-tests`)
 
-Base: b5c4ec4 (ADR 0005 on 8cc52ef). Head: 0548c7a. 13 commits, local only, not pushed. Go 1.27.3.
+Base: b5c4ec4 (ADR 0005 on 8cc52ef). Head: 0548c7a. 12 commits, local only, not pushed. Go 1.27.3.
 
 The host had 4 vCPUs and a load average of 50-80 from sibling agents the whole time. Wall times are therefore 2-5x inflated and noisy. **CPU seconds (user+sys of the go command and its children) are the load-independent number**; sleeps are the only part of wall time that load does not inflate. The sibling's `wave10/timing.md` (measured on 8cc52ef) confirms: compile+link are ~70% of a warm plain run, and the tests themselves are ~2.7 CPU-s plain, ~11.5 CPU-s race.
 
@@ -56,7 +56,7 @@ Checks on the final tree (0548c7a):
 4. **2ef4aaf lock: run the waiting tests in synctest bubbles.** InOrder, NoStarvation (now asserts `waited <= 9*200µs` in fake time), TryAcquire, CancelledWaiters. Kills became deterministic: a planted barging lock is killed 10/10 (was 4/5 at 2 s each); a planted LIFO handover is killed by InOrder.
 5. **de36265 endpoint tests: exact interleaving for the commit race; MiB thick zvols.** `TestAdv4CommitRace…` in a bubble; thick zvols 64-192 MiB instead of GiB (VM pool is 10 G, and writes are faster).
 6. **e6f23b1 ci(vm): endpoint tests 8-wide, the three binaries at once** (`-test.parallel=8`, endpoint/csi-mount/csi-block backgrounded with their own logs, every exit code collected). **Not yet run on the VM.**
-7. **a3917b2 endpoint tests: fold 12 redundant tests** into golden rows and existing tables (list and proof in §4). Golden rows added: `create/incompatible-kind`, `create/thick-on-sparse-zvol`, `clone/malformed-source`. `TestPlanReconcile` gained an orphan/released-clone-source case and a per-row lock-cover loop.
+7. **a3917b2 endpoint tests: fold 13 redundant tests** (the commit title says 12; it removes 13 functions) into golden rows and existing tables (list and proof in §4). Golden rows added: `create/incompatible-kind`, `create/thick-on-sparse-zvol`, `clone/malformed-source`. `TestPlanReconcile` gained an orphan/released-clone-source case and a per-row lock-cover loop.
 8. **13a1758 endpoint tests: 1000 equivalence seeds per PR, the rest as a fuzz target** (`FuzzSimulateDestroyAllEquivalent`, seeds 0,1,2,5). Evidence: of 45 mutgen mutants of `simulateDestroyAll`, the latest first-failing seed is 5; 10 survive all 20000 seeds (`wave10/mut/seeds.txt`). 2.49 s → ~0.1 s.
 9. **6b02032 zfs tests: Limit tests in synctest; WaitDelay 200 → 50 ms.** An off-by-one limit is now killed deterministically (peak 5 > 4).
 10. **510e87c tests: concurrent creates proven serialized; t.Parallel where no globals.** `TestConcurrentCreatesSerialize` **never proved serialization** (verified on the old tree: a lock-free CreateVolume passed it) and flaked under race. Now: a runner parks the first `zfs create`, `synctest.Wait()` proves every other create is blocked, a planted lock-free mutant fails 5/5. `TestMessageSizes` builds its 1005 rows directly. `t.Parallel` in server, zfs, endpoint where no process-global state is touched.
@@ -67,7 +67,25 @@ Checks on the final tree (0548c7a):
 
 Method: full kill sets (no `-failfast`, every failing top-level test) of 303 mutants on HEAD offsets (`wave10/mut/mutants-head.json`: 245 wave7 mutants re-anchored by context, 58 fresh mutgen samples on code wave7 never reached, ids ≥10000), run on the before tree (b5c4ec4). A killed mutant can change status only if **every** test that killed it was changed or removed (or it had an empty kill set, i.e. a panic truncated it). Those, and only those, were re-run on the after tree.
 
-MUTATION
+| | before (b5c4ec4) | after (0548c7a) |
+|---|---|---|
+| mutants | 303 (5 do not build) | same |
+| killed | 229 | **229** |
+| survived | 69 | 69 |
+| kill rate (of 298 that build) | 76.8% | **76.8%** |
+| killed before, survived after | | **0** |
+
+- **Targeted re-run**: 9 mutants had a before kill set lying wholly in changed or removed tests (or an empty one: a timeout or a panic). All 9 are still killed on the after tree (`wave10/mut/after-t.jsonl`). Two are kills that were moved, not lost:
+  - 203 (`plan.go:243`): before, only `TestPlanCreateMalformedSourceIsNotFound`; after, `TestGoldenPlans`.
+  - 10590, 10592, 10634 (reconcile planner): before and after, `TestPlanReconcile`, which was rewritten (orphan-source row plus lock-cover loop).
+- The other 220 killed mutants each keep at least one killing test that this branch did not touch, so they cannot change status.
+- **All 69 survivors re-run on the after tree: all 69 still survive** (`after-s.w*.jsonl`). The new golden rows, crash table and props round trip did not catch any of them. The survivors are in `plan.go` (20), `zfs/errors.go` (19), `table.go` (10), `zfs.go` (7), `props.go` (6), `reconcile.go` (5) and `endpoint.go` (2). Writing kill tests for them is `fixes-mutation`'s work (wave7 `*mutation_kill_test.go`), and I deliberately did not port those.
+- So the mutation score is held, not raised. The gains are in determinism (next paragraph), which mutgen sampling on one run does not measure.
+- Data:
+  - per-mutant fail sets: `wave10/mut/before.w*.jsonl`;
+  - mutant list: `wave10/mut/mutants-head.json`;
+  - runner: `wave10/mut/mutrun.py` (`MUT_IDS` filters the ids);
+  - target selection: `wave10/mut/targeted.py`.
 
 Additional deterministic kills that the before tree only got by luck or not at all (planted, not in the mutgen set): lock barging (4/5 → 10/10), lock-free CreateVolume (0 → 5/5), Limit off-by-one (probabilistic → always), two lock-cover mutants in the reconcile planner (2 rows each), Shutdown not bounded when a handler is stuck (hang → fail).
 
@@ -121,7 +139,7 @@ Why each fold is safe (wave7 §1.3 plus my check):
 - **`TestKilledCommandIsInterrupted` keeps real time**: it execs; synctest cannot bubble a child process. WaitDelay shortened only.
 - **`TestMessageSizes` kept** (~0.9 s): the 100k-id Reconcile through gRPC is its purpose.
 - **Crash table cost on the VM is unmeasured.** It runs on the real pool (93 runs, ~3 ops each). Wave7 modelled −4.2 s at parallel 8 against the two sim tests it replaces, but run the VM once before relying on commit 6's numbers.
-- The before mutation run is partial (see §3); targets that were never run keep their wave7 first-kill evidence only.
+- No full after mutation run of all 303 mutants (about 60 s per mutant under this load). It is unnecessary by construction: §3 re-ran every mutant whose status could change.
 
 ## 6. ADR 0005: where it should change
 
