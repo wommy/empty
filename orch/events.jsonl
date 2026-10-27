@@ -10,3 +10,12 @@
 {"ts": "2026-10-27T06:31:35Z", "id": "a5e4557dcef93f7c8", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T06:32:03Z", "id": "a8add075ca10fcee4", "from": "queued", "to": "running", "note": "r-nfs-decisions"}
 {"ts": "2026-10-27T06:32:04Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:35:10Z", "id": "a7831adbe6c6a0b0b", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:35:10Z", "id": "a7831adbe6c6a0b0b", "from": "reported", "to": "triaged", "note": "fast-forward e0ee9f5; found coordinator defect (cache marker before verified boot)"}
+{"ts": "2026-10-27T06:35:10Z", "id": "a7831adbe6c6a0b0b", "from": "triaged", "to": "merged", "note": "e0ee9f5 + 4c1386e weekly rekey; awaiting first warm run to measure"}
+{"ts": "2026-10-27T06:35:59Z", "id": "a9d51a288d407fe53", "from": "queued", "to": "running", "note": "b-nfs-verifier"}
+{"ts": "2026-10-27T06:35:59Z", "id": "aa3129c3b9e3b1a3b", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:35:59Z", "id": "aa3129c3b9e3b1a3b", "from": "reported", "to": "triaged", "note": "ANOMALY: 2 vacuous tests confirmed (ownership_test.go:18/38, 120/122 democratic-csi props under zfs-endpoint prefix). HOLD-REPLAN confirmed (no userrefs in scan). OWN-12 plausible. Integration queued b-model."}
+{"ts": "2026-10-27T06:36:00Z", "id": "aa3129c3b9e3b1a3b", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:36:22Z", "id": "ae6970226d3d7c24d", "from": "queued", "to": "running", "note": "w11-threat"}
+{"ts": "2026-10-27T06:36:22Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

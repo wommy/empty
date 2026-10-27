@@ -1,0 +1,60 @@
+mutants analysed: 148  killed by any: 124  by model: 90  (73% of killed)
+model-only kills: 5
+tests: 94  proposed redundant: 18  kept: 76
+redundant by file: {'internal/endpoint/ownership_test.go': 4, 'internal/endpoint/plan_test.go': 2, 'internal/endpoint/endpoint_test.go': 7, 'internal/endpoint/opcodes_test.go': 1, 'internal/endpoint/foreign_test.go': 1, 'internal/endpoint/reconcile_contract_test.go': 1, 'internal/endpoint/clonesize_test.go': 2}
+
+# redundant
+TestCloneFailureAfterCloneConvergesToSameState	internal/endpoint/clonesize_test.go	kills=34	rows=VOL-13,CLN-05,CR-01	
+TestReserveRestoreIsIdempotent	internal/endpoint/clonesize_test.go	kills=34	rows=VOL-01,VOL-13,CLN-04	
+TestNeverAdoptsOrDeletesUnmanaged	internal/endpoint/endpoint_test.go	kills=16	rows=OWN-05	
+TestCreateVolumeResumesInterruptedProvision	internal/endpoint/endpoint_test.go	kills=18	rows=VOL-07,VOL-08,LST-02,CR-01	
+TestCloneFromVolumeReleasesInternalSnapshot	internal/endpoint/endpoint_test.go	kills=22	rows=CLN-02,DEL-03	CONTESTED: name-based clone source
+TestDeleteVolume	internal/endpoint/endpoint_test.go	kills=23	rows=DEL-01,DEL-02	
+TestCreateVolumeIdempotent	internal/endpoint/endpoint_test.go	kills=25	rows=VOL-01,VOL-02,VOL-05,VOL-07	
+TestCloneResizeFailureConverges	internal/endpoint/endpoint_test.go	kills=28	rows=CLN-05	
+TestThickCloneRetryIsIdempotent	internal/endpoint/endpoint_test.go	kills=28	rows=VOL-01	
+TestDeleteVolumeAfterItsCloneIsGone	internal/endpoint/foreign_test.go	kills=24	rows=OWN-11	
+TestUnknownFailureAfterAMutationIsRetryable	internal/endpoint/opcodes_test.go	kills=16	rows=ERR-06,ERR-11	
+TestVolumeNameMustMatchID	internal/endpoint/ownership_test.go	kills=10	rows=OWN-02,SNP-14,LST-02	
+TestCloneSourcesMustBeOwned	internal/endpoint/ownership_test.go	kills=22	rows=OWN-07	CONTESTED: name-based clone source
+TestCloneNeverAdoptsARacingDataset	internal/endpoint/ownership_test.go	kills=23	rows=OWN-08,OWN-17,ERR-10	
+TestReconcileSparesReceivedAndRenamed	internal/endpoint/ownership_test.go	kills=31	rows=OWN-02,OWN-06,REC-02	
+TestPlanCreateThickZvolLeavesReservationToZFS	internal/endpoint/plan_test.go	kills=11	rows=VOL-11	
+TestPlanCreateIsEmptyWhenSatisfied	internal/endpoint/plan_test.go	kills=18	rows=-	
+TestReconcileCollectsLeakedCloneSource	internal/endpoint/reconcile_contract_test.go	kills=33	rows=CLN-02,REC-08	
+
+# kept, by reason
+26	outside the model (exports/props/expand/list/limits/MinAge)
+25	hand-written tier
+14	kills
+7	no mutant evidence (sample did not reach it)
+3	sole
+1	row OWN-01 needs inherited sources, which the generator lacks
+
+# kept because the model misses their mutants (top)
+TestPlanReconcile kills 11 mutants the model misses
+TestPlanReconcileHeldLimitsActions kills 8 mutants the model misses
+TestPlannersRequireACoveringTable kills 5 mutants the model misses
+TestReconcileAgainstDesiredSet kills 5 mutants the model misses
+TestPlanSnapshotLongAndUnusualNames kills 4 mutants the model misses
+TestDeleteVolumeSparesForeignSnapshots kills 4 mutants the model misses
+TestPlanReconcileLocksEveryTarget kills 2 mutants the model misses
+TestPlanCreateMalformedSourceIsNotFound kills 2 mutants the model misses
+TestPlanCreateConvergesUncommittedClone kills 2 mutants the model misses
+TestReconcileLocksTargets kills 2 mutants the model misses
+TestScanRecordsCoverage kills 1 mutants the model misses
+TestPlanDeleteVolume kills 1 mutants the model misses
+TestPlanCreateRefusesForeignAndIncompatible kills 1 mutants the model misses
+TestBusyIsMappedByOperation kills 1 mutants the model misses
+
+# contested (never port):
+TestParseClient internal/endpoint/export_test.go ['nfs_clients/hostname'] kept: hand-written tier
+TestPlanSnapshotReservedPrefix internal/endpoint/plan_test.go ['name-based clone source'] kept: no mutant evidence (sample did not reach it)
+TestPlanReconcileLocksEveryTarget internal/endpoint/reconcile_test.go ['name-based clone source'] kept: kills 2 mutants the model misses
+TestPlanUnpublishExport internal/endpoint/export_test.go ['nfs_clients/hostname'] kept: outside the model (exports/props/expand/list/limits/MinAge)
+TestPlanDeleteVolume internal/endpoint/plan_test.go ['name-based clone source'] kept: kills 1 mutants the model misses
+TestCloneFromVolumeReleasesInternalSnapshot internal/endpoint/endpoint_test.go ['name-based clone source'] redundant
+TestCloneSourcesMustBeOwned internal/endpoint/ownership_test.go ['name-based clone source'] redundant
+TestCloneLargerThanLimitIsOutOfRange internal/endpoint/clonesize_test.go ['name-based clone source'] kept: outside the model (exports/props/expand/list/limits/MinAge)
+TestPlanReconcileHeldLimitsActions internal/endpoint/reconcile_test.go ['name-based clone source'] kept: kills 8 mutants the model misses
+TestReconcileAgainstDesiredSet internal/endpoint/reconcile_contract_test.go ['name-based clone source'] kept: kills 5 mutants the model misses

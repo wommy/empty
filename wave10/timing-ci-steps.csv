@@ -1,0 +1,17 @@
+job,step,seconds,notes
+unit,job set-up + checkout,2,
+unit,setup-go,13,toolchain download+extract+tool-cache copy ~7.4s (not on the runner image); build cache restore 465MB ~5.7s (download 1.8 + untar 3.6); key=go.sum HIT
+unit,gofmt,0.2,
+unit,go mod tidy -diff,2.0,downloads ~30 modules
+unit,vet,10.3,
+unit,test -race (all),36.3,first package result at +24.3s (build + 9 race links); last at +36.3s; per-package test times: server 6.04 endpoint 2.77 zfs-endpoint 2.05 csi 1.45 zfs 1.37 zfs-csi 1.02 lock 1.05 unixsock 1.01
+proto,job set-up + checkout,3,
+proto,setup-go (cache:false),9,toolchain download+extract+copy
+proto,buf lint,53,modules download 6.3s (~100 modules); compile+link buf ~46s; lint itself ~1.3s wall with a prebuilt binary
+proto,generate + gofmt + git diff,7,
+real-zfs,setup-go,10,key go.sum+real-zfs-vm.sh HIT 91MB
+real-zfs,install qemu,13,apt-get update 5.7 + install 6.4
+real-zfs,test step,81,see timing-vm-timeline.csv
+fuzz x4,setup-go (cache:false),8-17,toolchain download+extract+copy; one job had a 10s copy
+fuzz x4,go build before fuzzing,12.4,no cache: std+deps compiled with coverage instrumentation
+fuzz x4,fuzz,31,-fuzztime 30s (fixed)

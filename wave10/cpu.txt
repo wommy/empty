@@ -1,2 +1,9 @@
 plain  build+link only (go test -c-equivalent: -run ^$ -count=1), own changed: wall=32.018 user=12.000 sys=2.220
-plain  rerun, everything cached except test execution (-run ^$): 
+plain  rerun, everything cached except test execution (-run ^$): wall=18.623 user=5.505 sys=1.067
+plain  full test run, warm: wall=24.144 user=7.805 sys=1.462
+race   build+link only (-run ^$), own changed: wall=38.508 user=16.118 sys=2.735
+race   rerun -run ^$ (all cached; per-binary start+exit incl. 1s atexit sleep): wall=19.726 user=7.490 sys=1.382
+race   full test run, warm: wall=37.245 user=18.224 sys=2.177
+race   full test run, warm, GORACE=atexit_sleep_ms=0: wall=32.064 user=17.339 sys=2.370
+vet    (plain cache warm, own changed a): wall=38.710 user=24.976 sys=7.880
+done

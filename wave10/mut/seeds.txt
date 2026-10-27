@@ -28,3 +28,18 @@
 712 449 DROP_OPERAND operand `under(r.Name)` replaced by false -> build
 713 450 IF_NEGATE if gone && r.Origin != ""  =>  if !(...) -> 1
 714 450 ANDOR_SWAP && becomes || in: gone && r.Origin != "" -> ok
+715 450 DROP_OPERAND operand `gone` replaced by true -> ok
+716 450 DROP_OPERAND operand `r.Origin != ""` replaced by true -> ok
+717 450 EQ_FLIP r.Origin != ""  =>  != becomes == -> 1
+718 451 BOOL_FLIP cand[r.Origin] = true  =>  false -> 1
+719 457 IF_NEGATE if deferT[r.Name]  =>  if !(...) -> 1
+720 458 BOOL_FLIP rows[i].Deferred = true  =>  false -> 1
+721 460 IF_NEGATE if r.Origin != ""  =>  if !(...) -> 4
+722 460 EQ_FLIP r.Origin != ""  =>  != becomes == -> 4
+723 464 ANDOR_SWAP && becomes || in: cand[r.Name] && r.Deferred && clones[r.Name] == 0 -> 1
+724 464 DROP_OPERAND operand `cand[r.Name] && r.Deferred` replaced by true -> 1
+725 464 DROP_OPERAND operand `clones[r.Name] == 0` replaced by true -> 4
+726 464 ANDOR_SWAP && becomes || in: cand[r.Name] && r.Deferred -> 1
+727 464 DROP_OPERAND operand `cand[r.Name]` replaced by true -> 1
+728 464 DROP_OPERAND operand `r.Deferred` replaced by true -> 32
+729 464 EQ_FLIP clones[r.Name] == 0  =>  == becomes != -> 1

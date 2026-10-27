@@ -1,0 +1,16 @@
+phase,start_utc,end_utc,seconds,evidence
+job set-up + checkout,05:38:50,05:38:53,3,step list
+setup-go (toolchain download 0.9 + extract 1.7 + copy to tool cache 5.3 + cache restore 91MB 1.7),05:38:53,05:39:03,10,job log
+enable kvm,05:39:03,05:39:03,0.1,step list
+apt-get update,05:39:03.9,05:39:09.6,5.7,job log
+apt-get install qemu-system-x86 qemu-utils cloud-image-utils,05:39:09.9,05:39:16.0,6.4,job log
+script start -> SHA256SUMS + gpgv,05:39:16.04,05:39:16.83,0.8,gpgv line
+cloud image download + sha256 (no cache; every run),05:39:16.83,05:39:23.04,6.2,stonking.img: OK line
+qemu-img resize 20G,05:39:23.04,05:39:28.10,5.1,Image resized. line
+keygen + cloud-localds + qemu start + 2x go test -c (CGO=0) + ssh poll + guest apt (zfsutils-linux nfs-kernel-server) + cloud-init boot-finished poll,05:39:28.10,05:40:15.25,47.2,no timestamps inside this window (silent); first output is cloud-init status
+guest checks (zfs version/nfsd/exportfs) + scp 37MB test binaries + truncate/zpool create + test lists,05:40:15.25,05:40:17.6,2.4,first test output
+endpoint.test (111 top-level tests sequential),05:40:17.6,05:40:26.81,9.2,top-level sum 9.22
+csi.test mount (6 tests; TestSanity 4.56),05:40:26.81,05:40:32.27,5.5,Ginkgo 69 of 103 specs
+csi.test block (TestSanity only),05:40:32.27,05:40:36.84,4.6,Ginkgo 69 of 103 specs
+zpool destroy + scp logs + 3x check-skips.sh,05:40:36.84,05:40:37.63,0.8,skip budget lines
+shutdown (trap kills qemu) + post steps,05:40:37.63,05:40:41,3,job end

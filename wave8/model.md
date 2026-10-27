@@ -17,11 +17,11 @@ The repository itself was not touched.
 - **Bugs found.** **10 of 10** reverted fixes were detected at 9f1790d, on 5 seeds each (50/50).
   - The median time-to-find is under 0.4 s and the worst is 5.2 s.
   - One of them, R9, is caught by **no** existing test.
-  - At 8cc52ef, 7 reverts still apply. Section 5.2 gives their results.
+  - At 8cc52ef the 7 reverts that still apply were all detected (7/7), in 2 ms to 7.1 s.
 - **Divergences at HEAD.**
   - The model found 4 divergences at 9f1790d. All four are fixed at 8cc52ef, and a 20,000-sequence soak at 8cc52ef was green.
   - It found 3 new divergences at 8cc52ef. Each is masked with a spec row and an expiry, and each is proven to still fail when unmasked (§4).
-- **Redundant tests.** Section 6.3 gives the counts from per-row killer sets and the adversary's rules.
+- **Redundant tests.** 18 of the 94 tests at 9f1790d are redundant, all in `internal/endpoint`. Two of them encode name-based clone sources and should be retired, not ported. The other 76 are kept, and so are the 59 tests that 8cc52ef added. The model kills 73% of the mutants the full suite kills (90 of 124 on a 148-mutant sample) and has 5 unique kills (§6).
 - **Runtime.**
   - Per PR on the Sim: 400 sequences × 40 steps (16k steps) took **14.7 s wall, 10.7 s CPU** on a 4-core host at load average 64. Expect about 3–4 s on an idle 4-core runner. `-short` (50 sequences) takes under 1.5 s CPU.
   - Real pool: 200 steps under a 60 s cap plus the fact table (under 2 s).
@@ -168,7 +168,7 @@ The model, the Sim and `decide()` were written from the same beliefs, so agreeme
 | D07 | VOL-06 | 2026-12-15 | CreateVolume of a filesystem with cap > 0 on an existing *unlimited* filesystem returns AlreadyExists; D07 says OK | 0.55 s |
 | OWN-12 | OWN-12 | 2026-12-15 | the scan drops rows below a volume, so reconcile re-plans a destroy that zfs refuses (has children) on every run; reconcile-twice is never empty | 8.8 s |
 | HOLD-REPLAN | REC-11 | 2026-12-15 | the scan does not read `userrefs`, so a held snapshot on an undesired volume is re-planned (Busy) on every run | 44.8 s |
-| GAP-RECRACE | OWN-15 | 2026-12-15 | **model gap, not a HEAD bug:** a race inside one reconcile group is not interleaved (DeleteVolume's is); the fault is dropped | GAP_RESULT |
+| GAP-RECRACE | OWN-15 | 2026-12-15 | **model gap, not a HEAD bug:** a race inside one reconcile group is not interleaved (DeleteVolume's is); the fault is dropped | 13 min 25 s (rare: keep it nightly-only; close the gap by interleaving) |
 
 Mask-bite times were measured at load average 64 on 4 cores.
 
@@ -202,7 +202,17 @@ Each run used `MODEL_SEQS=40000` and stopped at the first failure. Seeds were se
 
 R3, R5 and R9 no longer apply textually, because 8cc52ef rewrote those predicates. The other seven ran once, with seed0 = 1 and `MODEL_SEQS=20000`.
 
-REV8_TABLE
+| # | existing tests that fail at 8cc52ef | model | time-to-find | steps | minimal trace |
+|---|---|---|---|---|---|
+| R1 | TestCloneNeverAdoptsARacingDataset | detected | 475 ms | 521 | 2: `CreateVolume(v1)`; `CreateVolume(v0 from-vol=v1) !race@1[adm.create(v0)]` |
+| R2 | TestDeleteVolumeSparesForeignSnapshots, TestPropLocalIsOnlyLocal | detected | 406 ms | 40 | 3: `CreateVolume(v0)`; `adm.recvsnap(v0,s0)`; `CreateSnapshot(v2,s0)` |
+| R4 | TestCloneFailureAfterCloneConvergesToSameState, TestReserveRestoreIsIdempotent | detected | 7.1 s | 4,368 | 3: `CreateVolume(v0)`; `CreateSnapshot(v0,s0)`; `CreateVolume(v3 cap=0 reserve from-snap=v0@s0)` |
+| R6 | TestBusyIsMappedByOperation, TestUnknownFailureAfterAMutationIsRetryable | detected | 223 ms | 200 | 1: `CreateVolume(v2 fs) !errBefore@1` |
+| R7 | TestNeverIssuedIDs, 3 export tests | detected | 404 ms | 120 | 1: `DeleteVolume(not/issued)` |
+| R8 | TestNeverIssuedIDs, TestPlannersRequireACoveringTable, TestSanity, TestSnapshotLifecycleWithClones | detected | 2 ms | 40 | 2: `CreateVolume(v3 block)`; `CreateSnapshot(v3,s0)` |
+| R10 | TestKilledCommandIsInterrupted, TestLimitWaiterRespectsContext | detected | 12 ms | 40 | 1: `CreateVolume(v1 block) !killAfter@0` |
+
+The result is **7/7 at 8cc52ef**. These times were measured at load average 64, so expect about 3× faster on an idle host. Across both bases there were 17 revert runs, and every one was detected with a minimal trace of 1–4 steps.
 
 ## 6. Which hand-written tests the model makes redundant (adversary point 2)
 
@@ -218,15 +228,64 @@ A test is proposed redundant only if all of the following hold:
 
 Tests encoding contested behaviour (nfs_clients, hostnames, name-based clone sources) are flagged and never ported.
 
-MUT_RESULTS
+**Coverage.** 148 of the 303 mutants completed before the run was stopped at hand-back. They were ordered by priority: table.go 36, reconcile.go 31, plan.go 79, errors.go 2. The remaining buckets (props.go, zfs/errors.go, parseColumns) are outside the model's alphabet anyway. Raw results are in `mut/res*.jsonl` and the analysis output in `killers/out.txt`.
 
 ### 6.2 Kill rates
 
-KILL_RATES
+| bucket | mutants | killed by any test | killed by the model |
+|---|---|---|---|
+| plan.go | 79 | 64 | 47 |
+| reconcile.go | 31 | 31 | 19 |
+| table.go | 36 | 28 | 24 |
+| errors.go | 2 | 1 | 0 |
+| **total** | **148** | **124 (84%)** | **90 (61% of all, 73% of the killed)** |
+
+- The model alone kills 5 mutants that no other test kills.
+- It does **not** replace the planner-level reconcile tables:
+  - TestPlanReconcile has 11 mutants the model misses;
+  - TestPlanReconcileHeldLimitsActions has 8 (max_deletions, held-target limits);
+  - TestReconcileAgainstDesiredSet has 5;
+  - TestPlannersRequireACoveringTable has 5.
+- Most of these misses are reasons, the cap and MinAge boundaries, which the model either does not assert in detail (only `target|reason`) or deliberately leaves to SpecRows.
 
 ### 6.3 Redundant tests
 
-REDUNDANT
+**18 of 94 tests** (9f1790d's endpoint, csi, zfs and server packages) meet all of rules (a)–(d). All 18 still exist at 8cc52ef. The 59 tests that 8cc52ef added (reconcile and lifecycle) were not in the mutation run, so they are kept by default.
+
+| file | tests | rows (each has another killer) |
+|---|---|---|
+| endpoint_test.go (7) | TestNeverAdoptsOrDeletesUnmanaged, TestCreateVolumeResumesInterruptedProvision, TestCloneFromVolumeReleasesInternalSnapshot ¹, TestDeleteVolume, TestCreateVolumeIdempotent, TestCloneResizeFailureConverges, TestThickCloneRetryIsIdempotent | OWN-05, VOL-01/02/05/07/08, CLN-02/05, DEL-01/02/03, LST-02, CR-01 |
+| ownership_test.go (4) | TestVolumeNameMustMatchID ², TestCloneSourcesMustBeOwned ¹ ², TestCloneNeverAdoptsARacingDataset, TestReconcileSparesReceivedAndRenamed ² | OWN-02/06/07/08/17, SNP-14, ERR-10, REC-02 |
+| clonesize_test.go (2) | TestCloneFailureAfterCloneConvergesToSameState, TestReserveRestoreIsIdempotent | VOL-01/13, CLN-04/05, CR-01 |
+| plan_test.go (2) | TestPlanCreateThickZvolLeavesReservationToZFS (VOL-11 also in TestRealFacts), TestPlanCreateIsEmptyWhenSatisfied | VOL-11 |
+| foreign_test.go (1) | TestDeleteVolumeAfterItsCloneIsGone | OWN-11 |
+| opcodes_test.go (1) | TestUnknownFailureAfterAMutationIsRetryable | ERR-06/11 |
+| reconcile_contract_test.go (1) | TestReconcileCollectsLeakedCloneSource | CLN-02, REC-08 |
+
+¹ Encodes contested behaviour (a name-based clone source, without the stamp). Retire it with the stamp decision; do not port it.
+² Vacuous for R9: it uses `democratic-csi:` markers under the default prefix (§5.1).
+
+**Kept, by reason (76 tests):**
+
+| reason | tests |
+|---|---|
+| outside the model (exports, properties, Expand, List, limits, MinAge, parameters, prefix, missing parent) | 26 |
+| hand-written tier (golden, sanity, round trip, classify/parse/decode, fuzzers, listen/lock, Sim conformance) | 25 |
+| kill mutants the model misses | 14 |
+| no mutant evidence in the sample | 7 |
+| sole killer of a row the model does not assert (VOL-14 concurrency, REC-13/14 …) | 3 |
+| TestInheritedOwnershipIsNotOwnership: kept because OWN-01 needs inherited sources, which the generator lacks | 1 |
+
+**Contested tests that are kept** (flagged so that nobody ports them into the model):
+- TestParseClient and TestPlanUnpublishExport (nfs_clients/hostnames);
+- TestPlanSnapshotReservedPrefix, TestPlanDeleteVolume, TestPlanReconcileLocksEveryTarget, TestPlanReconcileHeldLimitsActions, TestReconcileAgainstDesiredSet and TestCloneLargerThanLimitIsOutOfRange (name-based clone-source fixtures). Re-stamp their fixtures when legacy bare names stop being accepted.
+
+**Net.**
+- Deleting the 18 tests removes about 1,000 lines of contract tests and about 1.5–2 s of real-pool time (wave7 suite.md §1.4), and adds about 2,000 lines of model and harness.
+- The trade is not about line count. Coverage gains:
+  - every mutating RPC now runs under crashes, errors and races at every k, on both legs;
+  - R9-class bugs are caught, and no existing test catches them;
+  - HEAD divergences were found at both bases (4 at 9f1790d, 3 at 8cc52ef).
 
 ### 6.4 What stays hand-written
 

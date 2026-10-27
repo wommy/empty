@@ -1,0 +1,32 @@
+ci: real-ZFS VM: parallel guest shards, cached qemu tree, leaner warm boot
+
+On top of c73e40d's provisioned-guest cache:
+
+- Tests: ci/real-zfs-guest.sh runs six concurrent shards in the guest,
+  each on its own tmpfs-backed pool: endpoint split three ways by
+  ci/real-zfs-weights.txt (file-export tests kept together), the
+  non-sanity csi tests, csi-sanity mount, csi-sanity block. The serial
+  run took 13.4-19.4s. check-skips reads the merged logs, so the skip
+  budget, the test-list coverage (tests, fuzz seeds, examples) and the
+  44-spec floor are unchanged.
+- qemu: ci/qemu-tree.sh unpacks the packages apt would add on this
+  runner image (dpkg-deb -x, no apt-get update), cached per ImageVersion;
+  apt-get install took 13-14s, a warm verify takes 0.4s. apt stays the
+  fallback. cloud-image-utils is installed only on a cold guest.
+- Boot: provisioning disables cloud-init, purges snapd and masks timers
+  for every later boot and loads zfs via modules-load.d; the script waits
+  for nfs-server, not for the whole boot; ssh shares one ControlMaster
+  connection and polls every 0.2s; the guest gets all vCPUs and 6G.
+- Guest cache: keyed by the image sha256 and the cloud-config's hash
+  (ci/real-zfs-cloud-config.yaml), not the whole script, so editing how
+  tests run does not reprovision; the stored disk is fstrimmed and zstd
+  compressed (it was 2.3G, 838MB as a cache archive); and it is marked
+  cacheable only after a boot from the stored disk passes the version,
+  module and nfsd checks, so a disk that cannot boot is never saved.
+
+Not run under KVM here (no /dev/kvm); the qemu tree was built and booted
+to SeaBIOS + iPXE under TCG, and the sharding was run on the simulator.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
+

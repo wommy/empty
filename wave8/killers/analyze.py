@@ -58,7 +58,8 @@ cands = sorted(tests, key=lambda t: len(K[t]))
 for t in cands:
     f, body = src[t]
     reason = None
-    if HAND.search(t): reason = "hand-written tier"
+    if t == "TestInheritedOwnershipIsNotOwnership": reason = "row OWN-01 needs inherited sources, which the generator lacks"
+    elif HAND.search(t): reason = "hand-written tier"
     elif OMIT.search(t): reason = "outside the model (exports/props/expand/list/limits/MinAge)"
     elif not K[t]: reason = "no mutant evidence (sample did not reach it)"
     elif not K[t] <= km: reason = "kills %d mutants the model misses" % len(K[t] - km)

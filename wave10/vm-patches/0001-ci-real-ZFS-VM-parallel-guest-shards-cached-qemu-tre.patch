@@ -1,4 +1,4 @@
-From 72a3d55467878bdead009d234c86bd22dc70ea32 Mon Sep 17 00:00:00 2001
+From e0ee9f5b8cfcdf7e01def090a94b016f476bb283 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 27 Oct 2026 06:24:03 +0000
 Subject: [PATCH] ci: real-ZFS VM: parallel guest shards, cached qemu tree,
@@ -24,7 +24,9 @@ On top of c73e40d's provisioned-guest cache:
 - Guest cache: keyed by the image sha256 and the cloud-config's hash
   (ci/real-zfs-cloud-config.yaml), not the whole script, so editing how
   tests run does not reprovision; the stored disk is fstrimmed and zstd
-  compressed (it was 2.3G, 838MB as a cache archive).
+  compressed (it was 2.3G, 838MB as a cache archive); and it is marked
+  cacheable only after a boot from the stored disk passes the version,
+  module and nfsd checks, so a disk that cannot boot is never saved.
 
 Not run under KVM here (no /dev/kvm); the qemu tree was built and booted
 to SeaBIOS + iPXE under TCG, and the sharding was run on the simulator.
@@ -36,9 +38,9 @@ Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
  ci/qemu-tree.sh               |  68 +++++++++++++++++++
  ci/real-zfs-cloud-config.yaml |  23 +++++++
  ci/real-zfs-guest.sh          |  88 +++++++++++++++++++++++++
- ci/real-zfs-vm.sh             |  87 ++++++++++++------------
+ ci/real-zfs-vm.sh             |  94 +++++++++++++-------------
  ci/real-zfs-weights.txt       | 120 ++++++++++++++++++++++++++++++++++
- 6 files changed, 379 insertions(+), 53 deletions(-)
+ 6 files changed, 385 insertions(+), 54 deletions(-)
  create mode 100755 ci/qemu-tree.sh
  create mode 100644 ci/real-zfs-cloud-config.yaml
  create mode 100755 ci/real-zfs-guest.sh
@@ -312,7 +314,7 @@ index 0000000..ae15c03
 +echo "end at uptime $(up)s, rc $rc"
 +exit "$rc"
 diff --git a/ci/real-zfs-vm.sh b/ci/real-zfs-vm.sh
-index ef0eb50..72dfe9e 100755
+index ef0eb50..15ae01b 100755
 --- a/ci/real-zfs-vm.sh
 +++ b/ci/real-zfs-vm.sh
 @@ -16,7 +16,8 @@
@@ -389,7 +391,7 @@ index ef0eb50..72dfe9e 100755
    [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
  }
  wait_ssh
-@@ -123,12 +116,15 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
+@@ -123,15 +116,19 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
    # store the provisioned disk, then carry on from an overlay of it, as a
    # warm run would; failing to store only costs the next run its speed
    t0=$SECONDS
@@ -407,8 +409,13 @@ index ef0eb50..72dfe9e 100755
 +    qemu-img convert -m 16 -W -c -O qcow2 -o compression_type=zstd "$img" "$cache/disk.qcow2"
      cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
      echo "$sum" >"$cache/sum"
-     touch "$cache/ok"
-@@ -142,8 +138,9 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
+-    touch "$cache/ok"
++    # cacheable only once a boot from it passes the checks below
++    stored=1
+     echo "stored provisioned guest in $cache ($(du -sh "$cache" | cut -f1), $((SECONDS - t0))s)"
+     overlay
+   else
+@@ -142,8 +139,9 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
    fi
    wait_ssh
  fi
@@ -420,7 +427,14 @@ index ef0eb50..72dfe9e 100755
  # cloud-init's runcmd ran only on the provisioning boot
  vm 'sudo modprobe zfs'
  vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
-@@ -172,27 +169,25 @@ vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd thread
+@@ -169,30 +167,32 @@ vm 'sudo sh -c "command -v exportfs"' >/dev/null \
+ vm 'ls -ld /etc/exports.d /var/lib/nfs/etab 2>&1 || true' # context for an export test failure
+ vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
+   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
++if [ -n "${stored:-}" ]; then
++  touch "$cache/ok"
++  echo "the stored guest booted and passed the version, module and nfsd checks: cacheable"
++fi
  
  bins=()
  for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
