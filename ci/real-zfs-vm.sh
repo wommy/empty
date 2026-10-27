@@ -103,7 +103,7 @@ overlay() {
   if [ -s "$cache/vmlinuz" ] && [ -s "$cache/initrd" ] && [ -s "$cache/cmdline" ] && [ -s "$cache/kernel.release" ]; then
     kernel=$(cat "$cache/kernel.release")
     echo "kernel=$kernel" >>"$work/state"
-    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline")"
+    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline"), initrd $(du -k "$cache/initrd" | cut -f1) KiB"
     boot "$work/run.qcow2" "$cache"
   else
     kernel=
@@ -263,6 +263,18 @@ if [ -n "${ZFSVM_PROVISION_ONLY:-}" ]; then
   exit 0
 fi
 
+# where the guest's boot went (kernel, initrd, userspace), for the boot
+# timeline. In the background over the ssh master, so it runs beside the
+# tests instead of after them (1.7s on the path in run 40494213342), and
+# printed after the logs. It waits for the boot to settle first: it fails
+# while units are still starting. Best effort, never a gate
+# critical-chain: what ssh and nfsd, the two the job waits for, waited for;
+# findmnt: /boot and /boot/efi stay unmounted (noauto, cloud-config)
+vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "NR <= 15"
+  systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
+  echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \
+  >"$work/systemd-analyze.txt" 2>&1 &
+analyze=$!
 bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
 scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci/test-times.awk ci@127.0.0.1:
@@ -280,10 +292,19 @@ for f in "$o"/*.log; do
   cat "$f"
   echo "::endgroup::"
 done
-# where the guest's boot went (kernel, initrd, userspace), for the boot
-# timeline; best effort, it fails while units are still starting
+# the guest's CPU and pressure over the test phase (ci/real-zfs-guest.sh):
+# what decides whether splitting the job across two runners would pay
+if [ -s "$o/load.txt" ]; then
+  echo "::group::guest load (test phase): $(awk 'NR == 2' "$o/load.txt")"
+  cat "$o/load.txt"
+  cat "$o/vmstat.txt" 2>/dev/null || true
+  echo "::endgroup::"
+  { echo '<details><summary>guest load over the test phase (out/load.txt)</summary>'
+    echo; echo '```'; cat "$o/load.txt"; echo '```'; echo "</details>"; echo; } >>"$summary"
+fi
 echo "::group::systemd-analyze"
-vm 'systemd-analyze; systemd-analyze blame | head -n 15' 2>&1 || true
+wait "$analyze" || true
+cat "$work/systemd-analyze.txt" 2>/dev/null || true
 echo "::endgroup::"
 # what check-skips reads: endpoint = the union of its shards (it must
 # cover endpoint.list); csi-mount = the non-sanity tests plus csi-sanity on
@@ -342,6 +363,9 @@ fi
 # csi-sanity spec floor: Identity + Controller specs run on the simulator
 # (44 of 103 with csi-test v5.6); a regex or skip regression drops below it
 ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
+# TestPropertyRoundTrip runs in every endpoint shard, a part of its rows
+# each (PROPRT_SHARD): every row must have run in exactly one of them
+ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$o"/endpoint.[0-9].log || rc=1
 ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
 ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
 exit $rc

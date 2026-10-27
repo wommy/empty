@@ -2,8 +2,11 @@
 #   shard test status parallel own_s cost_s wall_s subtests
 # own_s    the test's own result line. A test whose subtests call t.Parallel
 #          reports only its sequential part there (0.00s for a pure fan-out).
-# cost_s   own_s plus every parallel (PAUSEd) descendant's own time: the
-#          test-seconds it puts on the shard, parallel subtests summed.
+# cost_s   own_s plus the own time of every parallel (PAUSEd) descendant
+#          that own_s leaves out: the test-seconds it puts on the shard,
+#          parallel subtests summed. A parallel subtest under a sequential
+#          subtest (TestModel/seqs/w0) is already inside own_s, since t.Run
+#          of the sequential one waits for it, and is not added again.
 # wall_s   first "=== RUN" (or "=== CONT", for a parallel test) to its result
 #          line, parallel subtests included; "-" without timestamps.
 # parallel 1 when the top-level test itself called t.Parallel.
@@ -47,14 +50,27 @@ $1 == "---" && $2 ~ /^(PASS|FAIL|SKIP):$/ {
     tops[++ntop] = n
   }
 }
+# the nearest enclosing test that reported a result: a subtest name can
+# itself contain "/" (TestPropertyRoundTrip/filesystem/atime=on)
+function parent(n,  p) {
+  p = n
+  while (sub(/\/[^\/]*$/, "", p)) if (p in dur) return p
+  return p
+}
+# a parallel test's time is outside its parent's result line; it is
+# outside the top-level test's only if every test between them is parallel
+function outside(n,  p) {
+  if (!(n in paused)) return 0
+  p = parent(n)
+  return index(p, "/") == 0 || outside(p)
+}
 END {
   for (n in dur) {
     if (index(n, "/") == 0) continue
     t = n
     sub(/\/.*/, "", t)
     nsub[t]++
-    # a parallel subtest's time is not inside its parent's result line
-    if (n in paused) extra[t] += dur[n]
+    if (outside(n)) extra[t] += dur[n]
   }
   for (i = 1; i <= ntop; i++) {
     t = tops[i]

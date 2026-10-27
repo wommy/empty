@@ -139,10 +139,11 @@ jobs:
     # version` reports 2.4.x for both userland and kmod, and enforces the
     # skip budget in ci/expected-skips.txt.
     #
-    # Step order is the critical path: the guest and qemu restore first,
-    # the guest boots in the background, and setup-go and the test build
-    # run while it boots. The caches are kept warm on the default branch by
-    # cache-warm.yml, which PRs read (a PR's own saves are PR-scoped).
+    # Step order is the critical path: the guest and qemu restore first
+    # (one cache entry), the guest boots in the background, and setup-go
+    # and the test build run while it boots. The caches are kept warm on
+    # the default branch by cache-warm.yml, which PRs read (a PR's own
+    # saves are PR-scoped).
     name: real ZFS 2.4 (Ubuntu 26.10 VM)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -160,20 +161,20 @@ jobs:
         # fetches and gpg-verifies SHA256SUMS once; the script reuses it
         id: keys
         uses: ./.github/actions/real-zfs-keys
-      - name: restore the provisioned guest
-        id: guest
+      # one entry, two trees: the provisioned guest, and qemu without apt
+      # (the packages apt would add, unpacked once per runner image version,
+      # ~90 MB; 14s of apt-get becomes ~1s). After a runner image release
+      # the fallback key restores the guest with the old qemu tree, which
+      # the next step verifies or rebuilds
+      - name: restore the provisioned guest and qemu
+        id: vm
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.keys.outputs.guest }}
-      # qemu without apt: the packages apt would add, unpacked once per
-      # runner image version and cached (~90 MB); 14s of apt-get becomes ~1s
-      - name: restore qemu
-        id: qemu
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/qemu
-          key: ${{ steps.keys.outputs.qemu }}
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
       - name: set up qemu
         id: qemutree
         run: |
@@ -183,14 +184,16 @@ jobs:
             echo "ok=1" >>"$GITHUB_OUTPUT"
           else
             echo "::warning::qemu tree unusable; installing qemu from apt"
-            rm -rf "$RUNNER_TEMP/qemu"
+            # empty, so the guest can still be saved; the next run falls
+            # back to apt again, as it did with no qemu entry
+            rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"
             sudo apt-get update -qq
             sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils
           fi
           # the cloud image signing key ships in ubuntu-keyring on 24.04
           test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
       - name: install cloud-image-utils (cold guest only)
-        if: steps.guest.outputs.cache-hit != 'true'
+        if: steps.vm.outputs.cache-matched-key == ''
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
@@ -217,7 +220,8 @@ jobs:
         # every run: TestZFSDiffReplay reports real pool vs simulator vs
         # reference model divergences without failing the job (the job
         # summary has the verdicts; the full replay is in nightly.yml).
-        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh
+        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh;
+        # load.txt + vmstat.txt: the guest's CPU and pressure in the tests
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -226,27 +230,26 @@ jobs:
             ${{ runner.temp }}/zfsvm/out/zfsdiff.log
             ${{ runner.temp }}/zfsvm/out/test-times.tsv
             ${{ runner.temp }}/zfsvm/out/endpoint.list
+            ${{ runner.temp }}/zfsvm/out/load.txt
+            ${{ runner.temp }}/zfsvm/out/vmstat.txt
           if-no-files-found: warn
           retention-days: 30
       - name: check for a stored guest
         id: stored
-        if: always() && steps.guest.outputs.cache-hit != 'true'
+        if: always() && steps.vm.outputs.cache-hit != 'true'
         run: test -f "$RUNNER_TEMP/zfsvm-cache/ok" && echo "ok=1" >>"$GITHUB_OUTPUT" || true
-      - name: save the provisioned guest
-        # also after a test failure: provisioning succeeded, and the version
+      - name: save the provisioned guest and qemu
+        # a cold guest, or a guest restored with another runner image's qemu
+        # tree; after the tests, so a miss does not delay the boot. Also
+        # after a test failure: provisioning succeeded, and the version
         # checks run again on every warm boot
         if: always() && steps.stored.outputs.ok == '1'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.keys.outputs.guest }}
-      - name: save qemu
-        # after the tests: a miss (new runner image) does not delay the boot
-        if: always() && steps.qemu.outputs.cache-hit != 'true' && steps.qemutree.outputs.ok == '1'
-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/qemu
-          key: ${{ steps.keys.outputs.qemu }}
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
       - name: save Go caches (none for this go.sum was restored)
         if: steps.go.outputs.save == 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3

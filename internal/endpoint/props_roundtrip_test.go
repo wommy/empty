@@ -3,8 +3,10 @@ package endpoint_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/wommy/empty/internal/endpoint"
@@ -65,14 +67,45 @@ func allowlistRows() []propRow {
 	return rows
 }
 
+// propRTShard reads PROPRT_SHARD=<i>/<n>: this process runs the rows whose
+// index is i mod n. The real-ZFS VM (ci/real-zfs-guest.sh) runs the test in
+// each of its n endpoint shards, so its ~200 real-pool round trips spread
+// over n processes instead of one; ci/check-split.sh checks that every row
+// ran in exactly one shard. Unset, it runs every row (0/1).
+func propRTShard(t *testing.T) (shard, n int) {
+	v := os.Getenv("PROPRT_SHARD")
+	if v == "" {
+		return 0, 1
+	}
+	a, b, ok := strings.Cut(v, "/")
+	shard, err1 := strconv.Atoi(a)
+	n, err2 := strconv.Atoi(b)
+	if !ok || err1 != nil || err2 != nil || n < 1 || shard < 0 || shard >= n {
+		t.Fatalf("PROPRT_SHARD=%q: want <i>/<n> with 0 <= i < n", v)
+	}
+	return shard, n
+}
+
 func TestPropertyRoundTrip(t *testing.T) {
 	t.Parallel()
 	rows := allowlistRows()
 	if len(rows) < 100 {
 		t.Fatalf("only %d allowlisted values found: the candidate list is stale", len(rows))
 	}
+	shard, n := propRTShard(t)
+	mine := 0
+	for i := range rows {
+		if i%n == shard {
+			mine++
+		}
+	}
+	// ci/check-split.sh reads this line from every shard's log
+	t.Logf("PROPRT_SHARD %d/%d: %d of %d rows", shard, n, mine, len(rows))
 	ep, h := setup(t)
 	for i, r := range rows {
+		if i%n != shard {
+			continue
+		}
 		t.Run(fmt.Sprintf("%s/%s=%s", r.kind, r.key, r.value), func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()

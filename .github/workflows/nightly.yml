@@ -129,17 +129,16 @@ jobs:
         # restored only: cache-warm.yml stores them
         id: keys
         uses: ./.github/actions/real-zfs-keys
-      - name: restore the provisioned guest
-        id: guest
+      - name: restore the provisioned guest and qemu
+        # one entry, the same paths and keys as ci.yml
+        id: vm
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
-          path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.keys.outputs.guest }}
-      - name: restore qemu
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/qemu
-          key: ${{ steps.keys.outputs.qemu }}
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
       - name: set up qemu
         run: |
           if ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then
@@ -151,7 +150,7 @@ jobs:
           fi
           test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
       - name: install cloud-image-utils (cold guest only)
-        if: steps.guest.outputs.cache-hit != 'true'
+        if: steps.vm.outputs.cache-matched-key == ''
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends cloud-image-utils

@@ -19,5 +19,13 @@ runcmd:
   - [sh, -c, 'echo zfs >/etc/modules-load.d/zfs.conf']
   - [sh, -c, 'for p in snapd unattended-upgrades; do if dpkg -s $p >/dev/null 2>&1; then apt-get purge -y -qq $p; fi; done']
   - [sh, -c, 'for u in apt-daily.timer apt-daily-upgrade.timer motd-news.timer man-db.timer e2scrub_all.timer fstrim.timer fwupd-refresh.timer ModemManager.service multipathd.service multipathd.socket lxd-installer.socket; do if systemctl list-unit-files "$u" --no-legend | grep -q .; then systemctl mask "$u"; fi; done']
+  # /boot and /boot/efi off the boot path: a warm boot loads the kernel
+  # and initrd stored with the disk (-kernel, -initrd) or through GRUB,
+  # which reads the partitions itself, and nothing installs a kernel after
+  # provisioning. Mounting them waited for vda13 and vda15 to appear (4.2
+  # and 4.8s into the boot, runs 40497090324 and 40494213342). Takes effect
+  # from the next boot: this boot still copies the kernel out of /boot
+  - |
+    awk '$1 !~ /^#/ && ($2 == "/boot" || $2 == "/boot/efi") && $4 !~ /(^|,)noauto(,|$)/ { $4 = $4 ",noauto" } { print }' /etc/fstab >/etc/fstab.new && cat /etc/fstab.new >/etc/fstab && rm /etc/fstab.new
   # cloud-init has done its one job; a warm boot skips its four stages
   - [touch, /etc/cloud/cloud-init.disabled]
