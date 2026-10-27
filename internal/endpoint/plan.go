@@ -3,6 +3,7 @@ package endpoint
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
@@ -21,6 +22,18 @@ const (
 	OpSet
 	OpDestroy
 )
+
+var opNames = map[OpKind]string{
+	OpCreateFS: "create-filesystem", OpCreateVol: "create-volume", OpSnapshot: "snapshot",
+	OpClone: "clone", OpSet: "set", OpDestroy: "destroy",
+}
+
+func (k OpKind) String() string {
+	if n, ok := opNames[k]; ok {
+		return n
+	}
+	return fmt.Sprintf("OpKind(%d)", uint8(k))
+}
 
 // Op is a planned mutation, as plain data. Each op states how a replay
 // tolerates finding its work already done, so re-applying a partially

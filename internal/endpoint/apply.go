@@ -11,6 +11,13 @@ import (
 // apply runs a plan in order. Each op's tolerance makes replays converge:
 // a retry after a partial failure re-plans from a fresh scan and re-applies.
 func (e *Endpoint) apply(ctx context.Context, plan Plan) error {
+	// an unknown kind is a planner bug: refuse the plan before any op runs,
+	// rather than half-apply it or skip the op as if it were done
+	for i, op := range plan {
+		if _, ok := opNames[op.Kind]; !ok {
+			return &Error{Code: Internal, Msg: fmt.Sprintf("op %d/%d: unknown kind %v on %s", i+1, len(plan), op.Kind, op.Target)}
+		}
+	}
 	for i, op := range plan {
 		var err error
 		switch op.Kind {
@@ -28,6 +35,9 @@ func (e *Endpoint) apply(ctx context.Context, plan Plan) error {
 			err = e.zfs.Set(ctx, op.Target, op.Props)
 		case OpDestroy:
 			err = e.zfs.Destroy(ctx, op.Target, zfs.DestroyOptions{Recursive: op.Recursive, Defer: op.Defer})
+		default:
+			// unreachable after the check above; never treat it as done
+			return &Error{Code: Internal, Msg: "unknown op kind " + op.Kind.String()}
 		}
 		switch {
 		case err == nil:
@@ -53,7 +63,7 @@ func (e *Endpoint) apply(ctx context.Context, plan Plan) error {
 //     change it stays Internal.
 func opErr(err error, i int, plan Plan) error {
 	op := plan[i]
-	e := zfsErr(err, fmt.Sprintf("op %d/%d %s %s", i+1, len(plan), opName(op.Kind), op.Target)).(*Error)
+	e := zfsErr(err, fmt.Sprintf("op %d/%d %s %s", i+1, len(plan), op.Kind, op.Target)).(*Error)
 	switch {
 	case op.Kind == OpDestroy && errors.Is(err, zfs.ErrBusy):
 		e.Code = FailedPrecondition
@@ -62,20 +72,4 @@ func opErr(err error, i int, plan Plan) error {
 		e.Msg += " (earlier ops applied; a retry converges)"
 	}
 	return e
-}
-
-func opName(k OpKind) string {
-	switch k {
-	case OpCreateFS, OpCreateVol:
-		return "create"
-	case OpSnapshot:
-		return "snapshot"
-	case OpClone:
-		return "clone"
-	case OpSet:
-		return "set"
-	case OpDestroy:
-		return "destroy"
-	}
-	return "op"
 }
