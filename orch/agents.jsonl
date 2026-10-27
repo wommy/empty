@@ -1,6 +1,6 @@
 {"id": "aa3129c3b9e3b1a3b", "name": "model-based test suite", "lane": "reader", "wave": 8, "status": "running", "branch": null, "report": "wave8/model.md", "anomaly": false, "ledger": null}
 {"id": "a5b209d5d474fd39e", "name": "diff-fuzz zfs model vs sim vs real", "lane": "reader", "wave": 9, "status": "running", "branch": null, "report": "wave9/zfs-diff.md", "anomaly": false, "ledger": null}
-{"id": "a5e4557dcef93f7c8", "name": "diff-fuzz nfs sharenfs/etab", "lane": "reader", "wave": 9, "status": "running", "branch": null, "report": "wave9/nfs-diff.md", "anomaly": false, "ledger": null}
+{"id": "a5e4557dcef93f7c8", "name": "diff-fuzz nfs sharenfs/etab", "lane": "reader", "wave": 9, "status": "done", "branch": null, "report": "wave9/nfs-diff.md", "anomaly": false, "ledger": "wave9-nfs-diff"}
 {"id": "ab47454fc8465c866", "name": "diff-fuzz csi vs endpoint vs spec", "lane": "reader", "wave": 9, "status": "done", "branch": null, "report": "wave9/csi-diff.md", "anomaly": false, "ledger": "wave9-csi-diff"}
 {"id": "a3777e1ab243b4e78", "name": "speed: measure test & CI time", "lane": "reader", "wave": 10, "status": "running", "branch": null, "report": "wave10/timing.md", "anomaly": false, "ledger": null}
 {"id": "a7831adbe6c6a0b0b", "name": "speed: VM critical path", "lane": "writer", "wave": 10, "status": "running", "branch": "speed-vm", "report": "wave10/vm.md", "anomaly": false, "ledger": null}
@@ -12,3 +12,4 @@
 {"id": "aee8daeb5af165bf5", "name": "test suite as data", "lane": "reader", "wave": 7, "status": "done", "branch": null, "report": "wave7/suite.md", "anomaly": false, "ledger": "wave7-suite"}
 {"id": "a0caadbc7721f48a8", "name": "first-principles DOD core", "lane": "reader", "wave": 8, "status": "done", "branch": null, "report": "wave8/core.md", "anomaly": false, "ledger": "wave8-core"}
 {"id": "a2adf9af7595af207", "name": "build & download queue + supply chain", "lane": "reader", "wave": 11, "status": "running", "branch": null, "report": "wave11/build-queue.md", "anomaly": true, "queue": "w11-buildq"}
+{"id": "a8add075ca10fcee4", "name": "research + adversary: 2 NFS decisions (server in volume_context, plain vols in NFS mode); client grammar already decided by wave9 nfs-diff evidence", "lane": "reader", "wave": 13, "status": "running", "branch": null, "report": "wave13/nfs-decisions.md", "anomaly": false, "queue": "r-nfs-decisions"}

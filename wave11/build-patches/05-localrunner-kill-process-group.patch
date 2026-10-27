@@ -1,0 +1,24 @@
+--- a/internal/zfs/runner.go
++++ b/internal/zfs/runner.go
+@@ -79,7 +79,9 @@
+ 
+ func (r LocalRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+ 	cmd := exec.CommandContext(ctx, name, args...)
+-	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
++	// signal the child's own process group (childAttr sets Setpgid), not
++	// just the leader: a grandchild holding a pipe otherwise outlives Run
++	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
+ 	cmd.SysProcAttr = childAttr()
+ 	cmd.WaitDelay = r.WaitDelay
+ 	if cmd.WaitDelay == 0 {
+@@ -89,6 +91,10 @@
+ 	cmd.Stdout = &stdout
+ 	cmd.Stderr = &stderr
+ 	err := cmd.Run()
++	if ctx.Err() != nil && cmd.Process != nil {
++		// WaitDelay's SIGKILL reaches only the leader; reap the rest
++		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
++	}
+ 	if err != nil && !errors.As(err, new(*exec.ExitError)) {
+ 		// never ran: binary missing, context cancelled before start, ...
+ 		return nil, fmt.Errorf("run %s: %w", name, err)

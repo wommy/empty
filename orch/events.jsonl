@@ -5,3 +5,8 @@
 {"ts": "2026-10-27T06:22:55Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T06:25:00Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
 {"ts": "2026-10-27T06:26:08Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:31:35Z", "id": "a5e4557dcef93f7c8", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:31:35Z", "id": "a5e4557dcef93f7c8", "from": "reported", "to": "triaged", "note": "D1 crossmnt parent + D2 serves() precedence/options confirmed at HEAD export.go:336; fail-open = security; integration queued b-nfs-verifier (priority -1). Grammar answered: HEAD already canonical /N; bare IPv4 input normalised to /32 -> Q3 decided by evidence."}
+{"ts": "2026-10-27T06:31:35Z", "id": "a5e4557dcef93f7c8", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:32:03Z", "id": "a8add075ca10fcee4", "from": "queued", "to": "running", "note": "r-nfs-decisions"}
+{"ts": "2026-10-27T06:32:04Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

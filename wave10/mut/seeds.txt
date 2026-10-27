@@ -2,3 +2,29 @@
 686 424 GUARD_DELETE guard `if op.Kind != OpDestroy`: `continue` deleted -> ok
 687 423 EQ_FLIP op.Kind != OpDestroy  =>  != becomes == -> 0
 688 426 IF_NEGATE if op.Defer  =>  if !(...) -> 1
+689 427 BOOL_FLIP deferT[op.Target] = true  =>  false -> 1
+690 429 BOOL_FLIP exact[op.Target] = true  =>  false -> 0
+691 431 IF_NEGATE if op.Recursive  =>  if !(...) -> 5
+692 432 BOOL_FLIP rec[op.Target] = true  =>  false -> 5
+693 437 IF_NEGATE if len(rec) == 0  =>  if !(...) -> 5
+694 438 GUARD_DELETE guard `if len(rec) == 0`: `return false` deleted -> ok
+695 437 EQ_FLIP len(rec) == 0  =>  == becomes != -> 5
+696 438 BOOL_FLIP return false  =>  return true -> 2
+697 440 REL_FLIP i < len(name)  =>  < becomes <= -> panic
+698 441 IF_NEGATE if (name[i] == '@' || name[i] == '/') && rec[name[:i]]  =>  if !(...) -> 1
+699 442 GUARD_DELETE guard `if (name[i] == '@' || name[i] == '/') && rec[name[:i]]`: `retur -> 5
+700 441 ANDOR_SWAP && becomes || in: (name[i] == '@' || name[i] == '/') && rec[name[:i]] -> 1
+701 441 DROP_OPERAND operand `(name[i] == '@' || name[i] == '/')` replaced by true -> ok
+702 441 DROP_OPERAND operand `rec[name[:i]]` replaced by true -> 1
+703 441 ANDOR_SWAP || becomes && in: name[i] == '@' || name[i] == '/' -> build
+704 441 DROP_OPERAND operand `name[i] == '@'` replaced by false -> 5
+705 441 DROP_OPERAND operand `name[i] == '/'` replaced by false -> ok
+706 441 EQ_FLIP name[i] == '@'  =>  == becomes != -> 5
+707 441 EQ_FLIP name[i] == '/'  =>  == becomes != -> ok
+708 442 BOOL_FLIP return true  =>  return false -> 5
+709 445 BOOL_FLIP return false  =>  return true -> 1
+710 449 ANDOR_SWAP || becomes && in: exact[r.Name] || under(r.Name) -> 0
+711 449 DROP_OPERAND operand `exact[r.Name]` replaced by false -> 0
+712 449 DROP_OPERAND operand `under(r.Name)` replaced by false -> build
+713 450 IF_NEGATE if gone && r.Origin != ""  =>  if !(...) -> 1
+714 450 ANDOR_SWAP && becomes || in: gone && r.Origin != "" -> ok

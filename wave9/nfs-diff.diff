@@ -1,0 +1,3789 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 574e4d6..43db277 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -57,6 +57,11 @@ jobs:
+           - { name: FuzzReconcileSafe, pkg: ./internal/endpoint }
+           - { name: FuzzParseColumns, pkg: ./internal/zfs }
+           - { name: FuzzClassify, pkg: ./internal/zfs }
++          # NFS export chain against the libshare/exportfs/mountd models
++          - { name: FuzzNFSRoundTrip, pkg: ./internal/endpoint }
++          - { name: FuzzNFSClassifier, pkg: ./internal/endpoint }
++          - { name: FuzzNFSVerifier, pkg: ./internal/endpoint }
++          - { name: FuzzNFSEtabParse, pkg: ./internal/endpoint }
+     steps:
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+diff --git a/ci/real-zfs-vm.sh b/ci/real-zfs-vm.sh
+index cbff255..07e0e27 100755
+--- a/ci/real-zfs-vm.sh
++++ b/ci/real-zfs-vm.sh
+@@ -139,6 +139,15 @@ vm 'set -eo pipefail
+   exit $rc' || rc=$?
+ 
+ scp "${common[@]}" -P 2222 'ci@127.0.0.1:*.log' 'ci@127.0.0.1:*.list' "$work/" || rc=1
++# TestNFSReplay (internal/endpoint) replays a sharenfs corpus through the
++# real libshare, exportfs and etab and diffs it against the reference
++# models and the simulator; its report goes to the job summary
++if [ -f "$work/nfs-replay.log" ]; then
++  { echo "<details><summary>NFS replay: $(tail -n 1 "$work/nfs-replay.log")</summary>"
++    echo; echo '```'; cat "$work/nfs-replay.log"; echo '```'; echo "</details>"; } >>"$summary"
++else
++  echo "::error::vm/endpoint: TestNFSReplay wrote no nfs-replay.log"; rc=1
++fi
+ {
+   echo "| leg | package | skips | skipped tests |"
+   echo "|---|---|---|---|"
+diff --git a/internal/endpoint/endpoint.go b/internal/endpoint/endpoint.go
+index 04888a8..906ee0c 100644
+--- a/internal/endpoint/endpoint.go
++++ b/internal/endpoint/endpoint.go
+@@ -744,6 +744,13 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
+ 				"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, c.Host, c.mode())
+ 		}
+ 	}
++	// served beyond the request: a line of another exports file for this
++	// path, or an ancestor exported with crossmnt (an inherited
++	// sharenfs=on) serves this mount to its own clients
++	if x := live.exposure(realPath(row.Mount), publishWant(row, c)); len(x) > 0 {
++		return "", errorf(FailedPrecondition, "volume %s is served beyond its client list by the NFS export table: %s; "+
++			"remove these exports (an ancestor dataset's sharenfs with crossmnt, e.g. \"on\", or /etc/exports) first", row.ID, strings.Join(x, "; "))
++	}
+ 	// etab is no proof of a server: exportfs -ra rewrites it with nfsd
+ 	// stopped
+ 	if err := e.nfsdRunning(ctx); err != nil {
+@@ -815,6 +822,10 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string)
+ 		return errorf(Unavailable, "sharenfs on %s is updated, but the NFS export table still serves %s to %s: "+
+ 			"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, h)
+ 	}
++	if x := live.covers(realPath(row.Mount), h, unpublishWant(row, h)); len(x) > 0 {
++		return errorf(FailedPrecondition, "sharenfs on %s is updated, but %s is still served to %s by: %s; "+
++			"remove these exports (another exports file, or an ancestor dataset's sharenfs with crossmnt)", row.Name, row.Mount, h, strings.Join(x, "; "))
++	}
+ 	return nil
+ }
+ 
+diff --git a/internal/endpoint/export.go b/internal/endpoint/export.go
+index ff3350a..cd3d472 100644
+--- a/internal/endpoint/export.go
++++ b/internal/endpoint/export.go
+@@ -50,6 +50,15 @@ type NFSClient struct {
+ 	// unknownMode marks an etab line whose options start with neither ro
+ 	// nor rw. It serves no request, so verification fails closed.
+ 	unknownMode bool
++	// broad marks an etab line with an option our sharenfs never yields
++	// and that widens access (no_root_squash, insecure, crossmnt, a
++	// flavor other than sys, anonuid other than 65534, ...), a token it
++	// does not know, or a per-flavor mode that differs from the leading
++	// one (the kernel enforces the flavor's). It serves no request.
++	broad bool
++	// crossmnt: the line exports the mounts below its path too
++	// (nfs-utils cache.c path_matches, lookup_export).
++	crossmnt bool
+ }
+ 
+ func (c NFSClient) mode() string {
+@@ -267,7 +276,8 @@ type Etab map[string][]NFSClient
+ // per client, with special characters in the path written as \ooo. A line
+ // whose first option is neither ro nor rw is kept with an unknown mode: it
+ // is served (Unpublish must not report it gone) but in no mode Publish can
+-// confirm.
++// confirm. Lines keep their file order, which is mountd's order within a
++// client class (nfs-utils xtab.c xtab_write, cache.c lookup_export).
+ func ParseEtab(b []byte) Etab {
+ 	t := Etab{}
+ 	sc := bufio.NewScanner(bytes.NewReader(b))
+@@ -290,12 +300,96 @@ func ParseEtab(b []byte) Etab {
+ 		default:
+ 			c.unknownMode = true
+ 		}
++		c.broad, c.crossmnt = etabOptions(strings.TrimSuffix(opts, ")"), c.ReadOnly)
+ 		path = unescapeOctal(path)
+ 		t[path] = append(t[path], c)
+ 	}
+ 	return t
+ }
+ 
++// etabOptions checks an etab option list against what exportfs writes for
++// a line of our sharenfs (libshare "sec=sys,<mode>,no_subtree_check,
++// mountpoint" with nfs-utils defaults; exports.c putexportent and
++// secinfo_show). Anything else that is not known to be narrower is broad.
++func etabOptions(opts string, readOnly bool) (broad, crossmnt bool) {
++	mode := "rw"
++	if readOnly {
++		mode = "ro"
++	}
++	for _, o := range strings.Split(opts, ",") {
++		switch {
++		case o == "ro" || o == "rw":
++			// the leading mode, or a flavor's: the kernel enforces the
++			// flavor's flags, so every one must agree
++			if o != mode {
++				broad = true
++			}
++		case o == "crossmnt":
++			crossmnt, broad = true, true
++		case o == "sync", o == "async", o == "wdelay", o == "no_wdelay", o == "hide",
++			o == "nocrossmnt", o == "secure", o == "root_squash", o == "all_squash",
++			o == "no_all_squash", o == "subtree_check", o == "no_subtree_check",
++			o == "secure_locks", o == "acl", o == "no_acl", o == "nordirplus",
++			o == "security_label", o == "sign_fh", o == "pnfs", o == "no_pnfs",
++			o == "mountpoint", strings.HasPrefix(o, "mountpoint="),
++			o == "anonuid=65534", o == "anongid=65534",
++			strings.HasPrefix(o, "fsid="), strings.HasPrefix(o, "xprtsec="):
++		case strings.HasPrefix(o, "sec="):
++			for _, f := range strings.Split(o[4:], ":") {
++				if f != "sys" && f != "unix" {
++					broad = true
++				}
++			}
++		default:
++			broad = true
++		}
++	}
++	return broad, crossmnt
++}
++
++// etabClass is nfs-utils' client class of an etab host (client.c
++// client_gettype); mountd tries fqdn, then subnet, then the rest.
++func etabClass(h string) string {
++	switch {
++	case h == "" || h == "*":
++		return "anonymous"
++	case strings.HasPrefix(h, "gss/"):
++		return "gss"
++	case h[0] == '@':
++		return "netgroup"
++	}
++	for i := 0; i < len(h); i++ {
++		switch h[i] {
++		case '*', '?', '[':
++			return "wildcard"
++		case '/':
++			return "subnet"
++		case '\\':
++			i++
++		}
++	}
++	return "fqdn"
++}
++
++// mayMatch reports whether etab client c can match an address of network
++// p. A name, wildcard or netgroup, or a subnet spelling Go does not take
++// (nfs-utils also takes "/024", "/+24" and dotted masks), may match any.
++func (c NFSClient) mayMatch(p netip.Prefix) bool {
++	switch etabClass(c.Host) {
++	case "gss":
++		return false
++	case "subnet":
++		if q, ok := c.prefix(); ok {
++			return q.Overlaps(p)
++		}
++	case "fqdn":
++		if a, err := netip.ParseAddr(c.Host); err == nil && a.Is4() && a.String() == c.Host {
++			return p.Contains(a)
++		}
++	}
++	return true
++}
++
+ func unescapeOctal(s string) string {
+ 	if !strings.Contains(s, `\`) {
+ 		return s
+@@ -332,10 +426,129 @@ func (t Etab) Lookup(path, host string) (NFSClient, bool) {
+ 	return NFSClient{}, false
+ }
+ 
+-// serves reports whether path is exported to c in c's mode.
++// serves reports whether path is exported to c in c's mode, and every
++// address of c gets that line: mountd answers a request with the first
++// matching export by client class (an fqdn line beats every subnet line),
++// then by etab order (nfs-utils cache.c lookup_export). A line with
++// options our sharenfs never yields does not count.
+ func (t Etab) serves(path string, c NFSClient) bool {
+-	got, ok := t.Lookup(path, c.Host)
+-	return ok && !got.unknownMode && got.ReadOnly == c.ReadOnly
++	want, err := parseClient(c.Host)
++	if err != nil {
++		return false
++	}
++	own := false
++	for _, x := range t[path] {
++		cls := etabClass(x.Host)
++		if p, ok := x.prefix(); ok && cls == "subnet" && p == want && !own {
++			if x.unknownMode || x.broad || x.ReadOnly != c.ReadOnly {
++				return false
++			}
++			own = true
++			continue
++		}
++		if (cls == "fqdn" || (cls == "subnet" && !own)) && x.mayMatch(want) {
++			return false
++		}
++	}
++	return own
++}
++
++// exposure lists what serves path beyond want: an etab line of path that
++// is not exactly one of want (a different network, a name, "*", a broader
++// option, the other mode), and every crossmnt line of an ancestor path,
++// which exports this volume's mount to its own clients (nfs-utils
++// cache.c path_matches: an inherited `sharenfs=on` is "rw,crossmnt" to
++// "*" on every ancestor).
++func (t Etab) exposure(path string, want []NFSClient) []string {
++	var out []string
++	for _, x := range t.extra(path, want) {
++		out = append(out, x.String())
++	}
++	slices.Sort(out)
++	return out
++}
++
++// etabLine is one etab client of a path.
++type etabLine struct {
++	path string
++	c    NFSClient
++}
++
++func (l etabLine) String() string {
++	s := l.path + " " + l.c.Host + "(" + l.c.etabMode()
++	if l.c.crossmnt {
++		s += ",crossmnt"
++	}
++	return s + ")"
++}
++
++func (t Etab) extra(path string, want []NFSClient) []etabLine {
++	var out []etabLine
++	for _, x := range t[path] {
++		ok := false
++		if p, isNet := x.prefix(); isNet && etabClass(x.Host) == "subnet" && !x.unknownMode && !x.broad {
++			for _, w := range want {
++				if wp, _ := w.prefix(); wp == p && w.ReadOnly == x.ReadOnly {
++					ok = true
++				}
++			}
++		}
++		if !ok {
++			out = append(out, etabLine{path, x})
++		}
++	}
++	return append(out, t.crossmntAncestors(path)...)
++}
++
++// crossmntAncestors lists the crossmnt lines of path's ancestors.
++func (t Etab) crossmntAncestors(path string) []etabLine {
++	var out []etabLine
++	for k, cs := range t {
++		if !isAncestor(k, path) {
++			continue
++		}
++		for _, x := range cs {
++			if x.crossmnt {
++				out = append(out, etabLine{k, x})
++			}
++		}
++	}
++	slices.SortFunc(out, func(a, b etabLine) int { return strings.Compare(a.String(), b.String()) })
++	return out
++}
++
++// covers lists the lines beyond want that may still serve host on path:
++// what Unpublish must see gone (want's own lines may serve host by
++// design: it was granted twice).
++func (t Etab) covers(path, host string, want []NFSClient) []string {
++	h, err := parseClient(host)
++	if err != nil {
++		return nil
++	}
++	var out []string
++	for _, x := range t.extra(path, want) {
++		if x.c.mayMatch(h) {
++			out = append(out, x.String())
++		}
++	}
++	slices.Sort(out)
++	return out
++}
++
++func (c NFSClient) etabMode() string {
++	if c.unknownMode {
++		return "?"
++	}
++	return c.mode()
++}
++
++// isAncestor reports whether dir is a proper ancestor of path
++// (cache.c is_subdirectory).
++func isAncestor(dir, path string) bool {
++	if dir == "/" {
++		return len(path) > 1
++	}
++	return len(path) > len(dir) && strings.HasPrefix(path, dir) && path[len(dir)] == '/'
+ }
+ 
+ // at returns the table with path's entries read from real: exportfs
+@@ -518,6 +731,17 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
+ 	if foreign(row) {
+ 		return nil, Row{}, foreignErr(row, "has")
+ 	}
++	// an ancestor exported with crossmnt (an inherited sharenfs=on is
++	// "rw,crossmnt" to "*" on every ancestor) serves this mount to its own
++	// clients whatever this volume's sharenfs says
++	if x := live.crossmntAncestors(row.Mount); len(x) > 0 {
++		var s []string
++		for _, l := range x {
++			s = append(s, l.String())
++		}
++		return nil, Row{}, errorf(FailedPrecondition, "volume %s is exported through an ancestor with crossmnt: %s; set sharenfs=off (or drop crossmnt) on the ancestor first",
++			row.ID, strings.Join(s, "; "))
++	}
+ 	want := cs
+ 	if x, ok := overlap(cs, c); ok {
+ 		switch {
+@@ -534,12 +758,44 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
+ 	if err != nil {
+ 		return nil, Row{}, err
+ 	}
+-	if len(plan) == 0 && !live.serves(row.Mount, c) {
++	// unchanged but not served, or served beyond want (a stale etab after
++	// a failed exportfs): re-share once; what a re-share cannot fix
++	// (another exports file, an ancestor's crossmnt) the caller reports
++	if len(plan) == 0 && (!live.serves(row.Mount, c) || len(live.exposure(row.Mount, want)) > 0) {
+ 		plan = reshare(row, want)
+ 	}
+ 	return plan, row, nil
+ }
+ 
++// publishWant is the client list a successful PlanPublishExport of c on
++// row leads to.
++func publishWant(row Row, c NFSClient) []NFSClient {
++	var cs []NFSClient
++	if row.NFSClientsSet {
++		cs, _ = decodeClients(row.NFSClients)
++	}
++	if _, ok := overlap(cs, c); ok {
++		return cs
++	}
++	return sortClients(append(cs, c))
++}
++
++// unpublishWant is the client list after removing host from row's.
++func unpublishWant(row Row, host string) []NFSClient {
++	var cs []NFSClient
++	if row.NFSClientsSet {
++		cs, _ = decodeClients(row.NFSClients)
++	}
++	h, err := parseClient(host)
++	if err != nil {
++		return cs
++	}
++	return slices.DeleteFunc(cs, func(x NFSClient) bool {
++		px, _ := x.prefix()
++		return px == h
++	})
++}
++
+ // PlanUnpublishExport removes host from volume volID. A missing volume, a
+ // malformed id or a host that is not exported is done; the last host leaves
+ // sharenfs=off set locally (never inherited: the parent may be shared). It
+@@ -567,7 +823,12 @@ func (p Planner) PlanUnpublishExport(t Table, live Etab, volID, host string) (Pl
+ 		pc, _ := c.prefix()
+ 		return px == pc
+ 	})
++	// served: its own line, or (on a volume whose sharenfs is ours) any
++	// line beyond want that can match it, e.g. an admin's edit of our
++	// sharenfs to "rw=*" (rewritten below). A foreign sharenfs is never
++	// rewritten, and a client it covers was never granted by us.
+ 	_, isLive := live.Lookup(row.Mount, c.Host)
++	isLive = isLive || (!foreign(row) && len(live.covers(row.Mount, c.Host, want)) > 0)
+ 	if len(want) == len(cs) {
+ 		// not one of ours; still served means drift or a foreign sharenfs
+ 		switch {
+diff --git a/internal/endpoint/export_contract_test.go b/internal/endpoint/export_contract_test.go
+index 194014a..073f335 100644
+--- a/internal/endpoint/export_contract_test.go
++++ b/internal/endpoint/export_contract_test.go
+@@ -460,9 +460,12 @@ func TestFileExportReceivedShareNFS(t *testing.T) {
+ }
+ 
+ // A volume adopted from democratic-csi (adoption mode) inherits sharenfs;
+-// a parent shared to everyone exports it to "*". The first publish pins a
+-// local value, and a sharenfs someone else set locally is refused, not
+-// overwritten.
++// a parent shared to everyone exports it to "*". sharenfs=on is
++// "rw,crossmnt": the parent's export serves every mount below it to "*",
++// so no local value on the volume can narrow it, and publish is refused
++// until the parent stops (wave9 nfs-diff D1). With a parent shared without
++// crossmnt, the first publish pins a local value; a sharenfs someone else
++// set locally is refused, not overwritten.
+ func TestFileExportAdoptedVolumes(t *testing.T) {
+ 	ctx := context.Background()
+ 	ep, h := setupPrefix(t, "democratic-csi")
+@@ -474,6 +477,18 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
+ 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/old", own, false); err != nil {
+ 		t.Fatal(err)
+ 	}
++	_, err := ep.PublishFileExport(ctx, "old", "10.0.0.1", false)
++	wantCode(t, err, endpoint.FailedPrecondition)
++	if !strings.Contains(err.Error(), "crossmnt") {
++		t.Fatalf("unclear error: %v", err)
++	}
++	if _, src := h.propSource(t, h.Parent+"/old", "sharenfs"); src == "local" {
++		t.Fatal("refused publish changed sharenfs")
++	}
++	// shared without crossmnt: the volume inherits "rw=@10.0.0.0/8"
++	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "rw=@10.0.0.0/8"}); err != nil {
++		t.Fatal(err)
++	}
+ 	path, err := ep.PublishFileExport(ctx, "old", "10.0.0.1", false)
+ 	if err != nil {
+ 		t.Fatal(err)
+diff --git a/internal/endpoint/nfs_diff_test.go b/internal/endpoint/nfs_diff_test.go
+new file mode 100644
+index 0000000..9ed5199
+--- /dev/null
++++ b/internal/endpoint/nfs_diff_test.go
+@@ -0,0 +1,534 @@
++package endpoint
++
++// Differential tests of the NFS export chain (wave9 nfs-diff): our encoder
++// (ShareNFS), classifier (foreign, exportRow) and verifier (ParseEtab,
++// serves, exposure, covers) against the reference models of OpenZFS
++// libshare, nfs-utils exportfs and mountd in internal/nfsref, and the
++// simulator against the same models.
++
++import (
++	"context"
++	"fmt"
++	"net/netip"
++	"regexp"
++	"slices"
++	"strings"
++	"testing"
++
++	"github.com/wommy/empty/internal/nfsref"
++	"github.com/wommy/empty/internal/zfs"
++	"github.com/wommy/empty/internal/zfs/zfstest"
++)
++
++const diffPath = "/tank/v/a"
++
++// gen draws choices from fuzz input; past its end every draw is 0.
++type gen struct {
++	b []byte
++	i int
++}
++
++func (g *gen) byte() byte {
++	if g.i >= len(g.b) {
++		return 0
++	}
++	c := g.b[g.i]
++	g.i++
++	return c
++}
++
++func (g *gen) intn(n int) int { return int(g.byte()) % n }
++
++func pick[T any](g *gen, xs ...T) T { return xs[g.intn(len(xs))] }
++
++// client is a canonical client in a small space, so networks overlap.
++func (g *gen) client(floor int) NFSClient {
++	bits := max(pick(g, 16, 20, 24, 28, 30, 31, 32, 32), floor)
++	a := netip.AddrFrom4([4]byte{10, byte(g.intn(3)), byte(g.intn(3)), byte(g.intn(8))})
++	return NFSClient{Host: netip.PrefixFrom(a, bits).Masked().String(), ReadOnly: g.intn(2) == 1}
++}
++
++// clients is a list decodeClients accepts: canonical, no overlaps.
++func (g *gen) clients() []NFSClient {
++	var cs []NFSClient
++	for range g.intn(5) {
++		c := g.client(DefaultNFSMinPrefix)
++		if _, ok := overlap(cs, c); !ok {
++			cs = append(cs, c)
++		}
++	}
++	return sortClients(cs)
++}
++
++// refChain runs the reference chain: zfs.exports (and optionally
++// /etc/exports and other exports.d files) through `exportfs -ra`, then
++// mountd's view of the resulting etab.
++type refChain struct {
++	etab   string
++	mountd *nfsref.Table
++	diags  []nfsref.Diag
++}
++
++func runRef(etcExports string, dir map[string]string) refChain {
++	files := nfsref.ExportsFiles{Dir: map[string][]byte{}}
++	if etcExports != "" {
++		files.Exports = []byte(etcExports)
++	}
++	for k, v := range dir {
++		files.Dir[k] = []byte(v)
++	}
++	etab, t := nfsref.ExportfsRA(files, nil, nil)
++	return refChain{etab: etab, mountd: nfsref.LoadEtab(etab, nil), diags: t.Diags}
++}
++
++// shareFile is zfs.exports after `zfs set sharenfs` steps (mountpoint,
++// value) on mounted filesystems: "off" on a dataset without lines does
++// not touch the file (changelist_postfix unshares only shared datasets).
++func shareFile(t testing.TB, steps ...[2]string) string {
++	f := ""
++	shared := map[string]bool{}
++	for _, s := range steps {
++		if s[1] == "off" && !shared[s[0]] {
++			continue
++		}
++		shared[s[0]] = s[1] != "off"
++		var err error
++		if f, err = nfsref.ShareFile(f, s[0], s[1]); err != nil {
++			t.Fatalf("ShareFile(%q, %q): %v", s[0], s[1], err)
++		}
++	}
++	return f
++}
++
++// wantMode is what cs grants address a (cs does not overlap).
++func wantMode(cs []NFSClient, a netip.Addr) nfsref.Mode {
++	for _, c := range cs {
++		if p, _ := c.prefix(); p.Contains(a) {
++			if c.ReadOnly {
++				return nfsref.RO
++			}
++			return nfsref.RW
++		}
++	}
++	return nfsref.None
++}
++
++// probes are addresses that decide what any address of the space gets:
++// the ends of every requested and every exported network, their
++// neighbours, and addresses outside.
++func probes(m *nfsref.Table, cs []NFSClient, extra ...netip.Prefix) []netip.Addr {
++	out := []netip.Addr{netip.MustParseAddr("8.8.8.8"), netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("10.3.0.1"), netip.MustParseAddr("11.0.0.0")}
++	ps := slices.Clone(extra)
++	for _, c := range cs {
++		p, _ := c.prefix()
++		ps = append(ps, p)
++	}
++	ps = append(ps, netip.MustParsePrefix("10.0.0.0/8"))
++	for _, p := range ps {
++		for _, a := range m.SampleAddrs(p) {
++			out = append(out, a, a.Prev(), a.Next())
++		}
++	}
++	return slices.DeleteFunc(out, func(a netip.Addr) bool { return !a.IsValid() })
++}
++
++// narrow reports whether the export mountd answers with gives no more than
++// our sharenfs line does: root squashed to 65534, secure port, no crossmnt
++// or nohide, NLM auth, AUTH_SYS only, one mode across flavors.
++func narrow(l *nfsref.Line) bool {
++	e := l.Entry
++	if e.Flags&(nfsref.ExpInsecurePort|nfsref.ExpCrossMount|nfsref.ExpNoHide|nfsref.ExpNoAuthNLM) != 0 ||
++		e.Flags&nfsref.ExpRootSquash == 0 || e.AnonUID != 65534 || e.AnonGID != 65534 || e.FslocKind != "" {
++		return false
++	}
++	for _, s := range e.Secinfo {
++		if s.Num != 1 || s.Flags&nfsref.ExpRootSquash == 0 || s.Flags&nfsref.ExpInsecurePort != 0 ||
++			(s.Flags^e.Flags)&nfsref.ExpReadonly != 0 {
++			return false
++		}
++	}
++	return true
++}
++
++// grantsExactly checks that mountd gives every probe address exactly what
++// cs asks, through a narrow export; it returns the first violation.
++func grantsExactly(m *nfsref.Table, path string, cs []NFSClient, extra ...netip.Prefix) string {
++	for _, a := range probes(m, cs, extra...) {
++		g := m.Access(path, a, nfsref.Env{})
++		if want := wantMode(cs, a); g.Mode != want {
++			return fmt.Sprintf("%s gets %v, want %v", a, g.Mode, want)
++		}
++		if g.Export != nil && !narrow(g.Export) {
++			return fmt.Sprintf("%s answered by a broad export %s", a, nfsref.PutExportent(g.Export.Entry))
++		}
++	}
++	if x := m.Exposure(path, prefixesOf(cs), nfsref.Env{}); len(x) > 0 {
++		return fmt.Sprintf("exposed beyond the request: %s", nfsref.PutExportent(x[0].Entry))
++	}
++	return ""
++}
++
++// failOpen is grantsExactly restricted to grants beyond cs: an address
++// that gets access cs does not give it, rw where cs says ro, or access
++// through a broad export.
++func failOpen(m *nfsref.Table, path string, cs []NFSClient) string {
++	for _, a := range probes(m, cs) {
++		g := m.Access(path, a, nfsref.Env{})
++		want := wantMode(cs, a)
++		if g.Mode == nfsref.None {
++			continue
++		}
++		if want == nfsref.None || g.Mode == nfsref.Unknown || (want == nfsref.RO && g.Mode == nfsref.RW) {
++			return fmt.Sprintf("%s gets %v, want %v", a, g.Mode, want)
++		}
++		if g.Export != nil && !narrow(g.Export) {
++			return fmt.Sprintf("%s answered by a broad export %s", a, nfsref.PutExportent(g.Export.Entry))
++		}
++	}
++	return ""
++}
++
++func prefixesOf(cs []NFSClient) []netip.Prefix {
++	var out []netip.Prefix
++	for _, c := range cs {
++		p, _ := c.prefix()
++		out = append(out, p)
++	}
++	return out
++}
++
++// ---- 1. round trip -----------------------------------------------------------
++
++// Request -> ShareNFS -> libshare -> exportfs -> ParseEtab/serves must give
++// back the request, and mountd must grant exactly it; the simulator must
++// write the same zfs.exports and etab for the same history.
++func FuzzNFSRoundTrip(f *testing.F) {
++	f.Add([]byte{})
++	f.Add([]byte{4, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
++	f.Add([]byte{3, 6, 0, 0, 0, 1, 6, 0, 0, 1, 0, 2, 1, 1, 3, 1})
++	f.Fuzz(func(t *testing.T, data []byte) {
++		g := &gen{b: data}
++		cs := g.clients()
++		other := g.clients()
++		otherFirst := g.intn(2) == 1
++
++		enc := encodeClients(cs)
++		if back, err := decodeClients(enc); err != nil || !slices.Equal(back, cs) {
++			t.Fatalf("stored list %q decodes to %v, %v", enc, back, err)
++		}
++		share := ShareNFS(cs)
++		if err := nfsref.ValidateSharenfs(share); err != nil {
++			t.Fatalf("zfs refuses our sharenfs %q: %v", share, err)
++		}
++		steps := [][2]string{{diffPath, share}, {"/tank/v/b", ShareNFS(other)}}
++		if otherFirst {
++			steps[0], steps[1] = steps[1], steps[0]
++		}
++		file := shareFile(t, steps...)
++		ref := runRef("", map[string]string{"zfs.exports": file})
++
++		live := ParseEtab([]byte(ref.etab))
++		for _, c := range cs {
++			if !live.serves(diffPath, c) {
++				t.Fatalf("sharenfs %q: verifier does not see %s %s in\n%s", share, c.Host, c.mode(), ref.etab)
++			}
++		}
++		if x := live.exposure(diffPath, cs); len(x) > 0 {
++			t.Fatalf("sharenfs %q: verifier sees exposure %v", share, x)
++		}
++		if v := grantsExactly(ref.mountd, diffPath, cs); v != "" {
++			t.Fatalf("sharenfs %q: %s\n%s", share, v, ref.etab)
++		}
++
++		// the simulator, same history
++		sim := zfstest.New("tank")
++		z := zfs.New(sim)
++		ctx := context.Background()
++		for _, ds := range []string{"tank/v", "tank/v/a", "tank/v/b"} {
++			if err := z.CreateFilesystem(ctx, ds, nil, true); err != nil {
++				t.Fatal(err)
++			}
++		}
++		for _, s := range steps {
++			if err := z.Set(ctx, strings.TrimPrefix(s[0], "/"), map[string]string{"sharenfs": s[1]}); err != nil {
++				t.Fatal(err)
++			}
++		}
++		if got := sim.Exports(); got != file {
++			t.Fatalf("sim zfs.exports\n%s\nwant\n%s", got, file)
++		}
++		got, _ := sim.ReadEtab(ctx)
++		if string(got) != ref.etab {
++			t.Fatalf("sim etab\n%s\nwant\n%s", got, ref.etab)
++		}
++	})
++}
++
++// ---- 2. ownership classifier ---------------------------------------------------
++
++// rawShare draws an admin-typed sharenfs value from sharenfs and exports
++// syntax.
++func (g *gen) rawShare() string {
++	if g.intn(4) == 0 {
++		return ShareNFS(g.clients())
++	}
++	toks := []string{"rw", "ro", "=", "=", ":", ":", ",", ",", "@", "*", "10.0.0.0/24", "10.0.0.5/32", "10.0.0.0/16",
++		"10.1.0.0/024", "10.0.0.5", "0.0.0.0/0", "/", "[", "]", "::1", " ", "#", "sec", "sec=sys", "sec=krb5",
++		"crossmnt", "no_root_squash", "insecure", "anonuid=0", "all_squash", "on", "off", "node-a", "\t", "-", "(", ")", "\"", "nohide", "sync=", "fsid=x"}
++	var b strings.Builder
++	for range 1 + g.intn(10) {
++		b.WriteString(toks[g.intn(len(toks))])
++	}
++	return b.String()
++}
++
++// canonicalShareNFS is the MANAGED predicate of the design (csi-nfs-design
++// §2): a value that parses strictly as "rw=<cidrs>,ro=<cidrs>" of masked
++// IPv4 networks with an explicit /N at or above the floor, sorted, without
++// overlaps, i.e. exactly ShareNFS of what it lists.
++func canonicalShareNFS(v string, floor int) ([]NFSClient, bool) {
++	if v == "off" {
++		return nil, true
++	}
++	var cs []NFSClient
++	for i, opt := range strings.Split(v, ",") {
++		k, hosts, ok := strings.Cut(opt, "=")
++		if !ok || (k != "rw" && k != "ro") || (i == 1 && k == "rw") || i > 1 {
++			return nil, false
++		}
++		for _, h := range strings.Split(hosts, ":") {
++			c, err := ParseClient(h, k == "ro")
++			if err != nil || c.Host != h || !strings.Contains(h, "/") || checkFloor(c, floor) != nil {
++				return nil, false
++			}
++			if _, ok := overlap(cs, c); ok {
++				return nil, false
++			}
++			cs = append(cs, c)
++		}
++	}
++	if ShareNFS(cs) != v {
++		return nil, false
++	}
++	return sortClients(cs), true
++}
++
++// exportOf is the reference export of sharenfs v on diffPath, with the
++// parent /tank/v exporting parentV (an inherited value is shared on the
++// parent too).
++func exportOf(t testing.TB, v, parentV string) refChain {
++	var steps [][2]string
++	if parentV != "" && parentV != "off" {
++		steps = append(steps, [2]string{"/tank/v", parentV})
++	}
++	if v != "off" {
++		steps = append(steps, [2]string{diffPath, v})
++	}
++	return runRef("", map[string]string{"zfs.exports": shareFile(t, steps...)})
++}
++
++func FuzzNFSClassifier(f *testing.F) {
++	for _, s := range []string{"on", "rw", "rw=", "rw=10.0.0.5/32", "ro=10.0.0.0/24,rw=10.0.0.0/24", "rw=@10.0.0.0/8:", "rw=10.0.0.5/32 0.0.0.0/0", "rw=#", "rw=10.0.0.0/16,crossmnt", "sec=krb5,rw=10.0.0.0/24"} {
++		f.Add([]byte{1, 1, 0, 2, 7, 3}, s)
++		f.Add([]byte{0, 0, 0, 0, 1, 1}, s)
++	}
++	f.Fuzz(func(t *testing.T, data []byte, raw string) {
++		g := &gen{b: data}
++		if raw == "" {
++			raw = g.rawShare()
++		}
++		if nfsref.ValidateSharenfs(raw) != nil {
++			return // zfs never holds it
++		}
++		// the design's MANAGED grammar: accepted means exactly that export
++		if cs, ok := canonicalShareNFS(raw, DefaultNFSMinPrefix); ok {
++			ref := exportOf(t, raw, "")
++			if v := grantsExactly(ref.mountd, diffPath, cs); v != "" {
++				t.Fatalf("canonical %q: %s", raw, v)
++			}
++		}
++
++		row := fsv("a", nil)
++		switch g.intn(3) {
++		case 0: // set locally
++			row.ShareNFS, row.ShareNFSLocal = raw, true
++		case 1: // inherited from the parent
++			row.ShareNFS, row.ShareNFSLocal = raw, false
++		case 2: // received
++			row.ShareNFS, row.ShareNFSRecv = raw, true
++		}
++		var stored []NFSClient
++		if g.intn(2) == 1 {
++			stored = g.clients()
++			row.NFSClients, row.NFSClientsSet = encodeClients(stored), true
++		}
++		parentV := ""
++		if !row.ShareNFSLocal && !row.ShareNFSRecv {
++			parentV = raw
++		}
++		before := exportOf(t, raw, parentV)
++		live := ParseEtab([]byte(before.etab))
++		tbl := NewTable([]Row{row})
++
++		after := func(plan Plan) (string, string) {
++			v, p := raw, parentV
++			for _, op := range plan {
++				if s, ok := op.Props["sharenfs"]; ok {
++					v = s
++				}
++			}
++			return v, p
++		}
++
++		c := g.client(DefaultNFSMinPrefix)
++		plan, _, err := pl.PlanPublishExport(tbl, live, "a", c)
++		if foreign(row) && err == nil {
++			t.Fatalf("publish on foreign sharenfs %q (row %+v) planned %v", raw, row, plan)
++		}
++		if err == nil {
++			v, p := after(plan)
++			want := publishWant(row, c)
++			ref := exportOf(t, v, p)
++			// the endpoint re-reads etab after the plan and checks c and
++			// the exposure: when that passes, nothing may get more than
++			// want gives it
++			e := ParseEtab([]byte(ref.etab))
++			if e.serves(diffPath, c) && len(e.exposure(diffPath, want)) == 0 {
++				if why := failOpen(ref.mountd, diffPath, want); why != "" {
++					t.Fatalf("publish %s %s on sharenfs %q (local %v, recv %v, stored %q): plan %v leaves %q: %s, and the verifier passes",
++						c.Host, c.mode(), raw, row.ShareNFSLocal, row.ShareNFSRecv, row.NFSClients, plan, v, why)
++				}
++			}
++		}
++
++		h := pick(g, append([]NFSClient{c}, stored...)...)
++		plan, _, err = pl.PlanUnpublishExport(tbl, live, "a", h.Host)
++		if err == nil && len(plan) == 0 && !foreign(row) {
++			// done without a change and without a later check: nothing
++			// beyond the remaining clients may serve h
++			rest := unpublishWant(row, h.Host)
++			hp, _ := h.prefix()
++			for _, a := range before.mountd.SampleAddrs(hp) {
++				if got := before.mountd.Access(diffPath, a, nfsref.Env{}); got.Mode != nfsref.None && got.Mode != wantMode(rest, a) {
++					t.Fatalf("unpublish %s on sharenfs %q (local %v, stored %q) is a no-op, but %s still gets %v",
++						h.Host, raw, row.ShareNFSLocal, row.NFSClients, a, got.Mode)
++				}
++			}
++		}
++	})
++}
++
++// ---- 3. verifier soundness -----------------------------------------------------
++
++// foreignLine draws an exports line someone else wrote: for our path, an
++// ancestor or another path, any client class, options that widen.
++func (g *gen) foreignLine() string {
++	path := pick(g, diffPath, diffPath, "/tank/v", "/tank", "/", "/srv/other")
++	host := pick(g, "10.0.0.0/16", "10.0.0.0/24", "10.0.0.5/32", "10.0.0.5", "10.1.0.0/024", "10.1.0.0/255.255.0.0",
++		"10.0.0.5/24", "*", "node-a", "*.lan", "@ng", "", "gss/krb5", "10.0.0.0/+24", g.client(16).Host)
++	opts := pick(g, "rw", "ro", "rw,no_root_squash", "ro,insecure", "rw,crossmnt", "sec=sys,ro,sec=krb5,rw",
++		"sec=krb5:sys,rw", "ro,sec=sys,rw", "rw,anonuid=0,all_squash", "ro,nohide", "rw,sync", "ro,fsid=0", "rw,bogus", "ro,mountpoint=/nonexistent")
++	if host == "" {
++		return path + " (" + opts + ")\n"
++	}
++	return path + " " + host + "(" + opts + ")\n"
++}
++
++func FuzzNFSVerifier(f *testing.F) {
++	f.Add([]byte{})
++	f.Add([]byte{2, 3, 1, 0, 1, 2, 0, 0, 3, 1, 1, 0, 2})
++	f.Add([]byte{1, 0, 0, 0, 1, 0, 3, 0, 4, 1, 0, 0, 0, 0, 0})
++	f.Fuzz(func(t *testing.T, data []byte) {
++		g := &gen{b: data}
++		cs := g.clients()
++		var etc, early strings.Builder
++		for range g.intn(4) {
++			etc.WriteString(g.foreignLine())
++		}
++		for range g.intn(3) {
++			early.WriteString(g.foreignLine())
++		}
++		dir := map[string]string{"zfs.exports": shareFile(t, [2]string{diffPath, ShareNFS(cs)})}
++		if early.Len() > 0 {
++			dir[pick(g, "00-early.exports", "zz-late.exports")] = early.String()
++		}
++		ref := runRef(etc.String(), dir)
++		checkVerifier(t, ref, cs, g)
++	})
++}
++
++var etabLineRE = regexp.MustCompile(`^[^\s]+\t[^\s(]*\([^\s()]*\)\n?$`)
++
++// FuzzNFSEtabParse feeds raw etab text to ParseEtab and the mountd model.
++func FuzzNFSEtabParse(f *testing.F) {
++	f.Add(diffPath+"\t10.0.0.0/24(ro,sync,wdelay,hide,nocrossmnt,secure,root_squash,no_all_squash,no_subtree_check,secure_locks,acl,no_pnfs,mountpoint,anonuid=65534,anongid=65534,sec=sys,ro,secure,root_squash,no_all_squash)\n", []byte{1, 0, 0, 0, 4, 1})
++	f.Add(diffPath+"\t10.0.0.5(rw)\n"+diffPath+"\t10.0.0.0/24(ro)\n", []byte{1, 0, 0, 0, 4, 1})
++	f.Add(diffPath+"\t10.0.0.0/16(rw)\n"+diffPath+"\t10.0.0.0/24(ro)\n", []byte{1, 0, 0, 0, 4, 1})
++	f.Add(diffPath+"\t10.0.0.0/24(ro,sec=sys,rw)\n", []byte{1, 0, 0, 0, 4, 1})
++	f.Fuzz(func(t *testing.T, etab string, data []byte) {
++		// etab as putexportent writes it: path (escaped), tab, a host
++		// without whitespace or '(', and one option list
++		for _, l := range strings.SplitAfter(etab, "\n") {
++			if l != "" && !etabLineRE.MatchString(l) {
++				return
++			}
++		}
++		g := &gen{b: data}
++		cs := g.clients()
++		ref := refChain{etab: etab, mountd: nfsref.LoadEtab(etab, nil)}
++		checkVerifier(t, ref, cs, g)
++	})
++}
++
++// checkVerifier: whatever serves/exposure/covers claim about diffPath must
++// hold in mountd's model of the same etab.
++func checkVerifier(t *testing.T, ref refChain, cs []NFSClient, g *gen) {
++	live := ParseEtab([]byte(ref.etab))
++	m := ref.mountd
++	cands := append(slices.Clone(cs), g.client(16), g.client(16))
++	for _, c := range cands {
++		for _, ro := range []bool{false, true} {
++			c.ReadOnly = ro
++			if !live.serves(diffPath, c) {
++				continue
++			}
++			p, _ := c.prefix()
++			for _, a := range m.SampleAddrs(p) {
++				gr := m.Access(diffPath, a, nfsref.Env{})
++				want := nfsref.RW
++				if ro {
++					want = nfsref.RO
++				}
++				if gr.Mode != want || (gr.Export != nil && !narrow(gr.Export)) {
++					var how string
++					if gr.Export != nil {
++						how = nfsref.PutExportent(gr.Export.Entry)
++					}
++					t.Fatalf("verifier: %s served %s, but mountd gives %s %v via %s\netab:\n%s", c.Host, c.mode(), a, gr.Mode, how, ref.etab)
++				}
++			}
++		}
++	}
++	if len(live.exposure(diffPath, cs)) == 0 && len(cs) > 0 {
++		allServed := true
++		for _, c := range cs {
++			allServed = allServed && live.serves(diffPath, c)
++		}
++		if allServed {
++			if v := grantsExactly(m, diffPath, cs); v != "" {
++				t.Fatalf("verifier: no exposure and every client served, but %s\netab:\n%s", v, ref.etab)
++			}
++		}
++	}
++	// unpublish: h gone (no line of its own, nothing beyond the rest)
++	h := cands[g.intn(len(cands))]
++	rest := slices.DeleteFunc(slices.Clone(cs), func(x NFSClient) bool { return x.Host == h.Host })
++	if _, ok := live.Lookup(diffPath, h.Host); !ok && len(live.covers(diffPath, h.Host, rest)) == 0 {
++		hp, _ := h.prefix()
++		for _, a := range m.SampleAddrs(hp) {
++			if gr := m.Access(diffPath, a, nfsref.Env{}); gr.Mode != nfsref.None && gr.Mode != wantMode(rest, a) {
++				t.Fatalf("verifier: %s reported gone, but mountd gives %s %v\netab:\n%s", h.Host, a, gr.Mode, ref.etab)
++			}
++		}
++	}
++}
+diff --git a/internal/endpoint/nfs_replay_test.go b/internal/endpoint/nfs_replay_test.go
+new file mode 100644
+index 0000000..c9f6620
+--- /dev/null
++++ b/internal/endpoint/nfs_replay_test.go
+@@ -0,0 +1,412 @@
++package endpoint
++
++// Real-nfsd replay (wave9 nfs-diff): set each corpus sharenfs value on a
++// real dataset, read back /etc/exports.d/zfs.exports and /var/lib/nfs/etab,
++// and diff them against the reference models (internal/nfsref) and the
++// simulator. Runs in the real-ZFS CI VM as root (ZFS_TEST_POOL, nfsd
++// threads > 0); skipped elsewhere. The report goes to $NFS_REPLAY_REPORT,
++// default nfs-replay.log in the working directory (the VM script copies
++// *.log back).
++//
++// It fails on what the endpoint relies on: a canonical (ShareNFS-shaped)
++// value whose real lines differ from the reference or the simulator, and
++// a verifier claim (serves, exposure) the reference mountd model refutes
++// on the real etab. Every other difference is a reference-model
++// ambiguity: reported, and fatal only with NFS_REPLAY_STRICT=1.
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"net/netip"
++	"os"
++	"path/filepath"
++	"strconv"
++	"strings"
++	"syscall"
++	"testing"
++	"time"
++
++	"github.com/wommy/empty/internal/nfsref"
++	"github.com/wommy/empty/internal/zfs"
++	"github.com/wommy/empty/internal/zfs/zfstest"
++)
++
++// replayCase is one corpus entry: sharenfs on the volume, optionally on
++// its parent first. {mp} is replaced by the volume's mountpoint.
++type replayCase struct {
++	name, value, parent string
++}
++
++var replayCorpus = []replayCase{
++	{"off", "off", ""},
++	{"on", "on", ""},
++	{"bare rw", "rw", ""},
++	{"bare ro", "ro", ""},
++	{"one /32 rw", "rw=10.0.0.5/32", ""},
++	{"one /32 ro", "ro=10.0.0.5/32", ""},
++	{"one /16", "rw=10.1.0.0/16", ""},
++	{"canonical mix", "rw=10.0.0.5/32:10.0.0.6/32,ro=10.1.0.0/16", ""},
++	{"same net rw then ro", "rw=10.0.0.0/24,ro=10.0.0.0/24", ""},
++	{"same net ro then rw", "ro=10.0.0.0/24,rw=10.0.0.0/24", ""},
++	{"overlap same mode", "rw=10.0.0.0/24:10.0.0.5/32", ""},
++	{"ro inside rw", "rw=10.0.0.0/16,ro=10.0.0.0/24", ""},
++	{"host bits set", "rw=10.0.0.5/24", ""},
++	{"prefix 024", "rw=10.0.0.0/024", ""},
++	{"prefix +24", "rw=10.0.0.0/+24", ""},
++	{"dotted mask", "rw=10.0.0.0/255.255.255.0", ""},
++	{"prefix 33", "rw=10.0.0.0/33", ""},
++	{"bare address", "rw=10.0.0.5", ""},
++	{"address and /32", "rw=10.0.0.5:10.0.0.5/32", ""},
++	{"at subnet", "rw=@10.0.0.0/8", ""},
++	{"empty list", "rw=", ""},
++	{"trailing colon", "rw=10.0.0.5/32:", ""},
++	{"double colon", "rw=10.0.0.5/32::10.0.0.6/32", ""},
++	{"star", "rw=*", ""},
++	{"unresolvable name", "rw=node-a.invalid", ""},
++	{"crossmnt", "rw=10.0.0.5/32,crossmnt", ""},
++	{"no_root_squash", "rw=10.0.0.5/32,no_root_squash", ""},
++	{"root_mapping", "ro=10.0.0.5/32,root_mapping=0", ""},
++	{"sec krb5", "sec=krb5,rw=10.0.0.5/32", ""},
++	{"sec switch", "rw=10.0.0.5/32,sec=krb5,ro=10.1.0.0/16", ""},
++	{"sec null", "sec,rw=10.0.0.5/32", ""},
++	{"hash host", "rw=#", ""},
++	{"space in list", "rw=10.0.0.5/32 10.0.0.6/32", ""},
++	{"quote", `rw="10.0.0.5/32`, ""},
++	{"bad anonuid", "anonuid=x,rw=10.0.0.5/32", ""},
++	{"no hosts", "sync", ""},
++	{"unknown key", "bogus", ""},
++	{"empty", "", ""},
++	{"ipv6 literal", "rw=[::1]", ""},
++	{"mountpoint option", "rw=10.0.0.5/32,mountpoint=/nonexistent", ""},
++	{"parent on", "rw=10.0.0.5/32", "on"},
++	{"parent subnet", "rw=10.0.0.5/32", "rw=@10.0.0.0/8"},
++}
++
++// replayHost is where the corpus is replayed: the real host or, to test
++// the harness itself, a simulator.
++type replayHost interface {
++	set(name, value string) error // zfs set sharenfs=value name
++	files() (nfsref.ExportsFiles, error)
++	etab() (string, error)
++}
++
++type realHost struct{ ctx context.Context }
++
++func (h realHost) set(name, v string) error {
++	_, err := zfs.LocalRunner{}.Run(h.ctx, "zfs", "set", "sharenfs="+v, name)
++	return err
++}
++
++func (realHost) files() (nfsref.ExportsFiles, error) { return readExports() }
++
++func (realHost) etab() (string, error) {
++	b, err := os.ReadFile("/var/lib/nfs/etab")
++	if errors.Is(err, os.ErrNotExist) {
++		return "", nil
++	}
++	return string(b), err
++}
++
++type simHost struct{ sim *zfstest.Sim }
++
++func (h simHost) set(name, v string) error {
++	_, err := h.sim.Run(context.Background(), "zfs", "set", "sharenfs="+v, name)
++	return err
++}
++
++func (h simHost) files() (nfsref.ExportsFiles, error) {
++	return nfsref.ExportsFiles{Dir: map[string][]byte{"zfs.exports": []byte(h.sim.Exports())}}, nil
++}
++
++func (h simHost) etab() (string, error) {
++	b, err := h.sim.ReadEtab(context.Background())
++	return string(b), err
++}
++
++// newReplaySim is a simulator holding parent and ds at mountpoints pmp and mp.
++func newReplaySim(t *testing.T, parent, ds, mp, pmp string) *zfstest.Sim {
++	ctx := context.Background()
++	sim := zfstest.New(strings.SplitN(parent, "/", 2)[0])
++	sz := zfs.New(sim)
++	if err := sz.CreateFilesystem(ctx, parent, map[string]string{"mountpoint": pmp, "sharenfs": "off"}, true); err != nil {
++		t.Fatal(err)
++	}
++	if err := sz.CreateFilesystem(ctx, ds, map[string]string{"mountpoint": mp}, false); err != nil {
++		t.Fatal(err)
++	}
++	return sim
++}
++
++func TestNFSReplay(t *testing.T) {
++	pool := os.Getenv("ZFS_TEST_POOL")
++	if pool == "" {
++		if os.Getenv("ZFS_REQUIRE_REAL") != "" {
++			t.Fatal("ZFS_REQUIRE_REAL is set but ZFS_TEST_POOL is not")
++		}
++		t.Skip("needs a real pool (ZFS_TEST_POOL) and a running nfsd")
++	}
++	b, err := os.ReadFile("/proc/fs/nfsd/threads")
++	if n, _ := strconv.Atoi(strings.TrimSpace(string(b))); err != nil || n == 0 {
++		t.Skip("needs a running NFS server (nfsd threads > 0)")
++	}
++	start := time.Now()
++	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
++	defer cancel()
++	run := func(args ...string) error {
++		_, err := zfs.LocalRunner{}.Run(ctx, "zfs", args...)
++		return err
++	}
++	parent := fmt.Sprintf("%s/nfsreplay-%d", pool, time.Now().UnixNano())
++	ds := parent + "/v"
++	if err := run("create", "-o", "sharenfs=off", parent); err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() {
++		_ = run("set", "sharenfs=off", ds)
++		_ = run("set", "sharenfs=off", parent)
++		if err := run("destroy", "-r", parent); err != nil {
++			t.Errorf("cleanup: %v", err)
++		}
++	})
++	if err := run("create", ds); err != nil {
++		t.Fatal(err)
++	}
++	z := zfs.New(zfs.LocalRunner{})
++	get := func(name string) string {
++		d, err := z.Get(ctx, name, "mountpoint")
++		if err != nil {
++			t.Fatal(err)
++		}
++		return d.Props["mountpoint"].Value
++	}
++	mp, pmp := get(ds), get(parent)
++	sim := newReplaySim(t, parent, ds, mp, pmp)
++	rep, hard, soft := replayRun(t, realHost{ctx}, sim, parent, ds, mp, pmp, start)
++	elapsed := time.Since(start)
++	out := os.Getenv("NFS_REPLAY_REPORT")
++	if out == "" {
++		out = "nfs-replay.log"
++	}
++	if err := os.WriteFile(out, []byte(rep), 0o644); err != nil {
++		t.Errorf("report: %v", err)
++	}
++	t.Logf("report %s: %d failures, %d ambiguities, %v", out, hard, soft, elapsed)
++	if hard > 0 || (soft > 0 && os.Getenv("NFS_REPLAY_STRICT") != "") {
++		t.Errorf("%d replay failures, %d ambiguities; see %s:\n%s", hard, soft, out, rep)
++	}
++	if elapsed > 30*time.Second {
++		t.Errorf("replay took %v, budget 30s", elapsed)
++	}
++}
++
++// TestNFSReplayOnSim runs the harness with a simulator as the host, so
++// the harness itself is tested in the unit job: the simulator is built on
++// the reference models, so only the verifier checks can fail here.
++func TestNFSReplayOnSim(t *testing.T) {
++	parent, ds := "tank/nfsreplay", "tank/nfsreplay/v"
++	mp, pmp := "/tank/nfsreplay/v", "/tank/nfsreplay"
++	host := simHost{newReplaySim(t, parent, ds, mp, pmp)}
++	rep, hard, soft := replayRun(t, host, newReplaySim(t, parent, ds, mp, pmp), parent, ds, mp, pmp, time.Now())
++	if hard > 0 || soft > 0 {
++		t.Fatalf("%d failures, %d ambiguities:\n%s", hard, soft, rep)
++	}
++	if testing.Verbose() {
++		t.Log(rep)
++	}
++}
++
++// replayRun replays the corpus on host and diffs each step against the
++// reference models and sim (replaying the same history).
++func replayRun(t *testing.T, host replayHost, sim *zfstest.Sim, parent, ds, mp, pmp string, start time.Time) (string, int, int) {
++	ctx := context.Background()
++	rmp, rpmp := realpathOr(mp), realpathOr(pmp)
++	var rep strings.Builder
++	fmt.Fprintf(&rep, "# NFS replay: %s (mountpoint %s)\n\n", ds, mp)
++	if v, err := os.ReadFile("/proc/fs/nfsd/export_features"); err == nil {
++		fmt.Fprintf(&rep, "export_features: %s", v)
++	}
++	var hard, soft int
++	diff := func(fatal bool, what, got, want string) {
++		if got == want {
++			return
++		}
++		tag := "AMBIGUITY"
++		if fatal {
++			tag, hard = "FAIL", hard+1
++		} else {
++			soft++
++		}
++		fmt.Fprintf(&rep, "  %s %s:\n    host: %q\n    want: %q\n", tag, what, got, want)
++	}
++	simSet := func(name, v string) error {
++		_, err := sim.Run(ctx, "zfs", "set", "sharenfs="+v, name)
++		return err
++	}
++
++	parentV := "off"
++	for _, c := range replayCorpus {
++		if time.Since(start) > 25*time.Second {
++			t.Errorf("replay budget: stopped before %q after %v", c.name, time.Since(start))
++			break
++		}
++		fmt.Fprintf(&rep, "\n## %s: sharenfs=%q", c.name, c.value)
++		if c.parent != "" {
++			fmt.Fprintf(&rep, " (parent %q)", c.parent)
++		}
++		rep.WriteString("\n")
++		want := c.parent
++		if want == "" {
++			want = "off"
++		}
++		if want != parentV {
++			if err := host.set(parent, want); err != nil {
++				t.Fatalf("parent: %v", err)
++			}
++			if err := simSet(parent, want); err != nil {
++				t.Fatalf("sim parent: %v", err)
++			}
++			parentV = want
++		}
++		hostErr := host.set(ds, c.value)
++		simErr := simSet(ds, c.value)
++		refErr := nfsref.ValidateSharenfs(c.value)
++		cs, isCanon := canonicalShareNFS(c.value, DefaultNFSMinPrefix)
++		canonical := isCanon && len(cs) > 0 && c.parent == ""
++		diff(true, "zfs set accepted", fmt.Sprint(hostErr == nil), fmt.Sprint(refErr == nil))
++		diff(true, "sim zfs set accepted", fmt.Sprint(simErr == nil), fmt.Sprint(hostErr == nil))
++		if hostErr != nil {
++			fmt.Fprintf(&rep, "  zfs set refused: %v\n", hostErr)
++			continue
++		}
++		files, err := host.files()
++		if err != nil {
++			t.Fatal(err)
++		}
++		zfsExports := string(files.Dir["zfs.exports"])
++		hostEtab, err := host.etab()
++		if err != nil {
++			t.Fatal(err)
++		}
++
++		// 1. libshare: our mountpoint's lines in zfs.exports
++		var refLines []string
++		if c.value != "off" {
++			refLines, _ = nfsref.ExportsLines(mp, c.value)
++		}
++		emp := nfsref.EscapeMountpoint(mp)
++		diff(canonical, "zfs.exports lines", strings.Join(linesOf(zfsExports, emp), ""), strings.Join(refLines, ""))
++		diff(canonical, "sim zfs.exports lines", strings.Join(linesOf(sim.Exports(), emp), ""), strings.Join(linesOf(zfsExports, emp), ""))
++
++		// 2. exportfs: the reference on the host's files, our paths' lines
++		refEtab, refT := nfsref.ExportfsRA(files, nil, realpathOr)
++		for _, p := range []string{rmp, rpmp} {
++			diff(canonical, "etab lines of "+p, strings.Join(nfsref.EtabLinesOf(hostEtab, p), ""), strings.Join(nfsref.EtabLinesOf(refEtab, p), ""))
++		}
++		for _, d := range refT.Diags {
++			fmt.Fprintf(&rep, "  ref exportfs: %s\n", d.Msg)
++		}
++		// 3. the simulator's etab for the same history
++		simEtab, _ := sim.ReadEtab(ctx)
++		for _, p := range []string{rmp, rpmp} {
++			diff(canonical, "sim etab lines of "+p, strings.Join(nfsref.EtabLinesOf(string(simEtab), p), ""), strings.Join(nfsref.EtabLinesOf(hostEtab, p), ""))
++		}
++
++		// 4. our verifier on the host's etab, against mountd's model of it
++		live := ParseEtab([]byte(hostEtab))
++		m := nfsref.LoadEtab(hostEtab, nil)
++		var hosts []string
++		for _, x := range live[rmp] {
++			hosts = append(hosts, x.Host+"("+x.etabMode()+")")
++		}
++		fmt.Fprintf(&rep, "  etab clients: %s\n", strings.Join(hosts, " "))
++		for _, x := range cs {
++			if !live.serves(rmp, x) {
++				diff(canonical, "verifier serves "+x.Host+" "+x.mode(), "false", "true")
++			}
++		}
++		if x := live.exposure(rmp, cs); len(x) > 0 {
++			fmt.Fprintf(&rep, "  verifier exposure: %s\n", strings.Join(x, "; "))
++		} else if len(cs) > 0 {
++			if why := failOpen(m, rmp, cs); why != "" {
++				diff(true, "verifier soundness (no exposure, but the mountd model)", why, "")
++			}
++		}
++		env := nfsref.Env{}
++		if _, ok := host.(realHost); ok {
++			env.IsMountpoint = isMountpoint
++		}
++		var grants []string
++		for _, a := range []string{"10.0.0.5", "10.0.0.6", "10.1.2.3", "10.9.9.9"} {
++			grants = append(grants, a+"="+m.Access(rmp, mustAddr(a), env).Mode.String())
++		}
++		fmt.Fprintf(&rep, "  mountd model: %s\n", strings.Join(grants, " "))
++	}
++	fmt.Fprintf(&rep, "\n%d cases, %d failures, %d ambiguities, %v\n", len(replayCorpus), hard, soft, time.Since(start).Round(time.Millisecond))
++	return rep.String(), hard, soft
++}
++
++// readExports reads /etc/exports and /etc/exports.d as exportfs does.
++func readExports() (nfsref.ExportsFiles, error) {
++	files := nfsref.ExportsFiles{Dir: map[string][]byte{}}
++	if b, err := os.ReadFile("/etc/exports"); err == nil {
++		files.Exports = b
++	} else if !errors.Is(err, os.ErrNotExist) {
++		return files, err
++	}
++	ents, err := os.ReadDir("/etc/exports.d")
++	if err != nil && !errors.Is(err, os.ErrNotExist) {
++		return files, err
++	}
++	for _, e := range ents {
++		if e.IsDir() {
++			continue
++		}
++		b, err := os.ReadFile(filepath.Join("/etc/exports.d", e.Name()))
++		if err != nil {
++			return files, err
++		}
++		files.Dir[e.Name()] = b
++	}
++	return files, nil
++}
++
++// linesOf returns the zfs.exports lines of an escaped mountpoint.
++func linesOf(file, mp string) []string {
++	var out []string
++	for _, l := range strings.SplitAfter(file, "\n") {
++		if i := strings.IndexAny(l, "\t \n"); i == len(mp) && strings.HasPrefix(l, mp) {
++			out = append(out, l)
++		}
++	}
++	return out
++}
++
++func realpathOr(p string) string {
++	if r, err := filepath.EvalSymlinks(p); err == nil {
++		return r
++	}
++	return p
++}
++
++// isMountpoint is check_is_mountpoint: a different device from the parent.
++func isMountpoint(p string) bool {
++	var a, b os.FileInfo
++	var err error
++	if a, err = os.Lstat(p); err != nil {
++		return false
++	}
++	if b, err = os.Lstat(filepath.Join(p, "..")); err != nil {
++		return false
++	}
++	return !os.SameFile(a, b) && devOf(a) != devOf(b)
++}
++
++func devOf(fi os.FileInfo) uint64 {
++	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
++		return uint64(st.Dev)
++	}
++	return 0
++}
++
++func mustAddr(s string) netip.Addr { return netip.MustParseAddr(s) }
+diff --git a/internal/nfsref/access.go b/internal/nfsref/access.go
+new file mode 100644
+index 0000000..3693f9a
+--- /dev/null
++++ b/internal/nfsref/access.go
+@@ -0,0 +1,276 @@
++package nfsref
++
++import (
++	"net/netip"
++	"slices"
++	"strings"
++)
++
++// Mode is what a client address gets for a path.
++type Mode int
++
++const (
++	None    Mode = iota // no export answers it
++	RO                  // read-only, AUTH_SYS
++	RW                  // read-write, AUTH_SYS
++	Unknown             // depends on DNS, netgroups or wildcards
++)
++
++func (m Mode) String() string { return [...]string{"none", "ro", "rw", "unknown"}[m] }
++
++// Grant is mountd's answer for one address and path.
++type Grant struct {
++	Mode   Mode
++	Export *Line // the export that answered, nil for None
++}
++
++// Env is what mountd checks at request time that etab does not say.
++type Env struct {
++	// IsMountpoint is check_is_mountpoint; nil means every path is one.
++	IsMountpoint func(path string) bool
++}
++
++// isSubdirectory is is_subdirectory (cache.c:563-574) with same_path
++// (:540-561) by string only (the handle/inode fallback finds bind mounts
++// of one directory: ambiguity, needs a real host).
++func isSubdirectory(child, parent string) bool {
++	if parent == "/" && len(child) > 1 {
++		return true
++	}
++	return len(child) > len(parent) && child[:len(parent)] == parent && child[len(parent)] == '/'
++}
++
++// pathMatches is path_matches (cache.c:576-585).
++func pathMatches(e *Entry, path string) bool {
++	return path == e.Path || (e.Flags&ExpCrossMount != 0 && isSubdirectory(path, e.Path))
++}
++
++// lookupExport is lookup_export (cache.c:3313-3360) for one address:
++// every export whose path and client match, by client type then list
++// order; a non-V4ROOT export beats a V4ROOT one; when either is crossmnt
++// and the paths differ in length the longer path wins; otherwise the
++// first stays. match decides unknown (wildcard, netgroup) clients.
++func (t *Table) lookupExport(path string, ip netip.Addr, unknownMatches bool) *export {
++	var found *export
++	for i := range t.lists {
++		for exp := t.lists[i].head; exp != nil; exp = exp.next {
++			if !pathMatches(&exp.E, path) {
++				continue
++			}
++			m, known := exp.Client.Match(ip)
++			if !known {
++				m = unknownMatches
++			}
++			if !m {
++				continue
++			}
++			if found == nil {
++				found = exp
++				continue
++			}
++			if exp.E.Flags&ExpV4Root != 0 {
++				continue
++			}
++			if found.E.Flags&ExpV4Root != 0 {
++				found = exp
++				continue
++			}
++			if (found.E.Flags&ExpCrossMount != 0 || exp.E.Flags&ExpCrossMount != 0) && len(found.E.Path) != len(exp.E.Path) {
++				if len(exp.E.Path) > len(found.E.Path) {
++					found = exp
++				}
++				continue
++			}
++		}
++	}
++	return found
++}
++
++// modeOf is what the kernel enforces for an AUTH_SYS request on the
++// export mountd answered with (nl_add_export_req, cache.c:1849-1925): no
++// answer when the export's mountpoint (e_mountpoint, or its own path for
++// a bare "mountpoint") is not mounted; otherwise the "sys" flavor's flags
++// decide ro/rw (the kernel's per-flavor flags, nfsexp_flags), and an
++// export without sys or unix refuses AUTH_SYS.
++func modeOf(exp *export, env Env) Mode {
++	if exp == nil {
++		return None
++	}
++	if exp.E.Mountpt != nil && env.IsMountpoint != nil {
++		mp := *exp.E.Mountpt
++		if mp == "" {
++			mp = exp.E.Path
++		}
++		if !env.IsMountpoint(mp) {
++			return None
++		}
++	}
++	e := exp.E.clone()
++	ensureSecinfo(&e)
++	for _, s := range e.Secinfo {
++		if s.Num == 1 {
++			if s.Flags&ExpReadonly != 0 {
++				return RO
++			}
++			return RW
++		}
++	}
++	return None
++}
++
++// Access is what address ip gets for path: the mode and the export that
++// gives it. When the answer depends on wildcard or netgroup clients it is
++// Unknown (both resolutions are tried).
++func (t *Table) Access(path string, ip netip.Addr, env Env) Grant {
++	a := t.lookupExport(path, ip, false)
++	b := t.lookupExport(path, ip, true)
++	if a != b && modeOf(a, env) != modeOf(b, env) {
++		return Grant{Mode: Unknown, Export: lineOf(b)}
++	}
++	return Grant{Mode: modeOf(a, env), Export: lineOf(a)}
++}
++
++func lineOf(e *export) *Line {
++	if e == nil {
++		return nil
++	}
++	return &Line{e.E, e.Client}
++}
++
++// SampleAddrs lists IPv4 addresses that together decide what any address
++// of network p gets: p's first and last address, and the first and last
++// address (clipped to p) of every subnet or FQDN client in the table.
++// Exact for prefix masks; a spelled-out non-contiguous mask is sampled
++// only at its ends.
++func (t *Table) SampleAddrs(p netip.Prefix) []netip.Addr {
++	p = p.Masked()
++	out := []netip.Addr{p.Addr(), lastAddr(p)}
++	add := func(a netip.Addr) {
++		if p.Contains(a) {
++			out = append(out, a)
++		}
++	}
++	for _, c := range t.clients[FQDN] {
++		for _, a := range c.Addrs {
++			add(a)
++		}
++	}
++	for _, c := range t.clients[Subnetwork] {
++		if !c.Net.Is4() {
++			continue
++		}
++		n := 0
++		for _, b := range c.Mask.AsSlice() {
++			for ; b&0x80 != 0; b <<= 1 {
++				n++
++			}
++		}
++		q := netip.PrefixFrom(c.Net, n).Masked()
++		if q.Overlaps(p) {
++			add(q.Addr())
++			add(lastAddr(q))
++			if q.Bits() < p.Bits() { // q contains p: p's ends suffice
++				continue
++			}
++		}
++	}
++	slices.SortFunc(out, netip.Addr.Compare)
++	return slices.Compact(out)
++}
++
++func lastAddr(p netip.Prefix) netip.Addr {
++	b := p.Masked().Addr().As4()
++	host := 32 - p.Bits()
++	for i := 0; i < host; i++ {
++		b[3-i/8] |= 1 << (i % 8)
++	}
++	return netip.AddrFrom4(b)
++}
++
++// Exposure is every address class that gets path, beyond a set of
++// networks: an Anonymous, Wildcard, Netgroup or name client on path or on
++// a crossmnt ancestor, or a subnet/FQDN client not inside allowed.
++func (t *Table) Exposure(path string, allowed []netip.Prefix, env Env) []Line {
++	var out []Line
++	for _, l := range t.Exports() {
++		e := l.Entry
++		if !pathMatches(&e, path) {
++			continue
++		}
++		exp := &export{E: e, Client: l.Client}
++		if modeOf(exp, env) == None {
++			continue
++		}
++		inside := false
++		switch l.Client.Type {
++		case Subnetwork:
++			for _, a := range allowed {
++				if subnetInside(l.Client, a) {
++					inside = true
++				}
++			}
++		case FQDN:
++			inside = len(l.Client.Addrs) > 0
++			for _, ip := range l.Client.Addrs {
++				ok := false
++				for _, a := range allowed {
++					ok = ok || a.Contains(ip)
++				}
++				inside = inside && ok
++			}
++		case GSS:
++			inside = true
++		}
++		if !inside {
++			out = append(out, l)
++		}
++	}
++	return out
++}
++
++// subnetInside reports whether every address the client matches is in a.
++func subnetInside(c *Client, a netip.Prefix) bool {
++	if !c.Net.Is4() || !a.Addr().Is4() {
++		return false
++	}
++	// every bit fixed by a must be fixed by c's mask and agree
++	am := maskOf(a.Bits(), 32).As4()
++	cm, cn, an := c.Mask.As4(), c.Net.As4(), a.Addr().As4()
++	for i := 0; i < 4; i++ {
++		if am[i]&^cm[i] != 0 || (cn[i]^an[i])&am[i] != 0 {
++			return false
++		}
++	}
++	return true
++}
++
++// HostsOf lists the etab clients of path as "host mode" strings, in etab
++// order (for diffs and reports).
++func (t *Table) HostsOf(path string) []string {
++	var out []string
++	for _, l := range t.Exports() {
++		if l.Entry.Path != path {
++			continue
++		}
++		m := "rw"
++		if l.Entry.Flags&ExpReadonly != 0 {
++			m = "ro"
++		}
++		out = append(out, l.Client.Hostname+" "+m)
++	}
++	return out
++}
++
++// EtabLinesOf returns etab's lines for path (escaped as in etab).
++func EtabLinesOf(etab, path string) []string {
++	var b strings.Builder
++	fprintpath(&b, path)
++	pfx := b.String() + "\t"
++	var out []string
++	for _, l := range strings.SplitAfter(etab, "\n") {
++		if strings.HasPrefix(l, pfx) {
++			out = append(out, l)
++		}
++	}
++	return out
++}
+diff --git a/internal/nfsref/exportfs.go b/internal/nfsref/exportfs.go
+new file mode 100644
+index 0000000..0fb6be6
+--- /dev/null
++++ b/internal/nfsref/exportfs.go
+@@ -0,0 +1,493 @@
++package nfsref
++
++import (
++	"cmp"
++	"encoding/binary"
++	"fmt"
++	"net/netip"
++	"slices"
++	"strings"
++)
++
++// ClientType is enum MCL_* (support/include/exportfs.h:18-27), in the
++// order exportfs writes etab and mountd looks clients up.
++type ClientType int
++
++const (
++	FQDN ClientType = iota
++	Subnetwork
++	Wildcard
++	Netgroup
++	Anonymous
++	GSS
++	mclMax
++)
++
++func (t ClientType) String() string {
++	return [...]string{"fqdn", "subnet", "wildcard", "netgroup", "anonymous", "gss"}[t]
++}
++
++// ClientGettype is client_gettype (client.c:775-800).
++func ClientGettype(ident string) ClientType {
++	if ident == "" || ident == "*" {
++		return Anonymous
++	}
++	if strings.HasPrefix(ident, "gss/") {
++		return GSS
++	}
++	if ident[0] == '@' {
++		return Netgroup
++	}
++	for i := 0; i < len(ident); i++ {
++		switch ident[i] {
++		case '*', '?', '[':
++			return Wildcard
++		case '/':
++			return Subnetwork
++		case '\\':
++			if i+1 < len(ident) {
++				i++
++			}
++		}
++	}
++	return FQDN
++}
++
++// Resolver is getaddrinfo(name, AI_CANONNAME) for an FQDN client
++// (hostname.c host_addrinfo): its canonical name and addresses.
++type Resolver func(name string) (canon string, addrs []netip.Addr, ok bool)
++
++// NumericResolver resolves only numeric hosts, like a host with no DNS
++// answers: glibc getaddrinfo takes inet_aton spellings ("10.1",
++// "0x0a.0.0.1") and IPv6 literals, and returns the name itself as the
++// canonical name (ambiguity: libc). Names fail ("Failed to resolve").
++func NumericResolver(name string) (string, []netip.Addr, bool) {
++	if a, ok := InetAton(name); ok {
++		return name, []netip.Addr{a}, true
++	}
++	if a, err := netip.ParseAddr(name); err == nil && a.Is6() && a.Zone() == "" {
++		return name, []netip.Addr{a}, true
++	}
++	return "", nil, false
++}
++
++// InetAton is glibc inet_aton: 1-4 parts, each decimal, 0x hex or 0 octal;
++// the last part fills the remaining bytes.
++func InetAton(s string) (netip.Addr, bool) {
++	parts := strings.Split(s, ".")
++	if len(parts) > 4 || s == "" {
++		return netip.Addr{}, false
++	}
++	var vals []uint64
++	for _, p := range parts {
++		if p == "" {
++			return netip.Addr{}, false
++		}
++		v, rest := cStrtol(p, 0)
++		if rest != "" || p[0] == '+' || p[0] == '-' || isspaceC(int(p[0])) || v < 0 {
++			return netip.Addr{}, false
++		}
++		vals = append(vals, uint64(v))
++	}
++	var a uint64
++	for i, v := range vals[:len(vals)-1] {
++		if v > 0xff {
++			return netip.Addr{}, false
++		}
++		a |= v << (24 - 8*i)
++	}
++	last := vals[len(vals)-1]
++	if last >= 1<<(8*(5-len(vals))) {
++		return netip.Addr{}, false
++	}
++	a |= last
++	var b [4]byte
++	binary.BigEndian.PutUint32(b[:], uint32(a))
++	return netip.AddrFrom4(b), true
++}
++
++// InetPton4 is glibc inet_pton(AF_INET): exactly four decimal octets, no
++// leading zeros.
++func InetPton4(s string) (netip.Addr, bool) {
++	a, err := netip.ParseAddr(s)
++	if err != nil || !a.Is4() || a.String() != s {
++		return netip.Addr{}, false
++	}
++	return a, true
++}
++
++// Client is struct nfs_client.
++type Client struct {
++	Type     ClientType
++	Hostname string
++	Addrs    []netip.Addr // FQDN: resolved addresses
++	Net      netip.Addr   // Subnetwork: address as written (not masked)
++	Mask     netip.Addr   // Subnetwork: netmask
++}
++
++const nfsclntAddrMax = 16 // NFSCLNT_ADDRMAX (exportfs.h)
++
++// initSubnetwork is init_subnetwork (client.c:190-228) with init_netmask4
++// (:62-116) and init_netmask6 (:118-176). host_pton (hostname.c:95-147)
++// takes a strict inet_pton IPv4 address or a numeric IPv6 one.
++func initSubnetwork(c *Client) bool {
++	addr, slash, hasSlash := strings.Cut(c.Hostname, "/")
++	a, ok := InetPton4(addr)
++	if !ok {
++		v6, err := netip.ParseAddr(addr)
++		if err != nil || !v6.Is6() {
++			return false // "Invalid IP address"
++		}
++		a = v6
++	}
++	c.Net = a
++	bits := a.BitLen()
++	if !hasSlash {
++		c.Mask = maskOf(bits, bits)
++		return true
++	}
++	if a.Is4() && strings.Contains(slash, ".") { // spelled-out netmask, any bits
++		m, ok := InetPton4(slash)
++		if !ok {
++			return false
++		}
++		c.Mask = m
++		return true
++	}
++	if a.Is6() && strings.Contains(slash, ":") {
++		m, err := netip.ParseAddr(slash)
++		if err != nil || !m.Is6() {
++			return false
++		}
++		c.Mask = m
++		return true
++	}
++	// strtoul(slash, &end, 10); trailing junk is refused unless the value
++	// is ULONG_MAX or errno is ERANGE (ambiguity: a stale errno)
++	v, rest := cStrtol(slash, 10)
++	if v < 0 {
++		v = 1 << 62 // ULONG_MAX - |v|+1: always above the limit
++	} else if rest != "" {
++		return false
++	}
++	if v > int64(bits) {
++		return false
++	}
++	c.Mask = maskOf(int(v), bits)
++	return true
++}
++
++func maskOf(n, bits int) netip.Addr {
++	b := make([]byte, bits/8)
++	for i := 0; i < n; i++ {
++		b[i/8] |= 0x80 >> (i % 8)
++	}
++	a, _ := netip.AddrFromSlice(b)
++	return a
++}
++
++// MatchSubnet is check_subnet_v4/v6 (client.c:528-581): ((a^b)&m) == 0.
++func (c *Client) MatchSubnet(ip netip.Addr) bool {
++	if ip.BitLen() != c.Net.BitLen() {
++		return false
++	}
++	x, y, m := c.Net.AsSlice(), ip.AsSlice(), c.Mask.AsSlice()
++	for i := range x {
++		if (x[i]^y[i])&m[i] != 0 {
++			return false
++		}
++	}
++	return true
++}
++
++// Match is client_check (client.c:744-766) for one address. Wildcards and
++// netgroups need reverse DNS and netgroup databases: they report unknown.
++func (c *Client) Match(ip netip.Addr) (match, known bool) {
++	switch c.Type {
++	case FQDN:
++		return slices.Contains(c.Addrs, ip), true
++	case Subnetwork:
++		return c.MatchSubnet(ip), true
++	case Anonymous:
++		return true, true
++	case GSS:
++		return false, true
++	}
++	return false, false
++}
++
++// export is struct nfs_export.
++type export struct {
++	E       Entry
++	Client  *Client
++	next    *export
++	xtabent bool
++}
++
++const hashTableSize = 1021 // exportfs.h:107
++
++type hashTable struct {
++	head        *export
++	first, last [hashTableSize]*export
++}
++
++// Table is exportlist[] and clientlist[] (export.c:30, client.c:36).
++type Table struct {
++	lists    [mclMax]hashTable
++	clients  [mclMax][]*Client
++	Resolve  Resolver
++	Realpath func(string) string
++	Diags    []Diag
++}
++
++// NewTable starts an empty table; nil resolve is NumericResolver.
++func NewTable(resolve Resolver, realpath func(string) string) *Table {
++	if resolve == nil {
++		resolve = NumericResolver
++	}
++	return &Table{Resolve: resolve, Realpath: realpath}
++}
++
++func (t *Table) logf(format string, a ...any) {
++	t.Diags = append(t.Diags, Diag{0, fmt.Sprintf(format, a...)})
++}
++
++// exportHash is export_hash/strtoint (export.c:422-444): sum of
++// (signed char)c * i, unsigned, mod 1021.
++func exportHash(s string) int {
++	var n uint32
++	for i := 0; i < len(s); i++ {
++		n += uint32(int32(int8(s[i])) * int32(i))
++	}
++	return int(n % hashTableSize)
++}
++
++// clientLookup is client_lookup (client.c:268-314), canonical = 0.
++func (t *Table) clientLookup(hname string) *Client {
++	typ := ClientGettype(hname)
++	var addrs []netip.Addr
++	var clp *Client
++	if typ == FQDN {
++		canon, as, ok := t.Resolve(hname)
++		if !ok {
++			t.logf("Failed to resolve %s", hname)
++			return nil
++		}
++		hname, addrs = canon, as
++		for _, c := range t.clients[FQDN] {
++			for _, a := range addrs {
++				if slices.Contains(c.Addrs, a) {
++					clp = c
++					break
++				}
++			}
++			if clp != nil {
++				break
++			}
++		}
++	} else {
++		for _, c := range t.clients[typ] {
++			if strings.EqualFold(hname, c.Hostname) { // strcasecmp (ASCII)
++				clp = c
++				break
++			}
++		}
++	}
++	if clp == nil {
++		clp = &Client{Type: typ, Hostname: hname}
++		if typ == Subnetwork && !initSubnetwork(clp) {
++			t.logf("Invalid IP address or prefix %s", hname)
++			return nil
++		}
++		t.clients[typ] = append(t.clients[typ], clp)
++	}
++	if typ == FQDN && len(clp.Addrs) == 0 {
++		if len(addrs) > nfsclntAddrMax {
++			addrs = addrs[:nfsclntAddrMax]
++		}
++		clp.Addrs = addrs
++	}
++	return clp
++}
++
++// exportAdd is export_add (export.c:295-321).
++func (t *Table) exportAdd(exp *export) {
++	tbl := &t.lists[exp.Client.Type]
++	pos := exportHash(exp.E.Path)
++	if tbl.first[pos] == nil {
++		tbl.first[pos], tbl.last[pos] = exp, exp
++		exp.next = tbl.head
++		tbl.head = exp
++	} else {
++		exp.next = tbl.last[pos].next
++		tbl.last[pos].next = exp
++		tbl.last[pos] = exp
++	}
++}
++
++// exportLookup is export_lookup (export.c:359-381).
++func (t *Table) exportLookup(hname, path string) *export {
++	clp := t.clientLookup(hname)
++	if clp == nil {
++		return nil
++	}
++	tbl := &t.lists[clp.Type]
++	pos := exportHash(path)
++	if tbl.first[pos] == nil {
++		return nil
++	}
++	end := tbl.last[pos].next
++	for exp := tbl.first[pos]; exp != nil && exp != end; exp = exp.next {
++		if exp.Client == clp && exp.E.Path == path {
++			return exp
++		}
++	}
++	return nil
++}
++
++// exportCreate is export_create (export.c:227-242).
++func (t *Table) exportCreate(e *Entry) *export {
++	clp := t.clientLookup(e.Hostname)
++	if clp == nil {
++		return nil
++	}
++	exp := &export{E: e.clone(), Client: clp}
++	t.exportAdd(exp)
++	return exp
++}
++
++// ReadExports is export_read (export.c:112-153): entries until the end of
++// the file or the first entry getexportent fails on; a duplicate
++// (client, path) keeps the first entry (warn_duplicated_exports :86-100).
++// It reports whether reading stopped on an error.
++func (t *Table) ReadExports(fname string, b []byte) (stopped bool) {
++	p := newParser(fname, b, t.Realpath)
++	for {
++		e := p.next()
++		if e == nil {
++			break
++		}
++		if exp := t.exportLookup(e.Hostname, e.Path); exp == nil {
++			t.exportCreate(e)
++		} else {
++			t.logf("duplicated export entries: %s:%s (flags %#x vs %#x)", e.Hostname, e.Path, e.Flags, exp.E.Flags)
++		}
++	}
++	for _, d := range p.diags {
++		t.Diags = append(t.Diags, Diag{d.Line, fname + ": " + d.Msg})
++	}
++	return p.stoppedOnError
++}
++
++// ExportsFiles is the input of `exportfs -ra`: /etc/exports and the files
++// of /etc/exports.d.
++type ExportsFiles struct {
++	Exports []byte            // /etc/exports; nil when missing
++	Dir     map[string][]byte // /etc/exports.d: file name -> content
++}
++
++// ExportfsRA is `exportfs -ra` (exportfs.c:135-276): read /etc/exports,
++// then each /etc/exports.d file named *.exports (not starting with '.') in
++// versionsort order (export.c:164-217), mark every export (export_all
++// :282-301; validate_export only logs), and write etab (xtab_write,
++// xtab.c:91-122): by client type, then list order, each under its
++// client's canonical name. With -r the old etab is not merged
++// (exportfs.c:264-265).
++func ExportfsRA(files ExportsFiles, resolve Resolver, realpath func(string) string) (etab string, t *Table) {
++	t = NewTable(resolve, realpath)
++	if files.Exports != nil {
++		t.ReadExports("/etc/exports", files.Exports)
++	}
++	names := make([]string, 0, len(files.Dir))
++	for n := range files.Dir {
++		if n == "" || n[0] == '.' || len(n) < len(".exports")+1 || !strings.HasSuffix(n, ".exports") {
++			continue
++		}
++		names = append(names, n)
++	}
++	slices.SortFunc(names, strverscmp)
++	for _, n := range names {
++		t.ReadExports("/etc/exports.d/"+n, files.Dir[n])
++	}
++	var b strings.Builder
++	for i := range t.lists {
++		for exp := t.lists[i].head; exp != nil; exp = exp.next {
++			exp.xtabent = true
++			e := exp.E.clone()
++			e.Hostname = exp.Client.Hostname
++			b.WriteString(PutExportent(e))
++		}
++	}
++	return b.String(), t
++}
++
++// strverscmp orders digit runs by value (glibc versionsort, simplified:
++// leading-zero fractional rules are not modelled).
++func strverscmp(a, b string) int {
++	for a != "" && b != "" {
++		if isDigit(a[0]) && isDigit(b[0]) {
++			i, j := 0, 0
++			for i < len(a) && isDigit(a[i]) {
++				i++
++			}
++			for j < len(b) && isDigit(b[j]) {
++				j++
++			}
++			x, y := strings.TrimLeft(a[:i], "0"), strings.TrimLeft(b[:j], "0")
++			if c := cmp.Compare(len(x), len(y)); c != 0 {
++				return c
++			}
++			if c := strings.Compare(x, y); c != 0 {
++				return c
++			}
++			a, b = a[i:], b[j:]
++			continue
++		}
++		if a[0] != b[0] {
++			return cmp.Compare(a[0], b[0])
++		}
++		a, b = a[1:], b[1:]
++	}
++	return cmp.Compare(len(a), len(b))
++}
++
++func isDigit(c byte) bool { return c >= '0' && c <= '9' }
++
++// LoadEtab is mountd's view of etab (xtab_read, xtab.c:35-77): every entry
++// getexportent returns, until the first failure; one whose client cannot
++// be looked up is skipped.
++func LoadEtab(etab string, resolve Resolver) *Table {
++	t := NewTable(resolve, nil)
++	p := newParser("/var/lib/nfs/etab", []byte(etab), nil)
++	for {
++		e := p.next()
++		if e == nil {
++			break
++		}
++		exp := t.exportLookup(e.Hostname, e.Path)
++		if exp == nil {
++			exp = t.exportCreate(e)
++		}
++		if exp != nil {
++			exp.xtabent = true
++		}
++	}
++	return t
++}
++
++// Line is one export as exportfs or mountd holds it.
++type Line struct {
++	Entry  Entry
++	Client *Client
++}
++
++// Exports lists the table in etab order.
++func (t *Table) Exports() []Line {
++	var out []Line
++	for i := range t.lists {
++		for exp := t.lists[i].head; exp != nil; exp = exp.next {
++			out = append(out, Line{exp.E, exp.Client})
++		}
++	}
++	return out
++}
+diff --git a/internal/nfsref/exportfs_real_test.go b/internal/nfsref/exportfs_real_test.go
+new file mode 100644
+index 0000000..b8c6439
+--- /dev/null
++++ b/internal/nfsref/exportfs_real_test.go
+@@ -0,0 +1,138 @@
++package nfsref
++
++import (
++	"math/rand"
++	"os"
++	"os/exec"
++	"path/filepath"
++	"strings"
++	"syscall"
++	"testing"
++)
++
++// TestExportfsMatchesReal diffs ExportfsRA against a real exportfs binary
++// built from nfs-utils with _PATH_EXPORTS, _PATH_EXPORTS_D and the state
++// directory pointed at NFSREF_ROOT/{exports,exports.d,state}:
++//
++//	NFSREF_EXPORTFS=/path/to/exportfs NFSREF_ROOT=/path/to/root go test -run TestExportfsMatchesReal ./internal/nfsref
++//
++// Without nfsd, nfs-utils reads no /proc/fs/nfsd/export_features and uses
++// the old secinfo flags (ro, root_squash, all_squash), so the model does
++// too here. Paths do not exist, so realpath keeps them.
++func TestExportfsMatchesReal(t *testing.T) {
++	bin, root := os.Getenv("NFSREF_EXPORTFS"), os.Getenv("NFSREF_ROOT")
++	if bin == "" || root == "" {
++		t.Skip("set NFSREF_EXPORTFS and NFSREF_ROOT")
++	}
++	if _, err := os.Stat("/proc/fs/nfsd/export_features"); err != nil {
++		old := SecinfoFlags
++		SecinfoFlags = ExpReadonly | ExpRootSquash | ExpAllSquash
++		defer func() { SecinfoFlags = old }()
++	}
++	n := 3000
++	if s := os.Getenv("NFSREF_N"); s != "" {
++		n = atoiOr(s, n)
++	}
++	r := rand.New(rand.NewSource(int64(atoiOr(os.Getenv("NFSREF_SEED"), 1))))
++	mismatches, crashed := 0, 0
++	defer func() { t.Logf("%d cases, %d exportfs crashes skipped", n, crashed) }()
++	for i := 0; i < n && mismatches < 5; i++ {
++		etc, zfsx, early := randomExports(r), randomZFSExports(r), randomExports(r)
++		if r.Intn(3) == 0 {
++			etc = ""
++		}
++		write := func(p, s string) {
++			if err := os.WriteFile(filepath.Join(root, p), []byte(s), 0o644); err != nil {
++				t.Fatal(err)
++			}
++		}
++		write("exports", etc)
++		write("exports.d/zfs.exports", zfsx)
++		write("exports.d/00-early.exports", early)
++		_ = os.Remove(filepath.Join(root, "state", "etab"))
++		cmd := exec.Command(bin, "-ra")
++		cmd.Dir = root
++		stderr, _ := cmd.CombinedOutput()
++		if ws, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
++			// nfs-utils 3.1.1 aborts ("free(): double free") on some
++			// inputs with a parse error; etab is then not rewritten.
++			crashed++
++			continue
++		}
++		got, _ := os.ReadFile(filepath.Join(root, "state", "etab"))
++		files := ExportsFiles{Exports: []byte(etc), Dir: map[string][]byte{"zfs.exports": []byte(zfsx), "00-early.exports": []byte(early)}}
++		want, _ := ExportfsRA(files, nil, nil)
++		if string(got) != want {
++			mismatches++
++			t.Errorf("case %d\n/etc/exports:\n%s\n00-early.exports:\n%s\nzfs.exports:\n%s\nreal etab:\n%s\nmodel etab:\n%s\nexportfs said:\n%s",
++				i, etc, early, zfsx, got, want, stderr)
++		}
++	}
++}
++
++func atoiOr(s string, d int) int {
++	n := 0
++	for _, c := range s {
++		if c < '0' || c > '9' {
++			return d
++		}
++		n = n*10 + int(c-'0')
++	}
++	if s == "" {
++		return d
++	}
++	return n
++}
++
++var (
++	rPaths = []string{"/tank/v/a", "/tank/v/a", "/tank/v", "/tank/with\\040space", "/tank/v/b", "/"}
++	rHosts = []string{"10.0.0.0/24", "10.0.0.5/32", "10.0.0.5", "10.0.0.0/16", "10.0.0.0/024", "10.0.0.0/+24",
++		"10.0.0.0/255.255.0.0", "10.0.0.5/24", "10.0.0.0/33", "10.0.0.0/", "*", "", "node-a.invalid", "*.lan",
++		"@ng", "gss/krb5", "10.1", "0x0a.0.0.5", "010.0.0.0/8", "::1", "fe80::/64", "[::1]", "10.0.0.0/24 ",
++		"#c", "-ro", "10.0.0.0/2x", "10.0.0.0/-1", "10.0.0.5/32", "\"10.0.0.0/24\"", "10.0.0.0/24\\\n  10.0.0.6"}
++	rOpts = []string{"rw", "ro", "sec=sys,rw,no_subtree_check,mountpoint", "sec=sys,ro,no_subtree_check,mountpoint",
++		"rw,no_root_squash", "ro,insecure", "rw,crossmnt", "sec=sys,ro,sec=krb5,rw", "sec=krb5:sys,rw",
++		"ro,sec=sys,rw", "rw,anonuid=0,all_squash", "ro,nohide", "rw,sync", "ro,fsid=0", "rw,bogus",
++		"ro,mountpoint=/x", "sec=(null),rw", "rw,anonuid=x", "", "rw,squash_uids=1-5", "sec=none,rw",
++		"rw,fsid=0x10", "ro,refer=/a@b", "rw,xprtsec=tls:mtls", "rw,async,no_wdelay,nohide,insecure_locks,no_acl"}
++)
++
++func randomExports(r *rand.Rand) string {
++	var b strings.Builder
++	for range r.Intn(5) {
++		b.WriteString(rPaths[r.Intn(len(rPaths))])
++		for range 1 + r.Intn(3) {
++			b.WriteString(" ")
++			if r.Intn(6) == 0 {
++				b.WriteString("-" + rOpts[r.Intn(len(rOpts))] + " ")
++			}
++			b.WriteString(rHosts[r.Intn(len(rHosts))])
++			if r.Intn(8) != 0 {
++				b.WriteString("(" + rOpts[r.Intn(len(rOpts))] + ")")
++			}
++		}
++		b.WriteString("\n")
++		if r.Intn(5) == 0 {
++			b.WriteString("# comment\n\n")
++		}
++	}
++	return b.String()
++}
++
++// randomZFSExports is zfs.exports after random sharenfs values.
++func randomZFSExports(r *rand.Rand) string {
++	toks := []string{"rw", "ro", "=", "=", ":", ":", ",", ",", "@", "*", "10.0.0.0/24", "10.0.0.5/32", "10.0.0.0/16",
++		"10.1.0.0/024", "10.0.0.5", "0.0.0.0/0", "/", "[", "]", "::1", " ", "#", "sec", "sec=sys", "sec=krb5",
++		"crossmnt", "no_root_squash", "insecure", "anonuid=0", "all_squash", "on", "node-a.invalid", "\t", "-", "(", ")", "\"", "nohide", "sync=", "fsid=x"}
++	f := ""
++	for range 1 + r.Intn(3) {
++		var v strings.Builder
++		for range 1 + r.Intn(8) {
++			v.WriteString(toks[r.Intn(len(toks))])
++		}
++		if g, err := ShareFile(f, rPaths[r.Intn(len(rPaths))], v.String()); err == nil {
++			f = g
++		}
++	}
++	return f
++}
+diff --git a/internal/nfsref/exports.go b/internal/nfsref/exports.go
+new file mode 100644
+index 0000000..046c159
+--- /dev/null
++++ b/internal/nfsref/exports.go
+@@ -0,0 +1,821 @@
++package nfsref
++
++import (
++	"fmt"
++	"strconv"
++	"strings"
++)
++
++// Export flags (nfs-utils support/include/nfs/export.h:14-30).
++const (
++	ExpReadonly       = 0x0001
++	ExpInsecurePort   = 0x0002
++	ExpRootSquash     = 0x0004
++	ExpAllSquash      = 0x0008
++	ExpAsync          = 0x0010
++	ExpGatheredWrites = 0x0020
++	ExpNoReaddirPlus  = 0x0040
++	ExpSecurityLabel  = 0x0080
++	ExpSignFH         = 0x0100
++	ExpNoHide         = 0x0200
++	ExpNoSubtreeCheck = 0x0400
++	ExpNoAuthNLM      = 0x0800
++	ExpFSID           = 0x2000
++	ExpCrossMount     = 0x4000
++	ExpNoACL          = 0x8000
++	ExpV4Root         = 0x10000
++	ExpPNFS           = 0x20000
++)
++
++// exportDefaultFlags is EXPORT_DEFAULT_FLAGS (exports.c:37-38).
++const exportDefaultFlags = ExpReadonly | ExpRootSquash | ExpGatheredWrites | ExpNoSubtreeCheck
++
++// SecinfoFlags is what the kernel lets vary per security flavor, read by
++// get_export_features from /proc/fs/nfsd/export_features (exports.c:965).
++// Kernels since 3.x report NFSEXP_SECINFO_FLAGS: ro, insecure, root_squash,
++// all_squash (ambiguity: kernel; the replay reads the real file).
++var SecinfoFlags = ExpReadonly | ExpInsecurePort | ExpRootSquash | ExpAllSquash
++
++const secflavorCount = 8 // nfslib.h:59
++
++// flavor is flav_map (exports.c:40-48): name and RPC flavor number.
++type flavor struct {
++	name string
++	num  int
++}
++
++var flavors = []flavor{
++	{"krb5", 390003}, {"krb5i", 390004}, {"krb5p", 390005},
++	{"unix", 1}, {"sys", 1}, {"null", 0}, {"none", 0},
++}
++
++func findFlavor(name string) *flavor {
++	for i := range flavors {
++		if flavors[i].name == name {
++			return &flavors[i]
++		}
++	}
++	return nil
++}
++
++// SecEntry is one e_secinfo slot: a flavor and the flags it is exported with.
++type SecEntry struct {
++	Flavor string
++	Num    int
++	Flags  int
++}
++
++// Entry is struct exportent, the fields the export path decides on.
++type Entry struct {
++	Path      string
++	Hostname  string
++	Flags     int
++	AnonUID   int64
++	AnonGID   int64
++	Secinfo   []SecEntry
++	Xprtsec   []string
++	Mountpt   *string // e_mountpoint: nil unset, "" for bare "mountpoint"
++	FsidNum   uint64
++	UUID      string
++	FslocKind string // "", "refer", "replicas"
++	FslocData string
++	Reexport  string
++	Squids    []int
++	Sqgids    []int
++}
++
++func (e Entry) clone() Entry {
++	e.Secinfo = append([]SecEntry(nil), e.Secinfo...)
++	e.Xprtsec = append([]string(nil), e.Xprtsec...)
++	e.Squids = append([]int(nil), e.Squids...)
++	e.Sqgids = append([]int(nil), e.Sqgids...)
++	if e.Mountpt != nil {
++		m := *e.Mountpt
++		e.Mountpt = &m
++	}
++	return e
++}
++
++// initExportent is init_exportent (exports.c:84-110) with fromkernel=0.
++func initExportent() Entry {
++	return Entry{Flags: exportDefaultFlags, AnonUID: 65534, AnonGID: 65534}
++}
++
++// ---- xio.c: the tokenizer ----------------------------------------------------
++
++// xfile is XFILE over an in-memory file (support/nfs/xio.c).
++type xfile struct {
++	b    []byte
++	pos  int
++	line int
++}
++
++const eof = -1
++
++func (x *xfile) getc() int {
++	if x.pos >= len(x.b) {
++		x.pos = len(x.b) + 1 // past EOF; ungetc(EOF) is a no-op
++		return eof
++	}
++	c := int(x.b[x.pos])
++	x.pos++
++	return c
++}
++
++func (x *xfile) ungetcRaw(c int) {
++	if c == eof {
++		return
++	}
++	x.pos--
++}
++
++// xgetc (xio.c): backslash-newline joins lines and reads as one space
++// after skipping the next line's leading blanks.
++func (x *xfile) xgetc() int {
++	c := x.getc()
++	if c == eof {
++		return c
++	}
++	if c == '\\' {
++		if c = x.getc(); c != '\n' {
++			x.ungetcRaw(c)
++			return '\\'
++		}
++		x.line++
++		for {
++			c = x.getc()
++			if c != ' ' && c != '\t' {
++				break
++			}
++		}
++		x.ungetcRaw(c)
++		return ' '
++	}
++	if c == '\n' {
++		x.line++
++	}
++	return c
++}
++
++// xungetc (xio.c).
++func (x *xfile) xungetc(c int) {
++	if c == eof {
++		return
++	}
++	x.ungetcRaw(c)
++	if c == '\n' {
++		x.line--
++	}
++}
++
++// xskipcomment (xio.c): skip to the end of the line; returns '\n' or EOF.
++func (x *xfile) xskipcomment() int {
++	for {
++		c := x.getc()
++		if c == eof || c == '\n' {
++			return c
++		}
++	}
++}
++
++// xskip (xio.c): skip characters in set; a '#' starts a comment.
++func (x *xfile) xskip(set string) {
++	var c int
++	for {
++		c = x.xgetc()
++		if c == eof {
++			break
++		}
++		if c == '#' {
++			c = x.xskipcomment()
++		}
++		// strchr(str, c): c == EOF is (char)0xff, never in set; c == 0
++		// matches the terminator
++		if c == eof || (c != 0 && strings.IndexByte(set, byte(c)) < 0) {
++			break
++		}
++	}
++	x.xungetc(c)
++}
++
++func isspaceC(c int) bool {
++	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
++}
++
++func isoctal(c byte) bool { return c >= '0' && c <= '7' }
++
++// xgettok (xio.c) with sepa 0: a token ends at whitespace unless inside
++// double quotes (quotes toggle and are dropped, and a quoted token runs
++// across newlines); \ooo is decoded. Returns 1, 0 (no token: end of line
++// or file) or -1 (longer than size-1).
++func (x *xfile) xgettok(size int) (string, int) {
++	tok := make([]byte, 0, 64)
++	quoted := false
++	c := 0
++	for len(tok) < size {
++		c = x.xgetc()
++		if c == eof || !(quoted || !isspaceC(c)) {
++			break
++		}
++		if c == '"' {
++			quoted = !quoted
++			continue
++		}
++		tok = append(tok, byte(c))
++		i := len(tok)
++		if i >= 4 && tok[i-4] == '\\' && isoctal(tok[i-3]) && isoctal(tok[i-2]) && isoctal(tok[i-1]) {
++			if v, _ := strconv.ParseInt(string(tok[i-3:i]), 8, 32); v < 256 {
++				tok = append(tok[:i-4], byte(v))
++			}
++		}
++	}
++	if c == '\n' {
++		x.xungetc(c)
++	}
++	if len(tok) == 0 {
++		return "", 0
++	}
++	if len(tok) >= size {
++		return "", -1
++	}
++	return string(tok), 1
++}
++
++// ---- exports.c: getexportent ---------------------------------------------------
++
++// Diag is a message nfs-utils would log.
++type Diag struct {
++	Line int
++	Msg  string
++}
++
++// parser holds getexportent's statics (exports.c:54-59, 115).
++type parser struct {
++	x               *xfile
++	fname           string
++	first           bool
++	hasDefaultOpts  bool
++	defEE           Entry
++	realpath        func(string) string
++	diags           []Diag
++	stoppedOnError  bool
++	fromkernelFalse bool
++}
++
++func newParser(fname string, b []byte, realpath func(string) string) *parser {
++	return &parser{x: &xfile{b: b, line: 1}, fname: fname, first: true, realpath: realpath}
++}
++
++func (p *parser) logf(format string, a ...any) {
++	p.diags = append(p.diags, Diag{p.x.line, fmt.Sprintf(format, a...)})
++}
++
++const expTokSize = 512       // char exp[512] (exports.c:116)
++const pathTokSize = 1024 + 1 // e_path[NFS_MAXPATHLEN+1] (nfslib.h:85)
++const maxPath = 4096         // MAXPATHLEN for rpath
++func (p *parser) getexport() (string, int) { // exports.c:947-957
++	p.x.xskip(" \t")
++	s, ok := p.x.xgettok(expTokSize)
++	if ok < 0 {
++		p.logf("syntax error")
++	}
++	return s, ok
++}
++
++func (p *parser) getpath() (string, int) { // exports.c:940-945
++	p.x.xskip(" \t\n")
++	return p.x.xgettok(pathTokSize)
++}
++
++// next is getexportent(0) (exports.c:112-211). nil is end of entries:
++// end of file, or an error, after which export_read stops reading the
++// file (export.c:122).
++func (p *parser) next() *Entry {
++	var exp string
++	ok := 0
++	if !p.first {
++		exp, ok = p.getexport()
++	}
++	if p.first || ok == 0 {
++		p.hasDefaultOpts = false
++		p.defEE = initExportent()
++		var path string
++		path, ok = p.getpath()
++		if ok <= 0 {
++			return nil
++		}
++		p.defEE.Path = path
++		exp, ok = p.getexport()
++	}
++	if ok < 0 {
++		p.logf("expected client(options...)")
++		p.stoppedOnError = true
++		return nil
++	}
++	p.first = false
++
++	if ok > 0 && exp[0] == '-' { // :150-161
++		if !p.parseopts(exp[1:], &p.defEE, true) {
++			p.stoppedOnError = true
++			return nil
++		}
++		p.hasDefaultOpts = true
++		exp, ok = p.getexport()
++		if ok < 0 {
++			p.logf("expected client(options...)")
++			p.stoppedOnError = true
++			return nil
++		}
++	}
++	ee := p.defEE.clone() // :165
++	if ok == 0 {          // :168-169
++		exp = ""
++	}
++	hostname := exp
++	var opt *string
++	if i := strings.IndexByte(exp, '('); i >= 0 { // :172-182
++		if i == 0 {
++			p.logf("No host name given with %s %s, suggest *%s to avoid warning", ee.Path, exp, exp)
++			hostname = "*"
++		} else {
++			hostname = exp[:i]
++		}
++		o := exp[i+1:]
++		sp := strings.IndexByte(o, ')')
++		if sp < 0 || sp+1 != len(o) {
++			p.logf("syntax error: bad option list")
++			p.stoppedOnError = true
++			return nil
++		}
++		o = o[:sp]
++		opt = &o
++	} else if !p.hasDefaultOpts {
++		p.logf("No options for %s %s: suggest %s(sync) to avoid warning", ee.Path, exp, exp)
++	}
++	ee.Hostname = hostname
++	if opt != nil {
++		if !p.parseopts(*opt, &ee, false) {
++			p.stoppedOnError = true
++			return nil
++		}
++	}
++	// :203-208 nfsd_realpath; on failure the path is kept
++	if p.realpath != nil {
++		if r := p.realpath(ee.Path); r != "" {
++			if len(r) > pathTokSize-1 {
++				r = r[:pathTokSize-1]
++			}
++			ee.Path = r
++		}
++	}
++	return &ee
++}
++
++// ---- exports.c: parseopts ------------------------------------------------------
++
++// addFlavor is secinfo_addflavor (exports.c:468-485): the index of the
++// flavor (by number), appended with the current e_flags if new.
++func addFlavor(f *flavor, ep *Entry) int {
++	for i, s := range ep.Secinfo {
++		if s.Flavor == f.name || s.Num == f.num {
++			return i
++		}
++	}
++	if len(ep.Secinfo) >= secflavorCount {
++		return -1
++	}
++	ep.Secinfo = append(ep.Secinfo, SecEntry{Flavor: f.name, Num: f.num, Flags: ep.Flags})
++	return len(ep.Secinfo) - 1
++}
++
++func setflags(mask int, active uint, ep *Entry) { // exports.c:590-602
++	ep.Flags |= mask
++	for bit := 0; active != 0; bit, active = bit+1, active>>1 {
++		if active&1 != 0 {
++			ep.Secinfo[bit].Flags |= mask
++		}
++	}
++}
++
++func clearflags(mask int, active uint, ep *Entry) { // exports.c:605-617
++	ep.Flags &^= mask
++	for bit := 0; active != 0; bit, active = bit+1, active>>1 {
++		if active&1 != 0 {
++			ep.Secinfo[bit].Flags &^= mask
++		}
++	}
++}
++
++// cStrtol is strtol/strtoul's parse (leading space, sign, base 0 or 10):
++// the value and the unparsed rest.
++func cStrtol(s string, base int) (int64, string) {
++	i := 0
++	for i < len(s) && isspaceC(int(s[i])) {
++		i++
++	}
++	neg := false
++	if i < len(s) && (s[i] == '+' || s[i] == '-') {
++		neg = s[i] == '-'
++		i++
++	}
++	if base == 0 {
++		switch {
++		case i+1 < len(s) && s[i] == '0' && (s[i+1] == 'x' || s[i+1] == 'X') && i+2 < len(s) && isHex(s[i+2]):
++			base, i = 16, i+2
++		case i < len(s) && s[i] == '0':
++			base = 8
++		default:
++			base = 10
++		}
++	}
++	start := i
++	var v int64
++	for i < len(s) {
++		d := digitVal(s[i])
++		if d < 0 || d >= base {
++			break
++		}
++		if v < 1<<60 {
++			v = v*int64(base) + int64(d)
++		}
++		i++
++	}
++	if i == start {
++		return 0, s // no digits: endptr = nptr
++	}
++	if neg {
++		v = -v
++	}
++	return v, s[i:]
++}
++
++func isHex(c byte) bool { return digitVal(c) >= 0 && digitVal(c) < 16 }
++
++func digitVal(c byte) int {
++	switch {
++	case c >= '0' && c <= '9':
++		return int(c - '0')
++	case c >= 'a' && c <= 'z':
++		return int(c-'a') + 10
++	case c >= 'A' && c <= 'Z':
++		return int(c-'A') + 10
++	}
++	return -1
++}
++
++func isblankC(c byte) bool { return c == ' ' || c == '\t' }
++
++// parseopts (exports.c:637-864). It returns false on a bad option, which
++// makes getexportent fail.
++func (p *parser) parseopts(cp string, ep *Entry, _ bool) bool {
++	var active uint
++	sawReexport := false
++	i := 0
++	for i < len(cp) && isblankC(cp[i]) {
++		i++
++	}
++	for i < len(cp) {
++		j := strings.IndexByte(cp[i:], ',')
++		var opt string
++		if j < 0 {
++			opt, i = cp[i:], len(cp)
++		} else {
++			opt, i = cp[i:i+j], i+j+1
++		}
++		switch {
++		case opt == "ro":
++			setflags(ExpReadonly, active, ep)
++		case opt == "rw":
++			clearflags(ExpReadonly, active, ep)
++		case opt == "secure":
++			clearflags(ExpInsecurePort, active, ep)
++		case opt == "insecure":
++			setflags(ExpInsecurePort, active, ep)
++		case opt == "sync":
++			clearflags(ExpAsync, active, ep)
++		case opt == "async":
++			setflags(ExpAsync, active, ep)
++		case opt == "nordirplus":
++			setflags(ExpNoReaddirPlus, active, ep)
++		case opt == "security_label":
++			setflags(ExpSecurityLabel, active, ep)
++		case opt == "sign_fh":
++			setflags(ExpSignFH, active, ep)
++		case opt == "nohide":
++			setflags(ExpNoHide, active, ep)
++		case opt == "hide":
++			clearflags(ExpNoHide, active, ep)
++		case opt == "crossmnt":
++			setflags(ExpCrossMount, active, ep)
++		case opt == "nocrossmnt":
++			clearflags(ExpCrossMount, active, ep)
++		case opt == "wdelay":
++			setflags(ExpGatheredWrites, active, ep)
++		case opt == "no_wdelay":
++			clearflags(ExpGatheredWrites, active, ep)
++		case opt == "root_squash":
++			setflags(ExpRootSquash, active, ep)
++		case opt == "no_root_squash":
++			clearflags(ExpRootSquash, active, ep)
++		case opt == "all_squash":
++			setflags(ExpAllSquash, active, ep)
++		case opt == "no_all_squash":
++			clearflags(ExpAllSquash, active, ep)
++		case opt == "subtree_check":
++			clearflags(ExpNoSubtreeCheck, active, ep)
++		case opt == "no_subtree_check":
++			setflags(ExpNoSubtreeCheck, active, ep)
++		case opt == "auth_nlm", opt == "secure_locks":
++			clearflags(ExpNoAuthNLM, active, ep)
++		case opt == "no_auth_nlm", opt == "insecure_locks":
++			setflags(ExpNoAuthNLM, active, ep)
++		case opt == "acl":
++			clearflags(ExpNoACL, active, ep)
++		case opt == "no_acl":
++			setflags(ExpNoACL, active, ep)
++		case opt == "pnfs":
++			setflags(ExpPNFS, active, ep)
++		case opt == "no_pnfs":
++			clearflags(ExpPNFS, active, ep)
++		case strings.HasPrefix(opt, "anonuid="), strings.HasPrefix(opt, "anongid="): // :725-742
++			v, rest := cStrtol(opt[8:], 10)
++			if opt[8:] == "" || rest != "" {
++				p.logf("%s: bad %s %q", p.fname, opt[:7], opt)
++				return false
++			}
++			if opt[4] == 'u' {
++				ep.AnonUID = int64(uint32(v))
++			} else {
++				ep.AnonGID = int64(uint32(v))
++			}
++		case strings.HasPrefix(opt, "squash_uids="), strings.HasPrefix(opt, "squash_gids="): // :743-750
++			// parsesquash sees opt, already cut at the next ',', so a
++			// list stops at its first id range (exports.c:655-662, 874-904)
++			ids, ok := parsesquash(opt[12:])
++			if !ok {
++				p.logf("syntax error: bad uid/gid list")
++				return false
++			}
++			if opt[7] == 'u' {
++				ep.Squids = append(ep.Squids, ids...)
++			} else {
++				ep.Sqgids = append(ep.Sqgids, ids...)
++			}
++		case strings.HasPrefix(opt, "fsid="): // :751-774
++			if sawReexport {
++				p.logf("'fsid=' has to be before 'reexport=' %s", opt)
++				return false
++			}
++			if opt[5:] == "root" {
++				ep.FsidNum = 0
++				setflags(ExpFSID, active, ep)
++			} else {
++				v, rest := cStrtol(opt[5:], 0)
++				switch {
++				case opt[5:] != "" && rest == "":
++					ep.FsidNum = uint64(v)
++					setflags(ExpFSID, active, ep)
++				case validUUID(opt[5:]):
++					ep.UUID = opt[5:]
++				default:
++					p.logf("bad fsid %q", opt)
++					return false
++				}
++			}
++		case opt == "mountpoint", opt == "mp", strings.HasPrefix(opt, "mountpoint="), strings.HasPrefix(opt, "mp="): // :775-783
++			m := ""
++			if k := strings.IndexByte(opt, '='); k >= 0 {
++				m = opt[k+1:]
++			}
++			ep.Mountpt = &m
++		case strings.HasPrefix(opt, "refer="): // :794-796
++			ep.FslocKind, ep.FslocData = "refer", opt[6:]
++		case strings.HasPrefix(opt, "replicas="): // :797-799
++			ep.FslocKind, ep.FslocData = "replicas", opt[9:]
++		case strings.HasPrefix(opt, "sec="): // :800-803, parse_flavors :500-518
++			active = 0
++			for _, name := range strings.Split(opt[4:], ":") {
++				f := findFlavor(name)
++				if f == nil {
++					p.logf("unknown flavor %s", name)
++					return false
++				}
++				bit := addFlavor(f, ep)
++				if bit < 0 {
++					return false
++				}
++				active |= 1 << bit
++			}
++		case strings.HasPrefix(opt, "xprtsec="): // :804-806
++			for _, name := range strings.Split(opt[8:], ":") {
++				if name != "none" && name != "tls" && name != "mtls" {
++					p.logf("unknown xprtsec mode %s", name)
++					return false
++				}
++				dup := false
++				for _, x := range ep.Xprtsec {
++					dup = dup || x == name
++				}
++				if !dup {
++					ep.Xprtsec = append(ep.Xprtsec, name)
++				}
++			}
++		case strings.HasPrefix(opt, "reexport="): // :807-841
++			s := opt[9:]
++			if sawReexport || (s != "auto-fsidnum" && s != "predefined-fsidnum" && s != "none") {
++				p.logf("bad option %s", opt)
++				return false
++			}
++			// reexpdb_apply_reexport_settings needs the reexport
++			// database (ambiguity: not modelled; fsid left as is)
++			ep.Reexport = s
++			sawReexport = true
++		default: // :842-847
++			p.logf("unknown keyword %q", opt)
++			setflags(ExpAllSquash|ExpReadonly, active, ep)
++			return false
++		}
++		for i < len(cp) && isblankC(cp[i]) {
++			i++
++		}
++	}
++	fixPseudoflavorFlags(ep)
++	return true
++}
++
++// fixPseudoflavorFlags (exports.c:624-632).
++func fixPseudoflavorFlags(ep *Entry) {
++	for k := range ep.Secinfo {
++		ep.Secinfo[k].Flags |= ep.Flags &^ SecinfoFlags
++	}
++}
++
++// parsesquash (exports.c:866-909) on one option's value: ids are N or
++// N-M separated by ','; it stops at the end or at ')'.
++func parsesquash(s string) ([]int, bool) {
++	var ids []int
++	i := 0
++	num := func() int { // parsenum :926-938: atoi of [-]digits
++		start := i
++		if i < len(s) && s[i] == '-' {
++			i++
++		}
++		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
++			i++
++		}
++		v, _ := strconv.Atoi(s[start:i])
++		return v
++	}
++	for {
++		id0 := num()
++		id1 := id0
++		if i < len(s) && s[i] == '-' {
++			i++
++			id1 = num()
++		}
++		if id0 == -1 || id1 == -1 {
++			return nil, false
++		}
++		ids = append(ids, id0, id1)
++		if i >= len(s) || s[i] == ')' || (s[i] == ',' && !(i+1 < len(s) && s[i+1] >= '0' && s[i+1] <= '9')) {
++			break
++		}
++		if s[i] != ',' {
++			return nil, false
++		}
++		i++
++	}
++	return ids, true
++}
++
++func validUUID(s string) bool { // exports.c:453-461
++	n := 0
++	for i := 0; i < len(s); i++ {
++		if isHex(s[i]) {
++			n++
++		}
++	}
++	return n == 32
++}
++
++// ---- exports.c: putexportent -----------------------------------------------------
++
++// fprintpath (exports.c:266-275): control characters, '"', '\\', '#' and
++// whitespace as \ooo.
++func fprintpath(b *strings.Builder, path string) {
++	for i := 0; i < len(path); i++ {
++		c := path[i]
++		if c < 0x20 || c == 0x7f || c == '"' || c == '\\' || c == '#' || isspaceC(int(c)) {
++			fmt.Fprintf(b, "\\%03o", c)
++		} else {
++			b.WriteByte(c)
++		}
++	}
++}
++
++// ensureSecinfo is secinfo_show's side effect (exports.c:243-244): an
++// entry without a flavor gets "sys" with the entry's flags.
++func ensureSecinfo(ep *Entry) {
++	if len(ep.Secinfo) == 0 {
++		addFlavor(findFlavor("sys"), ep)
++	}
++}
++
++// PutExportent renders one etab line (putexportent, exports.c:277-383,
++// secinfo_show :236-253, xprtsecinfo_show :255-264).
++func PutExportent(ep Entry) string {
++	ensureSecinfo(&ep)
++	var b strings.Builder
++	fprintpath(&b, ep.Path)
++	f := ep.Flags
++	yn := func(cond bool, y, n string) string {
++		if cond {
++			return y
++		}
++		return n
++	}
++	fmt.Fprintf(&b, "\t%s(", ep.Hostname)
++	b.WriteString(yn(f&ExpReadonly != 0, "ro,", "rw,"))
++	b.WriteString(yn(f&ExpAsync != 0, "async,", "sync,"))
++	b.WriteString(yn(f&ExpGatheredWrites != 0, "wdelay,", "no_wdelay,"))
++	b.WriteString(yn(f&ExpNoHide != 0, "nohide,", "hide,"))
++	b.WriteString(yn(f&ExpCrossMount != 0, "crossmnt,", "nocrossmnt,"))
++	b.WriteString(yn(f&ExpInsecurePort != 0, "insecure,", "secure,"))
++	b.WriteString(yn(f&ExpRootSquash != 0, "root_squash,", "no_root_squash,"))
++	b.WriteString(yn(f&ExpAllSquash != 0, "all_squash,", "no_all_squash,"))
++	b.WriteString(yn(f&ExpNoSubtreeCheck != 0, "no_subtree_check,", "subtree_check,"))
++	b.WriteString(yn(f&ExpNoAuthNLM != 0, "insecure_locks,", "secure_locks,"))
++	b.WriteString(yn(f&ExpNoACL != 0, "no_acl,", "acl,"))
++	if f&ExpNoReaddirPlus != 0 {
++		b.WriteString("nordirplus,")
++	}
++	if f&ExpSecurityLabel != 0 {
++		b.WriteString("security_label,")
++	}
++	if f&ExpSignFH != 0 {
++		b.WriteString("sign_fh,")
++	}
++	b.WriteString(yn(f&ExpPNFS != 0, "pnfs,", "no_pnfs,"))
++	if f&ExpFSID != 0 {
++		fmt.Fprintf(&b, "fsid=%d,", int32(ep.FsidNum))
++	}
++	if ep.UUID != "" {
++		fmt.Fprintf(&b, "fsid=%s,", ep.UUID)
++	}
++	if ep.Reexport != "" && ep.Reexport != "none" {
++		fmt.Fprintf(&b, "reexport=%s,", ep.Reexport)
++	}
++	if ep.Mountpt != nil {
++		b.WriteString("mountpoint")
++		if *ep.Mountpt != "" {
++			b.WriteString("=" + *ep.Mountpt)
++		}
++		b.WriteString(",")
++	}
++	if ep.FslocKind != "" {
++		b.WriteString(ep.FslocKind + "=")
++		fprintpath(&b, ep.FslocData)
++		b.WriteString(",")
++	}
++	if ep.Squids != nil {
++		b.WriteString("squash_uids=")
++		writeIDs(&b, ep.Squids, len(ep.Squids))
++	}
++	if ep.Sqgids != nil {
++		b.WriteString("squash_gids=")
++		writeIDs(&b, ep.Sqgids, len(ep.Squids)) // sic: e_nsquids (exports.c:373)
++	}
++	fmt.Fprintf(&b, "anonuid=%d,anongid=%d", int32(ep.AnonUID), int32(ep.AnonGID))
++	for k := 0; k < len(ep.Secinfo); {
++		s := ep.Secinfo[k]
++		b.WriteString(",sec=" + s.Flavor)
++		k++
++		for k < len(ep.Secinfo) && ep.Secinfo[k].Flags == s.Flags {
++			b.WriteString(":" + ep.Secinfo[k].Flavor)
++			k++
++		}
++		for _, m := range []struct {
++			flag     int
++			set, uns string
++		}{{ExpReadonly, "ro", "rw"}, {ExpInsecurePort, "insecure", "secure"}, {ExpRootSquash, "root_squash", "no_root_squash"}, {ExpAllSquash, "all_squash", "no_all_squash"}} {
++			if SecinfoFlags&m.flag != 0 {
++				b.WriteString("," + yn(s.Flags&m.flag != 0, m.set, m.uns))
++			}
++		}
++	}
++	if len(ep.Xprtsec) > 0 {
++		b.WriteString(",xprtsec=" + strings.Join(ep.Xprtsec, ":"))
++	}
++	b.WriteString(")\n")
++	return b.String()
++}
++
++func writeIDs(b *strings.Builder, id []int, n int) {
++	for k := 0; k+1 < n && k+1 < len(id); k += 2 {
++		if id[k] != id[k+1] {
++			fmt.Fprintf(b, "%d-%d,", id[k], id[k+1])
++		} else {
++			fmt.Fprintf(b, "%d,", id[k])
++		}
++	}
++}
+diff --git a/internal/nfsref/grammar_test.go b/internal/nfsref/grammar_test.go
+new file mode 100644
+index 0000000..9ec46eb
+--- /dev/null
++++ b/internal/nfsref/grammar_test.go
+@@ -0,0 +1,51 @@
++package nfsref
++
++import (
++	"net/netip"
++	"testing"
++)
++
++// TestClientGrammarBareVsCIDR pins what nfs-utils does with a bare address
++// versus a /32 (checked against a real exportfs 3.1.1 build): a bare
++// address is an FQDN client that is looked up, merged with any name client
++// resolving to the same address (first spelling wins in etab, the second
++// entry is IGNORED) and beats every subnet line at mountd regardless of
++// file order; a /32 is a subnet client kept verbatim and never merged.
++func TestClientGrammarBareVsCIDR(t *testing.T) {
++	res := func(name string) (string, []netip.Addr, bool) {
++		if name == "node-a" {
++			return "node-a", []netip.Addr{netip.MustParseAddr("10.0.0.5")}, true
++		}
++		return NumericResolver(name)
++	}
++	ip := netip.MustParseAddr("10.0.0.5")
++	for _, tc := range []struct {
++		exports string
++		etab    []string // hosts of /a, etab order
++		mode    Mode
++	}{
++		{"/a 10.0.0.5(rw)\n", []string{"10.0.0.5 rw"}, RW},
++		{"/a 10.0.0.5/32(rw)\n", []string{"10.0.0.5/32 rw"}, RW},
++		// both kept: different client classes; the bare one wins at mountd
++		{"/a 10.0.0.5/32(ro) 10.0.0.5(rw)\n", []string{"10.0.0.5 rw", "10.0.0.5/32 ro"}, RW},
++		// a foreign name line swallows the bare address and renames it
++		{"/a node-a(ro)\n/a 10.0.0.5(rw)\n", []string{"node-a ro"}, RO},
++		// ... but never the /32; the name line still wins (FQDN class first)
++		{"/a node-a(ro)\n/a 10.0.0.5/32(rw)\n", []string{"node-a ro", "10.0.0.5/32 rw"}, RO},
++	} {
++		_, tab := ExportfsRA(ExportsFiles{Exports: []byte(tc.exports)}, res, nil)
++		got := tab.HostsOf("/a")
++		if len(got) != len(tc.etab) {
++			t.Errorf("%q: etab %q, want %q", tc.exports, got, tc.etab)
++			continue
++		}
++		for i := range got {
++			if got[i] != tc.etab[i] {
++				t.Errorf("%q: etab %q, want %q", tc.exports, got, tc.etab)
++			}
++		}
++		if m := tab.Access("/a", ip, Env{}).Mode; m != tc.mode {
++			t.Errorf("%q: 10.0.0.5 gets %v, want %v", tc.exports, m, tc.mode)
++		}
++	}
++}
+diff --git a/internal/nfsref/libshare.go b/internal/nfsref/libshare.go
+new file mode 100644
+index 0000000..2bf892d
+--- /dev/null
++++ b/internal/nfsref/libshare.go
+@@ -0,0 +1,304 @@
++// Package nfsref is a reference model of the Linux NFS export chain the
++// endpoint drives: OpenZFS libshare (sharenfs -> /etc/exports.d/zfs.exports),
++// nfs-utils exportfs (exports files -> /var/lib/nfs/etab) and mountd's
++// export lookup (etab -> what a client address is granted). Every function
++// is derived line by line from the C sources; citations name the file and
++// lines at these revisions:
++//
++//   - openzfs a128b8a (2.4 line): lib/libzfs/os/linux/libzfs_share_nfs.c
++//     ("share_nfs.c"), lib/libzfs/libzfs_share_nfs.c ("libshare_nfs.c"),
++//     lib/libzfs/libzfs_share.c, lib/libzfs/libzfs_dataset.c;
++//   - nfs-utils 3.1.1 (5090e0b): support/nfs/exports.c, support/nfs/xio.c,
++//     support/export/{export,client,xtab,hostname,cache,auth}.c,
++//     utils/exportfs/exportfs.c.
++//
++// What the model cannot know is injected: name resolution (Resolver),
++// realpath(3) and mountpoint checks. Behaviour that depends on libc or the
++// kernel rather than on these sources is marked "ambiguity" and is what the
++// real-nfsd replay (internal/endpoint nfs_replay_test.go) checks.
++package nfsref
++
++import (
++	"errors"
++	"fmt"
++	"slices"
++	"strings"
++)
++
++// ErrSyntax is libshare's SA_SYNTAX_ERR: `zfs set sharenfs=...` fails with
++// "'sharenfs' cannot be set to invalid options".
++var ErrSyntax = errors.New("SA_SYNTAX_ERR")
++
++// ExportsHeader starts every zfs.exports file libzfs writes
++// (libzfs_share.h:103 NFS_FILE_HEADER; libshare_nfs.c:233).
++const ExportsHeader = "# !!! DO NOT EDIT THIS FILE MANUALLY !!!\n\n"
++
++// ValidateSharenfs is the check `zfs set`/`zfs create -o` applies to a
++// sharenfs value (libzfs_dataset.c:1229-1248): "on" and "off" pass; any
++// other value goes through sa_validate_shareopts (libzfs_share.c:103-112),
++// which refuses \a \b \f \n \r anywhere, then nfs_validate_shareopts
++// (share_nfs.c:498-512): "" is refused, else the value must convert with
++// get_linux_shareopts. Tab, \v and space are NOT refused.
++func ValidateSharenfs(v string) error {
++	if v == "on" || v == "off" {
++		return nil
++	}
++	if strings.ContainsAny(v, "\a\b\f\n\r") {
++		return ErrSyntax
++	}
++	if v == "" {
++		return ErrSyntax
++	}
++	_, err := linuxShareopts(v)
++	return err
++}
++
++// foreachShareopt is foreach_nfs_shareopt (share_nfs.c:51-109): "on" is
++// "rw,crossmnt" (:61-62); options split on ','; empty options are skipped
++// (:84 cur > opt); the key ends at the first '=' (:85-90), value nil when
++// there is none.
++func foreachShareopt(shareopts string, cb func(key string, value *string) error) error {
++	if shareopts == "on" {
++		shareopts = "rw,crossmnt"
++	}
++	for _, opt := range strings.Split(shareopts, ",") {
++		if opt == "" {
++			continue
++		}
++		var value *string
++		if i := strings.IndexByte(opt, '='); i >= 0 {
++			v := opt[i+1:]
++			value, opt = &v, opt[:i]
++		}
++		if err := cb(opt, value); err != nil {
++			return err
++		}
++	}
++	return nil
++}
++
++// splitHosts walks a rw=/ro= host list like foreach_nfs_host_cb
++// (share_nfs.c:151-207): hosts are separated by ':'; a host starting with
++// '[' is an IPv6 literal, optionally followed by "/len". An empty list
++// value is one empty host (no "*" substitution here: only a missing value,
++// nil, becomes "*", :141-142).
++func splitHosts(value string) ([]string, error) {
++	var hosts []string
++	host := value
++	for {
++		var next string
++		more := false
++		if strings.HasPrefix(host, "[") {
++			host = host[1:]                     // :155
++			end := strings.IndexByte(host, ']') // :156
++			if end < 0 {
++				return nil, ErrSyntax // :157-160
++			}
++			rest := host[end+1:]
++			switch {
++			case rest == "": // :161-163
++				host = host[:end]
++			case rest[0] == '/': // :164-180: drop ']' and keep "/len"
++				if c := strings.IndexByte(rest[1:], ':'); c >= 0 {
++					next, more = rest[1+c+1:], true
++					host = host[:end] + rest[:1+c]
++				} else {
++					host = host[:end] + rest
++				}
++			case rest[0] == ':': // :181-183
++				next, more = rest[1:], true
++				host = host[:end]
++			default:
++				return nil, ErrSyntax // :184-187
++			}
++		} else if c := strings.IndexByte(host, ':'); c >= 0 { // :189-193
++			next, more = host[c+1:], true
++			host = host[:c]
++		}
++		hosts = append(hosts, host)
++		if !more {
++			return hosts, nil
++		}
++		host = next
++	}
++}
++
++// validKeys is get_linux_shareopts_cb's sorted list (share_nfs.c:303-309).
++var validKeys = []string{"all_squash", "anongid",
++	"anonuid", "async", "auth_nlm", "crossmnt", "fsid", "fsuid", "hide",
++	"insecure", "insecure_locks", "mountpoint", "mp", "no_acl",
++	"no_all_squash", "no_auth_nlm", "no_root_squash",
++	"no_subtree_check", "no_wdelay", "nohide", "refer", "replicas",
++	"root_squash", "secure", "secure_locks", "subtree_check", "sync",
++	"wdelay"}
++
++// linuxShareopts is get_linux_shareopts (share_nfs.c:379-403) with its
++// callback get_linux_shareopts_cb (:299-373): the option string appended
++// to every host's access mode.
++func linuxShareopts(shareopts string) (string, error) {
++	opts := []string{"no_subtree_check", "mountpoint"} // :389, :392
++	add := func(key string, value *string) {           // add_linux_shareopt :258-288
++		if value != nil {
++			opts = append(opts, key+"="+*value)
++		} else {
++			opts = append(opts, key)
++		}
++	}
++	err := foreachShareopt(shareopts, func(key string, value *string) error {
++		if key == "sec" { // :314-315
++			return nil
++		}
++		if key == "ro" || key == "rw" { // :317-353: only the [v6] syntax is checked
++			if value == nil || *value == "" {
++				return nil
++			}
++			_, err := splitHosts(*value)
++			return err
++		}
++		if key == "anon" { // :355-356
++			key = "anonuid"
++		}
++		if key == "root_mapping" { // :358-361
++			add("root_squash", nil)
++			key = "anonuid"
++		}
++		if key == "nosub" { // :363-364
++			key = "subtree_check"
++		}
++		if _, ok := slices.BinarySearch(validKeys, key); !ok { // :366-368
++			return ErrSyntax
++		}
++		add(key, value)
++		return nil
++	})
++	if err != nil {
++		return "", err
++	}
++	return strings.Join(opts, ","), nil
++}
++
++// linuxHostspec is get_linux_hostspec (share_nfs.c:237-253): a leading '@'
++// is dropped, so "@10.0.0.0/8" is the subnet, never a netgroup.
++func linuxHostspec(h string) string {
++	return strings.TrimPrefix(h, "@")
++}
++
++// EscapeMountpoint is nfs_escape_mountpoint (libshare_nfs.c:142-168):
++// \t \n \v \f \r space and backslash become \ooo. '"' and '#' are not
++// escaped.
++func EscapeMountpoint(mp string) string {
++	if !strings.ContainsAny(mp, "\t\n\v\f\r \\") {
++		return mp
++	}
++	var b strings.Builder
++	for i := 0; i < len(mp); i++ {
++		if strings.IndexByte("\t\n\v\f\r \\", mp[i]) >= 0 {
++			fmt.Fprintf(&b, "\\%03o", mp[i])
++		} else {
++			b.WriteByte(mp[i])
++		}
++	}
++	return b.String()
++}
++
++// ExportsLines is what nfs_enable_share_impl (share_nfs.c:440-452) writes
++// for one dataset: get_linux_shareopts first (an error writes nothing),
++// then one nfs_add_entry line per host (:410-435):
++//
++//	<escaped mp> <host without '@'>(sec=<sec>,<rw|ro>,<linux opts>)\n
++//
++// sec starts as "sys" (:228) and each "sec" option changes it for the
++// hosts after it (:137-138); a bare "sec" makes it NULL, which glibc's
++// printf prints as "(null)" (ambiguity: libc). A missing rw/ro value is
++// "*" (:141-142); an empty one is an empty host, written as
++// "<mp> (sec=...)", which nfs-utils reads as "*" (exports.c:173-176).
++func ExportsLines(mountpoint, sharenfs string) ([]string, error) {
++	linuxOpts, err := linuxShareopts(sharenfs)
++	if err != nil {
++		return nil, err
++	}
++	mp := EscapeMountpoint(mountpoint)
++	security := "sys"
++	var lines []string
++	err = foreachShareopt(sharenfs, func(key string, value *string) error {
++		if key == "sec" {
++			if value == nil {
++				security = "(null)"
++			} else {
++				security = *value
++			}
++		}
++		if key != "rw" && key != "ro" {
++			return nil
++		}
++		v := "*"
++		if value != nil {
++			v = *value
++		}
++		hosts, err := splitHosts(v)
++		if err != nil {
++			return err
++		}
++		for _, h := range hosts {
++			lines = append(lines, fmt.Sprintf("%s %s(sec=%s,%s,%s)\n", mp, linuxHostspec(h), security, key, linuxOpts))
++		}
++		return nil
++	})
++	if err != nil {
++		return nil, err
++	}
++	return lines, nil
++}
++
++// ShareFile is nfs_toggle_share (libshare_nfs.c:244-277) on a zfs.exports
++// file: the header, every old line except comment and blank lines and
++// except those of mountpoint (nfs_copy_entries, :170-242: a line belongs
++// to mountpoint when its first field, up to a tab, space or newline, is
++// the escaped mountpoint), then the new lines. sharenfs "off" (unshare,
++// nfs_disable_share_impl :468-473) writes no new lines. On an error the
++// file is left as it was (:273-276) and the error is returned.
++func ShareFile(old, mountpoint, sharenfs string) (string, error) {
++	var lines []string
++	if sharenfs != "off" {
++		var err error
++		if err = ValidateSharenfs(sharenfs); err != nil { // sa_enable_share, libzfs_share.c:51-58
++			return old, err
++		}
++		if lines, err = ExportsLines(mountpoint, sharenfs); err != nil {
++			return old, err
++		}
++	}
++	mp := EscapeMountpoint(mountpoint)
++	var b strings.Builder
++	b.WriteString(ExportsHeader)
++	for _, line := range splitKeepNL(old) {
++		if line[0] == '\n' || line[0] == '#' { // :192-193
++			continue
++		}
++		sep := strings.IndexAny(line, "\t \n") // :196-198
++		if sep == len(mp) && strings.HasPrefix(line, mp) {
++			continue
++		}
++		b.WriteString(line)
++	}
++	for _, l := range lines {
++		b.WriteString(l)
++	}
++	return b.String(), nil
++}
++
++// splitKeepNL splits like getline(3): each piece keeps its '\n'; a last
++// piece without one is kept too.
++func splitKeepNL(s string) []string {
++	var out []string
++	for s != "" {
++		i := strings.IndexByte(s, '\n')
++		if i < 0 {
++			out = append(out, s)
++			break
++		}
++		out = append(out, s[:i+1])
++		s = s[i+1:]
++	}
++	return out
++}
+diff --git a/internal/zfs/zfstest/sim.go b/internal/zfs/zfstest/sim.go
+index 6ca36ea..40d87a0 100644
+--- a/internal/zfs/zfstest/sim.go
++++ b/internal/zfs/zfstest/sim.go
+@@ -11,9 +11,14 @@
+ // real pool.
+ //
+ // NFS: a filesystem is mounted unless canmount is off/noauto, its
+-// mountpoint is none/legacy, or Unmount unmounted it. Setting sharenfs on a
+-// mounted filesystem exports it, and ReadEtab renders those exports as
+-// /var/lib/nfs/etab (under the mountpoint's real path, like nfs-utils).
++// mountpoint is none/legacy, or Unmount unmounted it. Sharing a mounted
++// filesystem rewrites /etc/exports.d/zfs.exports like libzfs and runs
++// `exportfs -ra`; both are the reference models in internal/nfsref
++// (OpenZFS libshare and nfs-utils, derived from their sources), so etab
++// shows what a real host shows: "*" for an empty host, '@' dropped,
++// crossmnt for "on", first-wins duplicates, client classes in mountd
++// order, a malformed line ending the file, realpath. An invalid sharenfs
++// is refused like `zfs set` refuses it.
+ // A plain `zfs set sharenfs` on an unmounted canmount=on filesystem mounts
+ // and shares it (changelist_postfix); `zfs set -u` does neither. Failure
+ // modes, each with zfs still exiting 0:
+@@ -36,6 +41,7 @@ import (
+ 	"sync"
+ 	"time"
+ 
++	"github.com/wommy/empty/internal/nfsref"
+ 	"github.com/wommy/empty/internal/zfs"
+ )
+ 
+@@ -63,7 +69,9 @@ type Sim struct {
+ 	// (unix seconds). Nil is the wall clock.
+ 	Clock func() int64
+ 
+-	live      map[string]string // dataset -> sharenfs value the "kernel" serves
++	exports   string            // /etc/exports.d/zfs.exports
++	shared    map[string]string // dataset -> mountpoint it has lines under
++	etab      string            // /var/lib/nfs/etab
+ 	nfsDown   bool
+ 	nfsdOff   bool            // nfs-server stopped: no nfsd threads
+ 	dropHosts map[string]bool // clients exportfs leaves out of etab
+@@ -78,7 +86,7 @@ func (s *Sim) now() int64 {
+ 
+ // New returns a Sim with the given pools.
+ func New(pools ...string) *Sim {
+-	s := &Sim{ds: map[string]*node{}, PoolSize: 1 << 40, live: map[string]string{}}
++	s := &Sim{ds: map[string]*node{}, PoolSize: 1 << 40, shared: map[string]string{}}
+ 	for _, p := range pools {
+ 		s.ds[p] = &node{typ: zfs.TypeFilesystem, props: map[string]string{}}
+ 	}
+@@ -244,6 +252,9 @@ func (s *Sim) create(args []string) error {
+ 	if msg, ok := s.canonProps(props); !ok {
+ 		return exit("cannot create '%s': %s", name, msg)
+ 	}
++	if v, ok := props["sharenfs"]; ok && nfsref.ValidateSharenfs(v) != nil {
++		return exit("cannot create '%s': 'sharenfs' cannot be set to invalid options", name)
++	}
+ 	n := &node{typ: zfs.TypeFilesystem, props: props, birth: s.now()}
+ 	if volsize != "" {
+ 		v, err := strconv.ParseUint(volsize, 10, 64)
+@@ -316,6 +327,9 @@ func (s *Sim) clone(args []string) error {
+ 	if msg, ok := s.canonProps(props); !ok {
+ 		return exit("cannot create '%s': %s", name, msg)
+ 	}
++	if v, ok := props["sharenfs"]; ok && nfsref.ValidateSharenfs(v) != nil {
++		return exit("cannot create '%s': 'sharenfs' cannot be set to invalid options", name)
++	}
+ 	n := &node{typ: typ, props: props, origin: snap, birth: s.now()}
+ 	if typ == zfs.TypeVolume {
+ 		n.props["volsize"] = s.ds[parent(snap)].props["volsize"]
+@@ -410,8 +424,8 @@ func (s *Sim) destroy(args []string) error {
+ func (s *Sim) remove(name string) {
+ 	origin := s.ds[name].origin
+ 	delete(s.ds, name)
+-	if !s.nfsDown {
+-		delete(s.live, name) // destroy unmounts, and unmount unshares
++	if s.unshare(name) { // destroy unmounts, and unmount unshares
++		s.exportfs()
+ 	}
+ 	if origin == "" {
+ 		return
+@@ -473,6 +487,9 @@ func (s *Sim) set(args []string) error {
+ 			return exit("cannot set property for '%s': %s", name, msg)
+ 		}
+ 		p[1] = c
++		if p[0] == "sharenfs" && nfsref.ValidateSharenfs(p[1]) != nil {
++			return exit("cannot set property for '%s': 'sharenfs' cannot be set to invalid options", name)
++		}
+ 		if p[0] == "volblocksize" {
+ 			return exit("cannot set property for '%s': 'volblocksize' is readonly", name)
+ 		}
+@@ -783,28 +800,77 @@ func (s *Sim) mounted(name string) bool {
+ 	return mp != "none" && mp != "legacy"
+ }
+ 
+-// reshare brings the served exports of name and its descendants in line
+-// with their sharenfs (inherited) and mount state, unless NFS is down.
++// reshare shares or unshares name and the filesystems below it that
++// inherit sharenfs (libzfs changelist_postfix), then runs exportfs.
+ func (s *Sim) reshare(name string) {
+ 	if s.nfsDown {
+ 		return
+ 	}
++	changed := false
+ 	for _, k := range append([]string{name}, s.children(name)...) {
+ 		if s.ds[k].typ != zfs.TypeFilesystem {
+ 			continue
+ 		}
+-		v, _, _ := s.value(k, "sharenfs")
++		v, src, _ := s.value(k, "sharenfs")
++		if k != name && src == "local" {
++			continue
++		}
++		mp, _, _ := s.value(k, "mountpoint")
+ 		if s.mounted(k) && v != "off" {
+-			s.live[k] = v
++			if f, err := nfsref.ShareFile(s.exports, mp, v); err == nil {
++				s.exports, s.shared[k], changed = f, mp, true
++			}
+ 		} else {
+-			delete(s.live, k)
++			changed = s.unshare(k) || changed
+ 		}
+ 	}
++	if changed {
++		s.exportfs()
++	}
++}
++
++// unshare removes name's lines from zfs.exports (nfs_disable_share).
++func (s *Sim) unshare(name string) bool {
++	mp, ok := s.shared[name]
++	if !ok || s.nfsDown {
++		return false
++	}
++	s.exports, _ = nfsref.ShareFile(s.exports, mp, "off")
++	delete(s.shared, name)
++	return true
++}
++
++// exportfs is `exportfs -ra` on zfs.exports, leaving out DropHost
++// clients.
++func (s *Sim) exportfs() {
++	etab, _ := nfsref.ExportfsRA(nfsref.ExportsFiles{Dir: map[string][]byte{"zfs.exports": []byte(s.exports)}}, nil, realpath)
++	var b strings.Builder
++	for _, line := range strings.SplitAfter(etab, "\n") {
++		if _, rest, ok := strings.Cut(line, "\t"); ok {
++			if host, _, _ := strings.Cut(rest, "("); s.dropHosts[host] {
++				continue
++			}
++		}
++		b.WriteString(line)
++	}
++	s.etab = b.String()
++}
++
++// realpath is nfsd_realpath: the path itself when it does not resolve.
++func realpath(p string) string {
++	if r, err := filepath.EvalSymlinks(p); err == nil {
++		return r
++	}
++	return p
+ }
+ 
+ // SetNFSDown makes later sharenfs changes not reach the NFS server, as when
+-// exportfs fails: zfs set still succeeds. Turning it off again does not
+-// replay missed changes; the next share of a dataset does.
++// exportfs is unavailable (libshare nfs_available is false): libzfs then
++// leaves zfs.exports alone and exports nothing, and zfs set still
++// succeeds. Turning it off again does not replay missed changes; the next
++// share of a dataset does (exportfs -ra reads the whole file). A sharenfs
++// re-set to "off" on a dataset zfs.exports has no line for does not run
++// exportfs (changelist_postfix unshares only cn_shared datasets).
+ func (s *Sim) SetNFSDown(down bool) {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+@@ -817,8 +883,8 @@ func (s *Sim) Unmount(name string) {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+ 	s.ds[name].unmounted = true
+-	if !s.nfsDown {
+-		delete(s.live, name)
++	if s.unshare(name) {
++		s.exportfs()
+ 	}
+ }
+ 
+@@ -832,17 +898,10 @@ func (s *Sim) SetNFSDRunning(running bool) {
+ 	defer s.mu.Unlock()
+ 	s.nfsdOff = !running
+ 	if !running {
+-		clear(s.live)
++		s.etab = "" // exportfs -au
+ 		return
+ 	}
+-	for k, n := range s.ds {
+-		if n.typ != zfs.TypeFilesystem {
+-			continue
+-		}
+-		if v, _, _ := s.value(k, "sharenfs"); s.mounted(k) && v != "off" {
+-			s.live[k] = v
+-		}
+-	}
++	s.exportfs() // exportfs -r
+ }
+ 
+ // DropHost makes exportfs leave client host out of the table while it
+@@ -868,55 +927,17 @@ func (s *Sim) NFSDThreads(context.Context) (int, error) {
+ 	return 8, nil
+ }
+ 
+-// ReadEtab renders the served exports as nfs-utils writes /var/lib/nfs/etab:
+-// one "path<TAB>host(rw|ro,...)" line per client, the path resolved like
+-// nfsd_realpath. It implements the endpoint's EtabReader.
++// ReadEtab returns /var/lib/nfs/etab as the last successful exportfs
++// wrote it. It implements the endpoint's EtabReader.
+ func (s *Sim) ReadEtab(context.Context) ([]byte, error) {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+-	names := make([]string, 0, len(s.live))
+-	for k := range s.live {
+-		names = append(names, k)
+-	}
+-	sort.Strings(names)
+-	var b strings.Builder
+-	for _, k := range names {
+-		mp := "/" + k // destroyed while NFS was down: the old default path
+-		if _, ok := s.ds[k]; ok {
+-			mp, _, _ = s.value(k, "mountpoint")
+-		}
+-		if real, err := filepath.EvalSymlinks(mp); err == nil {
+-			mp = real
+-		}
+-		for _, h := range shareHosts(s.live[k]) {
+-			if s.dropHosts[h[0]] {
+-				continue
+-			}
+-			fmt.Fprintf(&b, "%s\t%s(%s,sync,wdelay,hide,nocrossmnt,secure,root_squash,no_all_squash,no_subtree_check,secure_locks,acl,no_pnfs,anonuid=65534,anongid=65534,sec=sys,%s,secure,root_squash,no_all_squash)\n",
+-				mp, h[0], h[1], h[1])
+-		}
+-	}
+-	return []byte(b.String()), nil
++	return []byte(s.etab), nil
+ }
+ 
+-// shareHosts reads the rw=/ro= host lists of a sharenfs value like libzfs:
+-// "on" and a bare rw/ro mean every host.
+-func shareHosts(v string) [][2]string {
+-	if v == "on" {
+-		return [][2]string{{"*", "rw"}}
+-	}
+-	var out [][2]string
+-	for _, opt := range strings.Split(v, ",") {
+-		k, hosts, ok := strings.Cut(opt, "=")
+-		if k != "rw" && k != "ro" {
+-			continue
+-		}
+-		if !ok {
+-			hosts = "*"
+-		}
+-		for _, h := range strings.Split(hosts, ":") {
+-			out = append(out, [2]string{h, k})
+-		}
+-	}
+-	return out
++// Exports returns /etc/exports.d/zfs.exports as libzfs last wrote it.
++func (s *Sim) Exports() string {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	return s.exports
+ }

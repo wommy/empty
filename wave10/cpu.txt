@@ -1,0 +1,2 @@
+plain  build+link only (go test -c-equivalent: -run ^$ -count=1), own changed: wall=32.018 user=12.000 sys=2.220
+plain  rerun, everything cached except test execution (-run ^$): 

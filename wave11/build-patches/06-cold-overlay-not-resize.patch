@@ -1,0 +1,40 @@
+--- a/ci/real-zfs-vm.sh
++++ b/ci/real-zfs-vm.sh
+@@ -58,7 +58,9 @@
+ else
+   curl -fsSL --retry 3 -o "$img" "$base/$file"
+   echo "$sum  $img" | sha256sum -c -
+-  qemu-img resize "$img" 20G
++  # an overlay, not `qemu-img resize` in place: resizing the image curl
++  # just wrote took 1.8-5.1s (it flushes the fresh 877 MB file)
++  qemu-img create -q -f qcow2 -F qcow2 -b "$img" "$work/prov.qcow2" 20G
+   ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
+ fi
+ # what goes on the guest disk lives in ci/guest/ (the cache key hashes it)
+@@ -80,7 +82,7 @@
+ }
+ # boot first: provisioning (or a warm boot) overlaps the test compile below
+ mark "image ready"
+-if [ -n "$warm" ]; then overlay; else boot "$img"; fi
++if [ -n "$warm" ]; then overlay; else boot "$work/prov.qcow2"; fi
+ mark "qemu started"
+ 
+ common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
+@@ -136,7 +138,7 @@
+   for _ in $(seq 1 60); do kill -0 "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || break; sleep 1; done
+   if ! kill -0 "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null; then
+     rm -rf "$cache" && mkdir -p "$cache"
+-    qemu-img convert -O qcow2 "$img" "$cache/disk.qcow2"
++    qemu-img convert -O qcow2 "$work/prov.qcow2" "$cache/disk.qcow2"
+     cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
+     echo "$sum" >"$cache/sum"
+     touch "$cache/ok"
+@@ -146,7 +148,7 @@
+     echo "guest did not power off; not caching it" >&2
+     kill "$(cat "$work/qemu.pid")" 2>/dev/null || true
+     sleep 2
+-    boot "$img"
++    boot "$work/prov.qcow2"
+   fi
+   wait_ssh
+ fi

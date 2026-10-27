@@ -101,3 +101,9 @@ go: downloading github.com/containerd/ttrpc v1.2.6
 go: downloading google.golang.org/grpc v1.68.0
 go: downloading github.com/containerd/errdefs v1.0.0
 go: downloading github.com/containerd/typeurl/v2 v2.2.3
+wall=831.330 user=242.158 sys=42.752
+2. warm: go run buf lint again (all cached): wall=6.473 user=1.440 sys=0.395
+3. go install buf (cache warm; link-only): wall=21.214 user=5.127 sys=0.659
+4. prebuilt binary: buf lint: wall=1.308 user=0.446 sys=0.070
+5. modules-only download time (cold modcache, go mod download style via go list -m): wall=27.353 user=5.343 sys=2.657
+done

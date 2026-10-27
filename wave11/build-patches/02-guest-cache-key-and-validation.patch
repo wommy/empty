@@ -1,0 +1,115 @@
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -162,10 +162,20 @@
+         # script verifies it against the gpg-signed list) and the script
+         id: image
+         run: |
++          # fetch and verify the list once; the script reuses it, so the key
++          # and the image the script boots come from the same list even when
++          # current/ moves between the two
+           f=stonking-server-cloudimg-amd64.img
+-          sum=$(curl -fsSL --retry 3 https://cloud-images.ubuntu.com/stonking/current/SHA256SUMS | awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }')
++          base=https://cloud-images.ubuntu.com/stonking/current
++          mkdir -p "$RUNNER_TEMP/zfsvm" && cd "$RUNNER_TEMP/zfsvm"
++          curl -fsSL --retry 3 -o SHA256SUMS "$base/SHA256SUMS"
++          curl -fsSL --retry 3 -o SHA256SUMS.gpg "$base/SHA256SUMS.gpg"
++          gpgv --keyring /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg SHA256SUMS.gpg SHA256SUMS
++          sum=$(awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }' SHA256SUMS)
+           test -n "$sum"
+-          echo "key=zfsvm-stonking-$sum-${{ hashFiles('ci/real-zfs-vm.sh') }}" >>"$GITHUB_OUTPUT"
++          # keyed by what is on the guest disk, not by the test driver: the
++          # script changed 9 times in two hours, the provisioning spec twice
++          echo "key=zfsvm-stonking-$sum-${{ hashFiles('ci/guest/**') }}" >>"$GITHUB_OUTPUT"
+       - name: restore the provisioned guest
+         id: guest
+         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+--- a/ci/real-zfs-vm.sh
++++ b/ci/real-zfs-vm.sh
+@@ -38,8 +38,10 @@
+ base="https://cloud-images.ubuntu.com/$series/$build"
+ file="$series-server-cloudimg-amd64.img"
+ img="$work/$series.img"
+-curl -fsSL --retry 3 -o "$work/SHA256SUMS" "$base/SHA256SUMS"
+-curl -fsSL --retry 3 -o "$work/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg"
++# the workflow fetches the list to key the guest cache: reuse it, verified
++# again here, so the key and the image cannot come from different lists
++[ -s "$work/SHA256SUMS" ] || curl -fsSL --retry 3 -o "$work/SHA256SUMS" "$base/SHA256SUMS"
++[ -s "$work/SHA256SUMS.gpg" ] || curl -fsSL --retry 3 -o "$work/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg"
+ gpgv --keyring "$keyring" "$work/SHA256SUMS.gpg" "$work/SHA256SUMS"
+ sum=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
+ [ -n "$sum" ] || { echo "$file is not in $base/SHA256SUMS" >&2; exit 1; }
+@@ -48,25 +50,15 @@
+   warm=1
+   echo "warm guest: $cache (provisioned from image $sum)"
+   cp "$cache/key" "$cache/key.pub" "$cache/seed.img" "$work/"
++  chmod 600 "$work/key"
+ else
+   curl -fsSL --retry 3 -o "$img" "$base/$file"
+   echo "$sum  $img" | sha256sum -c -
+   qemu-img resize "$img" 20G
+   ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
+ fi
+-cat >"$work/user-data" <<EOF
+-#cloud-config
+-users:
+-  - name: ci
+-    sudo: ALL=(ALL) NOPASSWD:ALL
+-    shell: /bin/bash
+-    ssh_authorized_keys: [$(cat "$work/key.pub")]
+-package_update: true
+-packages: [zfsutils-linux, nfs-kernel-server]
+-runcmd:
+-  - [modprobe, zfs]
+-  - [systemctl, enable, --now, nfs-server]
+-EOF
++# what goes on the guest disk lives in ci/guest/ (the cache key hashes it)
++sed "s|@PUBKEY@|$(cat "$work/key.pub")|" ci/guest/user-data.in >"$work/user-data"
+ [ -n "$warm" ] || cloud-localds "$work/seed.img" "$work/user-data"
+ 
+ # -display none, not -nographic: QEMU refuses -nographic with -daemonize.
+@@ -119,14 +111,21 @@
+ done_=
+ for _ in $(seq 1 600); do vm 'test -e /var/lib/cloud/instance/boot-finished' 2>/dev/null && { done_=1; break; }; sleep 1; done
+ [ -n "$done_" ] || { echo "cloud-init never finished" >&2; exit 1; }
+-if [ -z "$warm" ] && [ -n "$cache" ]; then
++# store only a guest whose packages are installed: cloud-init writes
++# boot-finished after a failed apt too, and a stored half-provisioned guest
++# would fail every warm run until the key changes, where a cold run retries
++guest_ok() {
++  vm 'test "$(dpkg-query -W -f="\${db:Status-Abbrev}\n" zfsutils-linux nfs-kernel-server 2>/dev/null | grep -c "^ii")" = 2'
++}
++if [ -z "$warm" ] && [ -n "$cache" ] && guest_ok; then
+   # store the provisioned disk, then carry on from an overlay of it, as a
+   # warm run would; failing to store only costs the next run its speed
+   t0=$SECONDS
+   vm 'sudo apt-get clean; sudo sync'
+   vm 'sudo systemctl poweroff' 2>/dev/null || true
+-  for _ in $(seq 1 60); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 1; done
+-  if ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
++  # qemu removes its pidfile on exit, so a failed cat means powered off
++  for _ in $(seq 1 60); do kill -0 "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || break; sleep 1; done
++  if ! kill -0 "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null; then
+     rm -rf "$cache" && mkdir -p "$cache"
+     qemu-img convert -O qcow2 "$img" "$cache/disk.qcow2"
+     cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
+--- /dev/null
++++ b/ci/guest/user-data.in
+@@ -0,0 +1,18 @@
++#cloud-config
++# The provisioned guest is cached by the image's sha256 and a hash of this
++# directory (ci/guest/). Anything that changes what is on the guest disk
++# belongs here; ci/real-zfs-vm.sh can change freely without a cold run.
++users:
++  - name: ci
++    sudo: ALL=(ALL) NOPASSWD:ALL
++    shell: /bin/bash
++    ssh_authorized_keys: [@PUBKEY@]
++package_update: true
++packages: [zfsutils-linux, nfs-kernel-server]
++runcmd:
++  - [modprobe, zfs]
++  - [systemctl, enable, --now, nfs-server]
++  # a cached guest boots days after it was provisioned: keep apt's timers
++  # from upgrading zfsutils past the loaded kmod, or loading the guest,
++  # while the tests run
++  - [sh, -c, "systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service || true"]

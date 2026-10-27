@@ -1,0 +1,43 @@
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -138,6 +138,13 @@
+       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+         with:
+           persist-credentials: false
++      - name: start qemu install
++        # apt (13-14s in every run so far, 3-6s of it a silent gap inside
++        # `apt-get update`) needs nothing from setup-go, the image key or
++        # the guest restore: run it behind them, wait for it before the VM
++        run: |
++          rm -f "$RUNNER_TEMP/apt.rc"
++          setsid nohup bash -c '{ sudo apt-get update -o Acquire::Languages=none && sudo NEEDRESTART_SUSPEND=1 apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils; } >"$1/apt.log" 2>&1; echo $? >"$1/apt.rc"' _ "$RUNNER_TEMP" >/dev/null 2>&1 &
+       - id: go
+         uses: ./.github/actions/setup-go
+         with:
+@@ -150,12 +157,6 @@
+           sudo udevadm control --reload-rules
+           sudo udevadm trigger --name-match=kvm
+           test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+-      - name: install qemu
+-        run: |
+-          sudo apt-get update
+-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils
+-          # the cloud image signing key ships in ubuntu-keyring on 24.04
+-          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+       - name: resolve the cloud image
+         # the provisioned-guest cache is keyed by the image's sha256 (the
+         # script verifies it against the gpg-signed list) and the script
+@@ -171,6 +172,13 @@
+         with:
+           path: ${{ runner.temp }}/zfsvm-cache
+           key: ${{ steps.image.outputs.key }}
++      - name: wait for the qemu install
++        run: |
++          for _ in $(seq 480); do [ -e "$RUNNER_TEMP/apt.rc" ] && break; sleep 0.25; done
++          cat "$RUNNER_TEMP/apt.log" || true
++          test "$(cat "$RUNNER_TEMP/apt.rc" 2>/dev/null)" = 0 || { echo "::error::qemu install failed or did not finish"; exit 1; }
++          # the cloud image signing key ships in ubuntu-keyring on 24.04
++          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+       - name: test (Ubuntu 26.10, real zfs 2.4)
+         env:
+           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache

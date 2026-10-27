@@ -1,0 +1,65 @@
+--- a/ci/real-zfs-vm.sh
++++ b/ci/real-zfs-vm.sh
+@@ -20,6 +20,9 @@
+ # boot still runs the version, module and nfsd checks below, so a stale
+ # disk fails them rather than testing another ZFS.
+ set -euo pipefail
++# phase marks: the job log only timestamps lines, and several phases print
++# nothing (the boot, the compile, the cloud-init wait)
++mark() { echo "[zfsvm +${SECONDS}s] $*"; }
+ 
+ series=${1:?series, e.g. stonking}
+ build=${2:-current}
+@@ -45,6 +48,7 @@
+ gpgv --keyring "$keyring" "$work/SHA256SUMS.gpg" "$work/SHA256SUMS"
+ sum=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
+ [ -n "$sum" ] || { echo "$file is not in $base/SHA256SUMS" >&2; exit 1; }
++mark "checksum list verified"
+ warm=
+ if [ -n "$cache" ] && [ -f "$cache/ok" ] && [ "$(cat "$cache/sum")" = "$sum" ]; then
+   warm=1
+@@ -75,7 +79,9 @@
+   boot "$work/run.qcow2"
+ }
+ # boot first: provisioning (or a warm boot) overlaps the test compile below
++mark "image ready"
+ if [ -n "$warm" ]; then overlay; else boot "$img"; fi
++mark "qemu started"
+ 
+ common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
+ vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
+@@ -103,7 +109,9 @@
+   for _ in $(seq 1 180); do vm true 2>/dev/null && { up=1; break; }; sleep 1; done
+   [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
+ }
++mark "test binaries built"
+ wait_ssh
++mark "ssh up"
+ # status exits non-zero on recoverable warnings; the version, module and
+ # nfsd checks below are the real gates
+ # wait for cloud-init by its marker file: `status --wait` dies with ssh 255
+@@ -111,6 +119,7 @@
+ done_=
+ for _ in $(seq 1 600); do vm 'test -e /var/lib/cloud/instance/boot-finished' 2>/dev/null && { done_=1; break; }; sleep 1; done
+ [ -n "$done_" ] || { echo "cloud-init never finished" >&2; exit 1; }
++mark "cloud-init done"
+ # store only a guest whose packages are installed: cloud-init writes
+ # boot-finished after a failed apt too, and a stored half-provisioned guest
+ # would fail every warm run until the key changes, where a cold run retries
+@@ -143,6 +152,8 @@
+ fi
+ # services (zfs module, nfsd) come up after sshd on a reboot
+ vm 'systemctl is-system-running --wait >/dev/null || true'
++mark "guest settled"
++vm 'systemd-analyze blame 2>/dev/null | head -n 8' || true
+ # cloud-init's runcmd ran only on the provisioning boot
+ vm 'sudo modprobe zfs'
+ vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
+@@ -171,6 +182,7 @@
+ 
+ bins=()
+ for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
++mark "checks passed"
+ scp "${common[@]}" -P 2222 "${bins[@]}" ci@127.0.0.1:
+ rc=0
+ vm 'set -eo pipefail

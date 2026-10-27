@@ -1,4 +1,4 @@
-From 03dfa663fbb32bb986745cdcc9d5c3b8e0108744 Mon Sep 17 00:00:00 2001
+From 72a3d55467878bdead009d234c86bd22dc70ea32 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 27 Oct 2026 06:24:03 +0000
 Subject: [PATCH] ci: real-ZFS VM: parallel guest shards, cached qemu tree,
@@ -312,7 +312,7 @@ index 0000000..ae15c03
 +echo "end at uptime $(up)s, rc $rc"
 +exit "$rc"
 diff --git a/ci/real-zfs-vm.sh b/ci/real-zfs-vm.sh
-index ef0eb50..4a10065 100755
+index ef0eb50..72dfe9e 100755
 --- a/ci/real-zfs-vm.sh
 +++ b/ci/real-zfs-vm.sh
 @@ -16,7 +16,8 @@
@@ -404,7 +404,7 @@ index ef0eb50..4a10065 100755
    if ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
      rm -rf "$cache" && mkdir -p "$cache"
 -    qemu-img convert -O qcow2 "$img" "$cache/disk.qcow2"
-+    qemu-img convert -c -O qcow2 -o compression_type=zstd "$img" "$cache/disk.qcow2"
++    qemu-img convert -m 16 -W -c -O qcow2 -o compression_type=zstd "$img" "$cache/disk.qcow2"
      cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
      echo "$sum" >"$cache/sum"
      touch "$cache/ok"

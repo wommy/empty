@@ -1,0 +1,18 @@
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -4,6 +4,15 @@
+   push:
+     branches: [main]
+   pull_request:
++  # Caches saved by a pull_request run are scoped to refs/pull/N/merge: no
++  # other PR, and not the default branch, can restore them. A PR restores
++  # its own scope, its base branch's and the default branch's. Nothing ran
++  # on the default branch, so every new PR (and every new image serial)
++  # started cold. A daily run there keeps that scope warm for all PRs and
++  # provisions the guest for a new current/ image before a PR needs it.
++  schedule:
++    - cron: "43 2 * * *"
++  workflow_dispatch:
+ 
+ permissions:
+   contents: read

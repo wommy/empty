@@ -1,0 +1,61 @@
+=== proj:destroy:acltype (x4)
+# generated: seed265
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create $R/a/c
+zfs snapshot $R/a/c@s1
+zfs destroy -rd $R/a@s1
+step 5 `zfs destroy -rd $R/a@s1`: proj differs
+  A: 
+  B: $R/a/c@s1	acltype	off	default
+     $R/a/c@s1	atime	-	-
+     $R/a/c@s1	canmount	-	-
+     $R/a/c@s1	compression	-	-
+     $R/a/c@s1	copies	-	-
+     $R/a/c@s1	dedup	-	-
+     $R/a/c@s1	defer_destroy	off	-
+     $R/a/c@s1	logbias	-	-
+     $R/a/c@s1	mounted	-	-
+     $R/a/c@s1	mountpoint	-	-
+     $R/a/c@s1	origin	-	-
+     $R/a/c@s1	quota	-	-
+     $R/a/c@s1	recordsize	-	-
+     $R/a/c@s1	refquota	-	-
+     $R/a/c@s1	refreservation	-	-
+     $R/a/c@s1	relatime	-	-
+     $R/a/c@s1	reservation	-	-
+     $R/a/c@s1	sharenfs	-	-
+     $R/a/c@s1	snapdir	-	-
+     $R/a/c@s1	sync	-	-
+     $R/a/c@s1	type	snapshot	-
+     $R/a/c@s1	userrefs	0	-
+     $R/a/c@s1	volblocksize	-	-
+     $R/a/c@s1	volsize	-	-
+     $R/a/c@s1	xattr	sa	default
+     $R/a/c@s1	zd:a	-	-
+     $R/a/c@s1	zd:b	-	-
+
+=== proj:destroy:defer_destroy (x1)
+# generated: seed1679
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create -V 1000000 $R/a/w
+zfs snapshot -r $R/a/w@s1
+zfs hold t2 $R/a/w@s1
+zfs destroy -rd $R/a@s1
+step 6 `zfs destroy -rd $R/a@s1`: proj differs
+  A: $R/a/w@s1	defer_destroy	on	-
+  B: $R/a/w@s1	defer_destroy	off	-
+
+=== proj:set:refreservation (x1)
+# generated: seed1502
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+@sendrecv $R/v@s1 $R/r
+zfs set volsize=201326592 $R/r
+step 4 `zfs set volsize=201326592 $R/r`: proj differs
+  A: $R/r	refreservation	206569472	local
+  B: $R/r	refreservation	70254592	received
+
+known: map[create-vol-resv-auto:233]
+model step success by verb: @sendrecv 1063/3801 clone 1960/7776 create 12200/20658 destroy 3661/9433 hold 1749/3466 inherit 2116/5358 promote 490/3773 release 210/1815 set 5974/12450 snapshot 3555/11237

@@ -14,3 +14,7 @@ PASS
     --- PASS: TestModelMasksStillBite/HOLD-REPLAN (44.80s)
 PASS
 == GAP-RECRACE
+    modelrun_test.go:1323: mask GAP-RECRACE still bites (13m25.201s)
+--- PASS: TestModelMasksStillBite (805.20s)
+    --- PASS: TestModelMasksStillBite/GAP-RECRACE (805.20s)
+PASS
