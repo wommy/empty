@@ -69,7 +69,12 @@ type Row struct {
 	MountLocal bool
 
 	// ownership, from user properties
-	Managed        bool
+	Managed bool
+	// ManagedSource is the source of a managed_resource marker that does
+	// not make the row managed ("received", "inherited from <ds>", or
+	// "local" for a value other than true); "" when there is none or it
+	// does. Messages only (Planner.notManaged).
+	ManagedSource  string
 	Committed      bool // provision_success
 	VolumeName     string
 	SourceType     string
@@ -406,6 +411,9 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 			NFSClientsSet:  cell(cClients).Local(),
 			ShareNFSRecv:   cell(cShare).Source == "received",
 			CanMount:       cell(cCanMount).Value,
+		}
+		if p := cell(cManaged); !r.Managed && userValue(p) != "" {
+			r.ManagedSource = p.Source
 		}
 		r.NFSServer = own(cNFSServer)
 		r.NFSServerElsewhere = !cell(cNFSServer).Local() && userValue(cell(cNFSServer)) != ""

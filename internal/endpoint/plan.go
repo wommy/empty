@@ -806,7 +806,7 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 		return deletion{}, nil
 	}
 	if !row.OwnedVolume() {
-		return deletion{}, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
+		return deletion{}, errorf(FailedPrecondition, "dataset %s is not managed: %s", row.Name, p.notManaged(row))
 	}
 	// zfs refuses the plain destroy below on every attempt while these
 	// stand, so a plan through them would fail on every run (OWN-12)
@@ -820,7 +820,7 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 			return deletion{}, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
 		}
 		if c, ok := t.dependent(s, p.Parent); ok {
-			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c)
+			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s%s", id, c, uncommittedClone(t, s, c))
 		}
 		// a user hold is someone's claim on the snapshot (zfs send, a
 		// backup tool); only its holder releases it (HOLD-REPLAN)
