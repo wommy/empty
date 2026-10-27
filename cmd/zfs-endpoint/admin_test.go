@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -82,6 +83,68 @@ func TestAdminSocketRefusals(t *testing.T) {
 				t.Errorf("exit %d %v; want %d with %q", exitCode(err), err, exitConfig, tc.msg)
 			}
 		})
+	}
+}
+
+// ADR 0001 v2 D7: -socket-group opens the -listen socket to a group (0660)
+// for a non-root controller; without it the socket stays 0600. A group
+// that does not resolve, or a -listen directory shared with anything else,
+// is a configuration error (78).
+func TestSocketGroup(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		group string
+		want  int
+		ok    bool
+	}{{"", noGroup, true}, {"0", 0, true}, {"4242", 4242, true}, {"-1", 0, false}, {"no-such-group.d7", 0, false}} {
+		got, err := socketGID(tc.group)
+		if tc.ok != (err == nil) || tc.ok && got != tc.want || !tc.ok && exitCode(err) != exitConfig {
+			t.Errorf("socketGID(%q) = %d, %v (exit %d)", tc.group, got, err, exitCode(err))
+		}
+	}
+
+	gid := os.Getegid()
+	if os.Geteuid() == 0 {
+		gid = 65534
+	}
+	for _, tc := range []struct {
+		gid  int
+		mode os.FileMode
+	}{{noGroup, 0o600}, {gid, 0o660}} {
+		sock := filepath.Join(t.TempDir(), "sock", "endpoint.sock")
+		lis, err := listenCSI(sock, tc.gid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fi, err := os.Lstat(sock)
+		lis.Close()
+		if err != nil || fi.Mode().Perm() != tc.mode {
+			t.Errorf("gid %d: socket %v %v, want %v", tc.gid, fi.Mode(), err, tc.mode)
+		}
+	}
+	shared := filepath.Join(t.TempDir(), "run")
+	if err := os.Mkdir(shared, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shared, "other"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if lis, err := listenCSI(filepath.Join(shared, "endpoint.sock"), gid); exitCode(err) != exitConfig {
+		if lis != nil {
+			lis.Close()
+		}
+		t.Errorf("a shared directory: exit %d %v, want %d", exitCode(err), err, exitConfig)
+	}
+
+	d, _ := simDeps(t)
+	args := []string{"-parent", "tank/k8s", "-parent-wait", "0", "-socket-group", "no-such-group.d7",
+		"-listen", "unix://" + filepath.Join(t.TempDir(), "sock", "endpoint.sock")}
+	// cancelled: should the flag be ignored, run stops at its first
+	// startup step and returns nil, never serving
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := run(ctx, args, d); exitCode(err) != exitConfig || !strings.Contains(err.Error(), "-socket-group") {
+		t.Errorf("unknown group: exit %d %v, want %d", exitCode(err), err, exitConfig)
 	}
 }
 

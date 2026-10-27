@@ -290,7 +290,8 @@ func TestReconcileSparesReceivedAndRenamed(t *testing.T) {
 		sim.Receive(rs, mark(k), v)
 	}
 	markIsLive(t, h, "keep")
-	p, err := later(t, ep, h).Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	old := later(t, ep, h)
+	p, err := old.Reconcile(ctx, digested(ctx, t, old, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}))
 	if acts, _ := targets(p); err != nil || len(acts) != 1 || acts[0] != "gone" {
 		t.Fatalf("reconcile: %+v %v", p, err)
 	}

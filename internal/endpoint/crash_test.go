@@ -207,7 +207,14 @@ var crashCases = []crashCase{
 		setup: mk(endpoint.CreateVolumeRequest{Name: "keep"}, endpoint.CreateVolumeRequest{Name: "drop"},
 			endpoint.CreateVolumeRequest{Name: "src"}, endpoint.CreateVolumeRequest{Name: "c", SourceVolumeID: "src"}),
 		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
-			_, err := ep.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+			// as a caller must (ADR 0001 v2 D3): dry run, then apply its plan
+			req := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}, DryRun: true}
+			dry, err := ep.Reconcile(ctx, req)
+			if err != nil {
+				return err
+			}
+			req.DryRun, req.PlanDigest = false, dry.Digest
+			_, err = ep.Reconcile(ctx, req)
 			return err
 		}},
 }

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,6 +17,82 @@ import (
 // whatever the volume's own sharenfs. Startup refuses (78: restarting
 // cannot fix it) and names the line; an ancestor shared without crossmnt
 // does not stop it.
+// F5 after startup: a crossmnt export that comes to cover the parent
+// while the endpoint serves is a WARN from the health probe, once per
+// change, and health stays SERVING (the check returns nil): NOT_SERVING
+// would refuse every CSI call, deletes included. A pool that stops
+// answering still fails the check.
+func TestHealthWarnsOfALaterCrossmntAncestor(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	d, sim := simDeps(t)
+	z := zfs.New(sim)
+	var logs bytes.Buffer
+	check := healthCheck(z, "tank/k8s", d.etab, slog.New(slog.NewTextHandler(&logs, nil)))
+	step := func(share string, wantWarn, wantInfo int) {
+		t.Helper()
+		if share != "" {
+			if err := z.Set(ctx, "tank", map[string]string{"sharenfs": share}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		logs.Reset()
+		if err := check(ctx); err != nil {
+			t.Fatalf("sharenfs=%s: health check failed (NOT_SERVING): %v", share, err)
+		}
+		warn := strings.Count(logs.String(), "level=WARN")
+		info := strings.Count(logs.String(), "level=INFO")
+		if warn != wantWarn || info != wantInfo || wantWarn > 0 && !strings.Contains(logs.String(), "crossmnt") {
+			t.Errorf("sharenfs=%s: %d warnings, %d infos, want %d, %d:\n%s", share, warn, info, wantWarn, wantInfo, logs.String())
+		}
+	}
+	step("", 0, 0)    // as at startup: nothing covers it
+	step("on", 1, 0)  // libshare: rw,crossmnt to "*"
+	step("", 0, 0)    // unchanged: not repeated
+	step("off", 0, 1) // gone
+	step("crossmnt,ro=@10.9.0.0/16", 1, 0)
+
+	sim.Fail = func(args []string) error { return &zfs.ExitError{Code: 1, Stderr: "pool I/O is currently suspended\n"} }
+	if err := check(ctx); err == nil {
+		t.Error("a pool that does not answer passed the health check")
+	}
+}
+
+// F12: a parent mountpoint other users may search (o+x) lets every local
+// user reach what NFS clients write to the volumes below it. Startup
+// warns, naming the mode; it does not refuse. Owner- and group-only
+// modes, a missing mountpoint and none/legacy are quiet.
+func TestStartupWarnsOfATraversableMountpoint(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	for _, tc := range []struct {
+		mode os.FileMode // 0: no such directory
+		warn bool
+	}{{0o755, true}, {0o701, true}, {0o750, false}, {0o700, false}, {0o710, false}, {0, false}} {
+		dir := filepath.Join(base, tc.mode.String())
+		if tc.mode != 0 {
+			if err := os.Mkdir(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(dir, tc.mode); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var logs bytes.Buffer
+		warnTraversable(slog.New(slog.NewTextHandler(&logs, nil)), "tank/k8s", dir)
+		if got := strings.Contains(logs.String(), "level=WARN"); got != tc.warn || got && !strings.Contains(logs.String(), tc.mode.String()) {
+			t.Errorf("mode %v: warned %v, want %v: %s", tc.mode, got, tc.warn, logs.String())
+		}
+	}
+	for _, mount := range []string{"none", "legacy", "-"} {
+		var logs bytes.Buffer
+		warnTraversable(slog.New(slog.NewTextHandler(&logs, nil)), "tank/k8s", mount)
+		if logs.Len() != 0 {
+			t.Errorf("mountpoint %s: %s", mount, logs.String())
+		}
+	}
+}
+
 func TestStartupRefusesACrossmntAncestor(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

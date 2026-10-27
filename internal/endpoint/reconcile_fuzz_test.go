@@ -216,6 +216,7 @@ func FuzzReconcileSafe(f *testing.F) {
 			}
 			return nil
 		}
+		req.PlanDigest = dry.Digest
 		first, err := ep.Reconcile(ctx, req)
 		sim.Fail = nil
 		if err != nil {
@@ -230,9 +231,9 @@ func FuzzReconcileSafe(f *testing.F) {
 				t.Fatalf("%s (%s) ran but was not in the dry run %+v", a.Target, a.Reason, dry.Actions)
 			}
 		}
-		second, err := ep.Reconcile(ctx, req)
+		second, err := ep.Reconcile(ctx, digested(ctx, t, ep, req))
 		must(err)
-		third, err := ep.Reconcile(ctx, req)
+		third, err := ep.Reconcile(ctx, digested(ctx, t, ep, req))
 		if err != nil || len(third.Actions) != 0 {
 			t.Fatalf("third reconcile: %+v %v", third.Actions, err)
 		}

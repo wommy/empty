@@ -26,13 +26,13 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 |---|---|---|
 | D1 | The tenancy unit is the parent dataset | yes (it is what the daemon already was) |
 | D2 | Per-listener roles, not a policy file | yes |
-| D3 | Reconcile requires `plan_digest` to collect | **no**: decided, not built |
+| D3 | Reconcile requires `plan_digest` to collect | yes |
 | D4 | Two-person Reconcile: deferred | n/a |
 | D5 | TCP stays refused; mTLS is future work | yes (refused) |
 | D6 | `SO_PEERCRED`: logged now, authorized later | logged; admin role checks uid |
-| D7 | `-socket-group` for the csi listener | **no**: decided, not built |
+| D7 | `-socket-group` for the csi listener | yes (off by default) |
 | D8 | NFS stays static-first (ADR 0004); pod-egress deny is F6's primary control | docs and deployment |
-| D9 | Reconcile skips exported volumes | **no**: decided, not built |
+| D9 | Reconcile skips exported volumes | **dropped**: wrong under static export; F3 rests on D3, `max_deletions` and `min_age` (see D9) |
 | D10 | A crossmnt ancestor at startup: refuse, exit 78 | yes |
 | D11 | Audit: journald, unrated | yes |
 | D12 | No `snapdir` at create; inherit from the parent | yes (nothing is set) |
@@ -84,10 +84,11 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
   - an admin socket whose directory is the csi socket's directory or under it.
 - **Path budget:** sun_path leaves 70 bytes of escaped parent name for the csi socket and 69 for the admin socket.
 
-### D3. Reconcile requires a digest to collect (not built)
+### D3. Reconcile requires a digest to collect
 
 - A run that collects any undesired volume must carry a `plan_digest` from a dry run. Without one it returns FAILED_PRECONDITION.
 - The digest guards against the plan changing between the dry run and the apply. It is not an approval (F4).
+- As built: "undesired" is the unlocked plan's `not in the desired set` actions. A run without a digest that would collect one applies nothing, not even the uncommitted rows and orphan clone sources in the same plan; a run whose plan holds only those needs no digest. The check sits before `max_deletions`. `TestReconcileNeedsADigestToCollectUndesired` proves it.
 
 ### D4. Two-person Reconcile: deferred
 
@@ -118,11 +119,17 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
   - an optional per-listener `-allow-uids` comes later;
   - once uids are authorized, `MaxConnectionAge=1h` bounds how long a revoked uid keeps working.
 
-### D7. `-socket-group` (not built)
+### D7. `-socket-group`
 
 - `-socket-group` sets the csi socket to 0660 with that group. The controller pod can then run non-root with `supplementalGroups`.
 - Without the flag, the socket stays 0600 root, as it is today.
 - The admin socket stays 0600 root either way.
+- As built (`unixsock.ShareWithGroup`):
+  - the flag takes a group name or a numeric gid; one that does not resolve exits 78;
+  - the socket's directory becomes 0710 with the same group (search, no listing), which the group needs to reach the socket from the host;
+  - the directory must hold nothing but the socket, else exit 78 and nothing changes: opening a shared directory such as `/run` to a group would be far wider than the socket;
+  - a 0710 directory still passes `SecureDir`, so a restart works. Dropping the flag leaves the directory 0710, but the new socket is 0600, so the group can no longer connect;
+  - the unit and the manifests do not set it: the controller pod still runs as root (ADR 0006).
 
 ### D8. NFS: static-first stays; pod-egress deny is F6's primary control
 
@@ -144,13 +151,23 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 
 An undesired volume whose `sharenfs` is not `off`, or whose client list is not empty, is skipped as "exported: in use" (F3). `sharenfs` is OpenZFS's own in-use signal. A false skip only delays GC.
 
+**Stopped before building (wave 14).** The premise no longer holds:
+- F3 and D9 were written when `sharenfs` was set only by PublishFileExport, so a non-`off` value meant "exported to a node".
+- ADR 0004's static export at create (built just after this ADR) sets `sharenfs` locally in the same `zfs create`, and NFS mode requires `nfs.clients` on every CreateVolume. Every NFS-mode volume is therefore non-`off` from birth.
+- Built as written, Reconcile would never collect an undesired volume in NFS mode: "a false skip only delays GC" becomes "GC never runs".
+- The "client list" (`nfs_clients`) is gone from the export path (ADR 0004).
+
+A replacement needs its own decision. The options: drop D9 and rely on D3, `max_deletions` and `min_age` for F3; or skip only a volume whose `sharenfs` differs from what the endpoint wrote (a foreign or hand-widened value), which is drift rather than use.
+
+Decided (2026-10-27, reversible): D9 is dropped. Under static export every NFS volume is shared from create, so a skip on "shared" would protect every volume and a skip on drift does not answer F3's question (is a node using it). F3 rests on D3 (a collection needs the digest of a dry run the caller looked at), `max_deletions` and `min_age`. Revisit with a node plugin, which can report real use.
+
 ### D10. A crossmnt ancestor refuses startup
 
 - At startup the daemon reads the parent's mountpoint and etab (`endpoint.ExposedByAncestor`).
 - It exits 78 when a crossmnt line covers the mountpoint or any ancestor, and the message names the lines.
 - Typical causes are `zfs set sharenfs=on` on the pool (libshare writes that as `rw,crossmnt` to `*`) or a crossmnt line in `/etc/exports`.
 - A warning would leave every volume exported.
-- Health does not re-check it yet.
+- After startup, the health probe re-checks it every 30s. A crossmnt line that comes to cover the parent is logged as a WARN when it appears or changes, and an INFO when it is gone. Health stays SERVING: NOT_SERVING would refuse every CSI call, deletes included, for an export only an administrator can remove (`TestHealthWarnsOfALaterCrossmntAncestor`).
 
 ### D11. Audit
 
@@ -175,16 +192,21 @@ An undesired volume whose `sharenfs` is not `off`, or whose client list is not e
 - The same `-o` block also pins `mountpoint` locally (wave14). That is addressing for volume_context `share`, not a guard, and is recorded in ADR 0004's implementation notes.
 - Unlike `snapdir`, they are stamped rather than inherited. Each guards the storage host itself against what a tenant's client writes, not a tenant-visible behaviour.
 - A StorageClass cannot set them.
+- They stop the host running what a client wrote, not a local user reading or copying it. Startup therefore warns (never refuses) when the parent's mountpoint is searchable by other users (mode `o+x`): `chmod o-x` it (`TestStartupWarnsOfATraversableMountpoint`).
 - They hold only while pods reach filesystems over NFS (ADR 0004). A node plugin that bind-mounts the host's ZFS mount into a pod would inherit `nosuid`, `noexec` and `nodev`, so pods could not run programs from their volume. Such a plugin must revisit this decision before it ships.
 
 ### Systemd hardening (H-16)
 
-- `deploy/systemd/zfs-endpoint@.service.d/hardening.conf` turns on only `RestrictNamespaces`, `KeyringMode=private` and `LimitCORE=0`.
-- These settings ship commented out until the real-ZFS VM leg runs the suite under the unit:
+- `deploy/systemd/zfs-endpoint@.service.d/hardening.conf` turns on `RestrictNamespaces`, `KeyringMode=private`, `LimitCORE=0`, `ProtectHostname` and the syscall deny-list (`~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap`, EPERM).
+  - `ProtectHostname` creates no mount namespace: systemd's `exec_needs_mount_namespace()` does not consider it (v255 and v258 `src/core/execute.c`).
+  - `systemd-analyze security --offline` (systemd 255) scores the unit plus the drop-in 6.4 MEDIUM, from 7.6.
+- The real-ZFS VM leg checks the drop-in under the unit (`ci/real-zfs-unit.sh`, run by `ci/real-zfs-guest.sh` beside the test shards):
+  - it starts `zfs-endpoint@zunit-k8s.service` with the drop-in, checks health, makes and deletes a volume, and fails on EPERM in the unit's journal;
+  - when that fails, it starts the unit alone, then with each active setting on its own, and names the settings that fail;
+  - its last line is the verdict, which `ci/real-zfs-vm.sh` puts in the job summary.
+- These settings still ship commented out, because that check does not cover what they could break (NFS export, zvols, clones, scan memory):
   - the capability bounding set;
   - `ProtectClock` with the device allow-list (it implies `DeviceAllow=char-rtc`, which would refuse `/dev/zfs`);
-  - `ProtectHostname`;
-  - the syscall deny-list;
   - the memory limits.
 - No setting may create a mount namespace or cut the network. `deploy/deploy_test.go` `TestUnitLint` enforces this.
 
@@ -229,6 +251,7 @@ An undesired volume whose `sharenfs` is not `off`, or whose client list is not e
   - `TestUnitServesTheConventionalSocket` (csi and admin);
   - `TestManifests` (no pod mounts the admin directory);
   - `TestUnitLint`.
-- **Still owed to the real-ZFS VM job:**
-  - a child running as uid 65534 cannot open the 0600 admin socket;
-  - the hardening drop-in's commented settings, verified under the unit.
+- **The real-ZFS VM job** (`ci/real-zfs-unit.sh`), under the unit and the drop-in:
+  - uid 65534 cannot connect to the admin socket with its shipped modes;
+  - with every mode on its path opened, the daemon refuses uid 65534 with PERMISSION_DENIED (SO_PEERCRED), while root is served;
+  - `deploy` `TestUnitCheckNamesTheFailingSetting` runs the check against stubs, and `TestUnitCheckReadsTheDropIn` ties it to the drop-in's active settings.

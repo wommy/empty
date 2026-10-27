@@ -730,8 +730,14 @@ func (g *rig) rpc(ctx context.Context, st Step) mResult {
 	case "DeleteSnapshot":
 		err = g.ep.DeleteSnapshot(ctx, st.ID)
 	case "Reconcile":
+		// as a caller must (ADR 0001 v2 D3): a dry run, then its plan;
+		// a dry run mutates nothing, so fault indices are unchanged
+		req := endpoint.ReconcileRequest{DesiredVolumeIDs: st.Desired, MinAge: time.Hour, DryRun: true}
 		var p endpoint.ReconcilePlan
-		p, err = g.ep.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: st.Desired, MinAge: time.Hour})
+		if p, err = g.ep.Reconcile(ctx, req); err == nil {
+			req.DryRun, req.PlanDigest = false, p.Digest
+			p, err = g.ep.Reconcile(ctx, req)
+		}
 		for _, a := range p.Actions {
 			res.Acts = append(res.Acts, a.Target+"|"+a.Reason)
 		}

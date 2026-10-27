@@ -24,6 +24,20 @@ func later(t *testing.T, ep *endpoint.Endpoint, h *harness) *endpoint.Endpoint {
 	return ep2
 }
 
+// digested is r with the plan_digest of a dry run of it: a run that
+// collects an undesired volume needs one (ADR 0001 v2 D3).
+func digested(ctx context.Context, t testing.TB, ep *endpoint.Endpoint, r endpoint.ReconcileRequest) endpoint.ReconcileRequest {
+	t.Helper()
+	dry := r
+	dry.DryRun = true
+	p, err := ep.Reconcile(ctx, dry)
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	r.PlanDigest = p.Digest
+	return r
+}
+
 func targets(p endpoint.ReconcilePlan) (acts, skips []string) {
 	for _, a := range p.Actions {
 		acts = append(acts, a.Target)
@@ -141,7 +155,7 @@ func TestReconcileAgainstDesiredSet(t *testing.T) {
 	}
 
 	want := []string{"keep", "gone-pvc"}
-	p, err = old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: want})
+	p, err = old.Reconcile(ctx, digested(ctx, t, old, endpoint.ReconcileRequest{DesiredVolumeIDs: want}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +247,7 @@ func TestReconcileLocksTargets(t *testing.T) {
 	<-g.entered
 
 	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
-	p, err := ep.Reconcile(ctx, keep)
+	p, err := ep.Reconcile(ctx, digested(ctx, t, ep, keep))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +267,44 @@ func TestReconcileLocksTargets(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ep.Reconcile(ctx, keep); err != nil || h.Has(h.Parent+"/busy") {
+	if _, err := ep.Reconcile(ctx, digested(ctx, t, ep, keep)); err != nil || h.Has(h.Parent+"/busy") {
 		t.Fatalf("after release: %v", err)
+	}
+}
+
+// ADR 0001 v2 D3: a run that would collect a volume the caller merely left
+// out of its desired set needs the digest of a dry run. Without one it
+// applies nothing, not even the collections that need no digest; with
+// one it runs. Uncommitted rows and orphan clone sources alone need none
+// (TestReconcileCollectsAbandonedCreate).
+func TestReconcileNeedsADigestToCollectUndesired(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	for _, name := range []string{"keep", "drop"} {
+		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/abandoned", map[string]string{
+		"zfs-endpoint:managed_resource": "true",
+		"zfs-endpoint:csi_volume_name":  "abandoned",
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	old := later(t, ep, h)
+	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
+
+	p, err := old.Reconcile(ctx, keep)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if !h.Has(h.Parent+"/drop") || !h.Has(h.Parent+"/abandoned") || p.Digest == "" {
+		t.Fatalf("a blind run applied something, or named no digest: %+v", p)
+	}
+	p, err = old.Reconcile(ctx, digested(ctx, t, old, keep))
+	if acts, _ := targets(p); err != nil || !slices.Equal(acts, []string{"abandoned", "drop"}) {
+		t.Fatalf("digested run: %+v %v", p, err)
+	}
+	if h.Has(h.Parent+"/drop") || h.Has(h.Parent+"/abandoned") || !h.Has(h.Parent+"/keep") {
+		t.Fatal("digested run did not collect")
 	}
 }

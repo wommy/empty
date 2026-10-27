@@ -2,8 +2,11 @@ package server_test
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -112,6 +115,45 @@ func TestRoundTripAndCodes(t *testing.T) {
 	}
 	if _, err := c.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "nope"}); status.Code(err) != codes.NotFound {
 		t.Fatalf("get missing: %v", err)
+	}
+}
+
+// H-10: the API's word on missing desired ids is the bound Reconcile
+// keeps. The proto comment on desired_volume_ids said every missing id
+// is reported; a caller reading it would take an id absent from skipped
+// for one that names a volume. The bound is read from an answer, so the
+// comment follows the code. Here, not in internal/endpoint: the real-ZFS
+// leg runs that binary without the source tree.
+func TestProtoDocumentsTheMissingIDBound(t *testing.T) {
+	t.Parallel()
+	ids := make([]string, 5000)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("gone-%05d", i)
+	}
+	r, err := client(t).Reconcile(context.Background(), &pb.ReconcileRequest{DesiredVolumeIds: ids, DryRun: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := 0
+	for _, s := range r.GetSkipped() {
+		if s.GetReason() == endpoint.SkipDesiredMissing && !strings.HasPrefix(s.GetTarget(), "(") {
+			kept++
+		}
+	}
+	if kept == 0 || kept == len(ids) {
+		t.Fatalf("%d of %d missing ids reported: no bound to document", kept, len(ids))
+	}
+	b, err := os.ReadFile("../../api/zfsendpoint/v1/endpoint.proto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, msg, _ := strings.Cut(string(b), "message ReconcileRequest {")
+	doc, _, _ := strings.Cut(msg, "repeated string desired_volume_ids")
+	doc = strings.Join(strings.Fields(strings.ReplaceAll(doc, "//", "")), " ")
+	for _, want := range []string{fmt.Sprintf("first %d", kept), "sorted", `"(N more)"`, fmt.Sprintf("more than %d ids", endpoint.MaxDesiredVolumeIDs)} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("desired_volume_ids comment lacks %q:\n%s", want, doc)
+		}
 	}
 }
 

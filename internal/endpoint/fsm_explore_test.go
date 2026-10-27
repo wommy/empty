@@ -355,9 +355,11 @@ func actions(cfg fsmCfg) []action {
 		{name: "DV(a)", rpc: func(ctx context.Context, e *Endpoint) string { return respErr(e.DeleteVolume(ctx, "a")) }},
 		{name: "DV(b)", rpc: func(ctx context.Context, e *Endpoint) string { return respErr(e.DeleteVolume(ctx, "b")) }},
 		{name: "EV(a,2G)", rpc: func(ctx context.Context, e *Endpoint) string { return respVol(e.ExpandVolume(ctx, "a", 2*G, 0)) }},
-		{name: "Reconcile{}", rpc: func(ctx context.Context, e *Endpoint) string { return reconResp(e.Reconcile(ctx, ReconcileRequest{})) }},
+		{name: "Reconcile{}", rpc: func(ctx context.Context, e *Endpoint) string {
+			return reconResp(reconcileAsCaller(ctx, e, ReconcileRequest{}))
+		}},
 		{name: "Reconcile{a}", rpc: func(ctx context.Context, e *Endpoint) string {
-			return reconResp(e.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"a"}}))
+			return reconResp(reconcileAsCaller(ctx, e, ReconcileRequest{DesiredVolumeIDs: []string{"a"}}))
 		}},
 		// out of band
 		{name: "X:admin-create(b)", oob: true, x: func(s *zfstest.Sim, rows []Row, _ string) [][]string {
@@ -798,7 +800,7 @@ func (x *explorer) reconcileCheck(w world, o snapshotOf, depth int) {
 	for _, d := range sets {
 		label := fmt.Sprintf("Reconcile%v", d)
 		ra := action{name: label, rpc: func(ctx context.Context, e *Endpoint) string {
-			return reconResp(e.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: d}))
+			return reconResp(reconcileAsCaller(ctx, e, ReconcileRequest{DesiredVolumeIDs: d}))
 		}}
 		r1 := x.run(w, ra, runOpts{budget: -1}, label)
 		tr := trace(r1.w.path)
@@ -832,6 +834,20 @@ func (x *explorer) reconcileCheck(w world, o snapshotOf, depth int) {
 // property prefixes (the endpoint's own and democratic-csi adoption) to
 // depth 4 (about 25 s on 4 cores), and fails on any finding. The subtests
 // run one at a time: cleanRows reads the package-level cleanPrefix.
+// reconcileAsCaller runs r as a caller must (ADR 0001 v2 D3): a dry run,
+// then that plan by its digest. The dry run mutates nothing, so it moves
+// no crash or kill point.
+func reconcileAsCaller(ctx context.Context, e *Endpoint, r ReconcileRequest) (ReconcilePlan, error) {
+	dry := r
+	dry.DryRun = true
+	p, err := e.Reconcile(ctx, dry)
+	if err != nil {
+		return p, err
+	}
+	r.PlanDigest = p.Digest
+	return e.Reconcile(ctx, r)
+}
+
 func TestExploreLifecycle(t *testing.T) {
 	depth := 4
 	if v := os.Getenv("FSM_DEPTH"); v != "" {
@@ -981,7 +997,7 @@ func (x *explorer) recovers(w world, clean runResult) string {
 		}
 	}
 	ra := action{name: "Reconcile", rpc: func(ctx context.Context, e *Endpoint) string {
-		return reconResp(e.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: desired}))
+		return reconResp(reconcileAsCaller(ctx, e, ReconcileRequest{DesiredVolumeIDs: desired}))
 	}}
 	rc := x.run(w, ra, runOpts{budget: -1}, "Reconcile")
 	if rc.obs.fingerprint(rc.prov) == clean.obs.fingerprint(clean.prov) {

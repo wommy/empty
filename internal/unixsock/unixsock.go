@@ -87,6 +87,46 @@ func listen(path string, checkDir func(string) error) (net.Listener, error) {
 	return l, err
 }
 
+// ShareWithGroup opens the socket at path, which Listen created 0600, to
+// group gid: the socket becomes 0660 and its directory 0710 (search only,
+// no listing), both owned by that group. A non-root process in the group
+// (a CSI controller pod with supplementalGroups) can then connect; nobody
+// else gains anything (ADR 0001 v2 D7).
+//
+// The directory must be the socket's own: it may hold nothing but the
+// socket. Opening a shared directory (/run, say) to a group would be
+// far wider than the socket, so it is refused, and nothing is changed.
+// Without ShareWithGroup a socket stays 0600, whatever its directory's
+// mode: a directory a previous run opened keeps 0710, which grants no
+// connect.
+func ShareWithGroup(path string, gid int) error {
+	if gid < 0 {
+		return fmt.Errorf("socket group %d: want a gid of 0 or more", gid)
+	}
+	dir := filepath.Dir(path)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, e := range ents {
+		if e.Name() != filepath.Base(path) {
+			return fmt.Errorf("%s holds %s besides the socket: a socket group needs a directory of the socket's own", dir, e.Name())
+		}
+	}
+	for _, step := range []struct {
+		name string
+		mode os.FileMode
+	}{{path, 0o660}, {dir, 0o710}} {
+		if err := os.Lchown(step.name, -1, gid); err != nil {
+			return err
+		}
+		if err := os.Chmod(step.name, step.mode); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // MaxPathLen is the longest socket path bind accepts: sockaddr_un's
 // sun_path holds 108 bytes including the terminating NUL.
 const MaxPathLen = 107

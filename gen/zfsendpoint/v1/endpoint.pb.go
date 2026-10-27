@@ -1539,9 +1539,13 @@ type ReconcileRequest struct {
 	// cannot be told apart from a caller that sent nothing. A set naming none
 	// of the endpoint's volumes counts as empty. An id that names no volume,
 	// including one the endpoint could never issue (another driver's
-	// "ns/pv"), is reported in skipped ("desired volume does not exist") and
-	// the run goes on; it neither protects nor dooms any volume. An empty id
-	// is INVALID_ARGUMENT.
+	// "ns/pv"), neither protects nor dooms any volume, and the run goes on.
+	// skipped reports such ids ("desired volume does not exist") so that the
+	// answer stays bounded: the first 1000 in sorted order (a long id
+	// shortened), then, if more are missing, one entry whose target is
+	// "(N more)". An id absent from skipped is therefore not proof that it
+	// names a volume. An empty id, or more than 250000 ids, is
+	// INVALID_ARGUMENT.
 	DesiredVolumeIds []string `protobuf:"bytes,1,rep,name=desired_volume_ids,json=desiredVolumeIds,proto3" json:"desired_volume_ids,omitempty"`
 	// Nothing created (or committed) less than this long ago is touched
 	// (in-flight creates, volumes newer than the caller's desired set).
@@ -1557,9 +1561,12 @@ type ReconcileRequest struct {
 	MaxDeletions uint32 `protobuf:"varint,4,opt,name=max_deletions,json=maxDeletions,proto3" json:"max_deletions,omitempty"`
 	// Lift max_deletions. Setting both is INVALID_ARGUMENT.
 	UnlimitedDeletions bool `protobuf:"varint,5,opt,name=unlimited_deletions,json=unlimitedDeletions,proto3" json:"unlimited_deletions,omitempty"`
-	// Optional: the plan_digest of a dry run. When set, the run applies
-	// only if it plans exactly what that dry run did, else ABORTED (dry-run
-	// again); what runs is always a subset of it.
+	// The plan_digest of a dry run. When set, the run applies only if it
+	// plans exactly what that dry run did, else ABORTED (dry-run again);
+	// what runs is always a subset of it. Required when the run would
+	// collect any volume as not in the desired set: without it such a run
+	// applies nothing and fails with FAILED_PRECONDITION (ADR 0001 D3).
+	// Uncommitted rows and orphan clone sources alone need none.
 	PlanDigest    string `protobuf:"bytes,6,opt,name=plan_digest,json=planDigest,proto3" json:"plan_digest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

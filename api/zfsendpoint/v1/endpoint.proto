@@ -229,9 +229,13 @@ message ReconcileRequest {
   // cannot be told apart from a caller that sent nothing. A set naming none
   // of the endpoint's volumes counts as empty. An id that names no volume,
   // including one the endpoint could never issue (another driver's
-  // "ns/pv"), is reported in skipped ("desired volume does not exist") and
-  // the run goes on; it neither protects nor dooms any volume. An empty id
-  // is INVALID_ARGUMENT.
+  // "ns/pv"), neither protects nor dooms any volume, and the run goes on.
+  // skipped reports such ids ("desired volume does not exist") so that the
+  // answer stays bounded: the first 1000 in sorted order (a long id
+  // shortened), then, if more are missing, one entry whose target is
+  // "(N more)". An id absent from skipped is therefore not proof that it
+  // names a volume. An empty id, or more than 250000 ids, is
+  // INVALID_ARGUMENT.
   repeated string desired_volume_ids = 1;
   // Nothing created (or committed) less than this long ago is touched
   // (in-flight creates, volumes newer than the caller's desired set).
@@ -247,9 +251,12 @@ message ReconcileRequest {
   uint32 max_deletions = 4;
   // Lift max_deletions. Setting both is INVALID_ARGUMENT.
   bool unlimited_deletions = 5;
-  // Optional: the plan_digest of a dry run. When set, the run applies
-  // only if it plans exactly what that dry run did, else ABORTED (dry-run
-  // again); what runs is always a subset of it.
+  // The plan_digest of a dry run. When set, the run applies only if it
+  // plans exactly what that dry run did, else ABORTED (dry-run again);
+  // what runs is always a subset of it. Required when the run would
+  // collect any volume as not in the desired set: without it such a run
+  // applies nothing and fails with FAILED_PRECONDITION (ADR 0001 D3).
+  // Uncommitted rows and orphan clone sources alone need none.
   string plan_digest = 6;
 }
 

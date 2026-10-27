@@ -12,7 +12,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -77,6 +79,8 @@ func run(ctx context.Context, args []string, d deps) error {
 	parent := fs.String("parent", "", "parent dataset to manage, e.g. tank/k8s/vols (required)")
 	listen := fs.String("listen", "", "unix:///absolute/path to serve on (TCP is refused until transport auth, ADR 0001); default "+unixsock.EndpointAddr("<parent>")+", systemd-escaped, as zfs-endpoint@.service serves it")
 	adminListen := fs.String("admin-listen", "", "unix:///absolute/path to serve the admin role on (Reconcile, PublishFileExport, UnpublishFileExport; root or the daemon's uid only), in a directory of its own; default none: -listen serves the CSI role only, and those calls are refused. zfs-endpoint@.service serves "+unixsock.EndpointAdminAddr("<parent>"))
+	socketGroup := fs.String("socket-group", "", "group name or gid given the -listen socket: the socket becomes 0660 and its directory 0710, so a non-root CSI controller in the group (supplementalGroups) can connect. "+
+		"The directory must hold nothing but the socket. Default none: the socket stays 0600, owner only. The admin socket is never shared")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	prefix := fs.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
 	lockWait := fs.Duration("lock-wait", 30*time.Second, "max wait for a busy resource; 0: try once and never wait (negative is refused)")
@@ -135,6 +139,10 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err != nil {
 		return err
 	}
+	gid, err := socketGID(*socketGroup)
+	if err != nil {
+		return err
+	}
 	if *maxZFS < 1 {
 		return configErr("-max-zfs must be at least 1")
 	}
@@ -187,9 +195,11 @@ func run(ctx context.Context, args []string, d deps) error {
 	if etab == nil {
 		etab = endpoint.DefaultEtab
 	}
-	if err := checkExposure(ctx, z, *parent, etab); err != nil {
+	mount, err := checkExposure(ctx, z, *parent, etab)
+	if err != nil {
 		return startupErr(ctx, err)
 	}
+	warnTraversable(slog.Default(), *parent, mount)
 	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, NFSServers: nfsServers, Settle: d.settle, Etab: etab})
 	if err != nil {
 		return configErr("%v", err)
@@ -209,7 +219,7 @@ func run(ctx context.Context, args []string, d deps) error {
 
 	// owner-only until transport auth lands (ADR 0001); a live socket
 	// means another endpoint serves this path
-	lis, err := unixsock.Listen(sock)
+	lis, err := listenCSI(sock, gid)
 	if err != nil {
 		return err
 	}
@@ -224,12 +234,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	dmn.SetServing(true)
 	probeCtx, stopProbe := context.WithCancel(ctx)
 	defer stopProbe()
-	go dmn.Probe(probeCtx, healthInterval, func(ctx context.Context) error {
-		ctx, cancel := context.WithTimeout(ctx, probeTimeout)
-		defer cancel()
-		_, err := z.Get(ctx, *parent, "type")
-		return err
-	})
+	go dmn.Probe(probeCtx, healthInterval, healthCheck(z, *parent, etab, slog.Default()))
 
 	// the -listen socket serves the CSI role (what zfs-csi calls); the
 	// admin role (Reconcile, NFS export) only on -admin-listen (F2)
@@ -288,26 +293,96 @@ func startupErr(ctx context.Context, err error) error {
 // or a crossmnt line in /etc/exports. Restarting cannot fix it; removing
 // the export can. A parent with no mountpoint (none, legacy) mounts no
 // volume through it and is not checked.
-func checkExposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.EtabReader) error {
+func checkExposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.EtabReader) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
+	mount, x, err := exposure(ctx, z, parent, etab)
+	if err != nil {
+		return "", err
+	}
+	if len(x) > 0 {
+		return mount, configErr("parent %s (mounted at %s) is under a crossmnt NFS export, which serves every volume to its clients as soon as it is created: %s; "+
+			"unshare it (zfs set sharenfs=off on that dataset, or remove the /etc/exports line) and start again", parent, mount, strings.Join(x, "; "))
+	}
+	return mount, nil
+}
+
+// warnTraversable warns at startup when users other than the owner and
+// group may search the parent's mountpoint (mode o+x): every volume is
+// mounted below it, so any local user can then walk into what NFS
+// clients wrote there. setuid=off, exec=off and devices=off (F12) stop
+// the host running it from the volume, not a user reading or copying it
+// out. Only a warning: the mode is the operator's, and a parent with no
+// mountpoint, or one not mounted yet, is not checked.
+func warnTraversable(log *slog.Logger, parent, mount string) {
+	if !filepath.IsAbs(mount) {
+		return
+	}
+	fi, err := os.Stat(mount)
+	if err != nil {
+		log.Debug("parent mountpoint not checked for traversal", "mountpoint", mount, "error", err)
+		return
+	}
+	if fi.IsDir() && fi.Mode().Perm()&0o001 != 0 {
+		log.Warn("the parent's mountpoint is searchable by every local user, who can then reach the files NFS clients write to the volumes below it; "+
+			"chmod o-x it (F12)", "parent", parent, "mountpoint", mount, "mode", fi.Mode().Perm().String())
+	}
+}
+
+// exposure is the parent's mountpoint and the crossmnt etab lines that
+// cover it (endpoint.ExposedByAncestor); none for a parent with no
+// mountpoint (none, legacy).
+func exposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.EtabReader) (string, []string, error) {
 	ds, err := z.Get(ctx, parent, "mountpoint")
 	if err != nil {
-		return fmt.Errorf("parent %s: reading its mountpoint: %w", parent, err)
+		return "", nil, fmt.Errorf("parent %s: reading its mountpoint: %w", parent, err)
 	}
 	mount := ds.Props["mountpoint"].Value
 	if !filepath.IsAbs(mount) {
-		return nil
+		return mount, nil, nil
 	}
 	b, err := etab.ReadEtab(ctx)
 	if err != nil {
-		return fmt.Errorf("reading the NFS export table: %w", err)
+		return mount, nil, fmt.Errorf("reading the NFS export table: %w", err)
 	}
-	if x := endpoint.ExposedByAncestor(b, mount); len(x) > 0 {
-		return configErr("parent %s (mounted at %s) is under a crossmnt NFS export, which serves every volume to its clients as soon as it is created: %s; "+
-			"unshare it (zfs set sharenfs=off on that dataset, or remove the /etc/exports line) and start again", parent, mount, strings.Join(x, "; "))
+	return mount, endpoint.ExposedByAncestor(b, mount), nil
+}
+
+// healthCheck is the health probe's check: the parent must answer zfs
+// (a suspended or exported pool turns health NOT_SERVING). It also
+// re-runs the startup exposure check (F5): a crossmnt export that came
+// to cover the parent after startup is logged as a warning, never
+// NOT_SERVING, which would refuse every CSI call, deletes included, for
+// an export only an administrator can remove. The warning is logged
+// when the covering lines appear or change, and an info line when they
+// are gone; between, nothing repeats. Failing to read the exposure
+// changes nothing either.
+func healthCheck(z *zfs.Client, parent string, etab endpoint.EtabReader, log *slog.Logger) func(context.Context) error {
+	var last string
+	return func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+		defer cancel()
+		if _, err := z.Get(ctx, parent, "type"); err != nil {
+			return err
+		}
+		mount, x, err := exposure(ctx, z, parent, etab)
+		if err != nil {
+			log.Debug("health: exposure not checked", "error", err)
+			return nil
+		}
+		now := strings.Join(x, "; ")
+		switch {
+		case now == last:
+		case now != "":
+			log.Warn("health: parent is under a crossmnt NFS export, which serves every volume to its clients; "+
+				"unshare it (zfs set sharenfs=off on that dataset, or remove the /etc/exports line)",
+				"parent", parent, "mountpoint", mount, "exports", now)
+		default:
+			log.Info("health: parent is no longer under a crossmnt NFS export", "parent", parent, "mountpoint", mount)
+		}
+		last = now
+		return nil
 	}
-	return nil
 }
 
 // configLockWait maps -lock-wait (validated: not negative) to
@@ -389,6 +464,48 @@ func adminSocketPath(addr, sock, lockDir string) (string, error) {
 			"use a directory of its own, as the unit does (%s)", path, filepath.Dir(sock), strings.TrimPrefix(unixsock.EndpointAdminAddr("<parent>"), "unix://"))
 	}
 	return path, nil
+}
+
+// noGroup is socketGID's "no -socket-group".
+const noGroup = -1
+
+// socketGID resolves -socket-group, a group name or a numeric gid, to a
+// gid; "" is noGroup. An unknown group is a configuration error (78).
+func socketGID(group string) (int, error) {
+	if group == "" {
+		return noGroup, nil
+	}
+	if n, err := strconv.Atoi(group); err == nil {
+		if n < 0 {
+			return 0, configErr("-socket-group %d: want a gid of 0 or more", n)
+		}
+		return n, nil
+	}
+	g, err := user.LookupGroup(group)
+	if err != nil {
+		return 0, configErr("-socket-group %q: %v", group, err)
+	}
+	n, err := strconv.Atoi(g.Gid)
+	if err != nil {
+		return 0, configErr("-socket-group %q: gid %q is not a number", group, g.Gid)
+	}
+	return n, nil
+}
+
+// listenCSI listens on the -listen socket, owner only (unixsock.Listen),
+// and, given a gid, opens it to that group (unixsock.ShareWithGroup, ADR
+// 0001 v2 D7). A directory that holds more than the socket is a
+// configuration error: the operator chose the path.
+func listenCSI(sock string, gid int) (net.Listener, error) {
+	lis, err := unixsock.Listen(sock)
+	if err != nil || gid == noGroup {
+		return lis, err
+	}
+	if err := unixsock.ShareWithGroup(sock, gid); err != nil {
+		lis.Close()
+		return nil, configErr("-socket-group: %v", err)
+	}
+	return lis, nil
 }
 
 // socketPath accepts only unix:///absolute/path. TCP served the
