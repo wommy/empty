@@ -94,6 +94,7 @@ func FuzzReconcileSafe(f *testing.F) {
 		var ids, want, outside []string
 		busy := map[string]bool{}
 		hidden := map[string]bool{} // volumes zfs refuses to destroy for a reason the scan cannot see
+		zvol := map[string]bool{}   // a clone is a zvol when its source is
 		for i := 0; i < len(spec) && len(ids) < 8; i++ {
 			b := spec[i]
 			var x byte
@@ -122,6 +123,7 @@ func FuzzReconcileSafe(f *testing.F) {
 				}
 				must(z.Snapshot(ctx, snap, stamp))
 				must(z.Clone(ctx, snap, ds, own))
+				zvol[id] = zvol[src]
 			case x&originOutside != 0:
 				golden := "tank/other/g" + id
 				must(z.CreateFilesystem(ctx, golden, nil, false))
@@ -131,6 +133,7 @@ func FuzzReconcileSafe(f *testing.F) {
 				outside = append(outside, golden, snap)
 			case b&block != 0:
 				must(z.CreateVolume(ctx, ds, 1<<20, true, own))
+				zvol[id] = true
 			default:
 				must(z.CreateFilesystem(ctx, ds, own, false))
 			}
@@ -173,7 +176,7 @@ func FuzzReconcileSafe(f *testing.F) {
 					outside = append(outside, "tank/other/c"+id)
 				}
 			}
-			if x&child != 0 && b&block == 0 {
+			if x&child != 0 && !zvol[id] { // zfs creates nothing below a zvol
 				must(z.CreateFilesystem(ctx, ds+"/kid", nil, false))
 				must(z.Snapshot(ctx, ds+"/kid@s", nil))
 				outside = append(outside, ds+"/kid", ds+"/kid@s")

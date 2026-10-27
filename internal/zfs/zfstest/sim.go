@@ -8,7 +8,7 @@
 // audited against OpenZFS 2.4.4 source (docs/research/simfidelity/) and
 // are differential-tested against an independent reference model
 // (internal/zfs/zfsdiff), which CI also replays on a real pool. Not
-// modelled: rename, destroy -R, -n, busy (open) zvols, size suffixes,
+// modelled: destroy -R, -n, busy (open) zvols, size suffixes,
 // bookmarks; space accounting counts reservations only (an empty
 // dataset references nothing).
 //
@@ -65,6 +65,7 @@ type node struct {
 	// canmount=on filesystem; later only the changelist rules move it
 	// (see mount).
 	mounted bool
+	guid    uint64 // assigned on first read; kept across rename (sim_ext.go)
 }
 
 // Sim is an in-memory zfs. Safe for concurrent use.
@@ -87,6 +88,7 @@ type Sim struct {
 	nfsdOff   bool            // nfs-server stopped: no nfsd threads
 	dropHosts map[string]bool // clients exportfs leaves out of etab
 	txg       uint64
+	guids     uint64 // last guid handed out (sim_ext.go)
 }
 
 func (s *Sim) now() int64 {
@@ -145,6 +147,8 @@ func (s *Sim) Run(ctx context.Context, name string, args ...string) ([]byte, err
 		return nil, s.hold(args[1:], true)
 	case "release":
 		return nil, s.hold(args[1:], false)
+	case "rename":
+		return nil, s.rename(args[1:])
 	}
 	return nil, exit("unrecognized command '%s'", args[0])
 }
@@ -1306,7 +1310,7 @@ func known(prop string) bool {
 		return true
 	}
 	switch prop {
-	case "all", "name", "type", "origin", "creation", "used", "userrefs":
+	case "all", "name", "type", "origin", "creation", "used", "userrefs", "guid":
 		return true
 	}
 	_, ok := applies[prop]
@@ -1370,6 +1374,8 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 			return "yes", "-", true
 		}
 		return "no", "-", true
+	case "guid":
+		return s.guid(n), "-", true
 	case "userrefs":
 		if n.typ != zfs.TypeSnapshot {
 			return "-", "-", true
