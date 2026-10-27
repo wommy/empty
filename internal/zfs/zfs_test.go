@@ -209,3 +209,37 @@ func TestPropLocalIsOnlyLocal(t *testing.T) {
 		}
 	}
 }
+
+// `zfs set -u` changes sharenfs without mounting: an unmounted canmount=on
+// filesystem stays unmounted, where a plain set mounts and shares it.
+func TestSetNoMountLeavesUnmounted(t *testing.T) {
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	c := zfs.New(sim)
+	if err := c.CreateFilesystem(ctx, "tank/fs", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	sim.Unmount("tank/fs")
+	mounted := func() string {
+		d, err := c.Get(ctx, "tank/fs", "mounted")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d.Props["mounted"].Value
+	}
+	if err := c.SetNoMount(ctx, "tank/fs", map[string]string{"sharenfs": "rw=10.0.0.0/24"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := sim.Calls[len(sim.Calls)-1]; !reflect.DeepEqual(got[1:], []string{"set", "-u", "sharenfs=rw=10.0.0.0/24", "tank/fs"}) {
+		t.Fatalf("args %q", got)
+	}
+	if m := mounted(); m != "no" {
+		t.Fatalf("set -u mounted it: %s", m)
+	}
+	if err := c.Set(ctx, "tank/fs", map[string]string{"sharenfs": "off"}); err != nil {
+		t.Fatal(err)
+	}
+	if m := mounted(); m != "yes" {
+		t.Fatalf("plain set did not mount: %s", m)
+	}
+}
