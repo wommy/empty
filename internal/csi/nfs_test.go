@@ -14,6 +14,8 @@ import (
 	"errors"
 	"maps"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -279,6 +281,61 @@ func TestNFS_N5_ShareNFSCanonicalAndServed(t *testing.T) {
 	ro := f.create(t, nfsReq("n5ro", map[string]string{nfsClients: "10.20.0.0/24"}, mountCap(mnro, ""), mountCap(snro, "")))
 	if got, want := f.sim.Prop(ro.GetVolumeContext()[zcsi.CtxDataset], "sharenfs"), "ro=10.20.0.0/24"; got != want {
 		t.Errorf("reader-only modes: sharenfs %q, want %q", got, want)
+	}
+}
+
+// A parent mounted below a symlink (/srv -> /data, say): nfsd exports, and
+// the endpoint verifies in etab, the resolved path (nfsd_realpath), and an
+// NFSv4 client walks share through the server's pseudo-root, which holds
+// only resolved paths. So share is the resolved path, the one etab serves,
+// not the mountpoint as zfs reports it (deploy seam review D3). Without
+// nfs.uid/gid/mode: the endpoint refuses to set a root's owner through
+// any symlink (RESOLVE_NO_SYMLINKS).
+func TestNFS_ShareIsTheResolvedPath(t *testing.T) {
+	t.Parallel()
+	f := nfsFixture(t, srv1)
+	ctx := context.Background()
+	dir := t.TempDir()
+	link := filepath.Join(dir, "link")
+	if err := os.MkdirAll(filepath.Join(dir, "real", "d3"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "real"), link); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.z.Set(ctx, nfsParent, map[string]string{"mountpoint": link}); err != nil {
+		t.Fatal(err)
+	}
+	v := f.create(t, nfsReq("d3", map[string]string{nfsClients: "10.20.0.0/24"}))
+	vc := v.GetVolumeContext()
+	mp, err := f.z.Get(ctx, vc[zcsi.CtxDataset], "mountpoint")
+	if err != nil {
+		t.Fatal(err)
+	}
+	zfsPath := mp.Props["mountpoint"].Value
+	if zfsPath != filepath.Join(link, "d3") {
+		t.Fatalf("test setup: mountpoint %q, want it under the symlink %s", zfsPath, link)
+	}
+	resolved, err := filepath.EvalSymlinks(zfsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved == zfsPath {
+		t.Fatalf("test setup: %s resolves to itself", zfsPath)
+	}
+	if share := vc[zcsi.CtxShare]; share != resolved {
+		t.Errorf("share %q, want the resolved path %q (zfs reports %q)", share, resolved, zfsPath)
+	}
+	b, _ := f.sim.ReadEtab(ctx)
+	if _, ok := endpoint.ParseEtab(b).Lookup(vc[zcsi.CtxShare], "10.20.0.0/24"); !ok {
+		t.Errorf("etab does not serve share %q:\n%s", vc[zcsi.CtxShare], b)
+	}
+	// a repeat and a list hand back the same share
+	if got := f.create(t, nfsReq("d3", map[string]string{nfsClients: "10.20.0.0/24"})).GetVolumeContext()[zcsi.CtxShare]; got != vc[zcsi.CtxShare] {
+		t.Errorf("repeated CreateVolume: share %q, want %q", got, vc[zcsi.CtxShare])
+	}
+	if got := f.list(t)[v.GetVolumeId()].GetVolumeContext()[zcsi.CtxShare]; got != vc[zcsi.CtxShare] {
+		t.Errorf("ListVolumes: share %q, want %q", got, vc[zcsi.CtxShare])
 	}
 }
 
