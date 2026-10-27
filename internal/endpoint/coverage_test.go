@@ -28,8 +28,14 @@ func TestPlannersRequireACoveringTable(t *testing.T) {
 	if _, err := pl.PlanDeleteVolume(partial, "b"); code(err) != Internal {
 		t.Errorf("delete uncovered: %v", err)
 	}
-	if plan, err := pl.PlanDeleteVolume(newPartialTable(nil, "b"), "b"); err != nil || len(plan) != 0 {
-		t.Errorf("delete covered missing: %v %v", plan, err)
+	// a missing volume's delete also releases clone-source snapshots cut
+	// for it, which hang off other volumes: only the whole parent says
+	// there are none
+	if _, err := pl.PlanDeleteVolume(newPartialTable(nil, "b"), "b"); code(err) != Internal {
+		t.Errorf("delete missing on a table of b alone: %v", err)
+	}
+	if plan, err := pl.PlanDeleteVolume(NewTable(nil), "b"); err != nil || len(plan) != 0 {
+		t.Errorf("delete missing: %v %v", plan, err)
 	}
 	if _, err := pl.PlanDeleteSnapshot(partial, "b@s"); code(err) != Internal {
 		t.Errorf("delete snapshot uncovered: %v", err)

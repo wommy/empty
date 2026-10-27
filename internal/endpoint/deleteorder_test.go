@@ -84,6 +84,40 @@ func TestDeleteVolumeSparesSnapshotCutAfterScan(t *testing.T) {
 	}
 }
 
+// Crash window (wave7 suite): CreateVolume(c from a volume) cut the
+// clone-source snapshot and died before the clone; the caller gave up and
+// deleted c. The delete of the absent c releases the snapshot instead of
+// leaving it for Reconcile, and a repeat is still OK.
+func TestDeleteOfAbsentCloneReleasesItsCloneSource(t *testing.T) {
+	t.Parallel()
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("a", true)
+	h.sim.Fail = func(args []string) error {
+		if args[0] == "clone" {
+			return errors.New("crash")
+		}
+		return nil
+	}
+	if _, err := h.ep.CreateVolume(ctx, CreateVolumeRequest{Name: "c", SourceVolumeID: "a"}); err == nil {
+		t.Fatal("want the injected crash")
+	}
+	h.sim.Fail = nil
+	origin := a4Parent + "/a@" + cloneSourceSnapshotPrefix + "c"
+	if !h.has(origin) || h.has(a4Parent+"/c") {
+		t.Fatalf("setup: origin=%v clone=%v", h.has(origin), h.has(a4Parent+"/c"))
+	}
+	for i := range 2 {
+		h.must(h.ep.DeleteVolume(ctx, "c"))
+		if h.has(origin) {
+			t.Fatalf("delete %d: clone-source snapshot left behind", i)
+		}
+	}
+	if !h.has(a4Parent + "/a") {
+		t.Fatal("source volume destroyed")
+	}
+}
+
 // FSM counterexample 1: a DeleteVolume of a clone interrupted after its
 // first op, then retried, must not orphan the clone-source snapshot. The
 // origin is released (deferred) first, so zfs reaps it with the clone.

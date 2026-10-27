@@ -189,8 +189,12 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if !row.Managed {
 			return nil, errorf(AlreadyExists, "dataset %s exists and is not managed", row.Name)
 		}
-		if row.VolumeName != "" && row.VolumeName != r.Name {
-			return nil, errorf(AlreadyExists, "dataset %s belongs to volume %q", row.Name, row.VolumeName)
+		// managed is not enough: the volume-name marker must name this
+		// volume. A renamed dataset, or one marked managed without a name
+		// (neither the endpoint nor democratic-csi writes that), is not
+		// ours to report as created, nor to converge and commit (ADR 0003)
+		if !row.OwnedVolume() {
+			return nil, errorf(AlreadyExists, "dataset %s is not volume %s: its volume-name marker is %q", row.Name, id, row.VolumeName)
 		}
 		if row.Kind() != r.Kind || row.SourceType != srcType || row.SourceID != srcID {
 			return nil, errorf(AlreadyExists, "volume %s exists as %s from %q %q", id, row.Kind(), row.SourceType, row.SourceID)
@@ -414,9 +418,40 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // then the volume plainly, so zfs itself refuses ("has children") on
 // anything the scan cannot see, such as a dataset someone created below a
 // filesystem volume, rather than taking it along.
+//
+// An absent volume is done, after releasing any clone-source snapshot the
+// endpoint cut for it that no clone uses: a CreateVolume that died between
+// cutting the snapshot and cloning, then given up on, would otherwise leak
+// it until Reconcile's orphan rule collects it, MinAge later. Finding those
+// needs the whole parent: they hang off whichever volume was the source.
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	d, err := p.planDelete(t, volID, p.DestroyForeignSnapshots)
-	return d.plan(), err
+	if err != nil || d.vol != nil {
+		return d.plan(), err
+	}
+	return p.releaseCloneSourcesFor(t, volID)
+}
+
+// releaseCloneSourcesFor plans the release (destroy -d, as a clone delete
+// releases its origin) of every unused clone-source snapshot stamped for
+// clone id on a volume the endpoint owns. Only the stamp makes one ours;
+// the reserved name alone is anyone's (ADR 0003).
+func (p Planner) releaseCloneSourcesFor(t Table, id string) (Plan, error) {
+	if err := t.mustBeWhole("DeleteVolume of an absent volume"); err != nil {
+		return nil, err
+	}
+	var plan Plan
+	for src := range t.Volumes() {
+		s, ok := t.Get(src.ID + "@" + cloneSourceSnapshotPrefix + id)
+		if !ok || !src.OwnedVolume() || s.Deferred || !zfs.ValidSnapshot(s.Name) || hasAny(t.ClonesOf(s.Name)) {
+			continue
+		}
+		if clone, ours := s.OwnedCloneSource(); !ours || clone != id {
+			continue
+		}
+		plan = append(plan, Op{Kind: OpDestroy, Target: s.Name, Defer: true, OkMissing: true})
+	}
+	return plan, nil
 }
 
 // deletion is a volume delete as parts: the clone-source origin it
