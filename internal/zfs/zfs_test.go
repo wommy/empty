@@ -101,6 +101,7 @@ func TestErrorTextPrefersStderrThenCause(t *testing.T) {
 	}{
 		{&zfs.Error{Kind: zfs.KindNotFound, Op: "get", Dataset: "d", Stderr: "boom\n", Err: cause}, "boom", "exit status"},
 		{&zfs.Error{Kind: zfs.KindNotFound, Op: "get", Dataset: "d", Err: cause}, "exit status 1", "\x00"},
+		{&zfs.Error{Kind: zfs.KindNotFound, Op: "get", Dataset: "d"}, "zfs get d", "\x00"}, // neither: no panic
 	} {
 		if s := tc.e.Error(); !strings.Contains(s, tc.has) || strings.Contains(s, tc.not) {
 			t.Errorf("Error() = %q, want %q and not %q", s, tc.has, tc.not)

@@ -257,6 +257,19 @@ func TestPlanReconcile(t *testing.T) {
 			skips: []string{"a@volume-source-for-volume-x y:" + SkipUnaddressable},
 		},
 		{
+			name:  "a desired id naming a snapshot names no volume",
+			rows:  []Row{vol("a", nil), snap("a@s", nil)},
+			want:  desired("a", "a@s"),
+			skips: []string{"a@s:" + SkipDesiredMissing},
+		},
+		{
+			// committed_at counts only for a committed volume
+			name: "an uncommitted row ages from its creation",
+			rows: []Row{vol("a", nil), vol("b", func(r *Row) { r.Committed, r.CommittedAt = false, recNow-60 })},
+			want: desired("a"),
+			acts: []string{"b:" + ReasonUncommitted},
+		},
+		{
 			// "less than MinAge before Now is untouched": the boundary
 			name: "exactly MinAge old is collected",
 			rows: []Row{vol("a", nil), vol("b", func(r *Row) { r.Creation = recNow - 3600 })},
@@ -335,6 +348,16 @@ func TestPlanReconcileHeldLimitsActions(t *testing.T) {
 	acts, skips := summary(plan)
 	if len(acts) != 0 || !slices.Equal(skips, []string{"c:" + SkipChangedSinceScan, "b:volume b has dependent clone c"}) {
 		t.Fatalf("actions %q skipped %q", acts, skips)
+	}
+	// the locked re-plan keeps an action only for the reason the unlocked
+	// plan had: an uncommitted row committed in between is judged afresh
+	d = desired("a")
+	d.planned = map[string]string{"b": ReasonUncommitted}
+	if plan, err = pl.PlanReconcile(table(vol("a", nil), vol("b", nil)), d); err != nil {
+		t.Fatal(err)
+	}
+	if acts, skips = summary(plan); len(acts) != 0 || !slices.Equal(skips, []string{"b:" + SkipChangedSinceScan}) {
+		t.Fatalf("reason changed: actions %q skipped %q", acts, skips)
 	}
 }
 

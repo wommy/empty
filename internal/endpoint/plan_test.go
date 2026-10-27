@@ -126,6 +126,8 @@ func TestPlannerErrorCodes(t *testing.T) {
 		vol("half", func(r *Row) { r.Committed = false }), snap("half@s", nil),
 		snap("src@admin", func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
 		snap("src@gone", func(r *Row) { r.Deferred = true }),
+		vol("sparse", func(r *Row) { r.Type, r.Volsize, r.BlockSz = zfs.TypeVolume, 1<<20, 16384 }),
+		snap("a@deleted", func(r *Row) { r.SnapshotName, r.SnapshotSource, r.Deferred = "deleted", "a", true }),
 	})
 	create := func(r CreateVolumeRequest) func() error {
 		return func() error { _, err := pl.PlanCreateVolume(tab, r); return err }
@@ -143,6 +145,10 @@ func TestPlannerErrorCodes(t *testing.T) {
 	}{
 		{"two content sources", create(CreateVolumeRequest{Name: "n", CapacityBytes: 1, SourceSnapshotID: "src@s", SourceVolumeID: "src"}), InvalidArgument},
 		{"block without capacity", create(CreateVolumeRequest{Name: "n", Kind: Block}), InvalidArgument},
+		{"capacity above the limit", create(CreateVolumeRequest{Name: "n", CapacityBytes: 200, LimitBytes: 100}), OutOfRange},
+		{"existing sparse zvol, sparse again", create(CreateVolumeRequest{Name: "sparse", Kind: Block, CapacityBytes: 1 << 20, Sparse: true}), OK},
+		{"existing sparse zvol, thick requested", create(CreateVolumeRequest{Name: "sparse", Kind: Block, CapacityBytes: 1 << 20}), AlreadyExists},
+		{"snapshot name of one pending deletion", func() error { _, _, err := pl.PlanCreateSnapshot(tab, "deleted", "a"); return err }, AlreadyExists},
 		{"sparse filesystem", create(CreateVolumeRequest{Name: "n", CapacityBytes: 1, Sparse: true}), InvalidArgument},
 		{"reserved zvol", create(CreateVolumeRequest{Name: "n", Kind: Block, CapacityBytes: 1, Reserve: true}), InvalidArgument},
 		{"reserve without size", create(CreateVolumeRequest{Name: "n", Reserve: true}), InvalidArgument},
@@ -200,6 +206,7 @@ func TestPlanCreateConvergesUncommittedSize(t *testing.T) {
 		{"larger quota is kept", half(200, 0), CreateVolumeRequest{Name: "h", CapacityBytes: 100}, nil},
 		{"missing reservation is set", half(100, 0), CreateVolumeRequest{Name: "h", CapacityBytes: 100, Reserve: true}, map[string]string{"refreservation": "100"}},
 		{"larger reservation is never lowered", half(100, 200), CreateVolumeRequest{Name: "h", CapacityBytes: 100, Reserve: true}, nil},
+		{"equal reservation is not re-set", half(100, 100), CreateVolumeRequest{Name: "h", CapacityBytes: 100, Reserve: true}, nil},
 	} {
 		plan, err := pl.PlanCreateVolume(NewTable([]Row{tc.row}), tc.req)
 		n := 1
@@ -239,7 +246,7 @@ func TestPlanDeleteSnapshot(t *testing.T) {
 		{"not-an-id", OK, false},
 	} {
 		plan, err := pl.PlanDeleteSnapshot(tab, tc.id)
-		one := len(plan) == 1 && plan[0].Kind == OpDestroy && plan[0].Defer && plan[0].Target == "tank/v/"+tc.id
+		one := len(plan) == 1 && plan[0].Kind == OpDestroy && plan[0].Defer && plan[0].OkMissing && plan[0].Target == "tank/v/"+tc.id
 		if code(err) != tc.want || tc.deferred != one || !tc.deferred && plan != nil {
 			t.Errorf("%s: plan %+v err %v, want code %d deferred destroy %v", tc.id, plan, err, tc.want, tc.deferred)
 		}
@@ -296,6 +303,45 @@ func TestPlanDeleteVolume(t *testing.T) {
 	}
 	if plan, err := pl.PlanDeleteVolume(tab, "gone"); err != nil || plan != nil {
 		t.Fatalf("missing %+v %v", plan, err)
+	}
+}
+
+// Deleting a clone releases its origin only when that origin is the
+// endpoint's clone-source snapshot for this clone: stamped for it, or a
+// legacy bare one under the reserved name. Anything else it was cloned
+// from stays.
+func TestPlanDeleteVolumeReleasesOnlyItsOwnOrigin(t *testing.T) {
+	t.Parallel()
+	const origin = "b@" + cloneSourceSnapshotPrefix + "c"
+	for _, tc := range []struct {
+		name    string
+		origin  Row
+		src     func(*Row)
+		release bool
+	}{
+		{"stamped for c", snap(origin, stamp), nil, true},
+		{"legacy bare under the reserved name", snap(origin, bare), nil, true},
+		{"stamped for another clone", snap(origin, func(r *Row) { stamp(r); r.CloneSourceFor = "d" }), nil, false},
+		{"unmanaged, with a CSI name", snap(origin, func(r *Row) { bare(r); r.SnapshotName = "x" }), nil, false},
+		{"an administrator's snapshot", snap("b@admin", bare), nil, false},
+		{"on an unmanaged volume", snap(origin, stamp), func(r *Row) { r.Managed = false }, false},
+	} {
+		rows := []Row{
+			vol("b", tc.src), tc.origin,
+			vol("c", func(r *Row) { r.Origin = "tank/v/" + tc.origin.ID }),
+		}
+		plan, err := pl.PlanDeleteVolume(NewTable(rows), "c")
+		var got []string
+		for _, op := range plan {
+			got = append(got, op.Target)
+		}
+		want := []string{"tank/v/c"}
+		if tc.release {
+			want = []string{"tank/v/" + tc.origin.ID, "tank/v/c"}
+		}
+		if err != nil || !slices.Equal(got, want) || tc.release && !plan[0].Defer {
+			t.Errorf("%s: plan %+v err %v, want %v", tc.name, plan, err, want)
+		}
 	}
 }
 
@@ -386,6 +432,11 @@ func TestPlanSnapshotLongAndUnusualNames(t *testing.T) {
 	}
 	if _, _, err := pl.PlanCreateSnapshot(NewTable([]Row{vol("a", nil)}), strings.Repeat("a", 129), "a"); code(err) != InvalidArgument {
 		t.Fatalf("129 bytes: %v", err)
+	}
+	// an id of exactly 128 bytes keeps the name itself
+	exact := strings.Repeat("e", 126)
+	if _, id, err := pl.PlanCreateSnapshot(NewTable([]Row{vol("a", nil)}), exact, "a"); err != nil || id != "a@"+exact {
+		t.Fatalf("128-byte id: %q %v", id, err)
 	}
 }
 

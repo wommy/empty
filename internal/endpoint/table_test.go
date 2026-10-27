@@ -58,6 +58,30 @@ func TestRowOwnedSnapshot(t *testing.T) {
 	}
 }
 
+func TestRowOwnedCloneSource(t *testing.T) {
+	t.Parallel()
+	ok := Row{ID: "a@" + cloneSourceSnapshotPrefix + "c", Type: zfs.TypeSnapshot, Managed: true, CloneSourceFor: "c"}
+	for _, tc := range []struct {
+		name string
+		mut  func(*Row)
+		want bool
+	}{
+		{"stamped for its clone", func(*Row) {}, true},
+		{"unmanaged", func(r *Row) { r.Managed = false }, false},
+		{"stamp names another clone", func(r *Row) { r.CloneSourceFor = "d" }, false},
+		{"no stamp (bare reserved name)", func(r *Row) { r.CloneSourceFor = "" }, false},
+		{"carries a CSI name", func(r *Row) { r.SnapshotName = "x" }, false},
+		{"not a snapshot", func(r *Row) { r.Type = zfs.TypeFilesystem }, false},
+		{"another name", func(r *Row) { r.ID = "a@other" }, false},
+	} {
+		r := ok
+		tc.mut(&r)
+		if clone, got := r.OwnedCloneSource(); got != tc.want || got && clone != "c" {
+			t.Errorf("%s: OwnedCloneSource = %q %v, want %v", tc.name, clone, got, tc.want)
+		}
+	}
+}
+
 func TestRowKindAndCapacity(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
