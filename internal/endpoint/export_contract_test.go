@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -520,9 +521,11 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 }
 
 // D3 (wave9 nfs-diff): Unpublish succeeds only once nothing serves the
-// host. An admin's edit of our sharenfs to "*" is rewritten to the stored
-// list; an ancestor exported with crossmnt (sharenfs=on) still serves the
-// volume after its own line is gone, and Unpublish says so.
+// host. Under an admin's edit of the volume's sharenfs to "*", success
+// must mean "*" is gone (today the value is rewritten to the stored list;
+// once nfs_clients goes, ADR 0004, it is foreign and Unpublish refuses).
+// An ancestor exported with crossmnt (sharenfs=on) still serves the volume
+// after its own line is gone, and Unpublish says so.
 func TestFileExportUnpublishStillServed(t *testing.T) {
 	ctx := context.Background()
 	ep, h := setup(t)
@@ -539,13 +542,12 @@ func TestFileExportUnpublishStillServed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := ep.UnpublishFileExport(ctx, "pvc-d3", "10.0.0.1"); err != nil {
-		t.Fatalf("unpublish under a widened sharenfs: %v", err)
+		wantCode(t, err, endpoint.FailedPrecondition)
+	} else if hosts := h.servedHosts(t, path); slices.Contains(hosts, "*") {
+		t.Fatalf("unpublish of 10.0.0.1 succeeded, but %s is still served to %v (sharenfs %q)", path, hosts, h.Prop(v.Dataset, "sharenfs"))
 	}
-	if val := h.Prop(v.Dataset, "sharenfs"); val != "ro=10.0.0.2/32" {
-		t.Fatalf("sharenfs %q, want the stored list", val)
-	}
-	if hosts := h.servedHosts(t, path); len(hosts) != 1 || hosts[0] != "10.0.0.2/32" {
-		t.Fatalf("served to %v, want only 10.0.0.2/32", hosts)
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{"sharenfs": "ro=10.0.0.2/32"}); err != nil {
+		t.Fatal(err)
 	}
 
 	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "on"}); err != nil {

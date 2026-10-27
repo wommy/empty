@@ -401,7 +401,10 @@ func TestPlanUnpublishExport(t *testing.T) {
 			row: fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal, r.ShareNFSRecv = "rw=10.0.0.1/32", false, true })},
 		// D3 (wave9 nfs-diff): a line beyond the stored list that can
 		// match the host still serves it; on a volume whose sharenfs is
-		// ours it is rewritten, not reported gone
+		// ours it is rewritten, not reported gone. "Ours" is today's
+		// nfs_clients model, as in "drifted sharenfs is rewritten" above;
+		// when nfs_clients goes (ADR 0004) "rw=*" is foreign and this
+		// case becomes a FailedPrecondition
 		{name: "our sharenfs widened to *: rewritten", host: "10.0.0.1",
 			row: exported("a", "10.0.0.2/32=ro", "rw=*"), live: etab("/tank/v/a\t*(rw)\n"),
 			want: set(map[string]string{"sharenfs": "ro=10.0.0.2/32"})},
