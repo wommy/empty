@@ -92,12 +92,19 @@ jobs:
           } > "$RUNNER_TEMP/issue.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly fuzz failure: $TARGET" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
 
-  # The real-pool replay of the whole zfsdiff corpus (102 sequences, ~1,270
-  # zfs invocations, estimated 15-30s): too slow for ADR 0005's PR budget,
-  # where the VM replays zfsdiff.PRSample. It runs the same VM suite as
-  # ci.yml with ZFSDIFF_FULL=1. Divergences are reported, not failed, until
-  # the three ambiguities are settled (ZFSDIFF_STRICT); a harness, cleanup
-  # or suite failure files an issue.
+  # The real-pool tiers ADR 0005 keeps out of the PR budget, on the same VM
+  # suite as ci.yml:
+  # - ZFSDIFF_FULL=1: the whole zfsdiff corpus (102 sequences, ~1,270 zfs
+  #   invocations; the PR replays zfsdiff.PRSample, 21 sequences, 9.9s on
+  #   run 40469622947). Divergences are reported, not failed, until the
+  #   three ambiguities are settled (ZFSDIFF_STRICT);
+  # - ZFS_CRASH_FULL=1: every crash point of every case on the real pool
+  #   (internal/endpoint/crash_test.go crashSample; the PR runs each case
+  #   uninterrupted plus one rotated point). The simulator runs every point
+  #   on every PR.
+  # A harness, cleanup or suite failure (a crash case that does not
+  # converge, say) files an issue; its fix lands with a test that fails
+  # without it.
   real-zfs-full:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -117,26 +124,22 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
-      - name: resolve the cloud image
-        # the same cache keys as ci.yml's real-zfs job, restored only
-        id: image
-        run: |
-          f=stonking-server-cloudimg-amd64.img
-          sum=$(curl -fsSL --retry 3 https://cloud-images.ubuntu.com/stonking/current/SHA256SUMS | awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }')
-          test -n "$sum"
-          echo "key=zfsvm-v2-stonking-$sum-$(date -u +%G-W%V)-${{ hashFiles('ci/real-zfs-cloud-config.yaml') }}" >>"$GITHUB_OUTPUT"
-          echo "qemu=qemu-tree-$ImageOS-$ImageVersion-${{ hashFiles('ci/qemu-tree.sh') }}" >>"$GITHUB_OUTPUT"
+      - name: resolve the cloud image and cache keys
+        # the same keys as ci.yml's real-zfs job (one action computes both),
+        # restored only: cache-warm.yml stores them
+        id: keys
+        uses: ./.github/actions/real-zfs-keys
       - name: restore the provisioned guest
         id: guest
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/zfsvm-cache
-          key: ${{ steps.image.outputs.key }}
+          key: ${{ steps.keys.outputs.guest }}
       - name: restore qemu
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/qemu
-          key: ${{ steps.image.outputs.qemu }}
+          key: ${{ steps.keys.outputs.qemu }}
       - name: set up qemu
         run: |
           if ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then
@@ -152,19 +155,22 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
-      - name: VM suite with the full zfsdiff replay
+      - name: VM suite with the full zfsdiff replay and the full crash sweep
         id: replay
         env:
           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+          ZFSVM_SUMS: ${{ steps.keys.outputs.sums }}
           ZFSDIFF_FULL: "1"
+          ZFS_CRASH_FULL: "1"
         run: ci/real-zfs-vm.sh stonking current 2.4
-      - name: upload zfsdiff replay report
+      - name: upload zfsdiff replay report and shard logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zfsdiff-report-full
           path: |
             ${{ runner.temp }}/zfsvm/out/*.log
+            ${{ runner.temp }}/zfsvm/out/test-times.tsv
             ${{ runner.temp }}/zfsvm/*.log
           if-no-files-found: warn
           retention-days: 30
@@ -174,11 +180,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          o=$RUNNER_TEMP/zfsvm/out
           {
-            echo "Nightly real-ZFS VM suite with the full zfsdiff replay failed: $RUN_URL"
+            echo "Nightly real-ZFS VM suite (full zfsdiff replay, full crash sweep) failed: $RUN_URL"
             echo
             echo "The zfsdiff-report-full artifact has the replay report and the shard logs."
-            echo; echo '```'; tail -n 1 "$RUNNER_TEMP/zfsvm/out/zfsdiff.log" 2>/dev/null || echo "no zfsdiff.log"; echo '```'
+            echo "A crash case that did not converge names its case and crash point below; commit the fix with a test that fails without it."
+            echo; echo '```'
+            grep -hE -- '--- FAIL|panic:' "$o"/endpoint.*.log 2>/dev/null | head -n 40 || true
+            tail -n 1 "$o/zfsdiff.log" 2>/dev/null || echo "no zfsdiff.log"
+            echo '```'
           } > "$RUNNER_TEMP/issue.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly real-ZFS failure" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage
 

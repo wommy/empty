@@ -1,0 +1,54 @@
+name: real-zfs-keys
+description: >-
+  The cache keys of the real-ZFS VM job, in one place for ci.yml, nightly.yml
+  and cache-warm.yml (a key that differs between them leaves PRs cold). Also
+  fetches the cloud image's SHA256SUMS and its signature once, verifies them,
+  and leaves both for ci/real-zfs-vm.sh (ZFSVM_SUMS), which verifies again.
+inputs:
+  series:
+    description: Ubuntu series of the cloud image
+    default: stonking
+  build:
+    description: image build directory
+    default: current
+outputs:
+  guest:
+    description: provisioned-guest cache key
+    value: ${{ steps.keys.outputs.guest }}
+  qemu:
+    description: qemu-tree cache key
+    value: ${{ steps.keys.outputs.qemu }}
+  sums:
+    description: directory holding the verified SHA256SUMS and SHA256SUMS.gpg
+    value: ${{ steps.keys.outputs.sums }}
+runs:
+  using: composite
+  steps:
+    - id: keys
+      shell: bash
+      env:
+        SERIES: ${{ inputs.series }}
+        BUILD: ${{ inputs.build }}
+      # no hashFiles() anywhere in this action: file hashes are sha256sum
+      # here, so every workflow that uses the action computes the same key
+      run: |
+        d=$RUNNER_TEMP/zfsvm-sums
+        mkdir -p "$d"
+        base=https://cloud-images.ubuntu.com/$SERIES/$BUILD
+        curl -fsSL --retry 3 -o "$d/SHA256SUMS" "$base/SHA256SUMS" & a=$!
+        curl -fsSL --retry 3 -o "$d/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg" & b=$!
+        wait "$a"
+        wait "$b"
+        gpgv --keyring /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg "$d/SHA256SUMS.gpg" "$d/SHA256SUMS"
+        f=$SERIES-server-cloudimg-amd64.img
+        sum=$(awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }' "$d/SHA256SUMS")
+        test -n "$sum" || { echo "::error::$f is not in $base/SHA256SUMS"; exit 1; }
+        h() { sha256sum "$1" | cut -c1-16; }
+        # provisioning inputs only: editing how the tests run must not
+        # reprovision. v3: the cache also holds the kernel, initrd and
+        # cmdline for a direct kernel boot. The ISO week bounds how far the
+        # guest can lag zfsutils updates published after the image
+        echo "guest=zfsvm-v3-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)" >>"$GITHUB_OUTPUT"
+        # the qemu tree is unpacked from this runner image's apt view
+        echo "qemu=qemu-tree-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"
+        echo "sums=$d" >>"$GITHUB_OUTPUT"
