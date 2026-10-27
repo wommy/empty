@@ -347,6 +347,9 @@ func TestManifests(t *testing.T) {
 			if slices.Contains(args, "-enable-block") {
 				t.Error("the example enables block (ADR 0006: opt-in)")
 			}
+			if slices.Contains(args, "-enable-local-filesystem") {
+				t.Error("the example enables node-local filesystems (ADR 0009: the shipped deployment is NFS mode)")
+			}
 			continue
 		}
 		if v, _ := flagValue(args, "--csi-address"); v != "/csi/csi.sock" {

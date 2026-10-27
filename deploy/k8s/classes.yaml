@@ -1,12 +1,31 @@
-# Example classes. Parameters zfs-csi understands (internal/csi
-# controller.go): reserve (filesystems: refreservation = capacity) and
-# sparse (zvols, only with -enable-block). Any other key is refused.
+# Example classes, for NFS mode (ADR 0009): zfs-endpoint run with
+# -nfs-server (deploy/systemd/zfs-endpoint@.service.d/nfs.conf.example)
+# and the node plugin (node.yaml). StorageClass parameters are immutable:
+# fix one by deleting and recreating the class.
+#
+# Parameters zfs-csi understands (internal/csi controller.go); any other
+# key is refused:
+#   - nfs.clients (required in NFS mode): comma-separated IPv4 networks,
+#     each with its /N ("10.20.0.0/24,10.20.1.0/24"), no broader than
+#     zfs-endpoint -nfs-min-prefix (default /16): the nodes that mount.
+#     Shipped as a placeholder that does not parse, so every PVC fails
+#     with ProvisioningFailed naming it until you replace <node-subnet>/24
+#     with your node network. Never a plausible stand-in such as a TEST-NET
+#     CIDR: it would export to nobody, and pods would hang at mount.
+#   - nfs.server: one of the endpoint's -nfs-server addresses (default the
+#     first);
+#   - nfs.uid, nfs.gid (decimal) and nfs.mode (octal, e.g. "2775"): the
+#     volume root's owner and mode, set before export (root_squash keeps
+#     anyone from changing them later);
+#   - reserve (filesystems: refreservation = capacity);
+#   - sparse (zvols, only with -enable-block; never in NFS mode).
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: zfs
 provisioner: zfs-endpoint.wommy.github.io
 parameters:
+  nfs.clients: "<node-subnet>/24"
   reserve: "false"
 reclaimPolicy: Delete
 allowVolumeExpansion: true
