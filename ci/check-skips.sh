@@ -57,7 +57,16 @@ done
 for t in $stale; do
   err "$t is allowed to skip only because it needs the simulator, but it ran: is this binary on the simulator?"
 done
-if grep -nE -- '--- FAIL: |^panic: |^FAIL' "$log"; then err "failure or panic in the log"; fi
+if grep -nE -- '--- FAIL: |^panic: |^FAIL' "$log"; then
+  err "failure or panic in the log"
+  # the failing tests' own output (indented under their --- FAIL line) and
+  # any panic, in the job log itself: the uploaded logs may be unreachable
+  echo "::group::$leg/$pkg: failing test output"
+  awk '/--- FAIL: |^panic: /{p=1; n=0; print; next}
+       p && /^[ \t]/ && n++ < 200 {print; next}
+       {p=0}' "$log"
+  echo "::endgroup::"
+fi
 if [ -n "$tests" ]; then
   for t in $(grep -E '^(Test|Fuzz|Example)' "$tests" | lines); do
     grep -qxF "$t" <<<"$passed" || grep -qxF "$t" <<<"$skipped" || err "$t never reported PASS or SKIP: it did not run"
