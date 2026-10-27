@@ -1,0 +1,43 @@
+race-w1 pkgs 10 tests 284 paused 0
+pkg                                elapsed  first    end    topsum  ntop  npar
+internal/server                      18.12    9.5   27.6     16.60     9     0
+internal/endpoint                    10.40    9.5   19.9      8.90   111     0
+cmd/zfs-csi                           4.26    0.0    4.3      0.00     1     0
+cmd/zfs-endpoint                      2.42    4.0    6.4      1.18     6     0
+internal/csi                          2.32    9.5   11.8      1.07     6     0
+internal/zfs                          1.64   11.8   13.5      0.47    16     0
+internal/lock                         1.46    9.5   11.0      0.08     5     0
+internal/unixsock                     1.05   11.0   12.1      0.00     6     0
+gen/zfsendpoint/v1                    0.00    4.3    4.3      0.00     0     0
+internal/zfs/zfstest                  0.00   12.1   12.1      0.00     0     0
+top 30
+  13.65 pass  internal/server TestMessageSizes
+   5.09 pass  internal/endpoint TestSimulateDestroyAllEquivalent
+   2.37 pass  internal/server TestShutdownWaitsForCancelledHandlers
+   1.64 pass  internal/endpoint TestExportSizeLimit
+   1.06 pass  cmd/zfs-endpoint TestStartupWaitsForTheParent
+   0.95 pass  internal/csi TestSanity
+   0.51 pass  internal/endpoint TestPlanPublishExport
+   0.47 pass  internal/endpoint TestPlanPublishExport/too_many_clients
+   0.44 pass  internal/server TestConcurrentZFSIsBounded
+   0.29 pass  internal/zfs TestKilledCommandIsInterrupted
+   0.29 pass  internal/endpoint FuzzReconcileSafe
+   0.22 pass  internal/endpoint TestReceivedCopyIsNotOwned
+   0.19 pass  internal/endpoint TestReconcileSparesReceivedAndRenamed
+   0.14 pass  internal/endpoint TestAdv4PartialDesiredSetMassDeletes
+   0.12 pass  internal/endpoint FuzzReconcileSafe/seed#1
+   0.10 pass  internal/endpoint TestDefaultPropertyPrefixIsOurOwn
+   0.10 pass  internal/endpoint TestReconcileAgainstDesiredSet
+   0.08 pass  internal/zfs TestLimitBoundsConcurrentCommands
+   0.07 pass  internal/server TestShutdownDrainsInFlightCalls
+   0.06 pass  internal/endpoint TestAdv4CommitRaceDestroysJustProvisionedVolume
+   0.06 pass  internal/endpoint FuzzReconcileSafe/seed#4
+   0.05 pass  cmd/zfs-endpoint TestServeHealthNotifyAndStop
+   0.05 pass  internal/csi TestParametersAndAccessChecks
+   0.05 pass  internal/zfs TestLimitWaiterRespectsContext
+   0.05 pass  internal/endpoint TestReconcileCollectsAbandonedCreate
+   0.04 pass  cmd/zfs-endpoint TestStartupRefusals
+   0.04 pass  internal/lock TestNoStarvation
+   0.04 pass  internal/endpoint TestReconcileMaxDeletionsAndDigest
+   0.04 pass  internal/endpoint TestAdv4ChildDatasetsDestroyed
+   0.04 pass  internal/endpoint FuzzReconcileSafe/177a8048a5875e8e

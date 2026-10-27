@@ -70,3 +70,4 @@
 {"id": 936, "bucket": "props.go", "file": "internal/endpoint/props.go", "line": 111, "op": "BOOL_FLIP", "desc": "field `fs: true` flipped to false", "status": "KILLED", "info": "--- FAIL: TestValidatePropertyValues (0.00s)"}
 {"id": 984, "bucket": "props.go", "file": "internal/endpoint/props.go", "line": 166, "op": "DROP_OPERAND", "desc": "operand `suffix == \"B\"` replaced by false", "status": "KILLED", "info": "--- FAIL: TestValidatePropertyValues (0.00s)"}
 {"id": 938, "bucket": "props.go", "file": "internal/endpoint/props.go", "line": 112, "op": "BOOL_FLIP", "desc": "field `fs: true` flipped to false", "status": "KILLED", "info": "--- FAIL: TestValidatePropertyValues (0.00s)"}
+{"id": 987, "bucket": "props.go", "file": "internal/endpoint/props.go", "line": 172, "op": "BOOL_FLIP", "desc": "return 0, false  =>  return true", "status": "SURVIVED", "info": ""}

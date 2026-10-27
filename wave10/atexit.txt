@@ -1,0 +1,16 @@
+default:
+ok  	github.com/wommy/empty/internal/lock	1.430s
+ok  	github.com/wommy/empty/internal/unixsock	1.113s
+ok  	github.com/wommy/empty/cmd/zfs-csi	1.144s
+GORACE=atexit_sleep_ms=0:
+ok  	github.com/wommy/empty/internal/lock	0.212s
+ok  	github.com/wommy/empty/internal/unixsock	0.162s
+ok  	github.com/wommy/empty/cmd/zfs-csi	0.117s
+default:
+ok  	github.com/wommy/empty/internal/lock	1.117s
+ok  	github.com/wommy/empty/internal/unixsock	1.242s
+ok  	github.com/wommy/empty/cmd/zfs-csi	1.056s
+GORACE=atexit_sleep_ms=0:
+ok  	github.com/wommy/empty/internal/lock	1.207s
+ok  	github.com/wommy/empty/internal/unixsock	1.414s
+ok  	github.com/wommy/empty/cmd/zfs-csi	0.082s

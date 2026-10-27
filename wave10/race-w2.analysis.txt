@@ -1,0 +1,43 @@
+race-w2 pkgs 10 tests 284 paused 0
+pkg                                elapsed  first    end    topsum  ntop  npar
+internal/server                      20.47    8.4   28.8     19.34     9     0
+internal/endpoint                    13.23    7.6   20.8     11.88   111     0
+internal/csi                          6.52    6.3   12.8      5.36     6     0
+cmd/zfs-endpoint                      2.71    4.8    7.5      1.28     6     0
+internal/zfs                          1.93   11.0   12.9      0.44    16     0
+internal/unixsock                     1.77    9.2   10.9      0.33     6     0
+internal/lock                         1.51    7.7    9.2      0.08     5     0
+cmd/zfs-csi                           1.10    0.0    1.1      0.00     1     0
+gen/zfsendpoint/v1                    0.00    5.2    5.2      0.00     0     0
+internal/zfs/zfstest                  0.00   12.9   12.9      0.00     0     0
+top 30
+  15.59 pass  internal/server TestMessageSizes
+   9.68 pass  internal/endpoint TestSimulateDestroyAllEquivalent
+   5.26 pass  internal/csi TestSanity
+   2.36 pass  internal/server TestShutdownWaitsForCancelledHandlers
+   1.41 pass  internal/endpoint TestExportSizeLimit
+   1.02 pass  cmd/zfs-endpoint TestStartupWaitsForTheParent
+   0.68 pass  internal/server TestConcurrentZFSIsBounded
+   0.63 pass  internal/server TestShutdownDrainsInFlightCalls
+   0.26 pass  internal/zfs TestKilledCommandIsInterrupted
+   0.21 pass  internal/unixsock TestListenIsOwnerOnly
+   0.19 pass  cmd/zfs-endpoint TestStartupRefusals
+   0.15 pass  internal/endpoint TestAdv4PartialDesiredSetMassDeletes
+   0.14 pass  internal/endpoint FuzzReconcileSafe
+   0.13 pass  internal/endpoint TestPlanPublishExport
+   0.12 pass  internal/endpoint TestPlanPublishExport/too_many_clients
+   0.08 pass  internal/zfs TestLimitBoundsConcurrentCommands
+   0.07 pass  internal/unixsock TestListenRefusesALiveSocket
+   0.06 pass  internal/endpoint TestAdv4CommitRaceDestroysJustProvisionedVolume
+   0.05 pass  cmd/zfs-endpoint TestCheckVersion
+   0.05 pass  internal/zfs TestLimitWaiterRespectsContext
+   0.05 pass  internal/zfs TestChildRunsInItsOwnProcessGroup
+   0.04 pass  internal/csi TestParametersAndAccessChecks
+   0.04 pass  internal/lock TestCancelledWaitersLeaveNothingBehind
+   0.04 pass  internal/endpoint FuzzCreateConverges
+   0.03 pass  internal/csi TestExpandNodeExpansionRequired
+   0.03 pass  internal/lock TestNoStarvation
+   0.03 pass  internal/endpoint TestReconcileMaxDeletionsAndDigest
+   0.03 pass  internal/unixsock TestListenNeverDeletesANonSocket
+   0.03 pass  internal/endpoint FuzzReconcileSafe/177a8048a5875e8e
+   0.02 pass  cmd/zfs-endpoint TestServeHealthNotifyAndStop

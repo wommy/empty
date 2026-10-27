@@ -1,0 +1,9 @@
+package,top_level_tests,sum_of_min_s,sum_of_median_s,parallel_tests
+internal/server,9,16.58,18.68,0
+internal/endpoint,111,6.79,9.03,0
+cmd/zfs-endpoint,6,1.08,1.35,0
+internal/csi,6,1.03,2.69,0
+internal/zfs,16,0.41,0.48,0
+internal/lock,5,0.07,0.09,0
+internal/unixsock,6,0.0,0.04,0
+cmd/zfs-csi,1,0.0,0.0,0

@@ -1,0 +1,4 @@
+685 423 IF_NEGATE if op.Kind != OpDestroy  =>  if !(...) -> 0
+686 424 GUARD_DELETE guard `if op.Kind != OpDestroy`: `continue` deleted -> ok
+687 423 EQ_FLIP op.Kind != OpDestroy  =>  != becomes == -> 0
+688 426 IF_NEGATE if op.Defer  =>  if !(...) -> 1

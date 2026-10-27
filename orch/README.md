@@ -20,7 +20,7 @@ Judgment (judge.py: pure function of the tables, prints actions in priority orde
   4. reader queue and readers < cap (5)      -> LAUNCH up to min(3, 5 - running) readers (priority, deps met)
   5. writer queue and writers < cap (3)      -> LAUNCH writers into free slots (priority, deps met)
   Caps (owner): total 8 = readers 5 + writers 3; the split keeps either lane from starving the other.
-  6. owner questions                         -> ASK only if researched and attacked (with the recommendation and evidence), else RESEARCH-FIRST (owner rule)
+  6. owner questions                         -> ASK only if researched and attacked (with the recommendation and evidence), else RESEARCH-FIRST (owner rule). After research: decisive + reversible -> DECIDE+RECORD (ADR with evidence), never asked; only contested, irreversible or outward-facing questions are ASKed
   7. events since the last checkpoint        -> CHECKPOINT (checkpoint.sh)
 Anomalies (owner rule) sort first within every step.
 Lanes never block each other: steps 4 and 5 are independent.

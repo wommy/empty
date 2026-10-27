@@ -1,0 +1,43 @@
+plain-warm pkgs 10 tests 284 paused 0
+pkg                                elapsed  first    end    topsum  ntop  npar
+internal/server                       3.74    1.7    5.4      3.68     9     0
+internal/endpoint                     1.95    1.1    3.0      1.86   111     0
+cmd/zfs-endpoint                      1.07    0.4    1.4      1.04     6     0
+internal/csi                          0.51    0.9    1.4      0.46     6     0
+internal/zfs                          0.45    1.7    2.1      0.43    16     0
+internal/lock                         0.09    1.4    1.5      0.06     5     0
+cmd/zfs-csi                           0.07    0.0    0.1      0.00     1     0
+internal/unixsock                     0.04    1.7    1.7      0.01     6     0
+gen/zfsendpoint/v1                    0.00    0.7    0.7      0.00     0     0
+internal/zfs/zfstest                  0.00    1.7    1.7      0.00     0     0
+top 30
+   2.38 pass  internal/server TestShutdownWaitsForCancelledHandlers
+   1.51 pass  internal/endpoint TestSimulateDestroyAllEquivalent
+   1.06 pass  internal/server TestMessageSizes
+   1.01 pass  cmd/zfs-endpoint TestStartupWaitsForTheParent
+   0.38 pass  internal/csi TestSanity
+   0.25 pass  internal/zfs TestKilledCommandIsInterrupted
+   0.18 pass  internal/server TestConcurrentZFSIsBounded
+   0.15 pass  internal/endpoint TestExportSizeLimit
+   0.11 pass  internal/zfs TestLimitBoundsConcurrentCommands
+   0.06 pass  internal/server TestShutdownDrainsInFlightCalls
+   0.05 pass  internal/endpoint TestAdv4CommitRaceDestroysJustProvisionedVolume
+   0.05 pass  internal/endpoint TestAdv4PartialDesiredSetMassDeletes
+   0.05 pass  internal/zfs TestLimitWaiterRespectsContext
+   0.05 pass  internal/endpoint FuzzReconcileSafe
+   0.04 pass  internal/csi TestCapabilitiesAdvertised
+   0.04 pass  internal/lock TestNoStarvation
+   0.03 pass  internal/endpoint FuzzReconcileSafe/seed#4
+   0.02 pass  internal/csi TestExpandNodeExpansionRequired
+   0.02 pass  internal/endpoint TestPlanPublishExport/too_many_clients
+   0.02 pass  internal/endpoint TestPlanPublishExport
+   0.02 pass  internal/lock TestWaitersAreServedInOrder
+   0.02 pass  internal/zfs TestChildRunsInItsOwnProcessGroup
+   0.01 pass  cmd/zfs-endpoint TestStartupRefusals
+   0.01 pass  internal/csi TestParametersAndAccessChecks
+   0.01 pass  internal/csi TestExpandUnlimitedFilesystem
+   0.01 pass  cmd/zfs-endpoint TestCheckVersion
+   0.01 pass  cmd/zfs-endpoint TestServeHealthNotifyAndStop
+   0.01 pass  internal/unixsock TestListenIsOwnerOnly
+   0.01 pass  internal/endpoint TestCloneFailureAfterCloneConvergesToSameState
+   0.01 pass  internal/endpoint TestReconcileAgainstDesiredSet

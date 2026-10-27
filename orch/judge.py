@@ -33,7 +33,12 @@ elif wq: out.append(("WAIT-WRITERS", f"{nw} writers running (max 3); next: {wq[0
 # adversarial pass come first, then the question carries the recommendation
 for q in state.get("questions", []):
     q = q if isinstance(q, dict) else {"text": q}
-    if q.get("researched") and q.get("attacked"): out.append(("ASK", f"{q['text']} (recommend: {q.get('recommend')}; evidence: {q.get('report')})"))
+    if q.get("researched") and q.get("attacked"):
+        # research settles most questions (owner: "eliminates 88%+"): decide
+        # and record when the evidence is decisive and the choice reversible;
+        # ask only what stays contested, or is irreversible or outward-facing
+        if q.get("decisive") and not q.get("irreversible"): out.append(("DECIDE+RECORD", f"{q['text']} -> {q.get('recommend')} (ADR; evidence {q.get('report')})"))
+        else: out.append(("ASK", f"{q['text']} (recommend: {q.get('recommend')}; evidence: {q.get('report')})"))
     else: out.append(("RESEARCH-FIRST", q["text"]))
 last_cp = max([i for i, e in enumerate(events) if e["to"] == "checkpoint"], default=-1)
 if len(events) - 1 > last_cp: out.append(("CHECKPOINT", f"{len(events) - 1 - last_cp} transitions since the last one"))

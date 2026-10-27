@@ -1,0 +1,11 @@
+package,status,pkg_elapsed_s,first_event_s_from_t0,end_s_from_t0,top_tests,subtests,top_sum_s,top_parallel,top_nonparallel_sum_s,top_skips
+cmd/zfs-endpoint,pass,14.428,17.16,31.59,6,0,12.93,0,12.93,0
+internal/endpoint,pass,14.07,18.55,32.62,111,91,13.98,0,13.98,0
+internal/csi,pass,9.73,17.7,27.43,6,0,7.93,0,7.93,0
+internal/server,pass,9.684,27.42,37.1,9,0,7.36,0,7.36,0
+internal/unixsock,pass,3.841,27.47,31.31,6,0,1.41,0,1.41,0
+internal/zfs,pass,0.917,31.32,32.23,16,33,0.64,0,0.64,0
+internal/lock,pass,0.427,24.66,25.09,5,0,0.04,0,0.04,0
+cmd/zfs-csi,pass,0.038,0.0,0.04,1,0,0,0,0,0
+gen/zfsendpoint/v1,skip,0,17.7,17.7,0,0,0,0,0,0
+internal/zfs/zfstest,skip,0,31.6,31.6,0,0,0,0,0,0
