@@ -263,6 +263,14 @@ if [ -n "${ZFSVM_PROVISION_ONLY:-}" ]; then
   exit 0
 fi
 
+# where the guest's boot went (kernel, initrd, userspace), for the boot
+# timeline. In the background over the ssh master, so it runs beside the
+# tests instead of after them (1.7s on the path in run 40494213342), and
+# printed after the logs. It waits for the boot to settle first: it fails
+# while units are still starting. Best effort, never a gate
+vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "NR <= 15"' \
+  >"$work/systemd-analyze.txt" 2>&1 &
+analyze=$!
 bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
 scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci/test-times.awk ci@127.0.0.1:
@@ -280,10 +288,9 @@ for f in "$o"/*.log; do
   cat "$f"
   echo "::endgroup::"
 done
-# where the guest's boot went (kernel, initrd, userspace), for the boot
-# timeline; best effort, it fails while units are still starting
 echo "::group::systemd-analyze"
-vm 'systemd-analyze; systemd-analyze blame | head -n 15' 2>&1 || true
+wait "$analyze" || true
+cat "$work/systemd-analyze.txt" 2>/dev/null || true
 echo "::endgroup::"
 # what check-skips reads: endpoint = the union of its shards (it must
 # cover endpoint.list); csi-mount = the non-sanity tests plus csi-sanity on
