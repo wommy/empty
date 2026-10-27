@@ -109,8 +109,10 @@ func CodeOf(err error) Code {
 // DeleteSnapshot report as FAILED_PRECONDITION. An unclassified failure
 // after a change is Aborted, not Internal: a retry re-scans and converges,
 // while a final code would strand the half-applied plan
-// (external-provisioner never deletes what it never got). Before any
-// change it stays Internal.
+// (external-provisioner never deletes what it never got). That holds for
+// a read too (a scan or get after the change, opRead mutated): the change
+// is what a retry must finish, whatever command failed. Before any change
+// it stays Internal.
 //
 // A destroy whose target no longer has the guid the plan read (OWN-15:
 // renamed away, another dataset made under the name) is not a zfs failure
@@ -135,7 +137,7 @@ var errRules = []errRule{
 	{kinds: kinds(zfs.KindInterrupted), code: Aborted},
 	{kinds: kinds(zfs.KindNoSpace), code: ResourceExhausted},
 	{kinds: kinds(zfs.KindInvalidProperty), code: InvalidArgument},
-	{ops: mutatingOps, kinds: kinds(zfs.KindUnknown), after: true, code: Aborted},
+	{kinds: kinds(zfs.KindUnknown), after: true, code: Aborted},
 	{kinds: kinds(zfs.KindUnknown), code: Internal},
 }
 

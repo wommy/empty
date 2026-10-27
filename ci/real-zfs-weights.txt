@@ -113,6 +113,8 @@ TestConcurrentCreatesSerialize 0.00
 TestCreateNeverStampsRowWithoutName 0.00
 TestCreateResumeFailureStaysAborted 0.00
 TestCreateUnmountedFilesystemMountsThenCommits 0.00
+TestCreateVolumeReadAfterChangeIsRetryable 0.00
+TestCreateVolumeReadBeforeChangeStaysInternal 0.00
 TestDecodeRejectsImpossibleZvolSizes 0.00
 TestDeleteCloneInterruptedThenRetriedReleasesOrigin 0.00
 TestDeleteCloneWaitsForBusySource 0.00
@@ -211,6 +213,7 @@ TestReconcileRescanFailureDestroysNothing 0.00
 TestReconcileSkipsNonIssuableDesiredID 0.00
 TestReconcileSkipsSourceOfFailedClone 0.00
 TestReconcileSparesReceivedAndRenamed 0.00
+TestResumeErrKeepsRefusals 0.00
 TestRootErrMapping 0.00
 TestRootPropsRoundTrip 0.00
 TestRowKindAndCapacity 0.00

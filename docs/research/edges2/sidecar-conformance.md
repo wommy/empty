@@ -5,7 +5,8 @@
 All three sidecars treat the same gRPC codes as "operation may still be in progress" (retry the same name; do not give up). Everything else is final.
 
 - **In-progress set:** Canceled, DeadlineExceeded, Unavailable, Aborted. Snapshotter and resizer also include ResourceExhausted.
-- **Final:** FailedPrecondition, Internal, InvalidArgument, AlreadyExists, NotFound and all other codes. Non-gRPC errors are final in the provisioner and in-progress (not final) in the snapshotter and resizer.
+- **Final:** FailedPrecondition, Internal, InvalidArgument, AlreadyExists, NotFound and all other codes. Non-gRPC errors are in-progress (not final) in all three: the provisioner's `checkError` returns InBackground for an error that is not a gRPC status (external-provisioner v5.2.0 `pkg/controller/controller.go:1879-1914`; an earlier revision of this note said final, which v5.2.0 does not do).
+- **What a final code costs after a change** (v5.2.0, sig-storage-lib-external-provisioner v11.0.1): Finished takes the claim out of `claimsInProgress`; once the PVC is deleted the claim is dropped and DeleteVolume is never called, so a half-made volume leaks. The snapshotter's final error removes the being-created annotation, so a cut snapshot leaks the same way. Hence the endpoint's rule: an unclassified failure after a change (an op or a read) is ABORTED, never INTERNAL.
 - external-provisioner `checkError`: ResourceExhausted gives Reschedule or Finished. The in-progress set gives InBackground. Everything else gives Finished. `github:kubernetes-csi/external-provisioner@ee7abf31 pkg/controller/controller.go:2037-2072`
 - external-snapshotter `isCSIFinalError`: `github:kubernetes-csi/external-snapshotter@44c047ad pkg/sidecar-controller/snapshot_controller.go:889-911`
 - external-resizer `IsFinalError`: `github:kubernetes-csi/external-resizer@e24dbe9d pkg/util/util.go:242-264`
