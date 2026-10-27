@@ -500,3 +500,27 @@ func TestCreateRollbackConcurrentSameName(t *testing.T) {
 		}
 	})
 }
+
+// The create's answer was lost (it ran) and the rollback then fails (a
+// busy destroy): the row is left, so the code must be one the provisioner
+// retries, never a final one (ADR 0010 R4).
+func TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable(t *testing.T) {
+	ctx := context.Background()
+	h, sim := rbHarness(t)
+	r := &loseCreate{Runner: sim, target: h.Parent + "/v"}
+	ep := rbEndpoint(t, h, r, nil)
+	sim.Fail = func(a []string) error {
+		if a[0] == "destroy" {
+			return &zfs.ExitError{Code: 1, Stderr: "cannot destroy: dataset is busy\n"}
+		}
+		return nil
+	}
+	_, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", Kind: endpoint.Block, CapacityBytes: 16 * cmib})
+	sim.Fail = nil
+	if !sim.Has(h.Parent + "/v") {
+		t.Fatal("the busy destroy did not leave the row; the test no longer reaches a failed rollback")
+	}
+	if c := endpoint.CodeOf(err); c != endpoint.Aborted {
+		t.Fatalf("row left uncommitted with code %v (%v): want Aborted, a final code strands it", c, err)
+	}
+}
