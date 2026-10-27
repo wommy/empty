@@ -20,6 +20,7 @@ const (
 	OutOfRange         Code = 11 // capacity outside limits
 	ResourceExhausted  Code = 8  // no space
 	Unavailable        Code = 14 // host or pool temporarily unusable
+	Unimplemented      Code = 12 // capability not offered by this endpoint
 )
 
 // Error is an endpoint failure with a stable Code.

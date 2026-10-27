@@ -36,6 +36,19 @@ service EndpointService {
   // datasets, desired volumes, CSI snapshots, or volumes with snapshots or
   // dependent clones (those are reported in skipped).
   rpc Reconcile(ReconcileRequest) returns (ReconcileResponse);
+
+  // NFS export of FILESYSTEM volumes, one client at a time (CSI
+  // ControllerPublish/Unpublish). Offered only with CAPABILITY_FILE_EXPORT;
+  // otherwise UNIMPLEMENTED.
+  // - Publishing the same client in the same mode again is OK; in the other
+  //   mode ALREADY_EXISTS.
+  // - Unpublishing a client (or volume) that is not exported is OK.
+  // - BLOCK volumes and filesystems not mounted on the storage host are
+  //   FAILED_PRECONDITION.
+  // - OK means the NFS server serves (or no longer serves) the client; if it
+  //   does not, UNAVAILABLE, and a retry re-applies.
+  rpc PublishFileExport(PublishFileExportRequest) returns (PublishFileExportResponse);
+  rpc UnpublishFileExport(UnpublishFileExportRequest) returns (UnpublishFileExportResponse);
 }
 
 enum Capability {
@@ -49,8 +62,9 @@ enum Capability {
   CAPABILITY_CAPACITY = 7;
   // CreateVolumeRequest.properties is honoured (default-deny allowlist).
   CAPABILITY_PROPERTIES = 8;
+  CAPABILITY_FILE_EXPORT = 9; // PublishFileExport/UnpublishFileExport
   CAPABILITY_RECONCILE = 10;
-  // reserved for upcoming edges: exports, metadata (CBT), modify
+  // reserved for upcoming edges: block export, metadata (CBT), modify
 }
 
 message GetCapabilitiesRequest {}
@@ -191,3 +205,22 @@ message ReconcileResponse {
   repeated ReconcileAction actions = 1;
   repeated ReconcileSkip skipped = 2;
 }
+
+message PublishFileExportRequest {
+  string volume_id = 1;
+  // a hostname, IPv4 address or IPv4 CIDR ("10.0.0.0/24"); no wildcards,
+  // netgroups or IPv6
+  string client = 2;
+  bool read_only = 3;
+}
+message PublishFileExportResponse {
+  // path to mount from the storage host (server:export_path). It is read
+  // fresh on every call: pass it on (CSI publish_context), do not store it.
+  string export_path = 1;
+}
+
+message UnpublishFileExportRequest {
+  string volume_id = 1;
+  string client = 2;
+}
+message UnpublishFileExportResponse {}

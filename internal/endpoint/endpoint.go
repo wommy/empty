@@ -49,6 +49,10 @@ func (n props) sourceID() string       { return n.p + ":csi_volume_content_sourc
 func (n props) snapshotName() string   { return n.p + ":csi_snapshot_name" }
 func (n props) snapshotSource() string { return n.p + ":csi_snapshot_source_volume_id" }
 
+// nfsClients is the endpoint's own property (not the baseline's): the
+// desired NFS client list that sharenfs is computed from.
+func (n props) nfsClients() string { return n.p + ":nfs_clients" }
+
 // baseline's name for the internal snapshot a volume-to-volume clone hangs off
 const cloneSourceSnapshotPrefix = "volume-source-for-volume-"
 
@@ -67,6 +71,14 @@ type Config struct {
 	LockWait time.Duration
 	// Now is the clock reconcile ages rows against. Default time.Now.
 	Now func() time.Time
+	// FileExport enables NFS export (Publish/UnpublishFileExport). Exports
+	// need root: libzfs writes /etc/exports.d and runs exportfs as the
+	// caller, and only root can mount. The caller decides (e.g. from the
+	// effective uid); unset, those calls are Unimplemented.
+	FileExport bool
+	// Etab reads the kernel export table to verify exports. Default
+	// /var/lib/nfs/etab.
+	Etab EtabReader
 }
 
 // Endpoint is the volume service.
@@ -94,6 +106,9 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.Etab == nil {
+		cfg.Etab = DefaultEtab
 	}
 	names := props{cfg.PropertyPrefix}
 	return &Endpoint{
@@ -521,4 +536,112 @@ func (e *Endpoint) GetCapacity(ctx context.Context) (uint64, error) {
 		return 0, zfsErr(err, "inspect parent")
 	}
 	return d.Props["available"].Uint()
+}
+
+// ---- file export (NFS) -------------------------------------------------------
+
+// FileExportEnabled reports whether this endpoint offers NFS export.
+func (e *Endpoint) FileExportEnabled() bool { return e.cfg.FileExport }
+
+func (e *Endpoint) readEtab(ctx context.Context) (Etab, error) {
+	b, err := e.cfg.Etab.ReadEtab(ctx)
+	if err != nil {
+		return nil, &Error{Code: Unavailable, Msg: "read NFS export table", Err: err}
+	}
+	return ParseEtab(b), nil
+}
+
+// PublishFileExport exports a filesystem volume over NFS to one client
+// (hostname, IPv4 address or IPv4 CIDR), read-write or read-only, and
+// returns the export path on the storage host. Repeating it is a no-op; the
+// same client in the other mode is AlreadyExists. Unmounted volumes and
+// zvols are FailedPrecondition. Success means the kernel serves the export:
+// `zfs set sharenfs` cannot report a failed exportfs, so the export table is
+// read back and a mismatch is Unavailable (the retry re-shares).
+func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, readOnly bool) (string, error) {
+	if !e.cfg.FileExport {
+		return "", errorf(Unimplemented, "file export needs the endpoint to run as root")
+	}
+	if _, err := volumeID(volID); err != nil {
+		return "", err
+	}
+	c, err := ParseClient(host, readOnly)
+	if err != nil {
+		return "", err
+	}
+	release, err := e.lock(ctx, "vol:"+volID)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	t, err := e.scan(ctx, volID)
+	if err != nil {
+		return "", err
+	}
+	live, err := e.readEtab(ctx)
+	if err != nil {
+		return "", err
+	}
+	plan, row, err := e.plan.PlanPublishExport(t, live, volID, c)
+	if err != nil {
+		return "", err
+	}
+	if len(plan) == 0 {
+		return row.Mount, nil
+	}
+	if err := e.apply(ctx, plan); err != nil {
+		return "", err
+	}
+	if live, err = e.readEtab(ctx); err != nil {
+		return "", err
+	}
+	if got, ok := live.Lookup(row.Mount, c.Host); !ok || got.ReadOnly != c.ReadOnly {
+		return "", errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s %s: "+
+			"zfs does not report exportfs failures; check that the NFS server is running", row.Name, row.Mount, c.Host, c.mode())
+	}
+	return row.Mount, nil
+}
+
+// UnpublishFileExport revokes one client's NFS access to a volume. A
+// missing volume or a client that is not exported is OK. Success means the
+// kernel no longer serves the export to that client.
+func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) error {
+	if !e.cfg.FileExport {
+		return errorf(Unimplemented, "file export needs the endpoint to run as root")
+	}
+	if _, err := volumeID(volID); err != nil {
+		return err
+	}
+	h, err := normalizeHost(host)
+	if err != nil {
+		return err
+	}
+	release, err := e.lock(ctx, "vol:"+volID)
+	if err != nil {
+		return err
+	}
+	defer release()
+	t, err := e.scan(ctx, volID)
+	if err != nil {
+		return err
+	}
+	live, err := e.readEtab(ctx)
+	if err != nil {
+		return err
+	}
+	plan, row, err := e.plan.PlanUnpublishExport(t, live, volID, h)
+	if err != nil || len(plan) == 0 {
+		return err
+	}
+	if err := e.apply(ctx, plan); err != nil {
+		return err
+	}
+	if live, err = e.readEtab(ctx); err != nil {
+		return err
+	}
+	if _, ok := live.Lookup(row.Mount, h); ok {
+		return errorf(Unavailable, "sharenfs on %s is updated, but the NFS export table still serves %s to %s: "+
+			"zfs does not report exportfs failures; check that the NFS server is running", row.Name, row.Mount, h)
+	}
+	return nil
 }

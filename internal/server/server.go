@@ -71,21 +71,36 @@ func maxEntries(n int32) (int, error) {
 }
 
 func (s *Server) GetCapabilities(ctx context.Context, _ *pb.GetCapabilitiesRequest) (*pb.GetCapabilitiesResponse, error) {
-	return &pb.GetCapabilitiesResponse{
-		Parent:  s.Parent,
-		Version: Version,
-		Capabilities: []pb.Capability{
-			pb.Capability_CAPABILITY_VOLUMES,
-			pb.Capability_CAPABILITY_SNAPSHOTS,
-			pb.Capability_CAPABILITY_CLONE_FROM_SNAPSHOT,
-			pb.Capability_CAPABILITY_CLONE_FROM_VOLUME,
-			pb.Capability_CAPABILITY_EXPAND,
-			pb.Capability_CAPABILITY_LIST,
-			pb.Capability_CAPABILITY_CAPACITY,
-			pb.Capability_CAPABILITY_PROPERTIES,
-			pb.Capability_CAPABILITY_RECONCILE,
-		},
-	}, nil
+	caps := []pb.Capability{
+		pb.Capability_CAPABILITY_VOLUMES,
+		pb.Capability_CAPABILITY_SNAPSHOTS,
+		pb.Capability_CAPABILITY_CLONE_FROM_SNAPSHOT,
+		pb.Capability_CAPABILITY_CLONE_FROM_VOLUME,
+		pb.Capability_CAPABILITY_EXPAND,
+		pb.Capability_CAPABILITY_LIST,
+		pb.Capability_CAPABILITY_CAPACITY,
+		pb.Capability_CAPABILITY_PROPERTIES,
+		pb.Capability_CAPABILITY_RECONCILE,
+	}
+	if s.EP.FileExportEnabled() {
+		caps = append(caps, pb.Capability_CAPABILITY_FILE_EXPORT)
+	}
+	return &pb.GetCapabilitiesResponse{Parent: s.Parent, Version: Version, Capabilities: caps}, nil
+}
+
+func (s *Server) PublishFileExport(ctx context.Context, r *pb.PublishFileExportRequest) (*pb.PublishFileExportResponse, error) {
+	path, err := s.EP.PublishFileExport(ctx, r.GetVolumeId(), r.GetClient(), r.GetReadOnly())
+	if err != nil {
+		return nil, grpcErr(err)
+	}
+	return &pb.PublishFileExportResponse{ExportPath: path}, nil
+}
+
+func (s *Server) UnpublishFileExport(ctx context.Context, r *pb.UnpublishFileExportRequest) (*pb.UnpublishFileExportResponse, error) {
+	if err := s.EP.UnpublishFileExport(ctx, r.GetVolumeId(), r.GetClient()); err != nil {
+		return nil, grpcErr(err)
+	}
+	return &pb.UnpublishFileExportResponse{}, nil
 }
 
 func (s *Server) CreateVolume(ctx context.Context, r *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
