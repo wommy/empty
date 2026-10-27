@@ -89,7 +89,9 @@ export NFS_REPLAY_REPORT=$out/nfs-replay.log
 export ZFSDIFF_REPORT=$out/zfsdiff.log
 export ZFSDIFF_FULL=${ZFSDIFF_FULL:-}
 # ZFS_CRASH_FULL=1 (nightly): every crash point of every case on the real
-# pool (internal/endpoint/crash_test.go crashSample), not the PR's rotation
+# pool (internal/endpoint/crash_test.go crashSample), not the PR's rotation,
+# and every destroy of TestDestroyNeverHitsAReplacedDataset (swapSweep), not
+# only the first of each case
 export ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-}
 # stamp: "@<unix seconds> " before each line, for ci/test-times.awk's wall
 # column. Only the RUN/PAUSE/CONT and result lines reach it, so the shard
