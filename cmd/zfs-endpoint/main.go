@@ -12,7 +12,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -77,6 +79,8 @@ func run(ctx context.Context, args []string, d deps) error {
 	parent := fs.String("parent", "", "parent dataset to manage, e.g. tank/k8s/vols (required)")
 	listen := fs.String("listen", "", "unix:///absolute/path to serve on (TCP is refused until transport auth, ADR 0001); default "+unixsock.EndpointAddr("<parent>")+", systemd-escaped, as zfs-endpoint@.service serves it")
 	adminListen := fs.String("admin-listen", "", "unix:///absolute/path to serve the admin role on (Reconcile, PublishFileExport, UnpublishFileExport; root or the daemon's uid only), in a directory of its own; default none: -listen serves the CSI role only, and those calls are refused. zfs-endpoint@.service serves "+unixsock.EndpointAdminAddr("<parent>"))
+	socketGroup := fs.String("socket-group", "", "group name or gid given the -listen socket: the socket becomes 0660 and its directory 0710, so a non-root CSI controller in the group (supplementalGroups) can connect. "+
+		"The directory must hold nothing but the socket. Default none: the socket stays 0600, owner only. The admin socket is never shared")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	prefix := fs.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
 	lockWait := fs.Duration("lock-wait", 30*time.Second, "max wait for a busy resource; 0: try once and never wait (negative is refused)")
@@ -132,6 +136,10 @@ func run(ctx context.Context, args []string, d deps) error {
 		return err
 	}
 	adminSock, err := adminSocketPath(*adminListen, sock, d.lockDir)
+	if err != nil {
+		return err
+	}
+	gid, err := socketGID(*socketGroup)
 	if err != nil {
 		return err
 	}
@@ -209,7 +217,7 @@ func run(ctx context.Context, args []string, d deps) error {
 
 	// owner-only until transport auth lands (ADR 0001); a live socket
 	// means another endpoint serves this path
-	lis, err := unixsock.Listen(sock)
+	lis, err := listenCSI(sock, gid)
 	if err != nil {
 		return err
 	}
@@ -389,6 +397,48 @@ func adminSocketPath(addr, sock, lockDir string) (string, error) {
 			"use a directory of its own, as the unit does (%s)", path, filepath.Dir(sock), strings.TrimPrefix(unixsock.EndpointAdminAddr("<parent>"), "unix://"))
 	}
 	return path, nil
+}
+
+// noGroup is socketGID's "no -socket-group".
+const noGroup = -1
+
+// socketGID resolves -socket-group, a group name or a numeric gid, to a
+// gid; "" is noGroup. An unknown group is a configuration error (78).
+func socketGID(group string) (int, error) {
+	if group == "" {
+		return noGroup, nil
+	}
+	if n, err := strconv.Atoi(group); err == nil {
+		if n < 0 {
+			return 0, configErr("-socket-group %d: want a gid of 0 or more", n)
+		}
+		return n, nil
+	}
+	g, err := user.LookupGroup(group)
+	if err != nil {
+		return 0, configErr("-socket-group %q: %v", group, err)
+	}
+	n, err := strconv.Atoi(g.Gid)
+	if err != nil {
+		return 0, configErr("-socket-group %q: gid %q is not a number", group, g.Gid)
+	}
+	return n, nil
+}
+
+// listenCSI listens on the -listen socket, owner only (unixsock.Listen),
+// and, given a gid, opens it to that group (unixsock.ShareWithGroup, ADR
+// 0001 v2 D7). A directory that holds more than the socket is a
+// configuration error: the operator chose the path.
+func listenCSI(sock string, gid int) (net.Listener, error) {
+	lis, err := unixsock.Listen(sock)
+	if err != nil || gid == noGroup {
+		return lis, err
+	}
+	if err := unixsock.ShareWithGroup(sock, gid); err != nil {
+		lis.Close()
+		return nil, configErr("-socket-group: %v", err)
+	}
+	return lis, nil
 }
 
 // socketPath accepts only unix:///absolute/path. TCP served the

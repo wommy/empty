@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -237,6 +238,68 @@ func TestListenSharedRelaxesOnlyTheDirectoryMode(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(file); string(b) != "keep" {
 		t.Error("non-socket replaced")
+	}
+}
+
+// ADR 0001 v2 D7: a socket group opens the socket (0660) and its own
+// directory (0710, search only) to that group, and nothing else. A
+// directory holding anything besides the socket is refused, unchanged.
+func TestShareWithGroupOpensOnlyTheSocketAndItsDirectory(t *testing.T) {
+	t.Parallel()
+	gid := os.Getegid()
+	if os.Geteuid() == 0 {
+		gid = 65534 // root may give any group: prove the group changes
+	}
+	owned := func(p string, mode os.FileMode) {
+		t.Helper()
+		fi, err := os.Lstat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, ok := fi.Sys().(*syscall.Stat_t)
+		if !ok {
+			t.Fatalf("%s: no owner", p)
+		}
+		if fi.Mode().Perm() != mode || int(st.Gid) != gid {
+			t.Errorf("%s: %v gid %v, want %v gid %d", p, fi.Mode(), st.Gid, mode, gid)
+		}
+	}
+	sock := filepath.Join(t.TempDir(), "sock", "endpoint.sock")
+	l, err := unixsock.Listen(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if err := unixsock.ShareWithGroup(sock, gid); err != nil {
+		t.Fatal(err)
+	}
+	owned(sock, 0o660)
+	owned(filepath.Dir(sock), 0o710)
+	if err := unixsock.SecureDir(filepath.Dir(sock)); err != nil {
+		t.Errorf("a shared directory no longer passes SecureDir, so a restart fails: %v", err)
+	}
+
+	// a directory that is not the socket's own: nothing changes
+	shared := filepath.Join(t.TempDir(), "run")
+	other := filepath.Join(shared, "x.sock")
+	l2, err := unixsock.Listen(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l2.Close()
+	if err := os.WriteFile(filepath.Join(shared, "lock"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := unixsock.ShareWithGroup(other, gid); err == nil || !strings.Contains(err.Error(), "directory of the socket's own") {
+		t.Fatalf("shared directory: %v", err)
+	}
+	for p, mode := range map[string]os.FileMode{other: 0o600, shared: 0o700} {
+		if fi, err := os.Lstat(p); err != nil || fi.Mode().Perm() != mode {
+			t.Errorf("%s changed after a refusal: %v %v", p, fi.Mode(), err)
+		}
+	}
+	if err := unixsock.ShareWithGroup(sock, -1); err == nil {
+		t.Error("a negative gid was accepted")
 	}
 }
 

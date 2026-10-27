@@ -30,7 +30,7 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 | D4 | Two-person Reconcile: deferred | n/a |
 | D5 | TCP stays refused; mTLS is future work | yes (refused) |
 | D6 | `SO_PEERCRED`: logged now, authorized later | logged; admin role checks uid |
-| D7 | `-socket-group` for the csi listener | **no**: decided, not built |
+| D7 | `-socket-group` for the csi listener | yes (off by default) |
 | D8 | NFS stays static-first (ADR 0004); pod-egress deny is F6's primary control | docs and deployment |
 | D9 | Reconcile skips exported volumes | **no**: decided, not built |
 | D10 | A crossmnt ancestor at startup: refuse, exit 78 | yes |
@@ -119,11 +119,17 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
   - an optional per-listener `-allow-uids` comes later;
   - once uids are authorized, `MaxConnectionAge=1h` bounds how long a revoked uid keeps working.
 
-### D7. `-socket-group` (not built)
+### D7. `-socket-group`
 
 - `-socket-group` sets the csi socket to 0660 with that group. The controller pod can then run non-root with `supplementalGroups`.
 - Without the flag, the socket stays 0600 root, as it is today.
 - The admin socket stays 0600 root either way.
+- As built (`unixsock.ShareWithGroup`):
+  - the flag takes a group name or a numeric gid; one that does not resolve exits 78;
+  - the socket's directory becomes 0710 with the same group (search, no listing), which the group needs to reach the socket from the host;
+  - the directory must hold nothing but the socket, else exit 78 and nothing changes: opening a shared directory such as `/run` to a group would be far wider than the socket;
+  - a 0710 directory still passes `SecureDir`, so a restart works. Dropping the flag leaves the directory 0710, but the new socket is 0600, so the group can no longer connect;
+  - the unit and the manifests do not set it: the controller pod still runs as root (ADR 0006).
 
 ### D8. NFS: static-first stays; pod-egress deny is F6's primary control
 
