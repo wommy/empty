@@ -83,17 +83,18 @@ func checkVersion(ctx context.Context, z *zfs.Client) error {
 	return nil
 }
 
-// validParent accepts a dataset name zfs would, minus "." and ".."
-// components: "tank/../x" passes the name pattern but is not a dataset,
-// and would name the lock file of another.
+// validParent accepts a dataset name zfs would. "tank/../x" is not a
+// dataset, and would name the lock file of another: zfs.ValidDataset
+// refuses it too, and the component is named here first so the message
+// says why.
 func validParent(p string) error {
-	if !zfs.ValidDataset(p) {
-		return configErr("invalid parent dataset %q", p)
-	}
 	for _, c := range strings.Split(p, "/") {
 		if c == "." || c == ".." {
 			return configErr("invalid parent dataset %q: %q component", p, c)
 		}
+	}
+	if !zfs.ValidDataset(p) {
+		return configErr("invalid parent dataset %q", p)
 	}
 	return nil
 }
