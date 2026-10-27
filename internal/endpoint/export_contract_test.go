@@ -87,6 +87,7 @@ func sets(h *harness, from int) int {
 }
 
 func TestFileExportLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	h.NFS(t)
@@ -156,6 +157,7 @@ func TestFileExportLifecycle(t *testing.T) {
 }
 
 func TestFileExportPreconditions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "blk", Kind: endpoint.Block, CapacityBytes: 1 << 20, Sparse: true}); err != nil {
@@ -234,6 +236,8 @@ func TestFileExportPreconditions(t *testing.T) {
 // already right; likewise Unpublish must not report a revoke that did not
 // happen (review: "Unexport reports OK while the volume is still exported").
 func TestFileExportVerifiesKernelTable(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
@@ -464,6 +468,7 @@ func TestFileExportReceivedShareNFS(t *testing.T) {
 // local value, and a sharenfs someone else set locally is refused, not
 // overwritten.
 func TestFileExportAdoptedVolumes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setupPrefix(t, "democratic-csi")
 	h.NFS(t)

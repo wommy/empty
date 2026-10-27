@@ -25,6 +25,7 @@ func capability(block bool) *csi.VolumeCapability {
 }
 
 func TestCapabilitiesAdvertised(t *testing.T) {
+	t.Parallel()
 	c := &zcsi.Controller{EP: endpointClient(t)}
 	res, err := c.ControllerGetCapabilities(context.Background(), &csi.ControllerGetCapabilitiesRequest{})
 	if err != nil {
@@ -51,6 +52,7 @@ func TestCapabilitiesAdvertised(t *testing.T) {
 // Only a zvol carrying a filesystem needs the node to grow it; democratic-csi
 // also asks for node expansion on raw block, which no node can act on.
 func TestExpandNodeExpansionRequired(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	c := &zcsi.Controller{EP: endpointClient(t)}
 	for _, block := range []bool{true, false} {
@@ -97,6 +99,7 @@ func TestExpandNodeExpansionRequired(t *testing.T) {
 }
 
 func TestParametersAndAccessChecks(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep := endpointClient(t)
 	c := &zcsi.Controller{EP: ep}
@@ -153,6 +156,7 @@ func TestParametersAndAccessChecks(t *testing.T) {
 // DeleteVolume of a missing volume MUST be OK (CSI); the other RPCs report
 // NOT_FOUND, never INVALID_ARGUMENT (final for the resizer).
 func TestNeverIssuedIDs(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	c := &zcsi.Controller{EP: endpointClient(t)}
 	long := strings.Repeat("x", 200)
@@ -179,6 +183,7 @@ func TestNeverIssuedIDs(t *testing.T) {
 // after expansion: an unlimited filesystem satisfies any request, so it
 // reports the request, never 0.
 func TestExpandUnlimitedFilesystem(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	c := &zcsi.Controller{EP: endpointClient(t)}
 	if _, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "free", VolumeCapabilities: []*csi.VolumeCapability{capability(false)}}); err != nil {

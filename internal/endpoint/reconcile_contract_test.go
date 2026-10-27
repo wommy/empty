@@ -35,6 +35,7 @@ func targets(p endpoint.ReconcilePlan) (acts, skips []string) {
 }
 
 func TestReconcileCollectsAbandonedCreate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	// a CreateVolume that crashed before its commit marker, never retried
@@ -70,6 +71,7 @@ func TestReconcileCollectsAbandonedCreate(t *testing.T) {
 }
 
 func TestReconcileCollectsLeakedCloneSource(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 1 << 30}); err != nil {
@@ -113,6 +115,7 @@ func TestReconcileCollectsLeakedCloneSource(t *testing.T) {
 }
 
 func TestReconcileAgainstDesiredSet(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	for _, name := range []string{"keep", "drop", "snapped", "src"} {
@@ -201,6 +204,8 @@ func (g *parked) Run(ctx context.Context, name string, args ...string) ([]byte, 
 // volume another operation holds is skipped as busy, and the rest of the
 // run goes on. A dry run takes no locks.
 func TestReconcileLocksTargets(t *testing.T) {
+	requireSim(t)
+	t.Parallel()
 	ctx := context.Background()
 	ep0, h := setup(t)
 	g := &parked{Runner: h.Sim(t), entered: make(chan struct{}), release: make(chan struct{})}

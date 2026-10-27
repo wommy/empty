@@ -2,6 +2,7 @@ package csi_test
 
 import (
 	"context"
+	"flag"
 	"net"
 	"os"
 	"path/filepath"
@@ -46,6 +47,12 @@ func (cleanupNode) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilities
 // ZFS_TEST_POOL). The CSI side is a real unix socket, which is what
 // csi-sanity dials.
 func TestSanity(t *testing.T) {
+	// Ginkgo refuses -count>1 for the whole binary ("only -count=1 is
+	// allowed"), which made `go test -count=N ./internal/csi` fail outright
+	// and hid the package's other tests from flake hunting.
+	if f := flag.Lookup("test.count"); f != nil && f.Value.String() != "1" {
+		t.Skip("csi-sanity (Ginkgo) runs once per process; use -count=1")
+	}
 	ep := endpointClient(t)
 
 	// unix socket paths are limited to ~108 bytes; t.TempDir can exceed that

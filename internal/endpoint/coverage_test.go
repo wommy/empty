@@ -60,6 +60,7 @@ func TestPlannersRequireACoveringTable(t *testing.T) {
 }
 
 func TestScanRecordsCoverage(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	e, err := New(zfs.New(sim), Config{Parent: "tank"})

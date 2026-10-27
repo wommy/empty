@@ -14,6 +14,8 @@ import (
 // one) is not the endpoint's, and `zfs destroy -r` of its volume would take
 // it. DeleteVolume refuses, naming them, unless the operator opted in.
 func TestDeleteVolumeSparesForeignSnapshots(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"}); err != nil {
@@ -79,6 +81,7 @@ func TestDeleteVolumeSparesForeignSnapshots(t *testing.T) {
 // The endpoint's own internal clone-source snapshot is not foreign: a
 // volume whose clone is gone deletes as before.
 func TestDeleteVolumeAfterItsCloneIsGone(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, _ := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src"}); err != nil {

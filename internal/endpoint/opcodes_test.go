@@ -24,6 +24,8 @@ func failOn(h *harness, t *testing.T, cmd, stderr string) {
 // for a volume or snapshot in use on DeleteVolume and DeleteSnapshot; on
 // create, snapshot and expand paths it is transient, so retryable.
 func TestBusyIsMappedByOperation(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	const busy = "cannot destroy 'x': dataset is busy\n"
 	ep, h := setup(t)
@@ -59,6 +61,8 @@ func TestBusyIsMappedByOperation(t *testing.T) {
 // the plan already changed something, it is retryable: the retry re-scans
 // and converges, while a final code would strand the half-made volume.
 func TestUnknownFailureAfterAMutationIsRetryable(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	const boom = "internal error: Input/output error\n"
 	ep, h := setup(t)

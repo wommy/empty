@@ -15,6 +15,7 @@ const mib = 1 << 20
 // never shrunk, so a source larger than the limit is OutOfRange before any
 // op, not a success above the limit followed by AlreadyExists on retry.
 func TestCloneLargerThanLimitIsOutOfRange(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	for _, k := range []endpoint.VolumeKind{endpoint.Block, endpoint.Filesystem} {
@@ -47,6 +48,7 @@ func TestCloneLargerThanLimitIsOutOfRange(t *testing.T) {
 // A filesystem restore with Reserve and no capacity reserves the size it
 // takes from its source, and the identical retry is a no-op.
 func TestReserveRestoreIsIdempotent(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {
@@ -80,6 +82,8 @@ func TestReserveRestoreIsIdempotent(t *testing.T) {
 // A failure (or crash) right after the clone converges, on retry, to the
 // end state an uninterrupted run reaches: same refquota, same reservation.
 func TestCloneFailureAfterCloneConvergesToSameState(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	for _, tc := range []struct {
 		name string
@@ -91,6 +95,7 @@ func TestCloneFailureAfterCloneConvergesToSameState(t *testing.T) {
 		{"volume-reserve", endpoint.CreateVolumeRequest{Name: "dst", SourceVolumeID: "src", Reserve: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ep, h := setup(t)
 			sim := h.Sim(t)
 			if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {

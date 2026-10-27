@@ -14,6 +14,7 @@ import (
 // of one. Anything else names no volume or snapshot the endpoint issued,
 // so it is NotFound, and nothing is snapshotted or cloned.
 func TestCloneSourcesMustBeOwned(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/foreign", map[string]string{"refquota": "1048576"}, false); err != nil {
@@ -84,6 +85,7 @@ func (r *cloneRacer) Run(ctx context.Context, name string, args ...string) ([]by
 // same hazard the README rules out for `zfs create -p`). A replay of our
 // own interrupted clone re-scans and takes the uncommitted-row path.
 func TestCloneNeverAdoptsARacingDataset(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sim := zfstest.New("tank")
 	r := &cloneRacer{sim: sim, target: "tank/p/c"}
@@ -116,6 +118,7 @@ func TestCloneNeverAdoptsARacingDataset(t *testing.T) {
 // a copy whose properties were re-set locally) is not the volume its
 // dataset name suggests: it is not served, expanded or deleted under it.
 func TestVolumeNameMustMatchID(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ep, h := setup(t)
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/moved", map[string]string{
@@ -149,6 +152,8 @@ func TestVolumeNameMustMatchID(t *testing.T) {
 // the endpoint's: not listed, not deletable, and its snapshots do not
 // shadow the original's CSI snapshot names.
 func TestReceivedCopyIsNotOwned(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
@@ -201,6 +206,8 @@ func TestReceivedCopyIsNotOwned(t *testing.T) {
 // dataset whose markers name another volume are someone else's, however
 // "undesired" they look.
 func TestReconcileSparesReceivedAndRenamed(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
 	ctx := context.Background()
 	ep, h := setup(t)
 	sim := h.Sim(t)
