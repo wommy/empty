@@ -97,7 +97,12 @@ const (
 	// the value stays the endpoint's and is served as it is; rewriting it
 	// would revoke clients. Narrow it with zfs set sharenfs, or Unpublish
 	// the network.
-	SkipNFSBelowFloor       = "sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten)"
+	SkipNFSBelowFloor = "sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten)"
+	// SkipUncommittedExported: an uncommitted create (an abandoned
+	// provision) whose own sharenfs still exports it. Its clients can
+	// mount it until a Reconcile -apply collects it; reported besides its
+	// collection, which the report alone never runs.
+	SkipUncommittedExported = "uncommitted create still exported by its sharenfs: its clients can mount it until Reconcile -apply collects it"
 	SkipMountpointNotPinned = "mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; " +
 		"pin it with zfs set mountpoint=<its current path> (zfs remounts it)"
 )
@@ -388,6 +393,14 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		}
 		out.Actions = append(out.Actions, a)
 		out.groups = append(out.groups, reconcileGroup{target: r.ID, n: 1})
+	}
+
+	// an abandoned create keeps the sharenfs it was made with: still
+	// served until collected. A young one may be in flight: not reported.
+	for r := range t.Volumes() {
+		if r.OwnedVolume() && !r.Committed && r.ShareNFSLocal && r.ShareNFS != "" && r.ShareNFS != "off" && tooYoung(r, d) == "" {
+			skip(r.ID, SkipUncommittedExported)
+		}
 	}
 
 	// report-only drift on the volumes that stay
@@ -712,7 +725,7 @@ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (Reconcile
 	for _, a := range plan.Actions {
 		for _, v := range a.Volumes {
 			if _, tried := held[v]; !tried {
-				release, ok := e.locks.TryAcquire("vol:" + v)
+				release, ok := e.locks.TryAcquireContext(ctx, "vol:"+v)
 				held[v] = ok
 				if ok {
 					releases[v] = release

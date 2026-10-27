@@ -28,7 +28,7 @@ func TestHealthWarnsOfALaterCrossmntAncestor(t *testing.T) {
 	d, sim := simDeps(t)
 	z := zfs.New(sim)
 	var logs bytes.Buffer
-	check := healthCheck(z, "tank/k8s", d.etab, slog.New(slog.NewTextHandler(&logs, nil)))
+	check := healthCheck(z, "tank/k8s", d.etab, 0, slog.New(slog.NewTextHandler(&logs, nil)))
 	step := func(share string, wantWarn, wantInfo int) {
 		t.Helper()
 		if share != "" {
@@ -56,6 +56,44 @@ func TestHealthWarnsOfALaterCrossmntAncestor(t *testing.T) {
 	if err := check(ctx); err == nil {
 		t.Error("a pool that does not answer passed the health check")
 	}
+}
+
+// With -min-free-bytes set, the health probe reads the parent's available
+// space in its own zfs get and logs a WARN once when it falls below the
+// floor and an INFO once it is back; health stays SERVING.
+func TestHealthWarnsOfFreeSpaceBelowTheFloor(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	d, sim := simDeps(t)
+	var calls int
+	sim.Fail = func(args []string) error {
+		calls++
+		return nil
+	}
+	z := zfs.New(sim)
+	var logs bytes.Buffer
+	check := healthCheck(z, "tank/k8s", d.etab, 1<<30, slog.New(slog.NewJSONHandler(&logs, nil)))
+	step := func(pool uint64, want string) {
+		t.Helper()
+		sim.PoolSize = pool
+		logs.Reset()
+		calls = 0
+		if err := check(ctx); err != nil {
+			t.Fatalf("pool %d: health check failed (NOT_SERVING): %v", pool, err)
+		}
+		if got := strings.TrimSpace(logs.String()); want == "" && got != "" || !strings.Contains(got, want) {
+			t.Errorf("pool %d: logged %s, want %s", pool, got, want)
+		}
+		// the type and available get, and the exposure check's mountpoint
+		if calls != 2 {
+			t.Errorf("pool %d: %d zfs calls, want 2", pool, calls)
+		}
+	}
+	step(1<<40, "")
+	step(1<<29, `"level":"WARN","msg":"health: free space below -min-free-bytes`)
+	step(1<<28, "") // still low: not repeated
+	step(1<<40, `"level":"INFO","msg":"health: free space back above -min-free-bytes","parent":"tank/k8s","available":`)
+	step(1<<40, "")
 }
 
 // F12: a parent mountpoint other users may search (o+x) lets every local

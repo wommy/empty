@@ -24,7 +24,13 @@ import (
 //     not loaded). Restart=on-failure retries it with backoff.
 //   - 0: also a stop (SIGTERM) during startup, which is not a failure.
 //   - 1: anything else.
+//
+// `zfs-endpoint reconcile` exits 78 for bad flags, 1 for a failed call or
+// a partial apply, and, with -fail-on-findings, exitFindings for a report
+// with findings (so the timer's unit fails and shows in systemctl
+// --failed).
 const (
+	exitFindings = 3
 	exitTempFail = 75 // EX_TEMPFAIL
 	exitConfig   = 78 // EX_CONFIG
 )

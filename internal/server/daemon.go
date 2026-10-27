@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
+	"github.com/wommy/empty/internal/lock"
 )
 
 // MaxMsgSize bounds a message either way. A Reconcile desired set of 100k
@@ -181,7 +182,9 @@ func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo,
 		resp, err = d.call(ctx, req, info, handler)
 	}
 	if !strings.HasPrefix(info.FullMethod, "/grpc.health.") {
-		attrs := []any{"method", info.FullMethod, "code", status.Code(err).String(), "duration", time.Since(start)}
+		code := status.Code(err)
+		attrs := []any{"method", info.FullMethod, "code", code.String(), "duration", time.Since(start)}
+		attrs = append(attrs, requestIDs(req)...)
 		if p, ok := peer.FromContext(ctx); ok {
 			if p.Addr != nil {
 				attrs = append(attrs, "peer", p.Addr.String())
@@ -196,9 +199,52 @@ func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo,
 		if err != nil {
 			attrs = append(attrs, "error", status.Convert(err).Message())
 		}
-		d.log.InfoContext(ctx, "rpc", attrs...)
+		d.log.Log(ctx, rpcLevel(code), "rpc", attrs...)
 	}
 	return resp, err
+}
+
+// rpcLevel is the level of a call's rpc line: INFO for OK, ERROR for
+// INTERNAL and UNKNOWN (a bug or a failure the endpoint could not
+// classify), WARN for every other code, so `journalctl -p warning` shows
+// each failed call.
+func rpcLevel(c codes.Code) slog.Level {
+	switch c {
+	case codes.OK:
+		return slog.LevelInfo
+	case codes.Internal, codes.Unknown:
+		return slog.LevelError
+	}
+	return slog.LevelWarn
+}
+
+// requestIDs are the ids a request names, as rpc line attributes,
+// clipped: volume_id, snapshot_id, name (CreateVolume's and
+// CreateSnapshot's), and source_volume_id / source_snapshot_id. They let
+// `journalctl ... | grep pvc-<uid>` match on a field, not on message text.
+func requestIDs(req any) []any {
+	var out []any
+	add := func(key, v string) {
+		if v != "" {
+			out = append(out, key, clip(v, maxLogField))
+		}
+	}
+	if r, ok := req.(interface{ GetVolumeId() string }); ok {
+		add("volume_id", r.GetVolumeId())
+	}
+	if r, ok := req.(interface{ GetSnapshotId() string }); ok {
+		add("snapshot_id", r.GetSnapshotId())
+	}
+	if r, ok := req.(interface{ GetName() string }); ok {
+		add("name", r.GetName())
+	}
+	if r, ok := req.(interface{ GetSourceVolumeId() string }); ok {
+		add("source_volume_id", r.GetSourceVolumeId())
+	}
+	if r, ok := req.(interface{ GetSourceSnapshotId() string }); ok {
+		add("source_snapshot_id", r.GetSourceSnapshotId())
+	}
+	return out
 }
 
 // call runs handler. grpc-go does not recover a handler's panic: it would
@@ -269,9 +315,11 @@ const requestIDKey = "x-request-id"
 
 type requestIDCtx struct{}
 
-// WithRequestID returns ctx carrying the request id.
+// WithRequestID returns ctx carrying the request id, also as the owner of
+// the locks the call takes (lock.WithOwner), which a call refused on them
+// names.
 func WithRequestID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, requestIDCtx{}, id)
+	return lock.WithOwner(context.WithValue(ctx, requestIDCtx{}, id), id)
 }
 
 // RequestID returns the request id in ctx, or "".

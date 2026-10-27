@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -33,6 +34,11 @@ The desired set is the complete list of volume ids to keep (-desired,
 -desired-file). Empty, it collects no committed volume: only uncommitted
 rows (abandoned creates) and orphan clone-source snapshots older than
 -min-age, and it reports drift in "skipped".
+
+The report ends with an "undesired:" line (against -max-deletions) and a
+"summary:" line of counts. With -fail-on-findings it exits 3 when the
+summary counts any finding (an action, or a skip that is not routine:
+endpoint.FindingKind), so the timer's unit fails visibly.
 `
 
 // runReconcile is `zfs-endpoint reconcile`: a client of the admin socket.
@@ -58,6 +64,7 @@ func runReconcile(ctx context.Context, args []string, out io.Writer) error {
 	digest := fs.String("digest", "", "plan_digest of the dry run being applied")
 	verbose := fs.Bool("v", false, "list every skipped volume, including the committed ones an empty desired set does not judge")
 	timeout := fs.Duration("timeout", 5*time.Minute, "deadline for the call")
+	failOnFindings := fs.Bool("fail-on-findings", false, fmt.Sprintf("exit %d when the summary counts a finding (the timer's unit passes it)", exitFindings))
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -123,7 +130,11 @@ func runReconcile(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("reconcile on %s: %w", path, err)
 	}
-	printPlan(out, resp, *apply, *verbose)
+	limit := cmp.Or(int(*maxDel), endpoint.DefaultMaxDeletions)
+	if *unlimited {
+		limit = 0
+	}
+	sum := printPlan(out, resp, *apply, *verbose, limit)
 	// an applied run that left a group failed or unattempted is partial:
 	// exit 1 (not 78), so a wrapper does not read it as done
 	if *apply {
@@ -132,6 +143,9 @@ func runReconcile(ctx context.Context, args []string, out io.Writer) error {
 				return fmt.Errorf("reconcile on %s: applied in part: %s: %s", path, s.GetTarget(), r)
 			}
 		}
+	}
+	if *failOnFindings && sum.Findings > 0 {
+		return &exitError{exitFindings, fmt.Errorf("reconcile on %s: %d findings (summary: %s)", path, sum.Findings, sum)}
 	}
 	return nil
 }
@@ -161,8 +175,9 @@ func readDesired(name string) ([]string, error) {
 // printPlan writes the plan (or, applied, what ran) and its digest. The
 // committed volumes an empty desired set leaves unjudged are counted, not
 // listed, unless verbose: on a report they say nothing but "the set was
-// empty".
-func printPlan(w io.Writer, r *pb.ReconcileResponse, applied, verbose bool) {
+// empty". It ends with the undesired count against maxDel (0: no cap) and
+// the summary line, which it returns.
+func printPlan(w io.Writer, r *pb.ReconcileResponse, applied, verbose bool, maxDel int) endpoint.ReconcileSummary {
 	verb := "planned (dry run, nothing changed)"
 	if applied {
 		verb = "applied"
@@ -188,7 +203,25 @@ func printPlan(w io.Writer, r *pb.ReconcileResponse, applied, verbose bool) {
 	if unjudged > 0 {
 		fmt.Fprintf(w, "  (%d committed volumes: %s; -v lists them)\n", unjudged, endpoint.SkipEmptyDesired)
 	}
+	var acts, skips []string
+	for _, a := range r.GetActions() {
+		acts = append(acts, a.GetReason())
+	}
+	for _, s := range r.GetSkipped() {
+		skips = append(skips, s.GetReason())
+	}
+	sum := endpoint.SummarizeReconcile(acts, skips, !applied)
+	switch {
+	case maxDel == 0:
+		fmt.Fprintf(w, "undesired: %d (no max)\n", sum.Undesired)
+	case sum.Undesired > maxDel:
+		fmt.Fprintf(w, "undesired: %d (max %d: apply would be refused)\n", sum.Undesired, maxDel)
+	default:
+		fmt.Fprintf(w, "undesired: %d (max %d)\n", sum.Undesired, maxDel)
+	}
+	fmt.Fprintf(w, "summary: %s\n", sum)
 	if !applied && len(r.GetActions()) > 0 {
 		fmt.Fprintf(w, "to apply exactly this plan: zfs-endpoint reconcile <the same flags> -apply -digest %s\n", r.GetPlanDigest())
 	}
+	return sum
 }

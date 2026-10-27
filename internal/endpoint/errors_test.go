@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -250,10 +251,14 @@ func changedSinceHead(c errCell) bool {
 
 // sinceHead is the head mapping err of the cell c, amended where c changed
 // on purpose since (changedSinceHead): Aborted, its message extended by
-// because, as remapMutated does.
+// because, as remapMutated does; out of space, because tells the operator
+// to free space first (no retry converges on a full pool).
 func sinceHead(c errCell, err error, because string) error {
 	if !changedSinceHead(c) {
 		return err
+	}
+	if c.kind == errKind(zfs.KindNoSpace) {
+		because = strings.Replace(because, "; a retry converges", "; out of space: free space on the pool first, then a retry converges", 1)
 	}
 	e := err.(*Error)
 	return &Error{Code: Aborted, Msg: e.Msg + because, Err: e.Err}

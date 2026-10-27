@@ -463,16 +463,17 @@ func (e *Endpoint) lock(ctx context.Context, keys ...string) (func(), error) {
 		// no time left to wait (the deadline is inside lockMargin, or
 		// LockWait is not positive), but a free lock is still taken: a
 		// WithTimeout(0) would refuse even an uncontended one
-		if release, ok := e.locks.TryAcquire(keys...); ok {
+		if release, ok := e.locks.TryAcquireContext(ctx, keys...); ok {
 			return release, nil
 		}
-		return nil, errorf(Aborted, "operation pending on %v", keys)
+		return nil, errorf(Aborted, "operation pending on %v%s", keys, e.pending(keys, 0))
 	}
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
+	start := time.Now()
 	release, err := e.locks.Acquire(ctx, keys...)
 	if err != nil {
-		return nil, errorf(Aborted, "operation pending on %v", keys)
+		return nil, errorf(Aborted, "operation pending on %v%s", keys, e.pending(keys, time.Since(start)))
 	}
 	return release, nil
 }
@@ -966,7 +967,7 @@ func (e *Endpoint) deleteLocked(ctx context.Context, volID string, vols *[]strin
 		}
 	}
 	if len(extra) > 0 {
-		more, ok := e.locks.TryAcquire(volKeys(extra)...)
+		more, ok := e.locks.TryAcquireContext(ctx, volKeys(extra)...)
 		if !ok {
 			*vols = append(*vols, extra...)
 			return true, nil

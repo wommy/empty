@@ -40,9 +40,22 @@ func main() {
 	})
 	cancel()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "zfs-endpoint:", err)
-		os.Exit(exitCode(err))
+		if len(os.Args) > 1 && os.Args[1] == "reconcile" {
+			// an operator's command: a plain line for the terminal too
+			fmt.Fprintln(os.Stderr, "zfs-endpoint:", err)
+		}
+		os.Exit(exitLine(slog.Default(), err))
 	}
+}
+
+// exitLine logs the error the process exits with as one JSON line, at
+// Error, with its exit code (78 configuration, no restart; 75 pool or
+// module not ready, restarted; 3 reconcile findings; 1 anything else:
+// startup.go), and returns the code. A journal read as JSON keeps it.
+func exitLine(log *slog.Logger, err error) int {
+	code := exitCode(err)
+	log.Error("exit", "exit_code", code, "error", err.Error())
+	return code
 }
 
 // deps are what tests replace.
@@ -96,6 +109,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	stopWait := fs.Duration("stop-wait", 10*time.Second, "after the drain, max wait for cancelled calls (and their zfs) to end")
 	parentWait := fs.Duration("parent-wait", 60*time.Second, "at startup, how long to wait for the parent dataset (pool import) before exiting 75")
 	maxZFS := fs.Int("max-zfs", 8, "max zfs commands running at once")
+	zfsSlow := fs.Duration("zfs-slow", zfs.DefaultSlow, `log a "zfs slow" warning, once, for any zfs command (reads included) still running after this long; 0: never`)
 	allowNonRoot := fs.Bool("allow-non-root", false, "run without root (delegated zfs allow); filesystem volumes cannot be mounted and NFS export is off")
 	nfsMinPrefix := fs.Int("nfs-min-prefix", endpoint.DefaultNFSMinPrefix, "broadest IPv4 client network PublishFileExport and CreateVolume's nfs_export clients accept (prefix length, 1-32; 0, every IPv4 client, is refused)")
 	minFree := fs.Uint64("min-free-bytes", 0, "headroom floor: CreateVolume and ExpandVolume are RESOURCE_EXHAUSTED when the space a new child of the parent gets after what they make or reserve would fall below this many bytes. "+
@@ -156,6 +170,9 @@ func run(ctx context.Context, args []string, d deps) error {
 	if *maxZFS < 1 {
 		return configErr("-max-zfs must be at least 1")
 	}
+	if *zfsSlow < 0 {
+		return configErr("-zfs-slow %v: want 0 (off) or a positive duration", *zfsSlow)
+	}
 	if *lockWait < 0 {
 		return configErr("-lock-wait %v: want 0 (try once, never wait) or a positive wait", *lockWait)
 	}
@@ -186,8 +203,9 @@ func run(ctx context.Context, args []string, d deps) error {
 	}
 	defer unlock()
 
-	// audit inside the limit: a command is logged when it starts
-	z := zfs.New(zfs.Limit(zfs.Audit(d.runner, nil), *maxZFS))
+	// audit inside the limit: a command is logged when it starts, and its
+	// slow-command clock starts once it has a slot
+	z := zfs.New(zfs.Limit(zfs.AuditSlow(d.runner, nil, *zfsSlow), *maxZFS))
 	if d.version != nil {
 		if err := d.version(ctx, z); err != nil {
 			return startupErr(ctx, err)
@@ -244,7 +262,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	dmn.SetServing(true)
 	probeCtx, stopProbe := context.WithCancel(ctx)
 	defer stopProbe()
-	go dmn.Probe(probeCtx, healthInterval, healthCheck(z, *parent, etab, slog.Default()))
+	go dmn.Probe(probeCtx, healthInterval, healthCheck(z, *parent, etab, *minFree, slog.Default()))
 
 	// the -listen socket serves the CSI role (what zfs-csi calls); the
 	// admin role (Reconcile, NFS export) only on -admin-listen (F2)
@@ -367,13 +385,31 @@ func exposure(ctx context.Context, z *zfs.Client, parent string, etab endpoint.E
 // when the covering lines appear or change, and an info line when they
 // are gone; between, nothing repeats. Failing to read the exposure
 // changes nothing either.
-func healthCheck(z *zfs.Client, parent string, etab endpoint.EtabReader, log *slog.Logger) func(context.Context) error {
+//
+// The same zfs get reads the parent's available space: with minFree set
+// (-min-free-bytes), a WARN is logged once when it falls below the floor
+// and an INFO once it is back, so a filling pool is seen before the first
+// RESOURCE_EXHAUSTED create. Advisory like the floor itself: health stays
+// SERVING (deletes free space).
+func healthCheck(z *zfs.Client, parent string, etab endpoint.EtabReader, minFree uint64, log *slog.Logger) func(context.Context) error {
 	var last string
+	low := false
 	return func(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 		defer cancel()
-		if _, err := z.Get(ctx, parent, "type"); err != nil {
+		ds, err := z.Get(ctx, parent, "type", "available")
+		if err != nil {
 			return err
+		}
+		if avail, err := ds.Props["available"].Uint(); err == nil && minFree > 0 {
+			switch now := avail < minFree; {
+			case now && !low:
+				log.Warn("health: free space below -min-free-bytes: CreateVolume and ExpandVolume that reserve space are refused RESOURCE_EXHAUSTED; free space on the pool",
+					"parent", parent, "available", avail, "min_free_bytes", minFree)
+			case !now && low:
+				log.Info("health: free space back above -min-free-bytes", "parent", parent, "available", avail, "min_free_bytes", minFree)
+			}
+			low = avail < minFree
 		}
 		mount, x, err := exposure(ctx, z, parent, etab)
 		if err != nil {

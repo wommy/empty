@@ -8,6 +8,57 @@ import (
 	"time"
 )
 
+// Holder names the owner of a held key and since when, through a
+// handover to a waiter too; a free key has none.
+func TestHolder(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		var k Keyed
+		if _, _, ok := k.Holder("a"); ok {
+			t.Fatal("a free key has a holder")
+		}
+		r1, err := k.Acquire(WithOwner(context.Background(), "first"), "a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t0 := time.Now()
+		if o, since, ok := k.Holder("a"); !ok || o != "first" || !since.Equal(t0) {
+			t.Fatalf("Holder(a) = %q %v %v", o, since, ok)
+		}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			r2, err := k.Acquire(WithOwner(context.Background(), "second"), "a")
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if o, _, _ := k.Holder("a"); o != "second" {
+				t.Errorf("handed over, the holder is %q", o)
+			}
+			r2()
+		}()
+		synctest.Wait()
+		time.Sleep(time.Minute)
+		if o, _, _ := k.Holder("a"); o != "first" {
+			t.Fatalf("a waiter took the holder's name: %q", o)
+		}
+		r1()
+		<-done
+		if _, _, ok := k.Holder("a"); ok {
+			t.Fatal("released, still held")
+		}
+		r3, ok := k.TryAcquireContext(WithOwner(context.Background(), "third"), "a")
+		if !ok {
+			t.Fatal("a busy")
+		}
+		defer r3()
+		if o, _, _ := k.Holder("a"); o != "third" {
+			t.Fatalf("TryAcquireContext's owner: %q", o)
+		}
+	})
+}
+
 func TestDoneContextTakesNoFreeKey(t *testing.T) {
 	t.Parallel()
 	var k Keyed
