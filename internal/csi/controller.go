@@ -383,6 +383,17 @@ func (c *Controller) ControllerExpandVolume(ctx context.Context, r *csi.Controll
 	if required == 0 && limit == 0 {
 		return nil, invalid("capacity_range needs required_bytes or limit_bytes")
 	}
+	if vc := r.GetVolumeCapability(); vc != nil {
+		// checked against the volume before anything is resized, by the
+		// rule ValidateVolumeCapabilities confirms with
+		got, err := c.EP.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: r.GetVolumeId()})
+		if err != nil {
+			return nil, err
+		}
+		if msg := capSupported(got.GetVolume().GetKind(), vc, c.EnableBlock); msg != "" {
+			return nil, invalid("volume_capability: %s", msg)
+		}
+	}
 	res, err := c.EP.ExpandVolume(ctx, &pb.ExpandVolumeRequest{VolumeId: r.GetVolumeId(), CapacityBytes: required, LimitBytes: limit})
 	if err != nil {
 		return nil, err

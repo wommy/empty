@@ -245,6 +245,48 @@ func TestExpandUnlimitedFilesystem(t *testing.T) {
 	}
 }
 
+// A volume_capability on Expand is checked against the volume by the rule
+// Validate uses, before anything is resized: an unsupported one is
+// InvalidArgument and the capacity is unchanged.
+func TestExpandValidatesCapability(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep := endpointClient(t)
+	c := &zcsi.Controller{EP: ep, EnableBlock: true}
+	if _, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{Name: "fs", VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
+		CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30}}); err != nil {
+		t.Fatal(err)
+	}
+	multi := capability(false)
+	multi.AccessMode.Mode = csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER
+	for name, vc := range map[string]*csi.VolumeCapability{
+		"block access on a filesystem volume": capability(true),
+		"unsupported access mode":             multi,
+		"no access type":                      {AccessMode: capability(false).AccessMode},
+	} {
+		res, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+			VolumeId: "fs", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: vc,
+		})
+		if status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%s: %+v %v, want InvalidArgument", name, res, err)
+		}
+	}
+	if v, err := ep.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "fs"}); err != nil || v.GetVolume().GetCapacityBytes() != 1<<30 {
+		t.Fatalf("resized by a refused expand: %v %v", v, err)
+	}
+	// a supported capability still expands; a missing volume is NotFound
+	if _, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+		VolumeId: "fs", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(false),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ControllerExpandVolume(ctx, &csi.ControllerExpandVolumeRequest{
+		VolumeId: "gone", CapacityRange: &csi.CapacityRange{RequiredBytes: 2 << 30}, VolumeCapability: capability(false),
+	}); status.Code(err) != codes.NotFound {
+		t.Fatalf("missing volume: %v", err)
+	}
+}
+
 // A content source with an empty id is InvalidArgument, and nothing is
 // provisioned: the endpoint reads an empty oneof id back as "no source", so
 // a restore or clone would create an empty volume and report success.
