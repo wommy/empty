@@ -161,7 +161,13 @@ if [ -z "${ZFSVM_PROVISION_ONLY:-}" ]; then
   # test binaries: static, so the VM needs no Go toolchain; built as the
   # runner user, only the binaries run as root. One go invocation builds
   # and links both in parallel (-o <dir>/ writes <pkg>.test)
+  # beside them, the daemon and the probe for the unit check
+  # (ci/real-zfs-unit.sh): 2.5s cold, 0.4s from a warm cache, measured
+  # locally; in parallel, so it adds what the test link does not cover
+  CGO_ENABLED=0 go build -o "$work/" ./cmd/zfs-endpoint ./ci/unitprobe &
+  unitbuild=$!
   CGO_ENABLED=0 go test -c -o "$work/" "${pkgs[@]/#/./internal/}"
+  wait "$unitbuild"
   mark "test binaries built"
 fi
 
@@ -277,7 +283,9 @@ vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analy
 analyze=$!
 bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
-scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci/test-times.awk ci@127.0.0.1:
+scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci/test-times.awk \
+  "$work/zfs-endpoint" "$work/unitprobe" ci/real-zfs-unit.sh deploy/systemd/zfs-endpoint@.service \
+  deploy/systemd/zfs-endpoint@.service.d/hardening.conf ci@127.0.0.1:
 rc=0
 # six concurrent shards on six tmpfs-backed pools (ci/real-zfs-guest.sh);
 # the logs come back per shard and are merged per check below.
@@ -332,6 +340,15 @@ if [ -f "$o/zfsdiff.log" ]; then
     echo; echo '```'; sed -n '3,/^$/p' "$o/zfsdiff.log"; echo '```'; echo "</details>"; echo; } >>"$summary"
 else
   echo "::error::vm/endpoint: TestZFSDiffReplay wrote no zfsdiff.log"; rc=1
+fi
+# the unit and its hardening drop-in under systemd (ci/real-zfs-unit.sh):
+# its last line is the verdict, naming any drop-in setting that broke it
+if [ -s "$o/unit-hardening.log" ]; then
+  verdict=$(tail -n 1 "$o/unit-hardening.log")
+  echo "- $verdict" >>"$summary"
+  case $verdict in "unit hardening: PASS"*) ;; *) echo "::error::vm: $verdict"; rc=1 ;; esac
+else
+  echo "::error::vm: the unit check wrote no unit-hardening.log"; rc=1
 fi
 # per-test time (ci/test-times.awk): the data ci/real-zfs-weights.sh turns
 # into ci/real-zfs-weights.txt; the workflow uploads test-times.tsv

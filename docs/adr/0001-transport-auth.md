@@ -194,12 +194,16 @@ A replacement needs its own decision. The options: drop D9 and rely on D3, `max_
 
 ### Systemd hardening (H-16)
 
-- `deploy/systemd/zfs-endpoint@.service.d/hardening.conf` turns on only `RestrictNamespaces`, `KeyringMode=private` and `LimitCORE=0`.
-- These settings ship commented out until the real-ZFS VM leg runs the suite under the unit:
+- `deploy/systemd/zfs-endpoint@.service.d/hardening.conf` turns on `RestrictNamespaces`, `KeyringMode=private`, `LimitCORE=0`, `ProtectHostname` and the syscall deny-list (`~@clock @cpu-emulation @debug @module @obsolete @raw-io @reboot @swap`, EPERM).
+  - `ProtectHostname` creates no mount namespace: systemd's `exec_needs_mount_namespace()` does not consider it (v255 and v258 `src/core/execute.c`).
+  - `systemd-analyze security --offline` (systemd 255) scores the unit plus the drop-in 6.4 MEDIUM, from 7.6.
+- The real-ZFS VM leg checks the drop-in under the unit (`ci/real-zfs-unit.sh`, run by `ci/real-zfs-guest.sh` beside the test shards):
+  - it starts `zfs-endpoint@zunit-k8s.service` with the drop-in, checks health, makes and deletes a volume, and fails on EPERM in the unit's journal;
+  - when that fails, it starts the unit alone, then with each active setting on its own, and names the settings that fail;
+  - its last line is the verdict, which `ci/real-zfs-vm.sh` puts in the job summary.
+- These settings still ship commented out, because that check does not cover what they could break (NFS export, zvols, clones, scan memory):
   - the capability bounding set;
   - `ProtectClock` with the device allow-list (it implies `DeviceAllow=char-rtc`, which would refuse `/dev/zfs`);
-  - `ProtectHostname`;
-  - the syscall deny-list;
   - the memory limits.
 - No setting may create a mount namespace or cut the network. `deploy/deploy_test.go` `TestUnitLint` enforces this.
 
@@ -244,6 +248,7 @@ A replacement needs its own decision. The options: drop D9 and rely on D3, `max_
   - `TestUnitServesTheConventionalSocket` (csi and admin);
   - `TestManifests` (no pod mounts the admin directory);
   - `TestUnitLint`.
-- **Still owed to the real-ZFS VM job:**
-  - a child running as uid 65534 cannot open the 0600 admin socket;
-  - the hardening drop-in's commented settings, verified under the unit.
+- **The real-ZFS VM job** (`ci/real-zfs-unit.sh`), under the unit and the drop-in:
+  - uid 65534 cannot connect to the admin socket with its shipped modes;
+  - with every mode on its path opened, the daemon refuses uid 65534 with PERMISSION_DENIED (SO_PEERCRED), while root is served;
+  - `deploy` `TestUnitCheckNamesTheFailingSetting` runs the check against stubs, and `TestUnitCheckReadsTheDropIn` ties it to the drop-in's active settings.

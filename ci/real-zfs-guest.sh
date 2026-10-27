@@ -109,6 +109,13 @@ if command -v vmstat >/dev/null; then
   vmstat -n -t 1 >"$out/vmstat.txt" 2>&1 &
   vmstat_pid=$!
 fi
+# the unit and its hardening drop-in (ci/real-zfs-unit.sh), beside the
+# shards on a pool of its own: zfs-endpoint under systemd, a volume made
+# and deleted, the admin socket's refusal of uid 65534. Its last log line
+# is the verdict; it touches no shard's pool and turns no share on
+unit_s=$(up)
+bash real-zfs-unit.sh "$PWD" >"$out/unit-hardening.log" 2>&1 &
+unit_pid=$!
 pids=() names=()
 # run <name> <pool> <command...>: one shard on its own pool, in the background
 run() {
@@ -143,6 +150,8 @@ run csi-block zcsi2 env CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.
 for k in "${!pids[@]}"; do
   wait "${pids[$k]}" || { echo "${names[$k]} failed"; rc=1; }
 done
+wait "$unit_pid" || rc=1
+echo "unit check (started at ${unit_s}s): $(tail -n 1 "$out/unit-hardening.log")"
 snap >"$out/load.after" 2>/dev/null || true
 [ -z "$vmstat_pid" ] || { kill "$vmstat_pid" 2>/dev/null; wait "$vmstat_pid" 2>/dev/null; } || true
 # busy = all but idle and iowait; steal = a vCPU runnable while the host ran

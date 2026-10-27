@@ -309,8 +309,8 @@ var noNamespace = []string{
 
 // The unit and its hardening drop-in: audit lines are never rate-limited
 // (F8), the hardening keeps mounts on the host (H-16), and what needs the
-// real-ZFS VM leg to verify (capabilities, device and syscall filters)
-// ships commented out.
+// real-ZFS VM leg's unit check does not cover (capabilities, the device
+// allow-list, memory limits) ships commented out.
 func TestUnitLint(t *testing.T) {
 	t.Parallel()
 	unit, _ := directives(t, filepath.Join("systemd", "zfs-endpoint@.service"))
@@ -327,13 +327,16 @@ func TestUnitLint(t *testing.T) {
 		}
 	}
 	dropIn, commented := directives(t, filepath.Join("systemd", "zfs-endpoint@.service.d", "hardening.conf"))
-	for _, k := range []string{"RestrictNamespaces", "KeyringMode", "LimitCORE"} {
+	// in effect, each checked under the unit on the VM leg
+	// (ci/real-zfs-unit.sh, TestUnitCheckNamesTheFailingSetting)
+	for _, k := range []string{"RestrictNamespaces", "KeyringMode", "LimitCORE", "ProtectHostname", "SystemCallFilter", "SystemCallErrorNumber"} {
 		if len(dropIn[k]) != 1 {
 			t.Errorf("drop-in %s=%q, want one setting in effect", k, dropIn[k])
 		}
 	}
-	// not verified against real zfs and exportfs yet: TODO in the drop-in
-	for _, k := range []string{"CapabilityBoundingSet", "AmbientCapabilities", "ProtectClock", "DevicePolicy", "DeviceAllow", "SystemCallFilter", "ProtectHostname"} {
+	// what that check does not cover (NFS export, zvols, scan memory):
+	// TODO in the drop-in
+	for _, k := range []string{"CapabilityBoundingSet", "AmbientCapabilities", "ProtectClock", "DevicePolicy", "DeviceAllow", "MemoryHigh", "MemoryMax"} {
 		if dropIn[k] != nil || unit[k] != nil {
 			t.Errorf("%s is in effect, but is not verified on the VM leg", k)
 		}
