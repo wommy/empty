@@ -228,13 +228,26 @@ func fingerprint(t *testing.T, h *harness) string {
 	props := []string{"type", "volsize", "refquota", "refreservation", "origin", "sharenfs", "compression", "recordsize", "mountpoint", "mounted",
 		p + "managed_resource", p + "provision_success", p + "csi_volume_name", p + "csi_snapshot_name", p + "nfs_clients",
 		p + "csi_volume_content_source_id"}
-	ds, err := h.Z.List(context.Background(), h.Parent, zfs.ListOptions{
+	// one call reads the parent too: its row is the parent's mountpoint,
+	// and the fork a second get would cost (ADR 0005)
+	cols, err := h.Z.ListColumns(context.Background(), h.Parent, zfs.ListOptions{
 		Types: []zfs.Type{zfs.TypeFilesystem, zfs.TypeVolume, zfs.TypeSnapshot}, Depth: -1, Props: props})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// a mountpoint names the parent's, which differs per run on a pool
-	parentMP := h.Prop(h.Parent, "mountpoint")
+	var ds []zfs.Dataset
+	parentMP := ""
+	for i, n := range cols.Names {
+		if n == h.Parent {
+			// a mountpoint names the parent's, which differs per run on a pool
+			parentMP = cols.Cell(i, cols.Col("mountpoint")).Value
+			continue
+		}
+		ds = append(ds, cols.Dataset(i))
+	}
+	if parentMP == "" {
+		t.Fatalf("%s is not listed", h.Parent)
+	}
 	var lines []string
 	for _, d := range ds {
 		var kv []string
