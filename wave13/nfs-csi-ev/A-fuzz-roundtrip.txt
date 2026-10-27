@@ -1,0 +1,4 @@
+fuzz: elapsed: 15s, execs: 67667 (4896/sec), new interesting: 7 (total: 150)
+fuzz: elapsed: 15s, execs: 67667 (0/sec), new interesting: 7 (total: 150)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	15.429s

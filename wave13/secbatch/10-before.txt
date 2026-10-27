@@ -1,0 +1,83 @@
+--- FAIL: TestEveryMethodHasARole (0.00s)
+    roles_test.go:45: csi may call Reconcile: true, want false
+    roles_test.go:45: csi may call PublishFileExport: true, want false
+    roles_test.go:45: csi may call UnpublishFileExport: true, want false
+    roles_test.go:50: role 1 may call an unknown method
+    roles_test.go:50: role 2 may call an unknown method
+    roles_test.go:50: role 0 may call an unknown method
+    roles_test.go:54: no role may call GetCapabilities
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapabilities code=OK duration=4.358µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateVolume code=InvalidArgument duration=18.231µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO delete volume volume_id=""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/DeleteVolume code=InvalidArgument duration=61.42µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ExpandVolume code=InvalidArgument duration=7.369µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ListVolumes code=OK duration=159.567µs peer=bufconn
+2026/10/27 11:23:32 INFO delete snapshot snapshot_id=""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/DeleteSnapshot code=OK duration=34.166µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/UnpublishFileExport code=Unimplemented duration=5.676µs peer=bufconn error="file export needs the endpoint to run as root"
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetVolume code=InvalidArgument duration=3.454µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateSnapshot code=InvalidArgument duration=111.004µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ListSnapshots code=OK duration=140.014µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapacity code=OK duration=14.141µs peer=bufconn
+2026/10/27 11:23:32 INFO reconcile desired=0 min_age_seconds=0 dry_run=true
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/Reconcile code=OK duration=120.249µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/PublishFileExport code=Unimplemented duration=3.871µs peer=bufconn error="file export needs the endpoint to run as root"
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapabilities code=OK duration=20.101µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateVolume code=InvalidArgument duration=9.205µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO delete volume volume_id=""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/DeleteVolume code=InvalidArgument duration=60.345µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ExpandVolume code=InvalidArgument duration=4.088µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ListVolumes code=OK duration=117.991µs peer=bufconn
+2026/10/27 11:23:32 INFO delete snapshot snapshot_id=""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/DeleteSnapshot code=OK duration=26.259µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/UnpublishFileExport code=Unimplemented duration=5.634µs peer=bufconn error="file export needs the endpoint to run as root"
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetVolume code=InvalidArgument duration=9.268µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateSnapshot code=InvalidArgument duration=160.039µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ListSnapshots code=OK duration=241.076µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapacity code=OK duration=11.227µs peer=bufconn
+2026/10/27 11:23:32 INFO reconcile desired=0 min_age_seconds=0 dry_run=true
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/Reconcile code=OK duration=130.672µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/PublishFileExport code=Unimplemented duration=3.81µs peer=bufconn error="file export needs the endpoint to run as root"
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/UnpublishFileExport code=Unimplemented duration=3.306µs peer=bufconn error="file export needs the endpoint to run as root"
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetVolume code=InvalidArgument duration=2.747µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateSnapshot code=InvalidArgument duration=87.274µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ListSnapshots code=OK duration=93.256µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapacity code=OK duration=9.657µs peer=bufconn
+2026/10/27 11:23:32 INFO reconcile desired=0 min_age_seconds=0 dry_run=true
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/Reconcile code=OK duration=162.787µs peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/PublishFileExport code=Unimplemented duration=3.15µs peer=bufconn error="file export needs the endpoint to run as root"
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapabilities code=OK duration=957ns peer=bufconn
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateVolume code=InvalidArgument duration=3.698µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO delete volume volume_id=""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/DeleteVolume code=InvalidArgument duration=22.289µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ExpandVolume code=InvalidArgument duration=1.921µs peer=bufconn error="invalid volume name \"\""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/ListVolumes code=OK duration=128.636µs peer=bufconn
+2026/10/27 11:23:32 INFO delete snapshot snapshot_id=""
+2026/10/27 11:23:32 INFO rpc method=/zfsendpoint.v1.EndpointService/DeleteSnapshot code=OK duration=35.723µs peer=bufconn
+--- FAIL: TestRolesPerListener (0.02s)
+    roles_test.go:132: csi listener, UnpublishFileExport: Unimplemented, want PermissionDenied
+    roles_test.go:132: csi listener, Reconcile: OK, want PermissionDenied
+    roles_test.go:132: csi listener, PublishFileExport: Unimplemented, want PermissionDenied
+    roles_test.go:132: none listener, UnpublishFileExport: Unimplemented, want Unauthenticated
+    roles_test.go:132: none listener, GetVolume: InvalidArgument, want Unauthenticated
+    roles_test.go:132: none listener, CreateSnapshot: InvalidArgument, want Unauthenticated
+    roles_test.go:132: none listener, ListSnapshots: OK, want Unauthenticated
+    roles_test.go:132: none listener, GetCapacity: OK, want Unauthenticated
+    roles_test.go:132: none listener, Reconcile: OK, want Unauthenticated
+    roles_test.go:132: none listener, PublishFileExport: Unimplemented, want Unauthenticated
+    roles_test.go:132: none listener, GetCapabilities: OK, want Unauthenticated
+    roles_test.go:132: none listener, CreateVolume: InvalidArgument, want Unauthenticated
+    roles_test.go:132: none listener, DeleteVolume: InvalidArgument, want Unauthenticated
+    roles_test.go:132: none listener, ExpandVolume: InvalidArgument, want Unauthenticated
+    roles_test.go:132: none listener, ListVolumes: OK, want Unauthenticated
+    roles_test.go:132: none listener, DeleteSnapshot: OK, want Unauthenticated
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.028s
+FAIL
+--- FAIL: TestAdminPeerIsRootOrTheDaemonsUser (0.00s)
+    roles_internal_test.go:26: peer {CommonAuthInfo:{SecurityLevel:invalid SecurityLevel: 0} HasCred:true UID:1000 GID:0 PID:0}, daemon euid 0: true, want false
+    roles_internal_test.go:26: peer {CommonAuthInfo:{SecurityLevel:invalid SecurityLevel: 0} HasCred:true UID:65534 GID:0 PID:0}, daemon euid 0: true, want false
+    roles_internal_test.go:26: peer {CommonAuthInfo:{SecurityLevel:invalid SecurityLevel: 0} HasCred:true UID:1001 GID:0 PID:0}, daemon euid 1000: true, want false
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.017s
+FAIL

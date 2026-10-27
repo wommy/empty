@@ -156,3 +156,7 @@
 {"ts": "2026-10-27T11:21:51Z", "id": "ad597b436ccbfeb45", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T11:21:51Z", "id": "ad597b436ccbfeb45", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T11:22:01Z", "id": "a5e3d463acd0910f8-r2", "from": "queued", "to": "running", "note": "r-model-flake"}
+{"ts": "2026-10-27T11:22:12Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T11:26:07Z", "id": "a5e3d463acd0910f8-r2", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T11:26:07Z", "id": "a5e3d463acd0910f8-r2", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T11:26:07Z", "id": "a5e3d463acd0910f8-r2", "from": "triaged", "to": "done", "note": ""}

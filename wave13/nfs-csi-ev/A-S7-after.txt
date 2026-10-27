@@ -1,0 +1,15 @@
+=== RUN   TestParseShareNFS
+=== PAUSE TestParseShareNFS
+=== CONT  TestParseShareNFS
+=== RUN   TestPlanUnpublishExport/canonical_sharenfs_without_a_stored_list_is_ours
+=== RUN   TestPlanUnpublishExport/stale_stored_list:_sharenfs_wins
+--- PASS: TestParseShareNFS (0.00s)
+    --- PASS: TestPlanUnpublishExport/canonical_sharenfs_without_a_stored_list_is_ours (0.00s)
+    --- PASS: TestPlanUnpublishExport/stale_stored_list:_sharenfs_wins (0.00s)
+=== RUN   TestPlanPublishExport/in-grammar_edit_is_accepted
+=== RUN   TestPlanPublishExport/canonical_sharenfs_without_a_stored_list_is_ours
+=== RUN   TestPlanPublishExport/stale_stored_list:_sharenfs_wins
+    --- PASS: TestPlanPublishExport/in-grammar_edit_is_accepted (0.00s)
+    --- PASS: TestPlanPublishExport/canonical_sharenfs_without_a_stored_list_is_ours (0.00s)
+    --- PASS: TestPlanPublishExport/stale_stored_list:_sharenfs_wins (0.00s)
+ok  	github.com/wommy/empty/internal/endpoint	0.062s

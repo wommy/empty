@@ -1,0 +1,16 @@
+goos: linux
+goarch: amd64
+pkg: github.com/wommy/empty/internal/endpoint
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+BenchmarkScan/1000-4         	      63	  21144673 ns/op	  70.66 MB/s	10049280 B/op	   35657 allocs/op
+BenchmarkScan/1000-4         	      49	  26950269 ns/op	  55.44 MB/s	10049188 B/op	   35657 allocs/op
+BenchmarkScan/1000-4         	      51	  21421528 ns/op	  69.75 MB/s	10049166 B/op	   35657 allocs/op
+BenchmarkScan/1000-4         	      48	  21311005 ns/op	  70.11 MB/s	10049140 B/op	   35657 allocs/op
+BenchmarkScan/1000-4         	      60	  23957331 ns/op	  62.36 MB/s	10049139 B/op	   35657 allocs/op
+BenchmarkScan/10000-4        	       7	 221307594 ns/op	  67.47 MB/s	102065752 B/op	  355272 allocs/op
+BenchmarkScan/10000-4        	       6	 188559132 ns/op	  79.19 MB/s	102065688 B/op	  355272 allocs/op
+BenchmarkScan/10000-4        	       8	 167350931 ns/op	  89.22 MB/s	102065688 B/op	  355272 allocs/op
+BenchmarkScan/10000-4        	       6	 176883198 ns/op	  84.41 MB/s	102065706 B/op	  355272 allocs/op
+BenchmarkScan/10000-4        	       7	 183707037 ns/op	  81.28 MB/s	102065688 B/op	  355272 allocs/op
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	53.126s

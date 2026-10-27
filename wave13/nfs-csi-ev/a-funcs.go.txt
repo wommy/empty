@@ -1,0 +1,49 @@
+// ParseShareNFS reads a sharenfs value in the endpoint's canonical grammar
+// (ADR 0004, csi-nfs-design §2) and reports whether it is one:
+//
+//	canonical := "off" | rw [ "," ro ] | ro
+//	rw := "rw=" list    ro := "ro=" list
+//	list := cidr { ":" cidr }   (non-empty, sorted as ShareNFS sorts)
+//	cidr := a masked IPv4 network always written with "/N", N >= 1
+//
+// and no two networks in the whole value overlap, whatever their mode. A
+// value is canonical exactly when ShareNFS of its clients spells it, so
+// ShareNFS(ParseShareNFS(s)) == s. Such a value carries no option and no
+// name, so exportfs reads every client as a subnet, verbatim (Fact C).
+//
+// The configured floor (Config.NFSMinPrefix) is not part of the grammar:
+// it limits what Publish and CreateVolume grant, and raising it must not
+// turn an existing export into someone else's value.
+func ParseShareNFS(s string) ([]NFSClient, bool) {
+	if s == "off" {
+		return nil, true
+	}
+	if s == "" || len(s) > maxPropLen {
+		return nil, false
+	}
+	var cs []NFSClient
+	for i, part := range strings.Split(s, ",") {
+		mode, list, ok := strings.Cut(part, "=")
+		if !ok || (mode != "rw" && mode != "ro") || (i > 0 && mode != "ro") || list == "" {
+			return nil, false
+		}
+		for _, h := range strings.Split(list, ":") {
+			if !strings.Contains(h, "/") {
+				return nil, false
+			}
+			c, err := ParseClient(h, mode == "ro")
+			if err != nil || c.Host != h {
+				return nil, false
+			}
+			if _, bad := overlap(cs, c); bad {
+				return nil, false
+			}
+			cs = append(cs, c)
+		}
+	}
+	if ShareNFS(cs) != s {
+		return nil, false
+	}
+	return sortClients(cs), true
+}
+

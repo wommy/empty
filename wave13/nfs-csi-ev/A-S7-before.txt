@@ -1,0 +1,22 @@
+--- FAIL: TestPlanUnpublishExport (0.00s)
+    --- FAIL: TestPlanUnpublishExport/canonical_sharenfs_without_a_stored_list_is_ours (0.00s)
+        export_test.go:504: err volume a is exported to 10.0.0.1/32 by sharenfs="rw=10.0.0.1/32,ro=10.0.0.2/32", set outside the endpoint; set sharenfs=off on it to let the endpoint manage exports, want code 0
+    --- FAIL: TestPlanUnpublishExport/stale_stored_list:_sharenfs_wins (0.00s)
+        export_test.go:507: plan set tank/v/a democratic-csi:nfs_clients=none sharenfs=off
+            
+            want set tank/v/a democratic-csi:nfs_clients=10.0.0.2/32=ro sharenfs=ro=10.0.0.2/32
+--- FAIL: TestPlanPublishExport (0.02s)
+    --- FAIL: TestPlanPublishExport/in-grammar_edit_is_accepted (0.00s)
+        export_test.go:388: plan set tank/v/a sharenfs=rw=10.0.0.1/32
+            
+            want set tank/v/a democratic-csi:nfs_clients=10.0.0.1/32=rw,10.6.6.6/32=rw
+    --- FAIL: TestPlanPublishExport/canonical_sharenfs_without_a_stored_list_is_ours (0.00s)
+        export_test.go:385: err volume a has sharenfs="rw=10.0.0.1/32", set outside the endpoint; set sharenfs=off on it to let the endpoint manage exports, want code 0
+    --- FAIL: TestPlanPublishExport/stale_stored_list:_sharenfs_wins (0.00s)
+        export_test.go:388: plan set tank/v/a sharenfs=rw=10.0.0.1/32
+            
+            want set tank/v/a democratic-csi:nfs_clients=10.0.0.1/32=rw,10.0.0.2/32=rw
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.025s
+FAIL
+exit 1
