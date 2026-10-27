@@ -111,6 +111,15 @@ func (w *jsonw) str(s string) {
 	}
 	w.b = append(w.b, '"')
 	for len(s) > 0 {
+		// a run printed as is: 0x20-0x7f but the quote and backslash
+		n := 0
+		for n < len(s) && s[n] >= 0x20 && s[n] <= 0x7f && s[n] != '"' && s[n] != '\\' {
+			n++
+		}
+		w.b = append(w.b, s[:n]...)
+		if s = s[n:]; len(s) == 0 {
+			break
+		}
 		c, sz := utf8.DecodeRuneInString(s)
 		if c == utf8.RuneError && sz <= 1 {
 			w.failed = true // mbrtowc: (size_t)-1 or -2

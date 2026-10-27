@@ -414,15 +414,23 @@ func cutString(b []byte) (str, rest []byte, ok bool) {
 	if len(b) == 0 || b[0] != '"' {
 		return nil, b, false
 	}
-	for i := 1; i < len(b); i++ {
-		switch b[i] {
-		case '\\':
-			i++
-		case '"':
+	// IndexByte, not a byte loop: the closing quote is the first '"'
+	// after an even run of backslashes
+	for i := 1; ; {
+		q := bytes.IndexByte(b[i:], '"')
+		if q < 0 {
+			return nil, b, false
+		}
+		i += q
+		bs := 0
+		for bs < i-1 && b[i-1-bs] == '\\' {
+			bs++
+		}
+		if bs%2 == 0 {
 			return b[:i+1], b[i+1:], true
 		}
+		i++
 	}
-	return nil, b, false
 }
 
 // unquote returns the contents of the quoted string q, valid until the

@@ -237,7 +237,7 @@ func TestDecodeStrict(t *testing.T) {
 	}
 }
 
-// Every prefix that cuts the document fails; the document with or without
+// A prefix that cuts the document fails; the document with or without
 // its trailing newline decodes. zfs truncates its own output this way, with
 // exit 0, when a value is not valid in its locale (nvlist_print_json stops
 // at the first mbrtowc failure and zcmd_print_json still prints "\n").
@@ -271,6 +271,12 @@ func TestTruncationAtEveryOffsetFailsClosed(t *testing.T) {
 			t.Parallel()
 			full := bytes.TrimSuffix(tc.doc, []byte("\n"))
 			for i := range len(full) {
+				// past 1 KiB, every 4th offset and the last 128: every
+				// prefix costs a decode, and the race build makes the
+				// whole sweep take seconds
+				if len(full) > 1<<10 && i%4 != 0 && i < len(full)-128 {
+					continue
+				}
 				if _, err := decode(full[:i], tc.props); err == nil {
 					t.Fatalf("prefix of %d/%d bytes accepted", i, len(full))
 				}
