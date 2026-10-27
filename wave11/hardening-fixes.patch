@@ -1,6 +1,6 @@
 diff -ruN hardening-copy/cmd/zfs-endpoint/lockparent.go hardening-fixed/cmd/zfs-endpoint/lockparent.go
 --- hardening-copy/cmd/zfs-endpoint/lockparent.go	2026-10-27 05:36:10.000000000 +0000
-+++ hardening-fixed/cmd/zfs-endpoint/lockparent.go	2026-10-27 06:57:26.295695046 +0000
++++ hardening-fixed/cmd/zfs-endpoint/lockparent.go	2026-10-27 07:00:50.152463026 +0000
 @@ -44,7 +44,7 @@
  			how = syscall.LOCK_EX
  		}
@@ -12,7 +12,7 @@ diff -ruN hardening-copy/cmd/zfs-endpoint/lockparent.go hardening-fixed/cmd/zfs-
  			return nil, err
 diff -ruN hardening-copy/cmd/zfs-endpoint/main.go hardening-fixed/cmd/zfs-endpoint/main.go
 --- hardening-copy/cmd/zfs-endpoint/main.go	2026-10-27 05:37:41.000000000 +0000
-+++ hardening-fixed/cmd/zfs-endpoint/main.go	2026-10-27 06:57:26.295547413 +0000
++++ hardening-fixed/cmd/zfs-endpoint/main.go	2026-10-27 07:00:50.152892583 +0000
 @@ -118,6 +118,9 @@
  	}
  	// refuse to start against a parent that is not there: never create it
@@ -34,7 +34,7 @@ diff -ruN hardening-copy/cmd/zfs-endpoint/main.go hardening-fixed/cmd/zfs-endpoi
  }
 diff -ruN hardening-copy/cmd/zfs-endpoint/startup.go hardening-fixed/cmd/zfs-endpoint/startup.go
 --- hardening-copy/cmd/zfs-endpoint/startup.go	2026-10-27 05:36:10.000000000 +0000
-+++ hardening-fixed/cmd/zfs-endpoint/startup.go	2026-10-27 06:58:40.741613465 +0000
++++ hardening-fixed/cmd/zfs-endpoint/startup.go	2026-10-27 07:00:50.153248013 +0000
 @@ -83,14 +83,14 @@
  // components: "tank/../x" passes the name pattern but is not a dataset,
  // and would name the lock file of another.
@@ -54,8 +54,8 @@ diff -ruN hardening-copy/cmd/zfs-endpoint/startup.go hardening-fixed/cmd/zfs-end
  }
  
 diff -ruN hardening-copy/internal/endpoint/endpoint.go hardening-fixed/internal/endpoint/endpoint.go
---- hardening-copy/internal/endpoint/endpoint.go	2026-10-27 05:35:16.000000000 +0000
-+++ hardening-fixed/internal/endpoint/endpoint.go	2026-10-27 06:57:26.259016948 +0000
+--- hardening-copy/internal/endpoint/endpoint.go	2026-10-27 06:59:35.000000000 +0000
++++ hardening-fixed/internal/endpoint/endpoint.go	2026-10-27 07:00:50.153591418 +0000
 @@ -153,6 +153,9 @@
  	names props
  	plan  Planner
@@ -90,7 +90,7 @@ diff -ruN hardening-copy/internal/endpoint/endpoint.go hardening-fixed/internal/
  	release, err := e.locks.Acquire(ctx, keys...)
 diff -ruN hardening-copy/internal/endpoint/errors.go hardening-fixed/internal/endpoint/errors.go
 --- hardening-copy/internal/endpoint/errors.go	2026-10-27 05:14:51.000000000 +0000
-+++ hardening-fixed/internal/endpoint/errors.go	2026-10-27 06:57:26.255114886 +0000
++++ hardening-fixed/internal/endpoint/errors.go	2026-10-27 07:00:50.153962831 +0000
 @@ -40,8 +40,15 @@
  
  func (e *Error) Unwrap() error { return e.Err }
@@ -109,9 +109,9 @@ diff -ruN hardening-copy/internal/endpoint/errors.go hardening-fixed/internal/en
  
  // CodeOf returns the Code of err (Internal for foreign errors, OK for nil).
 diff -ruN hardening-copy/internal/endpoint/export.go hardening-fixed/internal/endpoint/export.go
---- hardening-copy/internal/endpoint/export.go	2026-10-27 05:20:11.000000000 +0000
-+++ hardening-fixed/internal/endpoint/export.go	2026-10-27 06:57:26.259324372 +0000
-@@ -271,7 +271,7 @@
+--- hardening-copy/internal/endpoint/export.go	2026-10-27 06:59:35.000000000 +0000
++++ hardening-fixed/internal/endpoint/export.go	2026-10-27 07:00:50.154208490 +0000
+@@ -281,7 +281,7 @@
  func ParseEtab(b []byte) Etab {
  	t := Etab{}
  	sc := bufio.NewScanner(bytes.NewReader(b))
@@ -122,7 +122,7 @@ diff -ruN hardening-copy/internal/endpoint/export.go hardening-fixed/internal/en
  		path, rest, ok := strings.Cut(line, "\t")
 diff -ruN hardening-copy/internal/endpoint/plan.go hardening-fixed/internal/endpoint/plan.go
 --- hardening-copy/internal/endpoint/plan.go	2026-10-27 05:35:06.000000000 +0000
-+++ hardening-fixed/internal/endpoint/plan.go	2026-10-27 06:57:26.255244783 +0000
++++ hardening-fixed/internal/endpoint/plan.go	2026-10-27 07:00:50.154407647 +0000
 @@ -186,10 +186,10 @@
  	}
  
@@ -138,7 +138,7 @@ diff -ruN hardening-copy/internal/endpoint/plan.go hardening-fixed/internal/endp
  		if row.Kind() != r.Kind || row.SourceType != srcType || row.SourceID != srcID {
 diff -ruN hardening-copy/internal/endpoint/reconcile.go hardening-fixed/internal/endpoint/reconcile.go
 --- hardening-copy/internal/endpoint/reconcile.go	2026-10-27 05:35:06.000000000 +0000
-+++ hardening-fixed/internal/endpoint/reconcile.go	2026-10-27 06:57:26.275538841 +0000
++++ hardening-fixed/internal/endpoint/reconcile.go	2026-10-27 07:00:50.154726822 +0000
 @@ -192,10 +192,14 @@
  	// a page of another list, another cluster's or another parent's set.
  	// Like the empty set, it collects no committed volume (adv4 F2).
@@ -187,7 +187,7 @@ diff -ruN hardening-copy/internal/endpoint/reconcile.go hardening-fixed/internal
  			return ReconcilePlan{}, err
 diff -ruN hardening-copy/internal/endpoint/table.go hardening-fixed/internal/endpoint/table.go
 --- hardening-copy/internal/endpoint/table.go	2026-10-27 05:35:16.000000000 +0000
-+++ hardening-fixed/internal/endpoint/table.go	2026-10-27 06:57:26.259190509 +0000
++++ hardening-fixed/internal/endpoint/table.go	2026-10-27 07:00:50.155093230 +0000
 @@ -327,6 +327,14 @@
  // deeper than a volume are dropped.
  func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
@@ -205,7 +205,7 @@ diff -ruN hardening-copy/internal/endpoint/table.go hardening-fixed/internal/end
  	}
 diff -ruN hardening-copy/internal/server/daemon.go hardening-fixed/internal/server/daemon.go
 --- hardening-copy/internal/server/daemon.go	2026-10-27 05:36:10.000000000 +0000
-+++ hardening-fixed/internal/server/daemon.go	2026-10-27 06:57:45.895936079 +0000
++++ hardening-fixed/internal/server/daemon.go	2026-10-27 07:00:50.155471411 +0000
 @@ -4,7 +4,9 @@
  	"context"
  	"crypto/rand"
@@ -259,8 +259,24 @@ diff -ruN hardening-copy/internal/server/daemon.go hardening-fixed/internal/serv
  		if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
 diff -ruN hardening-copy/internal/zfs/runner.go hardening-fixed/internal/zfs/runner.go
 --- hardening-copy/internal/zfs/runner.go	2026-10-27 06:38:56.000000000 +0000
-+++ hardening-fixed/internal/zfs/runner.go	2026-10-27 06:57:26.254942473 +0000
-@@ -108,9 +108,20 @@
++++ hardening-fixed/internal/zfs/runner.go	2026-10-27 07:02:39.907541108 +0000
+@@ -5,6 +5,7 @@
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"os"
+ 	"os/exec"
+ 	"syscall"
+ 	"time"
+@@ -83,6 +84,7 @@
+ 	// just the leader: a grandchild holding a pipe otherwise outlives Run
+ 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
+ 	cmd.SysProcAttr = childAttr()
++	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANGUAGE=C")
+ 	cmd.WaitDelay = r.WaitDelay
+ 	if cmd.WaitDelay == 0 {
+ 		cmd.WaitDelay = 5 * time.Second
+@@ -108,9 +110,20 @@
  		return stdout.Bytes(), &ExitError{
  			Args:     append([]string{name}, args...),
  			Code:     code,
@@ -284,7 +300,7 @@ diff -ruN hardening-copy/internal/zfs/runner.go hardening-fixed/internal/zfs/run
 +}
 diff -ruN hardening-copy/internal/zfs/zfs.go hardening-fixed/internal/zfs/zfs.go
 --- hardening-copy/internal/zfs/zfs.go	2026-10-27 05:20:11.000000000 +0000
-+++ hardening-fixed/internal/zfs/zfs.go	2026-10-27 06:57:26.251725489 +0000
++++ hardening-fixed/internal/zfs/zfs.go	2026-10-27 07:00:50.156050736 +0000
 @@ -10,6 +10,7 @@
  	"errors"
  	"fmt"
