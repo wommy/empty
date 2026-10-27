@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -117,13 +118,18 @@ func (p Planner) planReserves(t Table, plan Plan) (need uint64, creates bool) {
 }
 
 // checkHeadroom is the guard's decision: nil when avail less need stays at
-// or above floor (0: off). Pure.
-func checkHeadroom(avail, need, floor uint64, what string) error {
+// or above floor (0: off). bound is why avail is only a lower bound on
+// what a new child gets ("" when exact), for the refusal to say. Pure.
+func checkHeadroom(avail, need, floor uint64, what, bound string) error {
 	if floor == 0 || avail >= need && avail-need >= floor {
 		return nil
 	}
-	return errorf(ResourceExhausted, "%s: a new child of the parent gets %d bytes and this reserves %d, which would leave less than the %d-byte floor (-min-free-bytes)",
-		what, avail, need, floor)
+	gets := fmt.Sprintf("gets %d bytes", avail)
+	if bound != "" {
+		gets = fmt.Sprintf("gets at least %d bytes (a lower bound: %s)", avail, bound)
+	}
+	return errorf(ResourceExhausted, "%s: a new child of the parent %s and this reserves %d, which would leave less than the %d-byte floor (-min-free-bytes)",
+		what, gets, need, floor)
 }
 
 // headroom applies the guard to plan, made from t: it reads the parent's
@@ -137,11 +143,11 @@ func (e *Endpoint) headroom(ctx context.Context, t Table, plan Plan, what string
 	if need == 0 && !creates {
 		return nil
 	}
-	avail, err := e.childSpace(ctx, e.cfg.Parent)
+	avail, bound, err := e.childSpace(ctx, e.cfg.Parent)
 	if err != nil {
 		return err
 	}
-	return checkHeadroom(avail, need, e.cfg.MinFreeBytes, what)
+	return checkHeadroom(avail, need, e.cfg.MinFreeBytes, what, bound)
 }
 
 // What a new child of the parent can get is not the parent's available.
@@ -158,43 +164,58 @@ func (e *Endpoint) headroom(ctx context.Context, t Table, plan Plan, what string
 // D already excludes it and available(P) adds it back for P alone. The
 // refquota cap limits what P itself references, not its children.
 //
-// unique is not a property and the simulator has no usedbyrefreservation,
-// so the add-back is bounded by refreservation: available -
-// refreservation is at most D, short of it by min(unique, refreservation),
-// the parent's own data. That holds capped or not. Under a refquota D
-// cannot be read from P at all; it is one level up (dsl_dir_space_available
-// recursing into the parent dir):
+// So available - usedbyrefreservation is D exactly when no refquota caps
+// available, and at most D when one does. zfs reports
+// usedbyrefreservation only for a dir with the used breakdown
+// (DD_FLAG_USED_BREAKDOWN, dsl_dir.c dsl_dir_stats); an older dir prints
+// "-", which must not read as 0 (that would add nothing back and
+// overestimate D). There the add-back is bounded by refreservation:
+// available - refreservation is short of D by min(unique,
+// refreservation), the parent's own data.
+//
+// Under a refquota D cannot be read from P; it is one level up
+// (dsl_dir_space_available recursing into the parent dir):
 //
 //	D = min(D(parent) + max(0, reservation(P) - used(P)), quota(P) - used(P))
 //
-// where quota 0 is no limit. A pool root has no level up; the bound stands.
+// where quota 0 is no limit. A pool root has no level up (its D is the
+// pool's adjusted size less used, which zfs get does not report), and a
+// level up may be unreadable: the lower bound then stands, and a refusal
+// says it is one.
 
 // parentSpace is a dataset's space properties, as the guard reads them in
-// one get.
+// one get. breakdown: zfs reported usedbyrefreservation (urefres).
 type parentSpace struct {
-	avail, refres, refquota, quota, resv, used uint64
+	avail, refres, urefres, refquota, quota, resv, used uint64
+	breakdown                                           bool
 }
 
-var parentSpaceProps = []string{"available", "refreservation", "refquota", "quota", "reservation", "used"}
+var parentSpaceProps = []string{"available", "refreservation", "usedbyrefreservation", "refquota", "quota", "reservation", "used"}
 
 // needsUp reports whether childAvail needs the level up: only a refquota
 // hides the dir's space from available.
 func (s parentSpace) needsUp() bool { return s.refquota > 0 }
 
 // childAvail is a lower bound on the space a new child of s gets
-// (dsl_dir_space_available of s's dir), exact when s has no data of its
-// own under a refreservation. up is the same for s's parent, when hasUp.
-// Pure.
-func childAvail(s parentSpace, up uint64, hasUp bool) uint64 {
+// (dsl_dir_space_available of s's dir), and whether it is exact, given an
+// exact up: the same for s's parent, when hasUp. Pure.
+func childAvail(s parentSpace, up uint64, hasUp bool) (uint64, bool) {
 	sub := func(a, b uint64) uint64 {
 		if a < b {
 			return 0
 		}
 		return a - b
 	}
-	low := sub(s.avail, s.refres)
-	if !s.needsUp() || !hasUp {
-		return low
+	addBack := s.refres
+	if s.breakdown {
+		addBack = s.urefres
+	}
+	low := sub(s.avail, addBack)
+	if !s.needsUp() {
+		return low, s.breakdown || s.refres == 0
+	}
+	if !hasUp {
+		return low, false
 	}
 	d := up
 	if extra := sub(s.resv, s.used); d+extra >= d {
@@ -205,34 +226,52 @@ func childAvail(s parentSpace, up uint64, hasUp bool) uint64 {
 	if s.quota > 0 {
 		d = min(d, sub(s.quota, s.used))
 	}
-	return max(low, d)
+	// d is D when up is exact, and low <= D: low above d means up was not
+	return max(low, d), d >= low
 }
 
 // childSpace reads childAvail for a new child of name: one get, and one
-// more per level up only while a refquota hides the dir's space.
-func (e *Endpoint) childSpace(ctx context.Context, name string) (uint64, error) {
+// more per level up only while a refquota hides the dir's space. bound
+// says why the result is only a lower bound ("" when exact). A level up
+// that cannot be read leaves the lower bound in hand, not an error.
+func (e *Endpoint) childSpace(ctx context.Context, name string) (uint64, string, error) {
 	d, err := e.zfs.Get(ctx, name, parentSpaceProps...)
 	if zfs.IsNotFound(err) && name == e.cfg.Parent {
-		return 0, parentUnavailable(name, err)
+		return 0, "", parentUnavailable(name, err)
 	}
 	if err != nil {
-		return 0, zfsErr(err, "inspect parent")
+		return 0, "", zfsErr(err, "inspect parent")
 	}
 	var s parentSpace
 	for _, f := range []struct {
 		prop string
 		v    *uint64
-	}{{"available", &s.avail}, {"refreservation", &s.refres}, {"refquota", &s.refquota}, {"quota", &s.quota}, {"reservation", &s.resv}, {"used", &s.used}} {
+	}{{"available", &s.avail}, {"refreservation", &s.refres}, {"usedbyrefreservation", &s.urefres}, {"refquota", &s.refquota}, {"quota", &s.quota}, {"reservation", &s.resv}, {"used", &s.used}} {
 		if *f.v, err = d.Props[f.prop].Uint(); err != nil {
-			return 0, errorf(Internal, "%s: %s %q: %v", name, f.prop, d.Props[f.prop].Value, err)
+			return 0, "", errorf(Internal, "%s: %s %q: %v", name, f.prop, d.Props[f.prop].Value, err)
 		}
 	}
-	up, hasUp := uint64(0), false
-	if i := strings.LastIndexByte(name, '/'); i > 0 && s.needsUp() {
-		if up, err = e.childSpace(ctx, name[:i]); err != nil {
-			return 0, err
+	// "-" (no used breakdown) and an absent value both read as 0 above
+	v := d.Props["usedbyrefreservation"].Value
+	s.breakdown = v != "-" && v != ""
+	up, hasUp, upBound := uint64(0), false, ""
+	if s.needsUp() {
+		if i := strings.LastIndexByte(name, '/'); i < 0 {
+			upBound = name + " is a pool root with a refquota, which caps its own available but not its children's, and zfs does not report theirs"
+		} else if u, b, err := e.childSpace(ctx, name[:i]); err != nil {
+			upBound = fmt.Sprintf("%s has a refquota and reading the level up '%s' failed: %v", name, name[:i], err)
+		} else {
+			up, hasUp, upBound = u, true, b
 		}
-		hasUp = true
 	}
-	return childAvail(s, up, hasUp), nil
+	n, exact := childAvail(s, up, hasUp)
+	switch {
+	case exact && upBound == "":
+		return n, "", nil
+	case upBound != "":
+		return n, upBound, nil
+	case !s.breakdown:
+		return n, name + " reports no usedbyrefreservation, so all of its refreservation is taken as unused", nil
+	}
+	return n, name + "'s level up reads below its own available", nil
 }

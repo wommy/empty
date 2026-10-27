@@ -1046,16 +1046,23 @@ func (e *Endpoint) DeleteSnapshot(ctx context.Context, snapshotID string) error 
 	return e.apply(ctx, plan)
 }
 
-// GetCapacity reports space available to new volumes under the parent.
+// GetCapacity reports the space a new volume under the parent can take
+// (CSI available_capacity: "the storage that can be used to provision
+// volumes"): what a new child of the parent gets (childSpace; not the
+// parent's own available, which adds back the parent's unused
+// refreservation and is capped by its refquota, neither of which is a
+// child's) less the floor the headroom guard keeps (-min-free-bytes),
+// so the largest thick volume it reports passes the guard. A lower bound
+// where childSpace is one.
 func (e *Endpoint) GetCapacity(ctx context.Context) (uint64, error) {
-	d, err := e.zfs.Get(ctx, e.cfg.Parent, "available")
-	if zfs.IsNotFound(err) {
-		return 0, parentUnavailable(e.cfg.Parent, err)
-	}
+	avail, _, err := e.childSpace(ctx, e.cfg.Parent)
 	if err != nil {
-		return 0, zfsErr(err, "inspect parent")
+		return 0, err
 	}
-	return d.Props["available"].Uint()
+	if avail < e.cfg.MinFreeBytes {
+		return 0, nil
+	}
+	return avail - e.cfg.MinFreeBytes, nil
 }
 
 // ---- file export (NFS) -------------------------------------------------------

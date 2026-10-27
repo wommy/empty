@@ -332,9 +332,17 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 }
 
-// availableJSON is `zfs get -j -p available name` for a filesystem with
-// 1000 bytes available.
+// availableJSON is the `zfs get -j -p` GetCapacity runs on name (the
+// space properties the endpoint's childSpace reads) for a filesystem
+// with 1000 bytes available and no reservations or quotas.
 func availableJSON(name string) []byte {
-	return zfstest.AppendGetJSON(nil, []zfstest.JSONDataset{{Name: name, Type: "filesystem", Createtxg: 1,
-		Props: []zfstest.JSONProp{{Name: "available", Value: "1000", Source: "-"}}}})
+	props := []zfstest.JSONProp{{Name: "available", Value: "1000", Source: "-"}}
+	for _, p := range []string{"refreservation", "usedbyrefreservation", "refquota", "quota", "reservation", "used"} {
+		src := "default"
+		if p == "usedbyrefreservation" || p == "used" {
+			src = "-"
+		}
+		props = append(props, zfstest.JSONProp{Name: p, Value: "0", Source: src})
+	}
+	return zfstest.AppendGetJSON(nil, []zfstest.JSONDataset{{Name: name, Type: "filesystem", Createtxg: 1, Props: props}})
 }

@@ -335,6 +335,42 @@ var facts = []fact{
 			}
 			return availNear(f, g+"/d", 16<<20)
 		}},
+	// the headroom guard's childSpace (headroom.go): available less
+	// usedbyrefreservation is what a new child gets while no refquota
+	// caps the parent; usedbyrefreservation is the refreservation less
+	// the dataset's unique data (a fresh dataset's metadata)
+	{row: "SPC-02", what: "a new child's available is its parent's available less the parent's usedbyrefreservation",
+		check: func(f *factEnv) error {
+			g, p := f.p, f.p+"/p"
+			if err := f.zfs("set", "quota=268435456", g); err != nil {
+				return err
+			}
+			if err := f.zfs("create", "-o", "refreservation=67108864", p); err != nil {
+				return err
+			}
+			num := func(name, prop string) (uint64, error) {
+				v, err := f.get(name, prop)
+				if err != nil {
+					return 0, err
+				}
+				return strconv.ParseUint(v, 10, 64)
+			}
+			urefres, err := num(p, "usedbyrefreservation")
+			if err != nil {
+				return err
+			}
+			if d := int64(urefres) - 64<<20; d > 1<<20 || d < -(1<<20) {
+				return fmt.Errorf("usedbyrefreservation %d, want the 64 MiB refreservation (within 1 MiB)", urefres)
+			}
+			avail, err := num(p, "available")
+			if err != nil {
+				return err
+			}
+			if err := f.zfs("create", p+"/c"); err != nil {
+				return err
+			}
+			return availNear(f, p+"/c", avail-urefres)
+		}},
 	// changelist_prefix: zfs_unmount of the busy node fails, and
 	// changelist_postfix remounts (and reshares) the nodes unmounted
 	// before it

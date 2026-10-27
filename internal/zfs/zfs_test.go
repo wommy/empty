@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -408,5 +409,70 @@ func TestSetNoMountLeavesUnmounted(t *testing.T) {
 	}
 	if m := mounted(); m != "yes" {
 		t.Fatalf("plain set did not mount: %s", m)
+	}
+}
+
+// usedbyrefreservation is what a dataset's refreservation charges its own
+// dir beyond its unique data (dsl_dir.c dsl_dir_stats, DD_USED_REFRSRV;
+// dsl_dataset.c dsl_dataset_set_refreservation_sync_impl): the whole
+// refreservation in the Sim, whose datasets are empty. used is the dir's
+// used, which includes it and each child's larger of used and
+// reservation. A snapshot has no dir stats and prints "-". available less
+// usedbyrefreservation is what a new child gets while no refquota caps it.
+func TestSimUsedByRefreservation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	sim.PoolSize = 10 << 30
+	c := zfs.New(sim)
+	run := func(args ...string) {
+		t.Helper()
+		if _, err := sim.Run(ctx, "zfs", args...); err != nil {
+			t.Fatal(args, err)
+		}
+	}
+	run("create", "-o", "refreservation=1073741824", "tank/p")
+	run("create", "-o", "reservation=2147483648", "tank/p/c")
+	run("create", "-V", "1048576", "tank/p/vol")
+	run("snapshot", "tank/p@s")
+	vol, err := c.Get(ctx, "tank/p/vol", "refreservation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	volResv, _ := vol.Props["refreservation"].Uint()
+	for _, w := range []struct{ name, used, urefres string }{
+		{"tank/p", strconv.FormatUint(1<<30+2<<30+volResv, 10), "1073741824"},
+		{"tank/p/c", "0", "0"},
+		{"tank/p/vol", strconv.FormatUint(volResv, 10), strconv.FormatUint(volResv, 10)},
+		{"tank/p@s", "0", "-"},
+		{"tank", strconv.FormatUint(1<<30+2<<30+volResv, 10), "0"},
+	} {
+		d, err := c.Get(ctx, w.name, "used", "usedbyrefreservation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := d.Props["used"]; got.Value != w.used || got.Source != "-" {
+			t.Errorf("%s used %+v, want %s", w.name, got, w.used)
+		}
+		if got := d.Props["usedbyrefreservation"]; got.Value != w.urefres || got.Source != "-" {
+			t.Errorf("%s usedbyrefreservation %+v, want %s", w.name, got, w.urefres)
+		}
+	}
+	p, err := c.Get(ctx, "tank/p", "available", "usedbyrefreservation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run("create", "tank/p/new")
+	n, err := c.Get(ctx, "tank/p/new", "available")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pa, _ := p.Props["available"].Uint()
+	pu, _ := p.Props["usedbyrefreservation"].Uint()
+	if na, _ := n.Props["available"].Uint(); pa-pu != na {
+		t.Errorf("parent available %d less usedbyrefreservation %d = %d, a new child's available %d", pa, pu, pa-pu, na)
+	}
+	if _, err := sim.Run(ctx, "zfs", "set", "usedbyrefreservation=0", "tank/p"); err == nil || !strings.Contains(err.Error(), "is readonly") {
+		t.Errorf("set usedbyrefreservation: %v, want readonly", err)
 	}
 }
