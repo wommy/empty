@@ -1,0 +1,8 @@
+        use '-R' to destroy the following datasets:
+        tank/elsewhere/x (code 9), want FailedPrecondition "volume a has dependent clone tank/elsewhere/x"
+--- FAIL: TestDeleteVolumeScanIsSubtreeScoped (0.73s)
+    delete_scope_test.go:91: 1 unrelated: 6 rows (15970 B), names 0 (0 B); 100 unrelated: 204 rows (544435 B), names 0 (0 B)
+    delete_scope_test.go:95: DeleteVolume decoded 6 rows beside 1 unrelated volume, 204 beside 100: want 3 both
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.746s
+FAIL

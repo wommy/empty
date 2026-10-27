@@ -7,3 +7,4 @@
 {"run": 40505456077, "sha": "ab16195", "conclusion": "failure", "seconds": 64, "cause": "A-mountpin-busy"}
 {"run": 40506546405, "sha": "7024b1e", "conclusion": "success", "seconds": 69, "cause": null, "note": "real-pool green after A-mountpin-busy fix; last single-VM-job run"}
 {"run": 40506940034, "sha": "db15ae9", "conclusion": "success", "seconds": 86, "cause": "cold per-suite Go caches (first split run)", "note": "endpoint job 67s (test step 36s, +6s guest save); csi job 86s: binaries built +49.8s, ssh +50.8s, test phase 8.7s, guest userspace boot 31.1s (contended by cold build). Both saved caches; next push measures warm split."}
+{"run": 40508107121, "sha": "b1421d3", "conclusion": "failure", "seconds": null, "cause": "A-umask-race"}

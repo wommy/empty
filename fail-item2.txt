@@ -1,0 +1,23 @@
+--- FAIL: TestDestroyNeverHitsAReplacedDataset (0.00s)
+    --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-volume (0.00s)
+        --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-volume/destroy0 (0.00s)
+            crash_test.go:520: the dataset made in place of tank/k8s/vols/v was destroyed (zfs get tank/k8s/vols/v: not found: cannot open 'tank/k8s/vols/v': dataset does not exist)
+            crash_test.go:527: op after the swap of tank/k8s/vols/v: <nil> (code 0), want Aborted
+    --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-snapshot (0.00s)
+        --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-snapshot/destroy0 (0.00s)
+            crash_test.go:520: the dataset made in place of tank/k8s/vols/v@s was destroyed (zfs get tank/k8s/vols/v@s: not found: cannot open 'tank/k8s/vols/v@s': dataset does not exist)
+            crash_test.go:527: op after the swap of tank/k8s/vols/v@s: <nil> (code 0), want Aborted
+    --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-restored-clone (0.00s)
+        --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-restored-clone/destroy0 (0.00s)
+            crash_test.go:520: the dataset made in place of tank/k8s/vols/r was destroyed (zfs get tank/k8s/vols/r: not found: cannot open 'tank/k8s/vols/r': dataset does not exist)
+            crash_test.go:527: op after the swap of tank/k8s/vols/r: <nil> (code 0), want Aborted
+    --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source (0.00s)
+        --- FAIL: TestDestroyNeverHitsAReplacedDataset/delete-clone-releases-source/destroy0 (0.00s)
+            crash_test.go:520: the dataset made in place of tank/k8s/vols/src@volume-source-for-volume-c was destroyed (zfs get tank/k8s/vols/src@volume-source-for-volume-c: not found: cannot open 'tank/k8s/vols/src@volume-source-for-volume-c': dataset does not exist)
+            crash_test.go:527: op after the swap of tank/k8s/vols/src@volume-source-for-volume-c: <nil> (code 0), want Aborted
+    --- FAIL: TestDestroyNeverHitsAReplacedDataset/reconcile (0.01s)
+        --- FAIL: TestDestroyNeverHitsAReplacedDataset/reconcile/destroy0 (0.01s)
+            crash_test.go:520: the dataset made in place of tank/k8s/vols/src@volume-source-for-volume-c was destroyed (zfs get tank/k8s/vols/src@volume-source-for-volume-c: not found: cannot open 'tank/k8s/vols/src@volume-source-for-volume-c': dataset does not exist)
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.006s
+FAIL

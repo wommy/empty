@@ -1,0 +1,27 @@
+# FSM explore: kind=block prefix=zfs-endpoint depth=4
+distinct worlds=228 edges=1190 crash/retry runs=3562 combos=129 time=8.495s
+
+## row states observed
+  CSI-snap                                                     2680
+  CSI-snap-deferred                                            75
+  Clone-uncommitted                                            559
+  Committed                                                    7761
+  Committed-clone                                              1349
+  Created-uncommitted                                          1191
+  Foreign                                                      801
+  Foreign(dcsi)                                                678
+  Foreign(recv)                                                878
+  Foreign-snap                                                 2279
+  Foreign-snap(recv)                                           123
+  OwnCloneSrc-deferred                                         389
+  OwnCloneSrc-live                                             1315
+  OwnCloneSrc-orphan                                           826
+
+## findings (minimal depth first)
+
+[retry-diverges] (depth 5) DV(b) CRASH@1/1 [a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan] vs [a:Committed]
+  trace: CV(a) ; CV(b<-a,reserve) CRASH@1/3 ; CV(b,reserve) CRASH@1/2 ; DV(b) CRASH@1/1 ; retry DV(b)
+    uncrashed: a:Committed a@volume-source-for-volume-b:OwnCloneSrc-orphan resp=0
+    retried:   a:Committed resp=0
+    diff: a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""
+    then Reconcile{committed}: still differs (OK collected=): a@volume-source-for-volume-b: "a@volume-source-for-volume-b|snapshot|v1073741824|q0|r0|o|dfalse|h0|k[]|Mtrue|Cfalse||||||[          ]||;|raw:" -> ""

@@ -24,3 +24,8 @@ Judgment (judge.py: pure function of the tables, prints actions in priority orde
   7. events since the last checkpoint        -> CHECKPOINT (checkpoint.sh)
 Anomalies (owner rule) sort first within every step.
 Lanes never block each other: steps 4 and 5 are independent.
+
+Gate addition (A-umask-race, 2026-10-27): the local gate runs as root, which
+ignores mode bits. After `go test -race ./...`, also run the packages that
+create files or sockets as nobody:
+  for p in ./cmd/zfs-endpoint ./internal/unixsock; do go test -c -race -o $S/x.test $p && (cd $S && setpriv --reuid=65534 --regid=65534 --clear-groups env TMPDIR=/tmp HOME=/tmp ./x.test -test.count=3 -test.timeout=120s); done
