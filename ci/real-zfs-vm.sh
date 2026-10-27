@@ -288,19 +288,31 @@ fi
 # host sees sshd within about 0.4s (0.06-0.36s against a fake slirp,
 # 0.2-4.3s with a 5s bound). Only then does ssh log in (and open the
 # master), with the full ConnectTimeout for a guest busy booting.
-# The bound is 1s, not 0.3s: ssh.socket accepts a probe before sshd runs,
-# and a probe dropped there reaches sshd as a client that left without
-# authenticating. OpenSSH (>= 9.8) charges each such source 1s
-# (PerSourcePenalties noauth:1s) and refuses it once its penalty passes
-# 15s (min:15s): 0.3s probes ran past that while sshd started, and the
-# host saw sshd 18-19s after the guest had booted, in all three VM jobs
-# of run 40519558807 (179-191 probes). One probe a second stays under it,
-# for the host as a whole, which reaches the guest as one address.
+# Logins wait for the serial getty's login prompt in the console log:
+# getty starts after systemd-user-sessions, which lifts /run/nologin.
+# Before it, sshd answers but refuses the login, and OpenSSH (>= 9.8)
+# charges the source for each refusal (PerSourcePenalties authfail:5s)
+# and refuses every connection from it once the charge passes 15s. All of
+# the host's connections reach the guest from one address (slirp): the
+# host saw sshd 16-19s after the guest had booted, with 8 penalised drops
+# per boot (runs 40519558807, 40535710051). Without a prompt in 60s (a
+# console that prints none) the poll goes on as before.
 banner() { (exec 3<>/dev/tcp/127.0.0.1/2222 && IFS= read -r -t "$1" -n 4 b <&3 && [ "$b" = SSH- ]) 2>/dev/null; }
 wait_ssh() {
-  local up= probes=0 deadline=$((SECONDS + 600))
+  local up= probes=0 deadline=$((SECONDS + 600)) gate=$((SECONDS + 60)) prompt=
   # 600s: a cold run's first boot (cloud-init writes the key) included
   while [ $SECONDS -lt $deadline ]; do
+    if [ -z "$prompt" ]; then
+      if awk '/ login: *\r?$/ || / login: *$/ { f = 1 } END { exit !f }' "$work/console.log" 2>/dev/null; then
+        prompt=1
+        mark "login prompt"
+      elif [ $SECONDS -lt $gate ]; then
+        sleep 0.1
+        continue
+      else
+        prompt=none
+      fi
+    fi
     probes=$((probes + 1))
     banner 1 && vm true 2>/dev/null && { up=1; break; }
     if [ -n "$noinitrd" ] && ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
@@ -309,6 +321,7 @@ wait_ssh() {
       noinitrd=
       echo "noinitrd=" >>"$work/state"
       boot "$work/run.qcow2"
+      prompt= gate=$((SECONDS + 60))
     fi
     sleep 0.1
   done
@@ -453,7 +466,8 @@ vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analy
   for u in systemd-modules-load zfs-load-module zfs-mount zfs-zed; do printf "%s: %s, %s; " $u "$(systemctl is-active $u.service)" "$(systemctl is-enabled $u.service 2>&1)"; done; echo
   echo "modules-load.d (not loaded at boot when masked): $(cat /etc/modules-load.d/*.conf /run/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf 2>/dev/null | awk "!/^[#;]/ && NF" | tr "\n" " ")"
   echo "failed units: $(systemctl --failed --plain --no-legend | awk "{ print \$1 }" | tr "\n" " ")"
-  echo "sshd penalties: $(sudo sshd -T 2>/dev/null | awk "/^persourcepenalt/" | tr "\n" " "); penalised drops this boot: $(sudo journalctl -b -u ssh.service -u ssh.socket --no-pager 2>/dev/null | awk "/penalt/ { n++ } END { print n + 0 }")"
+  echo "sshd penalties: $(sudo sshd -T 2>&1 | awk "/penalt/" | tr "\n" " ")"
+  sudo journalctl -b -u ssh.service -u ssh.socket --no-pager -o short-monotonic 2>/dev/null | awk "/penalt|nologin|not permitted|Failed|Connection closed|Accepted/ && ++n <= 12"
   systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
   echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \
   >"$work/systemd-analyze.txt" 2>&1 &
