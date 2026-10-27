@@ -1,0 +1,14 @@
+--- FAIL: TestPlanReconcile (0.00s)
+    --- FAIL: TestPlanReconcile/leftover_nfs_clients_is_reported (0.00s)
+        reconcile_test.go:388: actions []
+            skipped []
+            want    []
+                    ["a:leftover nfs_clients property: ignored, sharenfs alone is the export state (ADR 0004); zfs inherit it to clear"]
+--- FAIL: TestFileExportLeftoverClientList (0.00s)
+    export_contract_test.go:661: sharenfs "rw=10.0.0.2/32:10.0.0.9/32": computed from the leftover list, not from sharenfs
+--- FAIL: TestFileExportAdminWorldEditIsForeign (0.00s)
+    export_contract_test.go:699: code = 0 (<nil>), want 9
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.020s
+FAIL
+exit 1

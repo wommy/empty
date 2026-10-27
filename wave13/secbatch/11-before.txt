@@ -1,0 +1,8 @@
+--- FAIL: TestStartupRefusesACrossmntAncestor (0.00s)
+    --- FAIL: TestStartupRefusesACrossmntAncestor/crossmnt,ro=@10.9.0.0/16 (0.00s)
+        exposure_test.go:35: exit 1 /tmp/TestStartupRefusesACrossmntAncestorcrossmnt,ro=@10.9.0.0161036837831/002/file exists and is not a socket (----------): refusing to replace it; refused false, want true
+    --- FAIL: TestStartupRefusesACrossmntAncestor/on (0.00s)
+        exposure_test.go:35: exit 1 /tmp/TestStartupRefusesACrossmntAncestoron2470357144/002/file exists and is not a socket (----------): refusing to replace it; refused false, want true
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	0.016s
+FAIL

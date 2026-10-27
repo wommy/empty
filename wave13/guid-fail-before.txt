@@ -1,0 +1,3 @@
+--- FAIL: TestModelReceivedSnapshotSharesGUID (0.00s)
+    modelrun_test.go:1321: step 2: foreign-changed: Reconcile(desired=[v2]): unowned v1@recv snapshot deferred=false holds=0 managed=false name= src= clonefor= -> v2@recv snapshot deferred=false holds=0 managed=false name= src= clonefor=
+--- FAIL: TestModelReceivedSnapshotSharesGUID (0.00s)
