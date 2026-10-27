@@ -14,8 +14,10 @@
 #   /proc/fs/nfsd/threads is 0 or absent. The VM now starts nfs-server, so
 #   TestFileExportLifecycle and TestFileExportAdoptedVolumes must RUN and are
 #   deliberately not listed.
-# internal/server tests are wired to the simulator and never skip;
-# internal/zfs and internal/csi have no t.Skip. csi-sanity's own skipped
+# Every entry must skip on the real leg: a listed test that runs means the
+# binary fell back to the simulator, and the leg fails. internal/server and
+# internal/zfs never reach a pool and run only in the unit job; internal/csi
+# has no t.Skip. csi-sanity's own skipped
 # specs are Ginkgo skips inside TestSanity, not go test skips.
 
 vm    endpoint TestConcurrentCreatesSerialize          # Sim: call accounting

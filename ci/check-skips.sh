@@ -1,44 +1,67 @@
 #!/usr/bin/env bash
-# Enforce the skip budget in ci/expected-skips.txt on one test binary's
-# -test.v output: a green run with unexpected skips is not full coverage.
+# Check one real-ZFS test binary's -test.v output against what it should
+# have measured: a green exit code is not coverage.
 #
-# usage: ci/check-skips.sh <leg> <package> <log>
-#   ci/check-skips.sh vm endpoint "$work/endpoint.log"
-# Fails when the log has a `--- SKIP:` line for a test not allowed for
-# <leg> <package>, or when it has no `--- PASS:` line (nothing ran).
+# usage: ci/check-skips.sh <leg> <package> <log> [<test list> [<min specs>]]
+#   ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list"
+#   ci/check-skips.sh vm csi "$work/csi-block.log" "" 44
+#
+# Fails when
+# - a test skipped that ci/expected-skips.txt does not allow for <leg> <package>
+#   (an entry for TestX also covers its subtests TestX/...);
+# - an allowed skip did not skip: on the real leg every entry is a simulator-
+#   only test, so a missing skip means the binary ran on the simulator;
+# - the log shows a failure or panic (the exit code already carries this;
+#   checking twice costs nothing);
+# - given a list (`<bin> -test.list '.*'`), a top-level test in it neither
+#   passed nor skipped, i.e. did not run;
+# - given a minimum, Ginkgo ran fewer specs ("Ran N of M Specs").
 set -euo pipefail
 
-leg=${1:?leg, e.g. vm or noble}
+leg=${1:?leg, e.g. vm}
 pkg=${2:?package under internal/, e.g. endpoint}
 log=${3:?test log}
+tests=${4:-}
+minspecs=${5:-}
 list=$(dirname "$0")/expected-skips.txt
 
-allowed=$(sed 's/#.*//' "$list" | awk -v l="$leg" -v p="$pkg" '$1 == l && $2 == p { print $3 }' | sort -u)
-skipped=$(sed -nE 's/^[[:space:]]*--- SKIP: ([^ ]+).*/\1/p' "$log" | sort -u)
-unexpected=$(comm -23 <(printf '%s\n' "$skipped" | sed '/^$/d') <(printf '%s\n' "$allowed" | sed '/^$/d'))
-stale=$(comm -13 <(printf '%s\n' "$skipped" | sed '/^$/d') <(printf '%s\n' "$allowed" | sed '/^$/d'))
-
-n=$(printf '%s\n' "$skipped" | sed '/^$/d' | wc -l)
-m=$(printf '%s\n' "$allowed" | sed '/^$/d' | wc -l)
-echo "skip budget $leg/$pkg: $n skipped, $m allowed"
-{
-  echo "| $leg | $pkg | $n skipped / $m allowed | ${skipped//$'\n'/ } |"
-} >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
+lines() { sed '/^$/d' | sort -u; }
+allowed=$(sed 's/#.*//' "$list" | awk -v l="$leg" -v p="$pkg" '$1 == l && $2 == p { print $3 }' | lines)
+# no leading anchor: a result line can be glued to unterminated output
+skipped=$(sed -nE 's/.*--- SKIP: ([^ ]+) \(.*/\1/p' "$log" | lines)
+passed=$(sed -nE 's/.*--- PASS: ([^ ]+) \(.*/\1/p' "$log" | lines)
 
 rc=0
-if ! grep -qE '^[[:space:]]*--- PASS: ' "$log"; then
-  echo "::error::$leg/$pkg: no test passed (empty or failed run?)"
-  rc=1
-fi
-if [ -n "$unexpected" ]; then
-  for t in $unexpected; do
-    echo "::error::$leg/$pkg: $t skipped but is not in ci/expected-skips.txt"
-    grep -B1 -E "^[[:space:]]*--- SKIP: $t " "$log" || true
-  done
-  rc=1
-fi
-for t in $stale; do
-  # not a failure: a test that stopped skipping is more coverage
-  echo "::notice::$leg/$pkg: $t is allowed to skip but did not; if that holds, drop it from ci/expected-skips.txt"
+err() { echo "::error::$leg/$pkg: $*"; rc=1; }
+
+unexpected=
+for t in $skipped; do
+  grep -qxF "$t" <<<"$allowed" || grep -qxF "${t%%/*}" <<<"$allowed" || unexpected+="$t "
 done
+stale=$(comm -13 <(printf '%s\n' "$skipped" | lines) <(printf '%s\n' "$allowed" | lines))
+
+n=$(printf '%s\n' "$skipped" | lines | wc -l)
+m=$(printf '%s\n' "$allowed" | lines | wc -l)
+echo "skip budget $leg/$pkg: $n skipped, $m allowed"
+echo "| $leg | $pkg | $n skipped / $m allowed | ${skipped//$'\n'/ } |" >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
+
+[ -n "$passed" ] || err "no test passed (empty or failed run?)"
+for t in $unexpected; do
+  err "$t skipped but is not in ci/expected-skips.txt"
+  grep -B1 -F -- "--- SKIP: $t " "$log" || true
+done
+for t in $stale; do
+  err "$t is allowed to skip only because it needs the simulator, but it ran: is this binary on the simulator?"
+done
+if grep -nE -- '--- FAIL: |^panic: |^FAIL' "$log"; then err "failure or panic in the log"; fi
+if [ -n "$tests" ]; then
+  for t in $(grep -E '^(Test|Fuzz|Example)' "$tests" | lines); do
+    grep -qxF "$t" <<<"$passed" || grep -qxF "$t" <<<"$skipped" || err "$t never reported PASS or SKIP: it did not run"
+  done
+fi
+if [ -n "$minspecs" ]; then
+  ran=$(sed -nE 's/.*Ran ([0-9]+) of [0-9]+ Specs.*/\1/p' "$log" | tail -n 1)
+  [ -n "$ran" ] || err "no Ginkgo summary in the log"
+  [ -z "$ran" ] || [ "$ran" -ge "$minspecs" ] || err "Ginkgo ran $ran specs, fewer than the floor of $minspecs"
+fi
 exit $rc

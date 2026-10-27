@@ -8,9 +8,10 @@ on:
 permissions:
   contents: read
 
-# one run per PR: a new push cancels the old run; pushes to main all finish
+# one run per PR: a new push cancels the old run; every push to main gets
+# its own group, so none is cancelled or dropped from the queue
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
@@ -69,7 +70,7 @@ jobs:
           test -z "$(git status --porcelain -- gen | tee /dev/stderr)"
 
   real-zfs:
-    # The real-ZFS gate: the contract tests, internal/zfs, and csi-sanity
+    # The real-ZFS gate: the endpoint contract tests and csi-sanity
     # (mount and block) against Ubuntu 26.10 (OpenZFS 2.4.x, the only
     # supported version, what TrueNAS 27 ships), with nfs-server running so
     # the file-export tests hit a real nfsd. Booted under KVM: no hosted
@@ -92,6 +93,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
       - name: install qemu
         run: |
           sudo apt-get update
@@ -101,7 +103,7 @@ jobs:
       - name: test (Ubuntu 26.10, real zfs 2.4)
         run: ci/real-zfs-vm.sh stonking current 2.4
       - name: upload VM console and test logs
-        if: failure()
+        if: failure() || cancelled() # a timeout cancels the job
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: real-zfs-vm-logs

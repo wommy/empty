@@ -19,7 +19,9 @@ want=${3:-2.4}
 work=${RUNNER_TEMP:-/tmp}/zfsvm
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
 keyring=/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
-pkgs=(endpoint server csi zfs)
+# only packages whose tests reach a real pool through ZFS_TEST_POOL;
+# internal/server and internal/zfs run on the simulator in the unit job
+pkgs=(endpoint csi)
 mkdir -p "$work"
 cd "$(git rev-parse --show-toplevel)"
 
@@ -85,7 +87,12 @@ for _ in $(seq 1 90); do vm true 2>/dev/null && { up=1; break; }; sleep 5; done
 [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
 # status exits non-zero on recoverable warnings; the version, module and
 # nfsd checks below are the real gates
-vm 'cloud-init status --wait --long || true; cat /etc/cloud/build.info; uname -r'
+# wait for cloud-init by its marker file: `status --wait` dies with ssh 255
+# when sshd restarts during the package install
+done_=
+for _ in $(seq 1 120); do vm 'test -e /var/lib/cloud/instance/boot-finished' 2>/dev/null && { done_=1; break; }; sleep 5; done
+[ -n "$done_" ] || { echo "cloud-init never finished" >&2; exit 1; }
+vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
 
 ver=$(vm 'zfs version 2>&1' || true) # a missing module fails below, with the output
 echo "$ver"
@@ -98,6 +105,11 @@ serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
 } >>"$summary"
 grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
   || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
+[ "$(sed -n 's/^zfs-kmod-//p' <<<"$ver")" = "$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")" ] \
+  || { echo "userland and kmod versions differ:" >&2; echo "$ver" >&2; exit 1; }
+# what the file-export tests need besides running nfsd threads
+vm 'command -v exportfs && test -d /etc/exports.d && sudo test -r /var/lib/nfs/etab' >/dev/null \
+  || { echo "NFS prerequisites missing in the VM (exportfs, /etc/exports.d, etab)" >&2; exit 1; }
 vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
   || { echo "nfs-server is not running in the VM" >&2; exit 1; }
 
@@ -112,22 +124,25 @@ vm 'set -eo pipefail
   sudo zpool create -f -O compression=lz4 zfsep-test "$PWD/vdev0"
   env=(ZFS_TEST_POOL=zfsep-test ZFS_REQUIRE_REAL=1)
   rc=0
-  for pkg in endpoint server zfs; do
-    sudo "${env[@]}" ./$pkg.test -test.count=1 -test.v 2>&1 | tee $pkg.log || rc=$?
-  done
+  t=(-test.count=1 -test.v -test.timeout=8m)
+  ./endpoint.test -test.list ".*" >endpoint.list
+  ./csi.test -test.list ".*" >csi.list
+  sudo "${env[@]}" ./endpoint.test "${t[@]}" 2>&1 | tee endpoint.log || rc=$?
   # csi-sanity, Identity and Controller groups, for filesystems and zvols;
   # the non-sanity csi tests do not depend on the access type, run them once
-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test -test.count=1 -test.v 2>&1 | tee csi-mount.log || rc=$?
-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test -test.count=1 -test.v -test.run "^TestSanity\$" 2>&1 | tee csi-block.log || rc=$?
+  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" 2>&1 | tee csi-mount.log || rc=$?
+  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run "^TestSanity\$" 2>&1 | tee csi-block.log || rc=$?
   sudo zpool destroy -f zfsep-test
   exit $rc' || rc=$?
 
-scp "${common[@]}" -P 2222 'ci@127.0.0.1:*.log' "$work/" || rc=1
+scp "${common[@]}" -P 2222 'ci@127.0.0.1:*.log' 'ci@127.0.0.1:*.list' "$work/" || rc=1
 {
   echo "| leg | package | skips | skipped tests |"
   echo "|---|---|---|---|"
 } >>"$summary"
-for log in endpoint server zfs csi-mount csi-block; do
-  ci/check-skips.sh vm "${log%%-*}" "$work/$log.log" || rc=1
-done
+# csi-sanity spec floor: Identity + Controller specs run on the simulator
+# (44 of 103 with csi-test v5.6); a regex or skip regression drops below it
+ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
+ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
+ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
 exit $rc
