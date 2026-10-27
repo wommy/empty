@@ -1,6 +1,6 @@
 {
  "ci": "green",
- "head": "939fbac",
+ "head": "ac3ddc0",
  "caps": {
   "total": 8,
   "writers": 3,
@@ -11,6 +11,5 @@
   "NFS decisions -> r-nfs-decisions, then ask owner"
  ],
  "notes": "First warm run 62s wall (VM job 57s: restore guest 12s, qemu 4s, test 29s; static 12s; test 17s). Next: overlap guest restore with setup-go; default-branch warm job (b-cache-warm).",
- "last_ci_seconds": 64,
- "budget_regression": "939fbac 64s (VM step 32->46s)"
+ "last_ci_seconds": 57
 }
