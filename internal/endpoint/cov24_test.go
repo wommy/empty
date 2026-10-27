@@ -2,6 +2,7 @@ package endpoint_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -146,4 +147,80 @@ func TestFileExportCreateChangedBeforeCommit(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Item 5 (wave22): a Publish refused by the exposure check after its change
+// (a line that appears only once the new sharenfs is applied, e.g. a
+// concurrent edit of another exports file) puts back the volume's previous
+// *local* sharenfs, not inheritance. A restore that fails too is reported
+// with the refusal, both wrapped, still FailedPrecondition.
+func TestFileExportRefusedPublishRestoresLocalList(t *testing.T) {
+	ctx := context.Background()
+	const a, b = "10.0.0.1", "10.0.0.2"
+	setup := func(t *testing.T) (*zfstest.Sim, *endpoint.Endpoint, endpoint.Volume, func()) {
+		t.Helper()
+		var reads, armed int
+		var line string
+		sim, _, ep := simNFS(t, func(c *endpoint.Config) {
+			sim := c.Etab.(*zfstest.Sim)
+			c.NFSD, c.Root = sim, sim
+			// from the second read of an armed Publish on: the first is
+			// the planner's, the second the check after the change
+			c.Etab = extraEtab{sim, func() string {
+				if reads++; armed > 0 && reads > armed {
+					return line
+				}
+				return ""
+			}}
+		})
+		v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc", CapacityBytes: 1 << 30})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ep.PublishFileExport(ctx, "pvc", a, false); err != nil {
+			t.Fatal(err)
+		}
+		line = v.Mountpoint + "\t*(rw,sync,no_root_squash,sec=sys,rw)\n"
+		return sim, ep, v, func() { armed = reads + 1 }
+	}
+
+	t.Run("restored", func(t *testing.T) {
+		sim, ep, v, arm := setup(t)
+		before := sim.Prop(v.Dataset, "sharenfs")
+		arm()
+		_, err := ep.PublishFileExport(ctx, "pvc", b, false)
+		wantCode(t, err, endpoint.FailedPrecondition)
+		if !strings.Contains(err.Error(), "beyond its client list") {
+			t.Fatalf("not the check after the change: %v", err)
+		}
+		if got := sim.Prop(v.Dataset, "sharenfs"); got != before || before != "rw="+a+"/32" {
+			t.Fatalf("sharenfs %q after a refused publish, was %q", got, before)
+		}
+		d, err := zfs.New(sim).Get(ctx, v.Dataset, "sharenfs")
+		if err != nil || !d.Props["sharenfs"].Local() {
+			t.Fatalf("sharenfs no longer local (%+v, %v)", d.Props["sharenfs"], err)
+		}
+		if strings.Contains(sim.Exports(), b) {
+			t.Fatalf("%s still exported after a refused publish:\n%s", b, sim.Exports())
+		}
+	})
+
+	t.Run("restore fails", func(t *testing.T) {
+		sim, ep, v, arm := setup(t)
+		before := sim.Prop(v.Dataset, "sharenfs")
+		failed := errors.New("injected: restore failed")
+		sim.Fail = func(args []string) error {
+			if args[0] == "set" && slices.Contains(args, "sharenfs="+before) {
+				return failed
+			}
+			return nil
+		}
+		arm()
+		_, err := ep.PublishFileExport(ctx, "pvc", b, false)
+		wantCode(t, err, endpoint.FailedPrecondition)
+		if !strings.Contains(err.Error(), "beyond its client list") || !strings.Contains(err.Error(), "restoring sharenfs") ||
+			!errors.Is(err, failed) {
+			t.Fatalf("want the refusal and the failed restore, both wrapped: %v", err)
+		}
+	})
 }
