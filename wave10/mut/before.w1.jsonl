@@ -38,3 +38,6 @@
 {"id": 276, "file": "internal/endpoint/plan.go", "line": 340, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["TestPlanCreatePropertiesConvergeUncommitted"], "pkgfail": ["FAIL"], "secs": 38.1}
 {"id": 282, "file": "internal/endpoint/plan.go", "line": 340, "op": "REL_FLIP", "status": "KILLED", "fails": ["TestPlanCreatePropertiesConvergeUncommitted"], "pkgfail": ["FAIL"], "secs": 30.5}
 {"id": 286, "file": "internal/endpoint/plan.go", "line": 343, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 39.2}
+{"id": 289, "file": "internal/endpoint/plan.go", "line": 348, "op": "GUARD_DELETE", "status": "KILLED", "fails": ["TestPlanCreatePropertiesConvergeUncommitted"], "pkgfail": ["FAIL"], "secs": 41.6}
+{"id": 294, "file": "internal/endpoint/plan.go", "line": 356, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["FuzzCreateConverges"], "pkgfail": ["FAIL"], "secs": 44.2}
+{"id": 297, "file": "internal/endpoint/plan.go", "line": 356, "op": "ANDOR_SWAP", "status": "KILLED", "fails": ["TestCreateVolumeIdempotent", "TestPlanCreateRefusesForeignAndIncompatible", "TestRoundTripAndCodes", "TestSanity"], "pkgfail": ["FAIL"], "secs": 37.0}

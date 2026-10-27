@@ -1,5 +1,5 @@
 {
- "ci": "pending",
+ "ci": "green",
  "head": "a02c5b0",
  "caps": {
   "total": 8,
@@ -10,5 +10,5 @@
  "pending_research": [
   "NFS decisions -> r-nfs-decisions, then ask owner"
  ],
- "notes": "4c1386e green cold (2:21, new guest key + qemu tree build). First warm run = next push: measure guest restore, boot->nfs, shards, total vs 33s projection."
+ "notes": "First warm run 62s wall (VM job 57s: restore guest 12s, qemu 4s, test 29s; static 12s; test 17s). Next: overlap guest restore with setup-go; default-branch warm job (b-cache-warm)."
 }

@@ -32,3 +32,6 @@
 {"ts": "2026-10-27T06:42:33Z", "id": "a9650f942cd067cd8", "from": "queued", "to": "running", "note": "w12-ledger"}
 {"ts": "2026-10-27T06:42:33Z", "id": "a06eea62fed2fe3ee", "from": "queued", "to": "running", "note": "w12-seams"}
 {"ts": "2026-10-27T06:42:33Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:43:20Z", "id": "a4801d3c50380546b", "from": "running", "to": "abandoned", "note": "API safeguard flag on offensive phrasing (attacker/PoC/injection); relaunched as defensive hardening review a35e88fd (sonnet)"}
+{"ts": "2026-10-27T06:50:00Z", "id": "a35e88fd13d787382", "from": "queued", "to": "running", "note": "w11-attacker relaunch"}
+{"ts": "2026-10-27T06:44:14Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

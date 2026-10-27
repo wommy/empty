@@ -199,3 +199,5 @@ Currently running writers (pre-rule): tests a0f85a15, ci a12cc517, vm a7831adb, 
 - Lanes now: readers 5 (model aa3129c3, zfs-diff a5b209d5, nfs-diff a5e4557d, csi-diff ab47454f, timing a3777e1a) -> wave11 waits for readers < 4. Writers 3 (vm a7831adb, tests a0f85a15, mutation aa10b675) -> full.
 - Writer queue (in order): core step 0 (one error table + JSON scan beside text + diff check); apply wave11/12 patches; README stale claims; nfs_clients removal + CSI NFS.
 ## OWNER RULE: never ask the owner an unresearched question (research + adversarial first; owner: it eliminates 88%+). Decisive + reversible -> decide and record in an ADR with evidence; ask only contested, irreversible or outward-facing ones, with recommendation + evidence. Enforced in orch/judge.py.
+- Lesson: phrase security briefs defensively (hardening review, regression tests) — 'attacker/PoC/injection' wording tripped an API safeguard and killed an agent.
+- a02c5b0 FIRST WARM RUN: 62s push->green; VM job 57s (guest restore 12s, qemu 4s, test 29s), static 12s, test 17s. Remaining: overlap guest restore; default-branch warm job.

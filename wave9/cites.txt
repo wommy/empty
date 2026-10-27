@@ -1,0 +1,146 @@
+model.go:82 zfs_main.c:644 | exit(requested ? 0 : 2);
+model.go:176 zfs_main.c:652 | parseprop(nvlist_t *props, char *propname)
+model.go:188 zfs_main.c:663 | if (nvlist_exists(props, propname)) {
+model.go:200 zfs_namecheck.c:49 | 
+model.go:204 zfs_namecheck.c:113 | }
+model.go:207 zfs_namecheck.c:120 | }
+model.go:210 zfs_namecheck.c:127 | 
+model.go:252 libzfs_dataset.c:707 | zfs_open(libzfs_handle_t *hdl, const char *path, int types)
+model.go:253 libzfs_util.c:454 | 
+model.go:254 libzfs_util.c:784 | default:
+model.go:269 libzfs_dataset.c:3464 | check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
+model.go:274 libzfs_dataset.c:3478 | if (parent_name(path, parent, sizeof (parent)) != 0) {
+model.go:278 libzfs_dataset.c:3488 | MIN(sizeof (zc.zc_name), slash - parent + 1));
+model.go:282 libzfs_dataset.c:3506 | }
+model.go:290 libzfs_dataset.c:3525 | 
+model.go:340 libzfs_iter.c:528 | iter_dependents_cb(zfs_handle_t *zhp, void *arg)
+OUT OF RANGE model.go 381 libzfs_iter.c 1065
+model.go:416 dsl_prop.c:1123 | valstr = kmem_asprintf("%s%s", propname,
+model.go:424 libzfs_dataset.c:2357 | get_source(zfs_handle_t *zhp, zprop_source_t *srctype, const char *source,
+model.go:425 libzfs_util.c:1583 | 
+model.go:443 zfs_main.c:2145 | (void) strlcpy(source,
+model.go:451 libzfs_dataset.c:2648 | if (!zfs_prop_valid_for_type(prop, zhp->zfs_type, B_FALSE))
+model.go:456 libzfs_dataset.c:2131 | * If the property is being fetched for a snapshot, check whether
+model.go:457 zprop_common.c:410 | if (headcheck && prop_tbl[prop].pd_types == ZFS_TYPE_SNAPSHOT)
+OUT OF RANGE model.go 470 zprop_common.c 2747
+OUT OF RANGE model.go 475 zprop_common.c 2759
+OUT OF RANGE model.go 489 zprop_common.c 2246
+model.go:493 dsl_prop.c:1328 | dsl_prop_nvlist_add_uint64(nvlist_t *nv, zfs_prop_t prop, uint64_t value)
+model.go:511 libzfs_dataset.c:2676 | break;
+model.go:548 libzfs_mount.c:282 | zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
+cmds.go:30 libzfs_dataset.c:1031 | zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
+cmds.go:31 libzfs_util.c:1759 | zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
+cmds.go:37 libzfs_util.c:1072 | free(hdl);
+cmds.go:46 libzfs_util.c:1087 | zfs_prop_init();
+cmds.go:56 libzfs_util.c:1183 | if (getextmntent(path, &entry, &statbuf) != 0)
+cmds.go:58 libzfs_util.c:1190 | }
+cmds.go:62 libzfs_util.c:1198 | */
+cmds.go:62 zfs_prop.c:931 | zfs_prop_readonly(zfs_prop_t prop)
+cmds.go:73 libzfs_util.c:1870 | /*
+cmds.go:88 libzfs_util.c:1826 | /*
+cmds.go:94 libzfs_util.c:1903 | "'%s' must be a string"), nvpair_name(elem));
+cmds.go:109 libzfs_util.c:1232 | zc->zc_nvlist_src = 0;
+cmds.go:114 libzfs_util.c:1338 | vdev_prop_to_name(pl->pl_prop) :
+cmds.go:119 libzfs_util.c:1494 | }
+cmds.go:161 dsl_dir.c:1240 | used += delta;
+cmds.go:191 zfs_ioctl.c:2625 | */
+cmds.go:198 dsl_dataset.c:4455 | {
+cmds.go:203 dsl_dataset.c:4538 | dsl_dataset_set_refreservation_check(void *arg, dmu_tx_t *tx)
+cmds.go:219 dsl_dir.c:1720 | error = dsl_prop_predict(ds->ds_dir, "quota",
+cmds.go:224 dsl_dir.c:1830 | if (dd->dd_parent) {
+cmds.go:246 zfs_ioctl.c:2840 | nvpair_t *propval;
+cmds.go:260 dsl_prop.c:771 | case ZPROP_SRC_NONE:
+cmds.go:280 libzfs_changelist.c:654 | changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
+cmds.go:280 libzfs_changelist.c:508 | change_one(zfs_handle_t *zhp, void *data)
+cmds.go:307 libzfs_changelist.c:96 | int
+cmds.go:321 libzfs_changelist.c:180 | {
+cmds.go:324 libzfs_changelist.c:258 | mounted = zfs_is_mounted(cn->cn_handle, NULL);
+cmds.go:346 zfs_main.c:1108 | while ((c = getopt(argc, argv, ":PV:b:nso:puv")) != -1) {
+cmds.go:369 zfs_main.c:1172 | if ((bflag || noreserve) && type != ZFS_TYPE_VOLUME) {
+cmds.go:385 zfs_main.c:1200 | 
+cmds.go:399 zfs_main.c:1236 | * up to the nearest multiple of the volblocksize.
+cmds.go:408 zfs_main.c:1250 | if (type == ZFS_TYPE_VOLUME && !noreserve) {
+cmds.go:421 zfs_main.c:1280 | * Now create the ancestors of target dataset.  If the target
+cmds.go:441 zfs_main.c:772 | zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
+cmds.go:450 libzfs_dataset.c:3571 | create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
+cmds.go:469 libzfs_dataset.c:3612 | 
+cmds.go:475 libzfs_dataset.c:3682 | zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
+cmds.go:476 zfs_ioctl.c:3704 | zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
+cmds.go:488 zfs_ioctl.c:3730 | break;
+cmds.go:505 zfs_ioctl.c:3784 | hidden_args, &dcp);
+cmds.go:508 zfs_ioctl.c:3791 | is_insensitive ? DS_FLAG_CI_DATASET : 0, dcp, cbfunc, &zct);
+cmds.go:524 zfs_ioctl.c:3798 | */
+cmds.go:525 zfs_ioctl.c:3836 | */
+cmds.go:551 zfs_main.c:4693 | if (argc > 1)
+cmds.go:553 zfs_main.c:4697 | zfs_handle_t *zhp;
+cmds.go:569 libzfs_dataset.c:4186 | zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, nvlist_t *props)
+cmds.go:579 libzfs_dataset.c:4231 | zpool_close(zpool_hdl);
+cmds.go:622 zfs_main.c:889 | if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL) {
+cmds.go:629 zfs_main.c:899 | */
+cmds.go:637 libzfs_dataset.c:4019 | zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
+cmds.go:651 libzfs_dataset.c:4052 | if (zfs_fix_auto_resv(zhp, props) == -1) {
+cmds.go:696 zfs_main.c:1705 | break;
+cmds.go:702 zfs_main.c:1861 | * Perform an explicit check for pools before going any further.
+cmds.go:706 zfs_main.c:1401 | destroy_check_dependent(zfs_handle_t *zhp, void *data)
+cmds.go:734 zfs_main.c:1460 | int error = zfs_destroy_snaps_nvl(g_zfs,
+cmds.go:734 zfs_main.c:1885 | }
+cmds.go:758 zfs_main.c:1480 | } else {
+cmds.go:788 dsl_destroy.c:766 | dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
+cmds.go:789 dsl_destroy.c:1027 | 
+cmds.go:789 dsl_destroy.c:1081 | /*
+cmds.go:792 dsl_destroy.c:787 | */
+cmds.go:795 dsl_destroy.c:797 | if (error != 0)
+cmds.go:806 dsl_destroy.c:603 | dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
+cmds.go:808 dsl_destroy.c:320 | ASSERT(zfs_refcount_is_zero(&ds->ds_longholds));
+cmds.go:808 dsl_destroy.c:79 | if (ds->ds_userrefs > 0)
+cmds.go:809 dsl_destroy.c:85 | if (dsl_dataset_phys(ds)->ds_num_children > 1)
+cmds.go:809 libzfs_dataset.c:3949 | zfs_destroy_snaps_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, boolean_t defer)
+cmds.go:836 zfs_main.c:1745 | /* Build the list of snaps to destroy in cb_nvl. */
+cmds.go:840 zfs_main.c:1638 | 
+cmds.go:859 zfs_main.c:1618 | if (err == 0) {
+cmds.go:872 zfs_main.c:1763 | if (nvlist_empty(cb.cb_nvl)) {
+cmds.go:875 zfs_main.c:1667 | * We can't defer destroy non-snapshots, so set it to
+cmds.go:908 zfs_main.c:4575 | /* validate argument order:  prop=val args followed by dataset args */
+cmds.go:922 zfs_main.c:4595 | nomem();
+cmds.go:941 libzfs_dataset.c:1749 | zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
+cmds.go:948 libzfs_dataset.c:1603 | zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
+cmds.go:967 libzfs_dataset.c:1654 | zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
+cmds.go:983 libzfs_dataset.c:1797 | elem = nvlist_next_nvpair(nvl, elem))
+cmds.go:985 libzfs_changelist.c:193 | if (clp->cl_gflags & CL_GATHER_DONT_UNMOUNT)
+cmds.go:997 libzfs_changelist.c:719 | } else if (prop == ZFS_PROP_CANMOUNT) {
+cmds.go:1007 libzfs_dataset.c:1871 | if (added_resv && errno == ENOSPC) {
+cmds.go:1035 zfs_main.c:2518 | argv++;
+cmds.go:1076 zfs_main.c:2457 | * If we're doing it recursively, then ignore properties that
+cmds.go:1090 libzfs_dataset.c:1932 | zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
+cmds.go:1091 dsl_prop.c:723 | dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
+cmds.go:1113 dsl_prop.c:805 | if (version >= SPA_VERSION_RECVD_PROPS &&
+cmds.go:1142 zfs_main.c:6782 | if (holding && tag[0] == '.') {
+cmds.go:1182 libzfs_dataset.c:4964 | zfs_hold_one(zfs_handle_t *zhp, void *arg)
+cmds.go:1196 libzfs_util.c:234 | case EZFS_REFTAG_HOLD:
+cmds.go:1209 libzfs_dataset.c:5084 | zfs_release_one(zfs_handle_t *zhp, void *arg)
+cmds.go:1211 dsl_userhold.c:424 | if (DS_IS_DEFER_DESTROY(ds) &&
+cmds.go:1211 dsl_userhold.c:536 | 
+cmds.go:1277 libzfs_dataset.c:4469 | zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
+cmds.go:1373 libzfs_dataset.c:4116 | }
+cmds.go:1379 dsl_dataset.c:3436 | dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
+cmds.go:1388 dsl_dataset.c:3536 | }
+cmds.go:1388 dsl_dataset.c:4135 | if (origin_head->ds_quota != 0 &&
+cmds.go:1435 libzfs_util.c:1958 | ((type == ZFS_TYPE_DATASET) && !zfs_prop_user(propname) &&
+cmds.go:1516 dsl_prop.c:786 | * set propname$iuv -> new property value
+props.go:77 zfs_prop.c:405 | { NULL }
+props.go:93 zfs_prop.c:541 | zprop_register_index(ZFS_PROP_MOUNTED, "mounted", 0, PROP_READONLY,
+props.go:103 zfs_prop.c:641 | zprop_register_number(ZFS_PROP_VOLBLOCKSIZE, "volblocksize",
+props.go:105 zfs_prop.c:691 | zprop_register_number(ZFS_PROP_QUOTA, "quota", 0, PROP_DEFAULT,
+props.go:111 zfs_prop.c:536 | zprop_register_index(ZFS_PROP_CANMOUNT, "canmount", ZFS_CANMOUNT_ON,
+props.go:113 zfs_prop.c:583 | zprop_register_string(ZFS_PROP_MOUNTPOINT, "mountpoint", "/",
+props.go:117 zfs_prop.c:735 | zprop_register_number(ZFS_PROP_RECORDSIZE, "recordsize",
+props.go:119 zfs_prop.c:417 | zprop_register_index(ZFS_PROP_SYNC, "sync", ZFS_SYNC_STANDARD,
+props.go:133 zfs_prop.c:365 | static const zprop_index_t xattr_table[] = {
+props.go:156 zfs_prop.c:833 | zfs_prop_user(const char *name)
+props.go:157 zprop_common.c:420 | zprop_valid_char(char c)
+props.go:171 libzfs_util.c:1676 | char *end;
+props.go:173 libzfs_util.c:1620 | zprop_print_one_property(name, cbp,
+OUT OF RANGE props.go 217 libzfs_util.c 5483
+OUT OF RANGE props.go 219 libzfs_util.c 5598
+props.go:220 libzfs_util.c:1625 | 
+props.go:220 libzfs_util.c:1688 | 
