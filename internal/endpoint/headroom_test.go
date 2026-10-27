@@ -157,3 +157,75 @@ func TestMinFreeBytesGuard(t *testing.T) {
 		t.Fatalf("guard off: %v", err)
 	}
 }
+
+// On the simulator, with an operator's refreservation or refquota on the
+// parent. Written to hold whether the simulator's available follows
+// OpenZFS (adds back the parent's unused refreservation, caps at its
+// refquota) or not (subtracts every reservation, ignores refquota).
+func TestMinFreeBytesGuardParentSpace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	const G = 1 << 30
+	// a 5G refreservation on the parent leaves its children 5G of 10G:
+	// 4.5G thick would leave 0.5G, under the 1G floor
+	ep, sim := simEndpoint(t, Config{MinFreeBytes: G})
+	sim.PoolSize = 10 * G
+	if err := ep.zfs.Set(ctx, rParent, map[string]string{"refreservation": "5368709120"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: "big", Kind: Block, CapacityBytes: 4*G + G/2}); CodeOf(err) != ResourceExhausted {
+		t.Fatalf("thick 4.5G beside the parent's unused 5G refreservation: %v, want ResourceExhausted", err)
+	}
+	// a 1G refquota on the parent limits what it references, not its
+	// children: 4G thick of 10G passes
+	ep, sim = simEndpoint(t, Config{MinFreeBytes: G})
+	sim.PoolSize = 10 * G
+	if err := ep.zfs.Set(ctx, rParent, map[string]string{"refquota": "1073741824"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: "big", Kind: Block, CapacityBytes: 4 * G}); err != nil {
+		t.Fatalf("thick 4G under a parent with a 1G refquota: %v", err)
+	}
+}
+
+// TestChildAvail pins the guard's reading of the parent against OpenZFS:
+// a new child gets dsl_dir_space_available of the parent's dir, while the
+// parent's available (dsl_dataset_space) adds back the parent's own
+// unused refreservation and is capped by its refquota, neither of which
+// applies to children. s is the parent's properties as zfs get prints
+// them; up is the same bound one level up (the grandparent).
+func TestChildAvail(t *testing.T) {
+	t.Parallel()
+	const G = 1 << 30
+	for _, c := range []struct {
+		name  string
+		s     parentSpace
+		up    uint64
+		hasUp bool
+		want  uint64
+	}{
+		{name: "no reservations: available is the children's", s: parentSpace{avail: 10 * G}, want: 10 * G},
+		// dir space 6G; available adds back the unused 4G refreservation
+		{name: "the parent's unused refreservation is not the children's", s: parentSpace{avail: 10 * G, refres: 4 * G}, want: 6 * G},
+		// dir space 5G, refreservation 5G of which 2G is taken by the
+		// parent's own data (unique): available 8G. Without unique this
+		// reads 3G, short by min(unique, refreservation): a lower bound
+		{name: "a partly used refreservation: a lower bound", s: parentSpace{avail: 8 * G, refres: 5 * G}, want: 3 * G},
+		{name: "refreservation above available: no wrap", s: parentSpace{avail: G, refres: 4 * G}, want: 0},
+		// a quota is a dsl_dir limit: available already holds it
+		{name: "a quota without a refquota", s: parentSpace{avail: 4 * G, quota: 6 * G, used: 2 * G}, want: 4 * G},
+		// available is min(dir space, refquota - referenced) = 1G, while
+		// the children get what the grandparent gives: 10G
+		{name: "the parent's refquota does not limit children", s: parentSpace{avail: G, refquota: G}, up: 10 * G, hasUp: true, want: 10 * G},
+		{name: "a refquota with an unused refreservation", s: parentSpace{avail: G / 2, refres: 4 * G, refquota: 5 * G, used: 4 * G}, up: 10 * G, hasUp: true, want: 10 * G},
+		{name: "a refquota and a quota: the quota binds children", s: parentSpace{avail: G, refquota: G, quota: 6 * G, used: 2 * G}, up: 10 * G, hasUp: true, want: 4 * G},
+		{name: "a refquota and a reservation: its unused part is the children's", s: parentSpace{avail: G, refquota: G, resv: 3 * G, used: G}, up: 5 * G, hasUp: true, want: 7 * G},
+		{name: "a refquota over quota", s: parentSpace{avail: 0, refquota: G, quota: 2 * G, used: 3 * G}, up: 10 * G, hasUp: true, want: 0},
+		{name: "a refquota on the pool root: the lower bound", s: parentSpace{avail: G, refres: G / 2, refquota: G}, want: G / 2},
+		{name: "a lower bound above the walk is kept", s: parentSpace{avail: 3 * G, refquota: 5 * G}, up: G, hasUp: true, want: 3 * G},
+	} {
+		if got := childAvail(c.s, c.up, c.hasUp); got != c.want {
+			t.Errorf("%s: %d, want %d", c.name, got, c.want)
+		}
+	}
+}

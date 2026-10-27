@@ -9,13 +9,14 @@ import (
 )
 
 // The headroom guard (Config.MinFreeBytes, -min-free-bytes) refuses a plan
-// that makes a volume, or reserves space, when the parent's available
-// space after it would fall below the floor: ResourceExhausted, before
+// that makes a volume, or reserves space, when the space a new child of
+// the parent gets (childSpace, not the parent's own available) after it
+// would fall below the floor: ResourceExhausted, before
 // anything is applied. It keeps a pool shared with other datasets from
 // being filled to the last byte by provisioning, where every later write
 // (zfs's own metadata included) fails.
 //
-// It is advisory, not a reservation. available is read once, under the
+// It is advisory, not a reservation. The space is read once, under the
 // volume's lock but not the pool's: two creates of different volumes, or
 // anything else writing to the pool, can each pass the check and together
 // cross the floor. Only ZFS's own reservations (a thick zvol's
@@ -121,13 +122,13 @@ func checkHeadroom(avail, need, floor uint64, what string) error {
 	if floor == 0 || avail >= need && avail-need >= floor {
 		return nil
 	}
-	return errorf(ResourceExhausted, "%s: the parent has %d bytes available and this reserves %d, which would leave less than the %d-byte floor (-min-free-bytes)",
+	return errorf(ResourceExhausted, "%s: a new child of the parent gets %d bytes and this reserves %d, which would leave less than the %d-byte floor (-min-free-bytes)",
 		what, avail, need, floor)
 }
 
 // headroom applies the guard to plan, made from t: it reads the parent's
-// available space only when the guard is on and the plan makes a dataset
-// or reserves space.
+// space only when the guard is on and the plan makes a dataset or
+// reserves space.
 func (e *Endpoint) headroom(ctx context.Context, t Table, plan Plan, what string) error {
 	if e.cfg.MinFreeBytes == 0 {
 		return nil
@@ -136,16 +137,102 @@ func (e *Endpoint) headroom(ctx context.Context, t Table, plan Plan, what string
 	if need == 0 && !creates {
 		return nil
 	}
-	d, err := e.zfs.Get(ctx, e.cfg.Parent, "available")
-	if zfs.IsNotFound(err) {
-		return parentUnavailable(e.cfg.Parent, err)
-	}
+	avail, err := e.childSpace(ctx, e.cfg.Parent)
 	if err != nil {
-		return zfsErr(err, "inspect parent")
-	}
-	avail, err := d.Props["available"].Uint()
-	if err != nil {
-		return errorf(Internal, "parent %s: available %q: %v", e.cfg.Parent, d.Props["available"].Value, err)
+		return err
 	}
 	return checkHeadroom(avail, need, e.cfg.MinFreeBytes, what)
+}
+
+// What a new child of the parent can get is not the parent's available.
+// OpenZFS (dsl_dataset.c dsl_dataset_space, dsl_dir.c
+// dsl_dir_space_available), for a dataset P whose dsl_dir has space D:
+//
+//	available(P) = D + max(0, refreservation(P) - unique(P))
+//	               capped at refquota(P) - referenced(P) when refquota is set
+//	child space  = D (a new child, without reservation or quota of its own,
+//	               gets its parent dir's dsl_dir_space_available)
+//
+// max(0, refreservation - unique) is P's usedbyrefreservation, charged to
+// P's dir (dsl_dataset_set_refreservation_sync_impl, DD_USED_REFRSRV), so
+// D already excludes it and available(P) adds it back for P alone. The
+// refquota cap limits what P itself references, not its children.
+//
+// unique is not a property and the simulator has no usedbyrefreservation,
+// so the add-back is bounded by refreservation: available -
+// refreservation is at most D, short of it by min(unique, refreservation),
+// the parent's own data. That holds capped or not. Under a refquota D
+// cannot be read from P at all; it is one level up (dsl_dir_space_available
+// recursing into the parent dir):
+//
+//	D = min(D(parent) + max(0, reservation(P) - used(P)), quota(P) - used(P))
+//
+// where quota 0 is no limit. A pool root has no level up; the bound stands.
+
+// parentSpace is a dataset's space properties, as the guard reads them in
+// one get.
+type parentSpace struct {
+	avail, refres, refquota, quota, resv, used uint64
+}
+
+var parentSpaceProps = []string{"available", "refreservation", "refquota", "quota", "reservation", "used"}
+
+// needsUp reports whether childAvail needs the level up: only a refquota
+// hides the dir's space from available.
+func (s parentSpace) needsUp() bool { return s.refquota > 0 }
+
+// childAvail is a lower bound on the space a new child of s gets
+// (dsl_dir_space_available of s's dir), exact when s has no data of its
+// own under a refreservation. up is the same for s's parent, when hasUp.
+// Pure.
+func childAvail(s parentSpace, up uint64, hasUp bool) uint64 {
+	sub := func(a, b uint64) uint64 {
+		if a < b {
+			return 0
+		}
+		return a - b
+	}
+	low := sub(s.avail, s.refres)
+	if !s.needsUp() || !hasUp {
+		return low
+	}
+	d := up
+	if extra := sub(s.resv, s.used); d+extra >= d {
+		d += extra
+	} else {
+		d = ^uint64(0)
+	}
+	if s.quota > 0 {
+		d = min(d, sub(s.quota, s.used))
+	}
+	return max(low, d)
+}
+
+// childSpace reads childAvail for a new child of name: one get, and one
+// more per level up only while a refquota hides the dir's space.
+func (e *Endpoint) childSpace(ctx context.Context, name string) (uint64, error) {
+	d, err := e.zfs.Get(ctx, name, parentSpaceProps...)
+	if zfs.IsNotFound(err) && name == e.cfg.Parent {
+		return 0, parentUnavailable(name, err)
+	}
+	if err != nil {
+		return 0, zfsErr(err, "inspect parent")
+	}
+	var s parentSpace
+	for _, f := range []struct {
+		prop string
+		v    *uint64
+	}{{"available", &s.avail}, {"refreservation", &s.refres}, {"refquota", &s.refquota}, {"quota", &s.quota}, {"reservation", &s.resv}, {"used", &s.used}} {
+		if *f.v, err = d.Props[f.prop].Uint(); err != nil {
+			return 0, errorf(Internal, "%s: %s %q: %v", name, f.prop, d.Props[f.prop].Value, err)
+		}
+	}
+	up, hasUp := uint64(0), false
+	if i := strings.LastIndexByte(name, '/'); i > 0 && s.needsUp() {
+		if up, err = e.childSpace(ctx, name[:i]); err != nil {
+			return 0, err
+		}
+		hasUp = true
+	}
+	return childAvail(s, up, hasUp), nil
 }
