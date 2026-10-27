@@ -28,18 +28,19 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
 - **What may not be cut to meet it.** The budget is met by removing waiting and duplication, never by removing measurement. Every check that stands today still gates a PR:
   - gofmt, `go mod tidy -diff`, vet, the gen-drift check and buf lint;
   - the real OpenZFS 2.4 kmod and userland assert;
-  - the skip budget, the test-list coverage and the Ginkgo spec floor;
+  - the skip budget, the test-list coverage and the pinned csi-sanity specs (the passed specs of each mode, exactly `internal/csi/testdata/sanity-passed-<mode>.txt`; this replaced the spec floor, `Ran >= 44`, which missed a spec skipping while another appeared);
   - every spec row (`docs/research`, wave8 catalogue) keeps at least one killing test.
 - **Tiers:**
   - **PR (≤60s):**
     - the static checks;
     - pure planner tables;
-    - simulator tests;
+    - simulator tests, and csi-sanity in NFS mode on the simulator (a second step of the `test` job, off the critical path: measured locally, warm, 1.2-1.6s of test and 4.3-5.2s of step wall with the race build's link; the `test` job ends well before the VM jobs);
     - the seed-corpus run of each fuzz target as plain `go test`;
     - the real-ZFS VM suites, one VM job per part of a suite: endpoint in two parts, csi in one (see "The endpoint suite in two parts" below).
   - **Nightly** (`nightly.yml`, 03:17 UTC and on dispatch; nothing in it gates a PR). Three jobs:
     - `fuzz`: exploratory fuzzing of the nine targets in its matrix, 5 minutes each by default (the `fuzztime` input).
     - `real-zfs-full`: the same suites as `ci.yml` (`endpoint`, `csi`), one VM each, the endpoint suite unsplit (one part, 3 shards; no `ZFSVM_PART`), and the csi leg booted with `ZFSVM_INITRD=1`, the only run of the GRUB fallback path; with `ZFSDIFF_FULL=1` and `ZFS_CRASH_FULL=1`. Both sweeps are endpoint tests; the csi job runs the csi suite against the same guest.
+      - `ZFSVM_CSI_NFS=1` (csi job) adds a fourth csi shard: csi-sanity in NFS mode on the real pool, through the guest's nfsd. It stays out of the PR csi job, where it would add an estimated 2-4s (the guest's csi phase goes from about 79% busy to saturated) to a job that set or tied the pace in 2 of 4 runs, with push-to-green at 43-51s. It moves to the PR tier only with a matching saving, or once nightly runs show the four-shard csi phase within about 1s of the three-shard one.
       - `ZFSDIFF_FULL=1` replays the whole zfsdiff corpus on the real pool. Its divergences are reported, not failed, until the three ambiguities are settled (`ZFSDIFF_STRICT`).
       - `ZFS_CRASH_FULL=1` runs every crash point of every case on the real pool. The PR's real leg runs each crash case uninterrupted plus one crash point, rotated across cases; the simulator leg runs every point on every PR. The full sweep cost about 29s of the VM's two vCPUs (run 40468062545), and it slowed every other shard.
       - It also runs every destroy of `TestDestroyNeverHitsAReplacedDataset` (OWN-15) on the real pool. The PR's real leg swaps only the first destroy of each of its five cases (`swapSweep`): every case still reaches the guid guard, which is one code path for every destroy. The simulator leg swaps every destroy on every PR. The full sweep was 19 subtests and 18.8 test-seconds, all on one shard (run 40511369632); the first destroys are 5 subtests and 8.0 test-seconds. With the guard disabled (`sameDataset` returning nil), the first destroy of every case fails on the simulator, so the reduced run still catches it.

@@ -75,6 +75,16 @@ set tank/v/r democratic-csi:provision_success=true
 ## restore/larger-than-limit
 error: OutOfRange
 
+## restore/fs-expanded-since
+clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
+set tank/v/r refquota=2097152
+set tank/v/r democratic-csi:provision_success=true
+
+## restore/fs-legacy-snapshot
+clone tank/v/r from=tank/v/src@s democratic-csi:csi_volume_content_source_id=src@s democratic-csi:csi_volume_content_source_type=snapshot democratic-csi:csi_volume_name=r democratic-csi:managed_resource=true devices=off exec=off setuid=off sharenfs=off sharesmb=off
+set tank/v/r refquota=4194304
+set tank/v/r democratic-csi:provision_success=true
+
 ## restore/unknown-source
 error: NotFound
 
@@ -132,7 +142,7 @@ set tank/v/a refquota=2097152
 error: NotFound
 
 ## snapshot/new
-snapshot tank/v/a@s democratic-csi:csi_snapshot_name=s democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true
+snapshot tank/v/a@s democratic-csi:csi_snapshot_name=s democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true democratic-csi:snapshot_size=0
 
 ## snapshot/exists
 (empty)
@@ -144,7 +154,13 @@ error: AlreadyExists
 error: InvalidArgument
 
 ## snapshot/long-name
-snapshot tank/v/a@csi-dd2411b970d6f3272b9824bdc649c6d7 democratic-csi:csi_snapshot_name=nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true
+snapshot tank/v/a@csi-dd2411b970d6f3272b9824bdc649c6d7 democratic-csi:csi_snapshot_name=nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true democratic-csi:snapshot_size=0
+
+## snapshot/fs-sized
+snapshot tank/v/a@s democratic-csi:csi_snapshot_name=s democratic-csi:csi_snapshot_source_volume_id=a democratic-csi:managed_resource=true democratic-csi:snapshot_size=1073741824
+
+## snapshot/zvol
+snapshot tank/v/z@s democratic-csi:csi_snapshot_name=s democratic-csi:csi_snapshot_source_volume_id=z democratic-csi:managed_resource=true
 
 ## delete-snapshot/plain
 destroy tank/v/a@s +defer +ok-missing

@@ -157,3 +157,48 @@ func TestFilesystemCloneNeverSmallerThanSource(t *testing.T) {
 		}
 	}
 }
+
+// CSI: a snapshot's size_bytes is its size when it was taken, the minimum
+// a restore needs. Expanding the source afterwards must not change it in
+// ListSnapshots, in a CreateSnapshot retry (idempotency: the same answer),
+// or in what a restore from it starts at. A zvol snapshot keeps its volsize
+// (SNP-11); a filesystem snapshot has no refquota, so the endpoint records
+// it at snapshot time.
+func TestSnapshotSizeIsItsSizeWhenTaken(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []endpoint.VolumeKind{endpoint.Filesystem, endpoint.Block} {
+		t.Run(kind.String(), func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			ep, h := setup(t)
+			if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: kind, CapacityBytes: 8 * mib}); err != nil {
+				t.Fatal(err)
+			}
+			s, err := ep.CreateSnapshot(ctx, "s", "src")
+			if err != nil || s.SizeBytes != 8*mib {
+				t.Fatalf("CreateSnapshot: %+v %v, want 8 MiB", s, err)
+			}
+			if _, err := ep.ExpandVolume(ctx, "src", 16*mib, 0); err != nil {
+				t.Fatal(err)
+			}
+			if again, err := ep.CreateSnapshot(ctx, "s", "src"); err != nil || again != s {
+				t.Errorf("retry after expand: %+v %v, want %+v", again, err, s)
+			}
+			list, _, err := ep.ListSnapshots(ctx, "src@s", "", 0, "")
+			if err != nil || len(list) != 1 || list[0].SizeBytes != 8*mib {
+				t.Errorf("ListSnapshots after expand: %+v %v, want 8 MiB", list, err)
+			}
+			// a restore asked for less starts at the snapshot's size, not
+			// the source's current one
+			v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "r", Kind: kind, CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"})
+			if err != nil || v.CapacityBytes != 8*mib {
+				t.Errorf("restore: %+v %v, want 8 MiB", v, err)
+			}
+			if kind == endpoint.Filesystem {
+				if q := h.Prop(h.Parent+"/r", "refquota"); q != "8388608" {
+					t.Errorf("restore refquota %s, want 8 MiB", q)
+				}
+			}
+		})
+	}
+}

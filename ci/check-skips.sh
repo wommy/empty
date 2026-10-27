@@ -2,9 +2,9 @@
 # Check one real-ZFS test binary's -test.v output against what it should
 # have measured: a green exit code is not coverage.
 #
-# usage: ci/check-skips.sh <leg> <package> <log> [<test list> [<min specs>]]
+# usage: ci/check-skips.sh <leg> <package> <log> [<test list>]
 #   ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list"
-#   ci/check-skips.sh vm csi "$work/csi-block.log" "" 44
+#   ci/check-skips.sh vm csi "$work/csi-block.log"
 #
 # Fails when
 # - a test skipped that ci/expected-skips.txt does not allow for <leg> <package>
@@ -15,8 +15,9 @@
 # - the log shows a failure or panic (the exit code already carries this;
 #   checking twice costs nothing);
 # - given a list (`<bin> -test.list '.*'`), a top-level test in it neither
-#   passed nor skipped, i.e. did not run;
-# - given a minimum, Ginkgo ran fewer specs ("Ran N of M Specs").
+#   passed nor skipped, i.e. did not run.
+# csi-sanity's specs are Ginkgo's, not go test's: ci/check-specs.sh compares
+# the ones that passed with the pinned list.
 #
 # SKIPS_ELSEWHERE=<file>, one top-level test per line: the tests another
 # job runs (the endpoint suite split over parts, ci/real-zfs-plan.sh). An
@@ -29,7 +30,6 @@ leg=${1:?leg, e.g. vm}
 pkg=${2:?package under internal/, e.g. endpoint}
 log=${3:?test log}
 tests=${4:-}
-minspecs=${5:-}
 list=$(dirname "$0")/expected-skips.txt
 
 lines() { sed '/^$/d' | sort -u; }
@@ -89,10 +89,5 @@ if [ -n "$tests" ]; then
   for t in $(grep -E '^(Test|Fuzz|Example)' "$tests" | lines); do
     grep -qxF "$t" <<<"$passed" || grep -qxF "$t" <<<"$skipped" || err "$t never reported PASS or SKIP: it did not run"
   done
-fi
-if [ -n "$minspecs" ]; then
-  ran=$(sed -nE 's/.*Ran ([0-9]+) of [0-9]+ Specs.*/\1/p' "$log" | tail -n 1)
-  [ -n "$ran" ] || err "no Ginkgo summary in the log"
-  [ -z "$ran" ] || [ "$ran" -ge "$minspecs" ] || err "Ginkgo ran $ran specs, fewer than the floor of $minspecs"
 fi
 exit $rc

@@ -42,3 +42,6 @@ vm    endpoint TestMissingParentIsUnavailableForWholeScans # Sim: missing pool
 vm    endpoint TestOwnershipDifferentialFixtures   # Sim: received property source; a test-only differential
 vm    endpoint TestOwnershipDifferentialCrashes    # Sim: every crash point, a ~30s VM sweep (crashSample)
 vm    endpoint TestOwnershipDifferentialModel      # Sim: model traces, sim-only adm.recvsnap
+vm    endpoint TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block # Sim: zvol swap before commit (the filesystem subtest runs)
+vm    endpoint TestMissingParentFailsCreateAndDeleteUnavailable # Sim: missing pool
+vm    endpoint TestRPCCallBudget                       # Sim: call accounting

@@ -82,6 +82,8 @@
 # ZFSVM_PROVISION_ONLY=1 stops after the checks: no build, no tests
 # (cache-warm.yml stores a guest with it).
 # ZFSDIFF_FULL=1 and ZFS_CRASH_FULL=1 (nightly.yml) reach the guest's tests.
+# ZFSVM_CSI_NFS=1 (nightly.yml's csi job only, ADR 0005) adds a fourth csi
+# shard: csi-sanity on an endpoint in NFS mode, pool zcsi3.
 set -euo pipefail
 
 series=${1:?series, e.g. stonking}
@@ -573,7 +575,7 @@ rc=0
 # back. On the bound the guest's processes stay; out/ is copied as is
 gt=4m ht=6m
 [ -z "${ZFSDIFF_FULL:-}${ZFS_CRASH_FULL:-}" ] || { gt=12m ht=14m; }
-timeout -k 10 "$ht" ssh "${common[@]}" -p 2222 ci@127.0.0.1 "sudo env ZFSVM_PKGS='${pkgs[*]}' ZFSVM_UNIT=$unit ZFSVM_EP_PART=$part ZFSVM_EP_PER=$per ZFSVM_TEST_TIMEOUT=$gt ZFSVM_RUN=${GITHUB_RUN_ID:-local}.${GITHUB_RUN_ATTEMPT:-1} ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
+timeout -k 10 "$ht" ssh "${common[@]}" -p 2222 ci@127.0.0.1 "sudo env ZFSVM_PKGS='${pkgs[*]}' ZFSVM_UNIT=$unit ZFSVM_EP_PART=$part ZFSVM_EP_PER=$per ZFSVM_TEST_TIMEOUT=$gt ZFSVM_RUN=${GITHUB_RUN_ID:-local}.${GITHUB_RUN_ATTEMPT:-1} ZFSVM_CSI_NFS=${ZFSVM_CSI_NFS:+1} ZFSDIFF_FULL=${ZFSDIFF_FULL:-} ZFS_CRASH_FULL=${ZFS_CRASH_FULL:-} bash real-zfs-guest.sh" || rc=$?
 case $rc in 124 | 137) echo "::error::vm: the guest's test run did not end within $ht (shard timeouts $gt); the shard logs below are as far as they got"; timeout 30 ssh "${common[@]}" -p 2222 ci@127.0.0.1 'ps -eo pid,stat,etime,wchan:32,args --sort=start_time | awk "\$2 ~ /D/"' || true ;; esac
 mkdir -p "$work/out"
 timeout -k 5 120 scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
@@ -599,7 +601,8 @@ cat "$work/systemd-analyze.txt" 2>/dev/null || true
 echo "::endgroup::"
 # what check-skips reads: endpoint = the union of this part's shards (it
 # must cover endpoint.part.list); csi-mount = the non-sanity tests plus csi-sanity on
-# filesystems (it must cover csi.list); csi-block = csi-sanity on zvols
+# filesystems (it must cover csi.list); csi-block = csi-sanity on zvols;
+# csi-nfs (ZFSVM_CSI_NFS) = csi-sanity in NFS mode
 # endpoint, split over parts: this part's tests (endpoint.part.list) and
 # the other parts' (endpoint.other.list), from the plan; the guest's own
 # list must be the host's, which the plan was made from
@@ -620,6 +623,7 @@ fi
 if has csi; then
   cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" || rc=1
   cp "$o/csi-block.log" "$o/csi.list" "$work/" || rc=1
+  [ -z "${ZFSVM_CSI_NFS:-}" ] || cp "$o/csi-nfs.log" "$work/" || rc=1
 fi
 # the endpoint suite's reports. TestNFSReplay (internal/endpoint) replays a sharenfs corpus through the
 # real libshare, exportfs and etab and diffs it against the reference
@@ -685,8 +689,11 @@ fi
   echo "| leg | package | skips | skipped tests |"
   echo "|---|---|---|---|"
 } >>"$summary"
-# csi-sanity spec floor: Identity + Controller specs run on the simulator
-# (44 of 103 with csi-test v5.6); a regex or skip regression drops below it
+# csi-sanity: the specs each shard passed (out/<shard>.passed) must be
+# exactly the pinned list TestSanity also checks on the simulator
+# (internal/csi/testdata/sanity-passed-<mode>.txt, ci/check-specs.sh): a
+# spec that starts skipping or a new one fails by name, which the old count
+# floor ("Ran >= 44") missed when one appeared as another went
 # each suite's checks, in the job that runs it: the jobs together cover
 # every real-pool package once (ci/check-suites.sh, in the static job)
 if has endpoint; then
@@ -700,7 +707,15 @@ if has endpoint; then
   ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$work/endpoint.plan" "$part" "${eplogs[@]}" || rc=1
 fi
 if has csi; then
-  ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
-  ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
+  ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" || rc=1
+  ci/check-skips.sh vm csi "$work/csi-block.log" || rc=1
+  modes=(mount block)
+  if [ -n "${ZFSVM_CSI_NFS:-}" ]; then
+    ci/check-skips.sh vm csi "$work/csi-nfs.log" || rc=1
+    modes+=(nfs)
+  fi
+  for m in "${modes[@]}"; do
+    ci/check-specs.sh vm "csi-$m" "$o/csi-$m.passed" "internal/csi/testdata/sanity-passed-$m.txt" || rc=1
+  done
 fi
 exit $rc
