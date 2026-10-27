@@ -1,0 +1,8 @@
+# a child's reservation and refreservation are charged to its parent as
+# the larger of the two, not their sum (dsl_dir_set_quota_check on
+# dd_used_bytes)
+# covers: quota
+zfs create $R/g
+zfs create -o reservation=10485760 -o refreservation=10485760 $R/g/p
+zfs set quota=15728640 $R/g
+zfs set quota=5242880 $R/g

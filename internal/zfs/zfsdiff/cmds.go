@@ -2,6 +2,7 @@ package zfsdiff
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strconv"
@@ -138,54 +139,41 @@ func (m *Model) validProps(list []kv, typ kind, zhp *dset, errbuf string) ([]pva
 
 const enospc = "ENOSPC"
 
-// reserved sums reservations charged against the pool (approximation of
-// dsl_dir space accounting with referenced = 0).
-func (m *Model) reserved() uint64 {
-	var n uint64
-	for _, d := range m.ds {
-		if d.kind == kSnap {
-			continue
-		}
-		n += num(m.effective(d, "refreservation"))
-		n += num(m.effective(d, "reservation"))
-	}
-	return n
-}
-
-func (m *Model) available(d *dset) uint64 {
-	r := m.reserved()
-	avail := uint64(0)
-	if r < m.PoolFree {
-		avail = m.PoolFree - r
-	}
-	// dsl_dir_space_available (module/zfs/dsl_dir.c:1240-1310) caps by
-	// every ancestor's quota
-	for x := d; x != nil; x = m.ds[parentName(x.name)] {
-		if q := num(m.effective(x, "quota")); q > 0 {
-			u := m.dirUsed(x)
-			if q < u {
-				return 0
-			}
-			avail = min(avail, q-u)
-		}
-	}
-	return avail
-}
-
-// dirUsed approximates dd_used for the quota check: the refreservations
-// of every head under d plus descendants' reservations.
+// dirUsed is dd_used_bytes with referenced and unique 0 (module/zfs/
+// dsl_dir.c dsl_dir_diduse_transfer_space): d's refreservation plus, per
+// child, the larger of its used and its reservation.
 func (m *Model) dirUsed(d *dset) uint64 {
-	var n uint64
-	for k, x := range m.ds {
-		if x.kind == kSnap || !under(k, d.name) {
-			continue
-		}
-		n += num(m.effective(x, "refreservation"))
-		if x != d {
-			n += num(m.effective(x, "reservation"))
-		}
+	n := num(m.effective(d, "refreservation"))
+	for _, c := range m.childrenOf(d.name) {
+		n += max(m.dirUsed(c), num(m.effective(c, "reservation")))
 	}
 	return n
+}
+
+// dirAvail is dsl_dir_space_available(dd, NULL, 0, TRUE) (dsl_dir.c:
+// 1198-1250): the parent's space plus d's unused reservation, capped by
+// d's quota; at the pool root the quota is PoolFree.
+func (m *Model) dirAvail(d *dset) uint64 {
+	parentspace := uint64(math.MaxUint64)
+	p := m.ds[parentName(d.name)]
+	if p != nil {
+		parentspace = m.dirAvail(p)
+	}
+	quota := uint64(math.MaxUint64)
+	if q := num(m.effective(d, "quota")); q > 0 {
+		quota = q
+	}
+	if p == nil {
+		quota = min(quota, m.PoolFree)
+	}
+	used := m.dirUsed(d)
+	if r := num(m.effective(d, "reservation")); r > used && parentspace != math.MaxUint64 {
+		parentspace += r - used
+	}
+	if used > quota {
+		return 0
+	}
+	return min(parentspace, quota-used)
 }
 
 // setSpecial is zfs_prop_set_special (module/zfs/zfs_ioctl.c:2625-2720)
@@ -211,7 +199,7 @@ func (m *Model) setSpecial(d *dset, p pval) (string, bool) {
 			if d.kind == kFS {
 				rq = num(m.effective(d, "refquota"))
 			}
-			if newval-cur > m.available(d) || rq > 0 && newval > rq {
+			if newval-cur > m.dirAvail(d) || rq > 0 && newval > rq {
 				return enospc, true
 			}
 		}
@@ -221,14 +209,23 @@ func (m *Model) setSpecial(d *dset, p pval) (string, bool) {
 			return enospc, true
 		}
 	case "reservation":
-		// dsl_dir_set_reservation_check (dsl_dir.c:1830-1870)
-		cur := num(m.effective(d, "reservation"))
-		if newval > cur {
+		// dsl_dir_set_reservation_check (dsl_dir.c:1759-1810): delta =
+		// MAX(used, new) - MAX(used, old) against the parent's space
+		// (PoolFree less used at the root)
+		used := m.dirUsed(d)
+		cur := max(used, num(m.effective(d, "reservation")))
+		if nv := max(used, newval); nv > cur {
+			avail := uint64(0)
+			if p := m.ds[parentName(d.name)]; p != nil {
+				avail = m.dirAvail(p)
+			} else if used < m.PoolFree {
+				avail = m.PoolFree - used
+			}
 			q := uint64(0)
 			if d.kind == kFS {
 				q = num(m.effective(d, "quota"))
 			}
-			if newval-cur > m.available(d) || q > 0 && newval > q {
+			if nv-cur > avail || q > 0 && newval > q {
 				return enospc, true
 			}
 		}

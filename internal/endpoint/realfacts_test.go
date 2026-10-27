@@ -305,6 +305,134 @@ var facts = []fact{
 		f.zfs("destroy", "-d", f.p+"/a@s")
 		return f.zfs("clone", f.p+"/a@s", f.p+"/c")
 	}},
+	// space accounting (dsl_dir_space_available, dsl_dataset_space): sizes
+	// in bytes, since the Sim does not parse suffixes; under a quota on
+	// f.p so the other tests sharing the pool cannot move the numbers
+	{row: "SPC-01", what: "a reservation leaves its own dataset's available unchanged; a child's refreservation inside it is charged once; a refreservation adds to its own dataset's available; refquota caps available",
+		check: func(f *factEnv) error {
+			g, p, c := f.p, f.p+"/p", f.p+"/p/c"
+			if err := f.zfs("set", "quota=268435456", g); err != nil {
+				return err
+			}
+			if err := f.zfs("create", "-o", "reservation=67108864", p); err != nil {
+				return err
+			}
+			if err := availNear(f, p, 256<<20); err != nil {
+				return fmt.Errorf("after the reservation: %w", err)
+			}
+			if err := f.zfs("create", "-o", "refreservation=33554432", c); err != nil {
+				return err
+			}
+			if err := availNear(f, p, 224<<20); err != nil {
+				return fmt.Errorf("after the child's refreservation: %w", err)
+			}
+			if err := availNear(f, c, 256<<20); err != nil {
+				return fmt.Errorf("the child: %w", err)
+			}
+			if err := f.zfs("create", "-o", "refquota=16777216", g+"/d"); err != nil {
+				return err
+			}
+			return availNear(f, g+"/d", 16<<20)
+		}},
+	// changelist_prefix: zfs_unmount of the busy node fails, and
+	// changelist_postfix remounts (and reshares) the nodes unmounted
+	// before it
+	{row: "MNT-02", what: "a mountpoint change refused busy by a pinned child remounts the inherited children it had unmounted",
+		check: func(f *factEnv) error {
+			p := f.p + "/p"
+			for _, d := range []string{p, p + "/a"} {
+				if err := f.zfs("create", d); err != nil {
+					return err
+				}
+			}
+			mp, err := f.get(p, "mountpoint")
+			if err != nil {
+				return err
+			}
+			if err := f.zfs("create", "-o", "mountpoint="+mp+"/b", p+"/b"); err != nil {
+				return err
+			}
+			if err := f.z.Set(context.Background(), p, map[string]string{"mountpoint": mp + "-moved"}); !errors.Is(err, zfs.ErrBusy) {
+				return fmt.Errorf("set mountpoint: %v, want busy", err)
+			}
+			if v, _ := f.get(p+"/a", "mounted"); v != "yes" {
+				return fmt.Errorf("inherited child mounted=%q after the refused move, want yes", v)
+			}
+			if v, _ := f.get(p, "mountpoint"); v != mp {
+				return fmt.Errorf("mountpoint %q after the refused move, want %q", v, mp)
+			}
+			return nil
+		}},
+	// zfs_prop_set_list_flags gathers canmount=off on a mounted
+	// filesystem as a mountpoint changelist, so its prefix unmounts and
+	// can fail busy like a mountpoint change
+	{row: "MNT-01", what: "canmount=off on a mounted filesystem with a pinned child mounted inside it fails busy and changes nothing",
+		check: func(f *factEnv) error {
+			p := f.p + "/p"
+			if err := f.zfs("create", p); err != nil {
+				return err
+			}
+			mp, err := f.get(p, "mountpoint")
+			if err != nil {
+				return err
+			}
+			if err := f.zfs("create", "-o", "mountpoint="+mp+"/b", p+"/b"); err != nil {
+				return err
+			}
+			if err := f.z.Set(context.Background(), p, map[string]string{"canmount": "off"}); !errors.Is(err, zfs.ErrBusy) {
+				return fmt.Errorf("set canmount=off: %v, want busy", err)
+			}
+			for _, w := range []struct{ ds, prop, want string }{{p, "mounted", "yes"}, {p, "canmount", "on"}, {p + "/b", "mounted", "yes"}} {
+				if v, _ := f.get(w.ds, w.prop); v != w.want {
+					return fmt.Errorf("%s %s=%q after the refused set, want %q", w.ds, w.prop, v, w.want)
+				}
+			}
+			return nil
+		}},
+	// zvol_volsize_to_reservation (libzfs_dataset.c) looks copies up
+	// with nvlist_lookup_string, but zfs create hands it real_props, where
+	// zfs_valid_proplist has already made the index property a uint64
+	// (libzfs_util.c): the lookup fails and ncopies stays 1, and the set
+	// paths get validated lists too. So copies=2 does not double the
+	// thick reservation, as the Sim's autoResv has it. Compared, not
+	// hardcoded, so the row holds on any vdev layout.
+	{row: "VOL-12", what: "`create -V` with copies=2 reserves what copies=1 does", check: func(f *factEnv) error {
+		if err := f.zfs("create", "-V", "1048576", f.p+"/one"); err != nil {
+			return err
+		}
+		if err := f.zfs("create", "-V", "1048576", "-o", "copies=2", f.p+"/two"); err != nil {
+			return err
+		}
+		one, err := f.get(f.p+"/one", "refreservation")
+		if err != nil {
+			return err
+		}
+		two, err := f.get(f.p+"/two", "refreservation")
+		if err != nil {
+			return err
+		}
+		if one == "" || one == "0" || two != one {
+			return fmt.Errorf("refreservation copies=1 %q, copies=2 %q; want equal and nonzero", one, two)
+		}
+		return nil
+	}},
+}
+
+// availNear: name's available is want within 1 MiB (the real pool's
+// metadata: referenced, unique; the Sim takes both as 0).
+func availNear(f *factEnv, name string, want uint64) error {
+	v, err := f.get(name, "available")
+	if err != nil {
+		return err
+	}
+	got, err := strconv.ParseUint(v, 10, 64)
+	if err != nil {
+		return err
+	}
+	if d := int64(got) - int64(want); d > 1<<20 || d < -(1<<20) {
+		return fmt.Errorf("%s available %d, want %d (within 1 MiB)", name, got, want)
+	}
+	return nil
 }
 
 func TestRealFacts(t *testing.T) {
