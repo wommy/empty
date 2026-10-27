@@ -14,6 +14,12 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # go.mod's `go` line is 1.27.0 and its toolchain line 1.27.3: install
+  # 1.27.3 directly and never switch, or the restored cache and the
+  # switched toolchain collide (tar "Failed to restore" in every job)
+  GOTOOLCHAIN: local
+
 defaults:
   run:
     shell: bash # -eo pipefail, so `| tee` does not hide a failure
@@ -28,7 +34,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version-file: go.mod
+          go-version: 1.27.3
+          cache-dependency-path: go.sum # key: unit
       - name: gofmt
         run: test -z "$(gofmt -l . | tee /dev/stderr)"
       - name: go.mod and go.sum tidy
@@ -37,10 +44,29 @@ jobs:
         run: go vet ./...
       - name: test (simulator)
         run: go test -race -count=1 ./...
-      - name: fuzz smoke
-        run: |
-          go test -run '^$' -fuzz FuzzCreateConverges -fuzztime 20s ./internal/endpoint
-          go test -run '^$' -fuzz FuzzParseColumns -fuzztime 10s ./internal/zfs
+
+  fuzz:
+    # each target in parallel, off the unit job's critical path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: FuzzCreateConverges, pkg: ./internal/endpoint }
+          - { name: FuzzReconcileSafe, pkg: ./internal/endpoint }
+          - { name: FuzzParseColumns, pkg: ./internal/zfs }
+          - { name: FuzzClassify, pkg: ./internal/zfs }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: 1.27.3
+          cache: false # the unit job owns the build cache
+      - name: fuzz ${{ matrix.target.name }}
+        run: go test -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime 30s -fuzzminimizetime 10s ${{ matrix.target.pkg }}
 
   proto:
     runs-on: ubuntu-24.04
@@ -59,7 +85,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version-file: go.mod
+          go-version: 1.27.3
+          cache: false # buf's modules once took over the shared cache key
       - name: buf lint
         run: $BUF lint
       - name: generated code up to date
@@ -87,7 +114,12 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version-file: go.mod
+          go-version: 1.27.3
+          # a second file in the hash gives this job its own key: its
+          # CGO_ENABLED=0 test builds share nothing with the unit job's
+          cache-dependency-path: |
+            go.sum
+            ci/real-zfs-vm.sh
       - name: enable kvm
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
