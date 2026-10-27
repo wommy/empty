@@ -251,3 +251,13 @@
 {"ts": "2026-10-27T13:49:15Z", "id": "a8806c3aad4d92fff", "from": "queued", "to": "running", "note": "r-ci-45"}
 {"ts": "2026-10-27T13:49:15Z", "id": "af6985ce32183060f", "from": "queued", "to": "running", "note": "r-seams"}
 {"ts": "2026-10-27T13:49:22Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T13:55:09Z", "id": "a2d5add9daefcd276", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T13:55:41Z", "id": "af6985ce32183060f", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T13:55:41Z", "id": "af6985ce32183060f", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T13:55:41Z", "id": "af6985ce32183060f", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T13:55:41Z", "id": "a8806c3aad4d92fff", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T13:55:41Z", "id": "a8806c3aad4d92fff", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T13:55:41Z", "id": "a8806c3aad4d92fff", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T13:56:34Z", "id": "ab861af8ad2341413", "from": "queued", "to": "running", "note": "q-seams-fix"}
+{"ts": "2026-10-27T13:56:34Z", "id": "a27f596bb840a667d", "from": "queued", "to": "running", "note": "q-ci-poll"}
+{"ts": "2026-10-27T13:56:34Z", "id": "acf7494638986ab8a", "from": "queued", "to": "running", "note": "q-ci-split3"}
