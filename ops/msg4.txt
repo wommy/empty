@@ -1,0 +1,16 @@
+endpoint: ABORTED lock refusals name the wait, the holder's request id and how long it has held
+
+"operation pending on [vol:x]" gave the operator nothing to find the
+holder by. lock.Keyed now records each held key's owner and since
+(lock.WithOwner, set by server.WithRequestID to the call's request id;
+handed over with the key to the next waiter) and exposes Holder. The
+refusal reads
+
+  operation pending on [vol:pvc-x] (waited 29s; vol:pvc-x held for 4m2s by request <id>)
+
+and the holder's rpc, zfs and "zfs slow" lines carry that request_id.
+TryAcquireContext records the owner for the try-only paths (the lock's
+no-wait path, DeleteVolume's extra source, Reconcile).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

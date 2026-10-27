@@ -1,0 +1,17 @@
+health: warn once when the parent's available space falls below -min-free-bytes; ENOSPC-after-change says to free space
+
+Nothing warned before the pool was full: the first sign was a failed
+create. The health probe's existing `zfs get` of the parent now reads
+`available` with `type` (no extra fork), and with -min-free-bytes set it
+logs a WARN "health: free space below -min-free-bytes" once when the
+space falls below the floor and an INFO once it is back. Health stays
+SERVING, like the floor it reports on.
+
+An out-of-space failure after a change stays ABORTED (RESOURCE_EXHAUSTED
+would strand the half-made create), but its message no longer promises
+plain convergence: "(earlier ops applied; out of space: free space on
+the pool first, then a retry converges)", and likewise for a resumed
+attempt.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

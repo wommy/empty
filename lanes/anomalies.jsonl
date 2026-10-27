@@ -46,3 +46,6 @@
 {"t": "2026-10-27T17:44:56Z", "id": "A-nfs-server-name-cluster-dns", "sev": "med-high", "state": "open", "note": "ClusterFirstWithHostNet + ndots:5: tenant namespace can hijack short NFS server names"}
 {"t": "2026-10-27T17:48:41Z", "id": "A-admin-uid-check-untested", "sev": "high", "state": "open", "note": "deleting adminPeer call in authorize survives: socket tests run as root"}
 {"t": "2026-10-27T17:48:41Z", "id": "A-publish-export-no-lock", "sev": "med", "state": "open", "note": "PublishFileExport takes no lock (mutation sweep)"}
+{"t": "2026-10-27T17:54:12Z", "id": "A-deploy-cannot-mount", "state": "closed", "note": "fixed by design (NFS-only mount path, volume_context matches csi-driver-nfs v4.13.6); not verified e2e"}
+{"t": "2026-10-27T17:54:12Z", "id": "A-deploy-no-image", "sev": "high", "state": "open", "note": "controller.yaml references ghcr.io/wommy/zfs-csi:v0.1.0; nothing builds it"}
+{"t": "2026-10-27T17:54:12Z", "id": "A-storageclass-unwritable", "sev": "med", "state": "open", "note": "no nfs.uid/gid/mode + root_squash => pods get EACCES on write"}
