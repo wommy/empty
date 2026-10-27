@@ -134,6 +134,49 @@ func TestManagedWithoutNameIsNotOwned(t *testing.T) {
 	}
 }
 
+// R5: a clone of a volume's snapshot outside the parent is invisible to
+// the scan; zfs refused the planned destroy and every reconcile aborted,
+// so later undesired volumes were never collected.
+func TestReachOutsideCloneWedgesReconcile(t *testing.T) {
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	z := zfs.New(sim)
+	for _, d := range []string{rParent, "tank/backup"} {
+		if err := z.CreateFilesystem(ctx, d, nil, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ep, err := New(z, Config{Parent: rParent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a", "b", "keep"} {
+		if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: id, Kind: Filesystem}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// a deferred CSI snapshot: deleted, kept by zfs for its clone outside
+	if _, err := ep.CreateSnapshot(ctx, "manual", "a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := z.Clone(ctx, rParent+"/a@manual", "tank/backup/a-copy", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := ep.DeleteSnapshot(ctx, "a@manual"); err != nil {
+		t.Fatal(err)
+	}
+	later, err := New(z, Config{Parent: rParent, Now: func() time.Time { return time.Now().Add(48 * time.Hour) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 2 {
+		plan, err := later.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+		if err != nil || sim.Has(rParent+"/b") || !sim.Has(rParent+"/a") || !sim.Has("tank/backup/a-copy") {
+			t.Fatalf("run %d: err=%v plan=%+v", i, err, plan)
+		}
+	}
+}
+
 // R12: a Planner built without VolBlockSize divided by zero on any block
 // request.
 func TestReachPlannerZeroBlockSize(t *testing.T) {

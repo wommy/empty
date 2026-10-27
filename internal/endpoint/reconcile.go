@@ -45,7 +45,14 @@ const (
 	// clone_source_for set locally at creation) is not the endpoint's.
 	SkipUnstampedCloneSource = "clone-source name without the endpoint's stamp: not ours"
 	SkipUnaddressable        = "name the endpoint cannot address"
-	SkipChangedSinceScan     = "changed since the scan, or not locked; next reconcile"
+	// SkipFailed prefixes the error of a group whose apply failed (what
+	// of it ran is in Actions); the run went on with the next group.
+	SkipFailed = "failed"
+	// SkipDependentFailed: a volume whose clone, collected in the same
+	// run, failed; it is not attempted.
+	SkipDependentFailed  = "not attempted: a clone collected first failed"
+	SkipNotAttempted     = "not attempted"
+	SkipChangedSinceScan = "changed since the scan, or not locked; next reconcile"
 )
 
 // Desired is the caller's statement of what to keep.
@@ -116,6 +123,16 @@ type ReconcileSkip struct {
 type ReconcilePlan struct {
 	Actions []ReconcileAction
 	Skipped []ReconcileSkip
+
+	// groups partitions Actions into what is applied, and fails, as one:
+	// a volume with its snapshots and released origin, or one orphan.
+	groups []reconcileGroup
+}
+
+type reconcileGroup struct {
+	target string // what a failure is reported against
+	n      int    // its actions, consecutive in Actions
+	deps   []int  // earlier groups that must have succeeded (its clones)
 }
 
 // Plan is the ops of the actions, in order.
@@ -183,6 +200,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 
 	// Deleting a volume only removes blockers of others, so each round
 	// plans every volume deletable against the previous round's table.
+	volGroup := map[string]int{}
 	rows := slices.Collect(t.All())
 	cur := t
 	for len(pending) > 0 {
@@ -215,6 +233,8 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 			}
 			plans = append(plans, plan)
 			out.Actions = append(out.Actions, acts...)
+			volGroup[c.id] = len(out.groups)
+			out.groups = append(out.groups, reconcileGroup{target: c.id, n: len(acts)})
 		}
 		if len(plans) == 0 {
 			break
@@ -272,8 +292,56 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 			continue
 		}
 		out.Actions = append(out.Actions, a)
+		out.groups = append(out.groups, reconcileGroup{target: r.ID, n: 1})
+	}
+
+	// a volume planned in a later round waited for its clones: if one of
+	// them fails at apply, the volume is not attempted
+	for id, g := range volGroup {
+		for s := range t.SnapshotsOf(id) {
+			for c := range t.ClonesOf(s.Name) {
+				if cg, ok := volGroup[c.ID]; ok {
+					out.groups[g].deps = append(out.groups[g].deps, cg)
+				}
+			}
+		}
 	}
 	return out, nil
+}
+
+// applyReconcile applies plan group by group. A group that fails is
+// reported as skipped with the error, and the run continues: one stuck
+// volume (a hold, an open zvol, a clone zfs can see and the scan cannot)
+// neither hides what already ran nor starves every volume after it
+// (adv4 F3). What ran is returned as Actions; a group is never retried
+// within the run. done(g), if set, is called after group g.
+func (e *Endpoint) applyReconcile(ctx context.Context, plan ReconcilePlan, done func(g int)) ReconcilePlan {
+	out := ReconcilePlan{Skipped: plan.Skipped}
+	failed := make([]bool, len(plan.groups))
+	i := 0
+	for g, grp := range plan.groups {
+		acts := plan.Actions[i : i+grp.n]
+		i += grp.n
+		switch {
+		case ctx.Err() != nil:
+			failed[g] = true
+			out.Skipped = append(out.Skipped, ReconcileSkip{Target: grp.target, Reason: SkipNotAttempted + ": " + ctx.Err().Error()})
+		case slices.ContainsFunc(grp.deps, func(d int) bool { return failed[d] }):
+			failed[g] = true
+			out.Skipped = append(out.Skipped, ReconcileSkip{Target: grp.target, Reason: SkipDependentFailed})
+		default:
+			n, err := e.applyN(ctx, ReconcilePlan{Actions: acts}.Plan())
+			out.Actions = append(out.Actions, acts[:n]...)
+			if err != nil {
+				failed[g] = true
+				out.Skipped = append(out.Skipped, ReconcileSkip{Target: grp.target, Reason: SkipFailed + ": " + err.Error()})
+			}
+		}
+		if done != nil {
+			done(g)
+		}
+	}
+	return out
 }
 
 func (p Planner) rel(name string) string { return strings.TrimPrefix(name, p.Parent+"/") }
@@ -442,8 +510,5 @@ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (Reconcile
 	if plan, err = e.plan.PlanReconcile(t, d); err != nil {
 		return ReconcilePlan{}, err
 	}
-	if err := e.apply(ctx, plan.Plan()); err != nil {
-		return ReconcilePlan{}, err
-	}
-	return plan, nil
+	return e.applyReconcile(ctx, plan, nil), nil
 }

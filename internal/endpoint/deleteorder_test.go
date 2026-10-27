@@ -7,6 +7,7 @@ package endpoint
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/wommy/empty/internal/zfs"
@@ -36,11 +37,14 @@ func TestAdv4ChildDatasetsDestroyed(t *testing.T) {
 	h.must(h.z.CreateFilesystem(ctx, a4Parent+"/old/someone-elses", nil, false))
 	h.must(h.z.Snapshot(ctx, a4Parent+"/old/someone-elses@s", nil))
 	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
-	if err != nil && CodeOf(err) != FailedPrecondition {
-		t.Fatal(err)
-	}
+	h.must(err)
 	if !h.has(a4Parent+"/old/someone-elses@s") || !h.has(a4Parent+"/old") {
 		t.Fatalf("unowned child dataset destroyed: %+v", p)
+	}
+	// zfs's refusal is reported against the volume, and nothing ran
+	if len(p.Actions) != 0 || len(p.Skipped) != 1 || p.Skipped[0].Target != "old" ||
+		!strings.HasPrefix(p.Skipped[0].Reason, SkipFailed+": ") || !strings.Contains(p.Skipped[0].Reason, "has children") {
+		t.Fatalf("plan %+v", p)
 	}
 }
 

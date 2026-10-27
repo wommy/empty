@@ -6,6 +6,7 @@ package endpoint
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,6 +148,96 @@ func TestReconcileAgesFromCommit(t *testing.T) {
 	h.must(err)
 	if !h.has(a4Parent+"/pvc-z") || len(p.Skipped) != 1 || p.Skipped[0].Reason != SkipTooYoung {
 		t.Fatalf("just-committed volume: %+v", p)
+	}
+}
+
+// F3: one undesired volume whose destroy fails (a foreign clone outside
+// the parent here) aborted the run with an empty plan: earlier destroys
+// already happened but were not reported, and every later volume starved.
+func TestAdv4OneFailureStarvesAndHidesDestroys(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.vol("a", true)
+	h.vol("b", true)
+	h.vol("c", true)
+	// an admin clones b's (foreign) snapshot outside the parent
+	h.must(h.z.Snapshot(ctx, a4Parent+"/b@backup", nil))
+	h.must(h.z.Clone(ctx, a4Parent+"/b@backup", "tank/other/restore", nil))
+
+	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	h.must(err)
+	if h.has(a4Parent+"/a") || h.has(a4Parent+"/c") || !h.has(a4Parent+"/b") || !h.has("tank/other/restore") {
+		t.Fatalf("plan %+v", p)
+	}
+	if len(p.Actions) != 2 {
+		t.Fatalf("destroys not reported: %+v", p)
+	}
+}
+
+// F3b: a destroy that fails at zfs (busy: an open zvol, a hold) is
+// reported against its volume, and the rest of the run goes on.
+func TestAdv4BusyDestroyAbortsRun(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	for _, id := range []string{"a", "b", "c"} {
+		h.vol(id, true)
+	}
+	h.sim.Fail = func(args []string) error {
+		if args[0] == "destroy" && args[len(args)-1] == a4Parent+"/b" {
+			return &zfs.ExitError{Code: 1, Stderr: "cannot destroy 'tank/v/b': dataset is busy\n"}
+		}
+		return nil
+	}
+	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	h.must(err)
+	if h.has(a4Parent+"/a") || h.has(a4Parent+"/c") || !h.has(a4Parent+"/b") {
+		t.Fatalf("plan %+v", p)
+	}
+	if len(p.Actions) != 2 || len(p.Skipped) != 1 || p.Skipped[0].Target != "b" || !strings.Contains(p.Skipped[0].Reason, "busy") {
+		t.Fatalf("plan %+v", p)
+	}
+}
+
+// A clone collected first that fails leaves its source unattempted: the
+// source's destroy would only be refused for the clone anyway.
+func TestReconcileSkipsSourceOfFailedClone(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.vol("src", true)
+	// created and committed long ago
+	old, err := New(h.z, Config{Parent: a4Parent, Now: func() time.Time { return time.Unix(a4Old, 0) }})
+	h.must(err)
+	if _, err := old.CreateVolume(ctx, CreateVolumeRequest{Name: "cl", SourceVolumeID: "src"}); err != nil {
+		t.Fatal(err)
+	}
+	h.sim.Fail = func(args []string) error {
+		if args[0] == "destroy" && args[len(args)-1] == a4Parent+"/cl" {
+			return &zfs.ExitError{Code: 1, Stderr: "cannot destroy 'tank/v/cl': dataset is busy\n"}
+		}
+		return nil
+	}
+	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}})
+	h.must(err)
+	if !h.has(a4Parent+"/src") || !h.has(a4Parent+"/cl") {
+		t.Fatalf("plan %+v", p)
+	}
+	var reasons []string
+	for _, s := range p.Skipped {
+		reasons = append(reasons, s.Target+": "+s.Reason)
+	}
+	if len(reasons) != 2 || reasons[1] != "src: "+SkipDependentFailed {
+		t.Fatalf("skipped %q", reasons)
+	}
+	// the released origin stays, deferred: zfs reaps it with the clone
+	h.sim.Fail = nil
+	if _, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}); err != nil {
+		t.Fatal(err)
+	}
+	if h.has(a4Parent+"/src") || h.has(a4Parent+"/cl") || h.has(a4Parent+"/src@"+cloneSourceSnapshotPrefix+"cl") {
+		t.Fatal("not converged after the failure cleared")
 	}
 }
 
