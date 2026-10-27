@@ -117,6 +117,9 @@ TestManagedWithoutNameIsNotOwned 0.00
 TestMissingParentIsUnavailableForWholeScans 0.00
 TestMissingParentIsUnavailableNotAbsent 0.00
 TestOpKindString 0.00
+TestOwnershipDifferentialCrashes 0.00
+TestOwnershipDifferentialFixtures 0.00
+TestOwnershipDifferentialModel 0.00
 TestPageResumesAfterDeletedToken 0.00
 TestParseClient 0.00
 TestParseEtab 0.00
