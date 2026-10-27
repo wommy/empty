@@ -32,7 +32,7 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 | D6 | `SO_PEERCRED`: logged now, authorized later | logged; admin role checks uid |
 | D7 | `-socket-group` for the csi listener | yes (off by default) |
 | D8 | NFS stays static-first (ADR 0004); pod-egress deny is F6's primary control | docs and deployment |
-| D9 | Reconcile skips exported volumes | **no**: decided, not built |
+| D9 | Reconcile skips exported volumes | **no**: stopped, wrong under static export (see D9) |
 | D10 | A crossmnt ancestor at startup: refuse, exit 78 | yes |
 | D11 | Audit: journald, unrated | yes |
 | D12 | No `snapdir` at create; inherit from the parent | yes (nothing is set) |
@@ -150,6 +150,14 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 ### D9. Reconcile skips exported volumes (not built)
 
 An undesired volume whose `sharenfs` is not `off`, or whose client list is not empty, is skipped as "exported: in use" (F3). `sharenfs` is OpenZFS's own in-use signal. A false skip only delays GC.
+
+**Stopped before building (wave 14).** The premise no longer holds:
+- F3 and D9 were written when `sharenfs` was set only by PublishFileExport, so a non-`off` value meant "exported to a node".
+- ADR 0004's static export at create (built just after this ADR) sets `sharenfs` locally in the same `zfs create`, and NFS mode requires `nfs.clients` on every CreateVolume. Every NFS-mode volume is therefore non-`off` from birth.
+- Built as written, Reconcile would never collect an undesired volume in NFS mode: "a false skip only delays GC" becomes "GC never runs".
+- The "client list" (`nfs_clients`) is gone from the export path (ADR 0004).
+
+A replacement needs its own decision. The options: drop D9 and rely on D3, `max_deletions` and `min_age` for F3; or skip only a volume whose `sharenfs` differs from what the endpoint wrote (a foreign or hand-widened value), which is drift rather than use. Neither is built.
 
 ### D10. A crossmnt ancestor refuses startup
 
