@@ -35,3 +35,8 @@
 {"ts": "2026-10-27T06:43:20Z", "id": "a4801d3c50380546b", "from": "running", "to": "abandoned", "note": "API safeguard flag on offensive phrasing (attacker/PoC/injection); relaunched as defensive hardening review a35e88fd (sonnet)"}
 {"ts": "2026-10-27T06:50:00Z", "id": "a35e88fd13d787382", "from": "queued", "to": "running", "note": "w11-attacker relaunch"}
 {"ts": "2026-10-27T06:44:14Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:46:43Z", "id": "ae6970226d3d7c24d", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:46:43Z", "id": "ae6970226d3d7c24d", "from": "reported", "to": "triaged", "note": "F1 confirmed (lockparent.go:17 + main.go:62 + unit: shared /run/zfs-endpoint). F11 confirmed (zfs.go:142/364/426 still -Hp). Reversible D2 D3 D5 D6 D7 D9 D10 D11 -> decide+record in ADR 0001 v2. D1 D8 (and D4 D12) need adversarial pass before owner."}
+{"ts": "2026-10-27T06:46:43Z", "id": "ae6970226d3d7c24d", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:47:05Z", "id": "aa8e15be0fa34fc1a", "from": "queued", "to": "running", "note": "r-sec-decisions"}
+{"ts": "2026-10-27T06:47:05Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
