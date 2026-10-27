@@ -173,7 +173,8 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 				a := ReconcileAction{Op: op, Target: p.rel(op.Target), Reason: c.reason, Volumes: []string{c.id}}
 				if i > 0 { // the released clone-source origin
 					a.Reason = ReasonReleasedWithVolume
-					src, _, _ := strings.Cut(a.Target, "@")
+					row, _ := cur.Get(c.id)
+					_, src, _ := p.releasedOrigin(cur, row)
 					a.Volumes = append(a.Volumes, src)
 				}
 				if !d.covers(a.Volumes) {

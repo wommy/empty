@@ -6,7 +6,9 @@ package endpoint
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/wommy/empty/internal/zfs"
 	"github.com/wommy/empty/internal/zfs/zfstest"
@@ -80,6 +82,37 @@ func TestReachUncommittedServed(t *testing.T) {
 	}
 	if sim.Prop(rParent+"/u", "refquota") != "1048576" || sim.Has(rParent+"/u@s") {
 		t.Error("touched")
+	}
+}
+
+// R6: a volume whose origin is a clone-source snapshot outside the parent
+// planned `destroy -d` outside the endpoint's tree, and Reconcile locked
+// a key no request ever takes.
+func TestReachOriginOutsideParent(t *testing.T) {
+	origin := "tank/archive/s@" + cloneSourceSnapshotPrefix + "c"
+	raw := rawOf(dsCells(rParent+"/c", zfs.TypeFilesystem, merge(owned("c", true),
+		map[string][2]string{"origin": {origin, "-"}})))
+	tbl, ep := tableFromRaw(t, raw)
+	plan, err := ep.plan.PlanDeleteVolume(tbl, "c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, op := range plan {
+		if !strings.HasPrefix(op.Target, rParent+"/") {
+			t.Errorf("op %+v targets outside %s", op, rParent)
+		}
+	}
+	rp, err := ep.plan.PlanReconcile(tbl, Desired{VolumeIDs: []string{"c"}, MinAge: time.Hour, Now: rNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rp2, _ := ep.plan.PlanReconcile(tbl, Desired{VolumeIDs: []string{"x"}, MinAge: time.Hour, Now: rNow})
+	for _, a := range append(rp.Actions, rp2.Actions...) {
+		for _, v := range a.Volumes {
+			if strings.Contains(v, "/") {
+				t.Errorf("reconcile action %s locks %q", a.Target, v)
+			}
+		}
 	}
 }
 

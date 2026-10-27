@@ -88,6 +88,57 @@ func TestAdv4UserSnapshotWithReservedPrefixCollected(t *testing.T) {
 	}
 }
 
+// F7: the released origin of a collected clone was destroyed wherever it
+// lived (outside the parent too) and whatever clone id it named.
+func TestAdv4ReleasedOriginOutsideParent(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.must(h.z.CreateFilesystem(ctx, "tank/other/golden", nil, false))
+	origin := "tank/other/golden@" + cloneSourceSnapshotPrefix + "someone"
+	h.must(h.z.Snapshot(ctx, origin, nil))
+	h.must(h.z.Clone(ctx, origin, a4Parent+"/adopted", map[string]string{
+		h.n.managed(): "true", h.n.volumeName(): "adopted", h.n.success(): "true"}))
+	// and inside the parent, a stamp for another clone
+	h.vol("src", true)
+	other := a4Parent + "/src@" + cloneSourceSnapshotPrefix + "c2"
+	h.must(h.z.Snapshot(ctx, other, map[string]string{h.n.managed(): "true", h.n.cloneSourceFor(): "someone-else"}))
+	h.must(h.z.Clone(ctx, other, a4Parent+"/c2", map[string]string{
+		h.n.managed(): "true", h.n.volumeName(): "c2", h.n.success(): "true"}))
+	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"keep", "src"}})
+	h.must(err)
+	for _, a := range p.Actions {
+		for _, v := range a.Volumes {
+			if _, err := volumeID(v); err != nil {
+				t.Errorf("action %s locks %q", a.Target, v)
+			}
+		}
+	}
+	if !h.has(origin) || !h.has(other) {
+		t.Fatalf("a snapshot the endpoint does not own was released: %+v", p.Actions)
+	}
+	if h.has(a4Parent+"/adopted") || h.has(a4Parent+"/c2") {
+		t.Fatalf("the clones themselves are ours and undesired: %+v", p)
+	}
+}
+
+// The legacy rule: an unstamped origin is released with its clone where
+// the origin proves it was cut for that clone, from an owned volume.
+func TestLegacyUnstampedOriginReleasedWithItsClone(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	h.vol("keep", true)
+	h.vol("src", true)
+	origin := a4Parent + "/src@" + cloneSourceSnapshotPrefix + "dst"
+	h.must(h.z.Snapshot(ctx, origin, nil)) // democratic-csi cuts it bare
+	h.must(h.z.Clone(ctx, origin, a4Parent+"/dst", map[string]string{
+		h.n.managed(): "true", h.n.volumeName(): "dst", h.n.success(): "true"}))
+	h.must(h.ep.DeleteVolume(ctx, "dst"))
+	if h.has(origin) {
+		t.Fatal("legacy origin not released with its clone")
+	}
+}
+
 // F6, the create side: a clone never adopts (and pins) a snapshot that
 // already holds the reserved name without the endpoint's stamp.
 func TestCloneRefusesUnstampedReservedSnapshot(t *testing.T) {
