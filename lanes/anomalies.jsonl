@@ -18,3 +18,6 @@
 {"ts":"2026-10-27T16:30Z","id":"A-deploy-cannot-mount","weight":"high","what":"shipped deploy: PVC binds, pod never mounts (no -nfs-server, no nfs.clients, no node plugin); non-NFS mode accepts mount access","found_by":"r-csi-seams","gate_blind_spot":"no end-to-end k8s mount test; csi-sanity runs controller/identity only, non-NFS"}
 {"ts":"2026-10-27T16:40Z","id":"A-ssh-penalty","status":"closed","resolution":"login-prompt gate (6629b7e): ssh up on first probe, ~18s saved per VM job; push-to-green 36s. Cost: 2 speculative pushes (d0aae91 wrong mechanism). Lesson: print the evidence (journal lines) in the same push as the first fix."}
 {"t": "2026-10-27T16:15:55Z", "id": "A-resizer-never-expands", "sev": "high", "state": "open", "src": "wave21/k8s-deploy.md", "note": "resizer lacks pods RBAC; handle-volume-inuse-error default true blocks every resize"}
+{"t": "2026-10-27T16:23:41Z", "id": "A-resizer-never-expands", "state": "closed", "fix": "af1d71c"}
+{"t": "2026-10-27T16:23:41Z", "id": "A-zfs-version-revision-gate", "sev": "high", "state": "open", "note": "weekly rebuild can go red on -1ubuntuN skew; ci-harden"}
+{"t": "2026-10-27T16:23:41Z", "id": "A-maxdel-gate-untested", "sev": "med", "state": "open", "note": "max-deletions check deletable without test failure; cov-tests"}

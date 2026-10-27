@@ -73,3 +73,9 @@
 {"lane": "writer", "id": "headroom-parent", "agent": "aa647cb4002c0887c", "tokens": 122651, "tools": 49, "ms": 489455, "commit": "d845622", "merge": "d232d63", "tests_failing_first": 8, "outcome": "merged, gate ok", "t": "2026-10-27T16:15:55Z"}
 {"lane": "reader", "id": "k8s-deploy", "agent": "a2b5201181f2560a4", "tokens": 114638, "tools": 18, "ms": 245066, "findings": 8, "high": 1, "outcome": "fold into q-csi-deploy", "t": "2026-10-27T16:15:55Z"}
 {"lane": "reader", "id": "nightly", "agent": "ad6423faa483b13fe", "tokens": 178276, "tools": 30, "ms": 245085, "findings": 5, "high": 1, "outcome": "q-ci-nightly; label creation -> owner report", "t": "2026-10-27T16:15:55Z"}
+{"lane": "writer", "id": "sim-facts", "tokens": 195459, "tools": 111, "ms": 1052195, "commits": 6, "tests_failing_first": 5, "outcome": "merged", "t": "2026-10-27T16:23:41Z"}
+{"lane": "writer", "id": "test-forks", "tokens": 184337, "tools": 80, "ms": 904216, "forks_saved_per_part": 135, "outcome": "merged; harness ceiling low, 82% forks are endpoint", "t": "2026-10-27T16:23:41Z"}
+{"lane": "writer", "id": "k8s-harden", "tokens": 112812, "tools": 31, "ms": 318814, "claims_rejected": 2, "outcome": "merged; closes A-resizer-never-expands", "t": "2026-10-27T16:23:41Z"}
+{"lane": "reader", "id": "headroom-verify", "tokens": 98414, "tools": 15, "ms": 183082, "findings": 3, "outcome": "claims confirmed; false-refusal fixes -> headroom-2", "t": "2026-10-27T16:23:41Z"}
+{"lane": "reader", "id": "ci-flake", "tokens": 176841, "tools": 23, "ms": 650716, "findings": 9, "high": 2, "outcome": "-> ci-harden", "t": "2026-10-27T16:23:41Z"}
+{"lane": "reader", "id": "coverage", "tokens": 169085, "tools": 39, "ms": 362278, "findings": 10, "outcome": "queued cov-tests", "t": "2026-10-27T16:23:41Z"}

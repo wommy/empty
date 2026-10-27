@@ -1,5 +1,3 @@
 {"id": "q-csi-code", "name": "csi-code", "lane": "writer", "wave": 22, "branch": "csi-code", "report": "wave20/csi-seams.md", "note": "#2 probe Unavailable->not ready, #3 expand checks access type only, #5 snapshot size at creation, #6 trim nfs.clients, #1 refuse mount access without NFS unless -enable-local-filesystem (ADR), drain vs grace"}
 {"id": "q-csi-deploy", "name": "csi-deploy", "lane": "writer", "wave": 22, "branch": "csi-deploy", "report": "wave20/csi-seams.md", "note": "#1 ship csi-driver-nfs node DaemonSet + -nfs-server drop-in + nfs.clients placeholder; #4 csi-sanity in NFS mode"}
-{"id": "q-docs-fix", "lane": "writer", "src": "wave21/docs-drift.md", "prio": 1, "state": "queued", "name": "docs-fix", "wave": 22, "branch": "docs-fix"}
-{"id": "q-ci-nightly", "lane": "writer", "src": "wave21/nightly.md", "prio": 3, "state": "queued", "name": "ci-nightly", "wave": 22, "branch": "ci-nightly"}
-{"id": "q-capacity", "lane": "writer", "note": "GetCapacity reuse e.childSpace", "prio": 4, "state": "queued", "name": "capacity", "wave": 22, "branch": "capacity"}
+{"id": "q-cov-tests", "name": "cov-tests", "lane": "writer", "wave": 24, "branch": "cov-tests", "src": "wave22/coverage.md", "prio": 1}
