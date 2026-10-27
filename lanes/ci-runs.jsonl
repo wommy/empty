@@ -4,3 +4,4 @@
 {"t":"2026-10-27T12:00Z","sha":"863c432","run":40500283144,"push_to_green_s":70,"note":"green; 5 new NFS VM tests passed first real run; TestModel 3rd consecutive green; budget 70s, b-ci-levers in flight"}
 {"t":"2026-10-27T12:05Z","sha":"6e2cc66","run":40500713922,"push_to_green_s":159,"note":"expected cold run (zfsvm-v4 key, cloud-config change); green incl. check-split; warm measurement on next push"}
 {"t":"2026-10-27T12:15Z","sha":"7f5637f","run":40502060857,"push_to_green_s":70,"note":"first warm run with ci-levers: 70s vs est 45-49. Guest load: busy 92% (user 22, sys+irq 69, steal 1), cpu pressure some 78%, io some 62%. Guest is CPU-bound in kernel work; split pays per lever-5 thresholds. Boot 12.4s (initrd 5.5s)."}
+{"run": 40505456077, "sha": "ab16195", "conclusion": "failure", "seconds": 64, "cause": "A-mountpin-busy"}
