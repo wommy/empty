@@ -476,3 +476,75 @@ func TestSimUsedByRefreservation(t *testing.T) {
 		t.Errorf("set usedbyrefreservation: %v, want readonly", err)
 	}
 }
+
+// changelist_gather records cn_shared from zfs_is_shared, which is false
+// for an unmounted filesystem (it looks the mountpoint up in mnttab). A
+// zfs.exports line left behind while NFS was down outlives an unmount,
+// and a later sharenfs=off does not remove it: postfix unshares only
+// cn_shared nodes.
+func TestSimUnmountedIsNotShared(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	if _, err := sim.Run(ctx, "zfs", "create", "-o", "sharenfs=rw=10.0.0.0/24", "tank/fs"); err != nil {
+		t.Fatal(err)
+	}
+	stale := sim.Exports()
+	if !strings.Contains(stale, "10.0.0.0/24") {
+		t.Fatalf("not shared at create: %q", stale)
+	}
+	sim.SetNFSDown(true)
+	sim.Unmount("tank/fs") // the unshare cannot reach zfs.exports
+	sim.SetNFSDown(false)
+	if got := sim.Exports(); got != stale {
+		t.Fatalf("unmount with NFS down rewrote zfs.exports: %q", got)
+	}
+	if _, err := sim.Run(ctx, "zfs", "set", "sharenfs=off", "tank/fs"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sim.Exports(); got != stale {
+		t.Errorf("sharenfs=off on an unmounted filesystem unshared it: zfs.exports %q, want %q", got, stale)
+	}
+}
+
+// A received space property is in force like a local one (the kernel's
+// checks read the effective value, dsl_prop_get_int_ds): a thick volume
+// received under a quota'd parent charges its refreservation to the
+// parent's dd_used, so the quota cannot be set below it and a second
+// thick volume of the same size does not fit.
+func TestSimReceivedRefreservationIsCharged(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	sim.PoolSize = 10 << 30
+	c := zfs.New(sim)
+	run := func(args ...string) error {
+		_, err := sim.Run(ctx, "zfs", args...)
+		return err
+	}
+	for _, args := range [][]string{
+		{"create", "-o", "quota=104857600", "tank/g"},
+		{"create", "-V", "67108864", "tank/v"},
+		{"snapshot", "tank/v@s"},
+	} {
+		if err := run(args...); err != nil {
+			t.Fatal(args, err)
+		}
+	}
+	if err := sim.SendRecv("tank/v@s", "tank/g/r"); err != nil {
+		t.Fatal(err)
+	}
+	d, err := c.Get(ctx, "tank/g/r", "refreservation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := d.Props["refreservation"]; p.Source != "received" || p.Value == "0" {
+		t.Fatalf("received refreservation %+v", p)
+	}
+	if err := run("create", "-V", "67108864", "tank/g/w"); err == nil || !strings.Contains(err.Error(), "out of space") {
+		t.Errorf("second thick volume under the quota: %v", err)
+	}
+	if err := run("set", "quota=10485760", "tank/g"); err == nil || !strings.Contains(err.Error(), "less than current used") {
+		t.Errorf("quota below the received refreservation: %v", err)
+	}
+}

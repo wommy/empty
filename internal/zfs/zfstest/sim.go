@@ -766,7 +766,7 @@ func (s *Sim) spaceCheck(name, prop, value string) string {
 	n := s.ds[name]
 	nv, _ := strconv.ParseUint(value, 10, 64)
 	get := func(p string) uint64 {
-		v, _ := strconv.ParseUint(n.props[p], 10, 64)
+		v, _ := strconv.ParseUint(n.effective(p), 10, 64)
 		return v
 	}
 	const less, more = "size is less than current used or reserved space", "size is greater than available space"
@@ -823,8 +823,22 @@ func (s *Sim) createSpace(name string, n *node) string {
 }
 
 func (s *Sim) num(name, prop string) uint64 {
-	v, _ := strconv.ParseUint(s.ds[name].props[prop], 10, 64)
+	v, _ := strconv.ParseUint(s.ds[name].effective(prop), 10, 64)
 	return v
+}
+
+// effective is the value a non-inheritable property is in force with on
+// the dataset itself: local, else received unless a plain `zfs inherit`
+// hid it (dsl_prop_get_int_ds reads the effective value, which is what
+// the kernel's space checks and accounting use). "" for neither.
+func (n *node) effective(prop string) string {
+	if v, ok := n.props[prop]; ok {
+		return v
+	}
+	if v, ok := n.recv[prop]; ok && !n.inh[prop] {
+		return v
+	}
+	return ""
 }
 
 // dirUsed is a dataset's dd_used_bytes with empty datasets (referenced
@@ -1719,7 +1733,10 @@ func (s *Sim) gather(name, real string) *clist {
 	cl.nodes = s.changelist(name, prop)
 	for _, k := range cl.nodes {
 		cl.mounted[k] = s.ds[k].mounted
-		_, cl.shared[k] = s.shared[k]
+		// zfs_is_shared: false for an unmounted filesystem (no mnttab
+		// entry), even with a stale zfs.exports line
+		_, shared := s.shared[k]
+		cl.shared[k] = s.ds[k].mounted && shared
 		cl.needpost[k] = true
 	}
 	if prop == "mountpoint" {

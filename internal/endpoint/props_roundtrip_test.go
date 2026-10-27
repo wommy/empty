@@ -122,7 +122,14 @@ func TestPropertyRoundTrip(t *testing.T) {
 	// setup's, runs before the parent is destroyed.
 	var mu sync.Mutex
 	created := map[string]propRow{} // dataset -> its row
-	t.Cleanup(func() { checkReadBack(t, h, created) })
+	t.Cleanup(func() {
+		// a panicking subtest runs the parent's cleanups while its
+		// siblings may still be writing: read a copy taken under mu
+		mu.Lock()
+		rows := maps.Clone(created)
+		mu.Unlock()
+		checkReadBack(t, h, rows)
+	})
 	for i, r := range rows {
 		if i%n != shard {
 			continue
