@@ -737,7 +737,12 @@ func (e *Endpoint) verifyExport(ctx context.Context, id string) error {
 // decode) is unclassified too: Aborted. Every other code is a refusal
 // made on purpose and is kept.
 func resumeErr(err error) error {
-	const because = " (resuming an earlier attempt; a retry converges)"
+	return afterChange(err, " (resuming an earlier attempt; a retry converges)")
+}
+
+// afterChange is resumeErr for any failure after a change, because saying
+// what changed.
+func afterChange(err error, because string) error {
 	err = remapMutated(err, because)
 	if err != nil && CodeOf(err) == Internal {
 		return &Error{Code: Aborted, Msg: "unclassified failure" + because, Err: err}
@@ -1101,14 +1106,17 @@ func (e *Endpoint) CreateSnapshot(ctx context.Context, name, sourceVolumeID stri
 	if err := e.apply(ctx, plan); err != nil {
 		return Snapshot{}, err
 	}
+	// once the snapshot is cut, nothing is final: external-snapshotter
+	// drops its being-created annotation on a final code, and the content
+	// can then be deleted without a DeleteSnapshot, leaking the snapshot
 	if len(plan) > 0 {
 		if t, err = e.scan(ctx, sourceVolumeID); err != nil {
-			return Snapshot{}, err
+			return Snapshot{}, afterChange(err, " (the snapshot is cut; a retry converges)")
 		}
 	}
 	row, ok := t.Get(id)
 	if !ok {
-		return Snapshot{}, errorf(Internal, "snapshot %s vanished after creation", id)
+		return Snapshot{}, errorf(Aborted, "snapshot %s vanished after creation; a retry re-plans", id)
 	}
 	return snapshotView(t, row), nil
 }

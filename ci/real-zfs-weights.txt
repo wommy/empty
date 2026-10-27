@@ -114,6 +114,7 @@ TestCodeOfNeverReportsAFailureAsOK 0.00
 TestConcurrentCreatesSerialize 0.00
 TestCreateNeverStampsRowWithoutName 0.00
 TestCreateResumeFailureStaysAborted 0.00
+TestCreateSnapshotAfterCutIsRetryable 0.00
 TestCreateUnmountedFilesystemMountsThenCommits 0.00
 TestCreateVolumeReadAfterChangeIsRetryable 0.00
 TestCreateVolumeReadBeforeChangeStaysInternal 0.00
