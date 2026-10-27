@@ -178,7 +178,58 @@ func TestParseEtab(t *testing.T) {
 	}
 }
 
+// D2 (wave9 nfs-diff): serves confirms a client's mode only when mountd
+// would answer with our line: nfs-utils cache.c lookup_export takes the
+// first match by client class (an fqdn line beats every subnet line), then
+// by etab order, and the kernel enforces every option on that line.
+func TestEtabServesPrecedence(t *testing.T) {
+	t.Parallel()
+	const p = "/tank/v/a"
+	// what exportfs writes for sharenfs=rw=10.0.0.5/32
+	own := p + "\t10.0.0.5/32(rw,sync,wdelay,hide,nocrossmnt,secure,root_squash,no_all_squash,no_subtree_check," +
+		"secure_locks,acl,no_pnfs,mountpoint,anonuid=65534,anongid=65534,sec=sys,rw,secure,root_squash,no_all_squash)\n"
+	line := func(host, opts string) string { return p + "\t" + host + "(" + opts + ")\n" }
+	cases := []struct {
+		name, etab string
+		ro, want   bool
+	}{
+		{"own line", own, false, true},
+		{"own line, other mode", own, true, false},
+		{"later overlapping subnet", own + line("10.0.0.0/24", "ro"), false, true},
+		{"earlier overlapping subnet", line("10.0.0.0/24", "ro") + own, false, false},
+		{"earlier subnet spelled /024", line("10.0.0.0/024", "ro") + own, false, false},
+		{"earlier dotted mask", line("10.0.0.0/255.255.255.0", "ro") + own, false, false},
+		{"earlier disjoint subnet", line("10.9.0.0/16", "ro") + own, false, true},
+		{"hostname line after ours", own + line("node-a.example", "ro"), false, false},
+		{"client's bare address after ours", own + line("10.0.0.5", "ro"), false, false},
+		{"another bare address", own + line("10.0.0.6", "ro"), false, true},
+		{"anonymous after ours", own + line("*", "ro"), false, true},
+		{"netgroup after ours", own + line("@ops", "ro"), false, true},
+		{"gss line", line("gss/krb5", "ro") + own, false, true},
+		{"per-flavor rw under a leading ro", line("10.0.0.5/32", "ro,sec=sys,rw"), true, false},
+		{"per-flavor ro under a leading rw", line("10.0.0.5/32", "rw,sec=sys,ro"), false, false},
+		{"no_root_squash", line("10.0.0.5/32", "rw,no_root_squash"), false, false},
+		{"insecure", line("10.0.0.5/32", "rw,insecure"), false, false},
+		{"anonuid=0", line("10.0.0.5/32", "rw,anonuid=0"), false, false},
+		{"crossmnt", line("10.0.0.5/32", "rw,crossmnt"), false, false},
+		{"sec=krb5", line("10.0.0.5/32", "rw,sec=krb5,rw"), false, false},
+		{"sec=sys:krb5", line("10.0.0.5/32", "rw,sec=sys:krb5,rw"), false, false},
+		{"unknown option", line("10.0.0.5/32", "rw,bogus"), false, false},
+		{"narrowing options", line("10.0.0.5/32", "rw,all_squash,subtree_check,fsid=7,sec=sys,rw"), false, true},
+	}
+	for _, tc := range cases {
+		c, err := ParseClient("10.0.0.5/32", tc.ro)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := etab(tc.etab).serves(p, c); got != tc.want {
+			t.Errorf("%s: serves(%s ro=%v) = %v, want %v\n%s", tc.name, c.Host, tc.ro, got, tc.want, tc.etab)
+		}
+	}
+}
+
 func TestPlanPublishExport(t *testing.T) {
+	t.Parallel()
 	c1 := NFSClient{Host: "10.0.0.1/32"}
 	live1 := etab("/tank/v/a\t10.0.0.1/32(rw,sync)\n")
 	set := func(props map[string]string) Plan {
@@ -222,6 +273,22 @@ func TestPlanPublishExport(t *testing.T) {
 		{name: "inherited sharenfs is pinned", c: c1, live: etab("/tank/v/a\t*(rw)\n"),
 			row:  fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal = "on", false }),
 			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+		// D1 (wave9 nfs-diff): an ancestor exported with crossmnt (an
+		// inherited sharenfs=on is "rw,crossmnt") serves this mount to its
+		// own clients, whatever the volume's sharenfs says
+		{name: "crossmnt ancestor", row: fsv("a", nil), c: c1, code: FailedPrecondition,
+			live: etab("/tank/v\t*(rw,sync,crossmnt,sec=sys,rw)\n")},
+		{name: "crossmnt root", row: fsv("a", nil), c: c1, code: FailedPrecondition,
+			live: etab("/\t10.0.0.0/8(ro,crossmnt)\n")},
+		{name: "ancestor without crossmnt", row: fsv("a", nil), c: c1,
+			live: etab("/tank/v\t*(rw,nocrossmnt)\n/tank/v/ab\t*(rw,crossmnt)\n/tank/v/a/b\t*(rw,crossmnt)\n"),
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+		// D2: served, but beyond the request: re-share once (the caller
+		// reports what a re-share cannot fix)
+		{name: "served with no_root_squash: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(rw,no_root_squash)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "served to more clients: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t*(ro)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
 		{name: "foreign local sharenfs", c: c1, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=@10.0.0.0/8,no_root_squash" })},
 		// a received value is the sending side's export: never shadowed
@@ -302,6 +369,7 @@ func TestExportSizeLimit(t *testing.T) {
 }
 
 func TestPlanUnpublishExport(t *testing.T) {
+	t.Parallel()
 	two := exported("a", "10.0.0.1/32=rw,10.0.0.2/32=ro", "rw=10.0.0.1/32,ro=10.0.0.2/32")
 	live := etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t10.0.0.2/32(ro)\n")
 	set := func(props map[string]string) Plan {
@@ -331,6 +399,21 @@ func TestPlanUnpublishExport(t *testing.T) {
 			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32" })},
 		{name: "served by a received sharenfs", host: "10.0.0.1", live: live, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal, r.ShareNFSRecv = "rw=10.0.0.1/32", false, true })},
+		// D3 (wave9 nfs-diff): a line beyond the stored list that can
+		// match the host still serves it; on a volume whose sharenfs is
+		// ours it is rewritten, not reported gone
+		{name: "our sharenfs widened to *: rewritten", host: "10.0.0.1",
+			row: exported("a", "10.0.0.2/32=ro", "rw=*"), live: etab("/tank/v/a\t*(rw)\n"),
+			want: set(map[string]string{"sharenfs": "ro=10.0.0.2/32"})},
+		{name: "inherited world export after the last client: pinned off", host: "10.0.0.1",
+			row: func() Row {
+				r := exported("a", "none", "rw=")
+				r.ShareNFSLocal = false
+				return r
+			}(),
+			live: etab("/tank/v/a\t*(rw)\n"), want: set(map[string]string{"sharenfs": "off"})},
+		{name: "foreign sharenfs to * is not ours to revoke", host: "10.0.0.1", live: etab("/tank/v/a\t*(rw)\n"),
+			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=*" })},
 		{name: "foreign but not served", host: "10.0.0.9", live: live,
 			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32" })},
 		{name: "unmounted still revokes", host: "10.0.0.2",

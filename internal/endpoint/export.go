@@ -50,6 +50,15 @@ type NFSClient struct {
 	// unknownMode marks an etab line whose options start with neither ro
 	// nor rw. It serves no request, so verification fails closed.
 	unknownMode bool
+	// broad marks an etab line with an option our sharenfs never yields
+	// and that widens access (no_root_squash, insecure, crossmnt, a
+	// flavor other than sys, anonuid other than 65534, ...), a token it
+	// does not know, or a per-flavor mode that differs from the leading
+	// one (the kernel enforces the flavor's). It serves no request.
+	broad bool
+	// crossmnt: the line exports the mounts below its path too
+	// (nfs-utils cache.c path_matches, lookup_export).
+	crossmnt bool
 }
 
 func (c NFSClient) mode() string {
@@ -267,7 +276,8 @@ type Etab map[string][]NFSClient
 // per client, with special characters in the path written as \ooo. A line
 // whose first option is neither ro nor rw is kept with an unknown mode: it
 // is served (Unpublish must not report it gone) but in no mode Publish can
-// confirm.
+// confirm. Lines keep their file order, which is mountd's order within a
+// client class (nfs-utils xtab.c xtab_write, cache.c lookup_export).
 func ParseEtab(b []byte) Etab {
 	t := Etab{}
 	sc := bufio.NewScanner(bytes.NewReader(b))
@@ -290,10 +300,94 @@ func ParseEtab(b []byte) Etab {
 		default:
 			c.unknownMode = true
 		}
+		c.broad, c.crossmnt = etabOptions(strings.TrimSuffix(opts, ")"), c.ReadOnly)
 		path = unescapeOctal(path)
 		t[path] = append(t[path], c)
 	}
 	return t
+}
+
+// etabOptions checks an etab option list against what exportfs writes for
+// a line of our sharenfs (libshare "sec=sys,<mode>,no_subtree_check,
+// mountpoint" with nfs-utils defaults; exports.c putexportent and
+// secinfo_show). Anything else that is not known to be narrower is broad.
+func etabOptions(opts string, readOnly bool) (broad, crossmnt bool) {
+	mode := "rw"
+	if readOnly {
+		mode = "ro"
+	}
+	for _, o := range strings.Split(opts, ",") {
+		switch {
+		case o == "ro" || o == "rw":
+			// the leading mode, or a flavor's: the kernel enforces the
+			// flavor's flags, so every one must agree
+			if o != mode {
+				broad = true
+			}
+		case o == "crossmnt":
+			crossmnt, broad = true, true
+		case o == "sync", o == "async", o == "wdelay", o == "no_wdelay", o == "hide",
+			o == "nocrossmnt", o == "secure", o == "root_squash", o == "all_squash",
+			o == "no_all_squash", o == "subtree_check", o == "no_subtree_check",
+			o == "secure_locks", o == "acl", o == "no_acl", o == "nordirplus",
+			o == "security_label", o == "sign_fh", o == "pnfs", o == "no_pnfs",
+			o == "mountpoint", strings.HasPrefix(o, "mountpoint="),
+			o == "anonuid=65534", o == "anongid=65534",
+			strings.HasPrefix(o, "fsid="), strings.HasPrefix(o, "xprtsec="):
+		case strings.HasPrefix(o, "sec="):
+			for _, f := range strings.Split(o[4:], ":") {
+				if f != "sys" && f != "unix" {
+					broad = true
+				}
+			}
+		default:
+			broad = true
+		}
+	}
+	return broad, crossmnt
+}
+
+// etabClass is nfs-utils' client class of an etab host (client.c
+// client_gettype); mountd tries fqdn, then subnet, then the rest.
+func etabClass(h string) string {
+	switch {
+	case h == "" || h == "*":
+		return "anonymous"
+	case strings.HasPrefix(h, "gss/"):
+		return "gss"
+	case h[0] == '@':
+		return "netgroup"
+	}
+	for i := 0; i < len(h); i++ {
+		switch h[i] {
+		case '*', '?', '[':
+			return "wildcard"
+		case '/':
+			return "subnet"
+		case '\\':
+			i++
+		}
+	}
+	return "fqdn"
+}
+
+// mayMatch reports whether etab client c can match an address of network
+// p. A name, wildcard or netgroup, or a subnet spelling Go does not take
+// (nfs-utils also takes "/024", "/+24" and dotted masks), may match any.
+func (c NFSClient) mayMatch(p netip.Prefix) bool {
+	switch etabClass(c.Host) {
+	case "gss":
+		return false
+	case "subnet":
+		if q, ok := c.prefix(); ok {
+			return q.Overlaps(p)
+		}
+	case "fqdn":
+		if a, err := netip.ParseAddr(c.Host); err == nil && a.Is4() && a.String() == c.Host {
+			return p.Contains(a)
+		}
+	}
+	return true
 }
 
 func unescapeOctal(s string) string {
@@ -332,10 +426,129 @@ func (t Etab) Lookup(path, host string) (NFSClient, bool) {
 	return NFSClient{}, false
 }
 
-// serves reports whether path is exported to c in c's mode.
+// serves reports whether path is exported to c in c's mode, and every
+// address of c gets that line: mountd answers a request with the first
+// matching export by client class (an fqdn line beats every subnet line),
+// then by etab order (nfs-utils cache.c lookup_export). A line with
+// options our sharenfs never yields does not count.
 func (t Etab) serves(path string, c NFSClient) bool {
-	got, ok := t.Lookup(path, c.Host)
-	return ok && !got.unknownMode && got.ReadOnly == c.ReadOnly
+	want, err := parseClient(c.Host)
+	if err != nil {
+		return false
+	}
+	own := false
+	for _, x := range t[path] {
+		cls := etabClass(x.Host)
+		if p, ok := x.prefix(); ok && cls == "subnet" && p == want && !own {
+			if x.unknownMode || x.broad || x.ReadOnly != c.ReadOnly {
+				return false
+			}
+			own = true
+			continue
+		}
+		if (cls == "fqdn" || (cls == "subnet" && !own)) && x.mayMatch(want) {
+			return false
+		}
+	}
+	return own
+}
+
+// exposure lists what serves path beyond want: an etab line of path that
+// is not exactly one of want (a different network, a name, "*", a broader
+// option, the other mode), and every crossmnt line of an ancestor path,
+// which exports this volume's mount to its own clients (nfs-utils
+// cache.c path_matches: an inherited `sharenfs=on` is "rw,crossmnt" to
+// "*" on every ancestor).
+func (t Etab) exposure(path string, want []NFSClient) []string {
+	var out []string
+	for _, x := range t.extra(path, want) {
+		out = append(out, x.String())
+	}
+	slices.Sort(out)
+	return out
+}
+
+// etabLine is one etab client of a path.
+type etabLine struct {
+	path string
+	c    NFSClient
+}
+
+func (l etabLine) String() string {
+	s := l.path + " " + l.c.Host + "(" + l.c.etabMode()
+	if l.c.crossmnt {
+		s += ",crossmnt"
+	}
+	return s + ")"
+}
+
+func (t Etab) extra(path string, want []NFSClient) []etabLine {
+	var out []etabLine
+	for _, x := range t[path] {
+		ok := false
+		if p, isNet := x.prefix(); isNet && etabClass(x.Host) == "subnet" && !x.unknownMode && !x.broad {
+			for _, w := range want {
+				if wp, _ := w.prefix(); wp == p && w.ReadOnly == x.ReadOnly {
+					ok = true
+				}
+			}
+		}
+		if !ok {
+			out = append(out, etabLine{path, x})
+		}
+	}
+	return append(out, t.crossmntAncestors(path)...)
+}
+
+// crossmntAncestors lists the crossmnt lines of path's ancestors.
+func (t Etab) crossmntAncestors(path string) []etabLine {
+	var out []etabLine
+	for k, cs := range t {
+		if !isAncestor(k, path) {
+			continue
+		}
+		for _, x := range cs {
+			if x.crossmnt {
+				out = append(out, etabLine{k, x})
+			}
+		}
+	}
+	slices.SortFunc(out, func(a, b etabLine) int { return strings.Compare(a.String(), b.String()) })
+	return out
+}
+
+// covers lists the lines beyond want that may still serve host on path:
+// what Unpublish must see gone (want's own lines may serve host by
+// design: it was granted twice).
+func (t Etab) covers(path, host string, want []NFSClient) []string {
+	h, err := parseClient(host)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, x := range t.extra(path, want) {
+		if x.c.mayMatch(h) {
+			out = append(out, x.String())
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+func (c NFSClient) etabMode() string {
+	if c.unknownMode {
+		return "?"
+	}
+	return c.mode()
+}
+
+// isAncestor reports whether dir is a proper ancestor of path
+// (cache.c is_subdirectory).
+func isAncestor(dir, path string) bool {
+	if dir == "/" {
+		return len(path) > 1
+	}
+	return len(path) > len(dir) && strings.HasPrefix(path, dir) && path[len(dir)] == '/'
 }
 
 // at returns the table with path's entries read from real: exportfs
@@ -518,6 +731,17 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
 	if foreign(row) {
 		return nil, Row{}, foreignErr(row, "has")
 	}
+	// an ancestor exported with crossmnt (an inherited sharenfs=on is
+	// "rw,crossmnt" to "*" on every ancestor) serves this mount to its own
+	// clients whatever this volume's sharenfs says
+	if x := live.crossmntAncestors(row.Mount); len(x) > 0 {
+		var s []string
+		for _, l := range x {
+			s = append(s, l.String())
+		}
+		return nil, Row{}, errorf(FailedPrecondition, "volume %s is exported through an ancestor with crossmnt: %s; set sharenfs=off (or drop crossmnt) on the ancestor first",
+			row.ID, strings.Join(s, "; "))
+	}
 	want := cs
 	if x, ok := overlap(cs, c); ok {
 		switch {
@@ -534,10 +758,42 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
 	if err != nil {
 		return nil, Row{}, err
 	}
-	if len(plan) == 0 && !live.serves(row.Mount, c) {
+	// unchanged but not served, or served beyond want (a stale etab after
+	// a failed exportfs): re-share once; what a re-share cannot fix
+	// (another exports file, an ancestor's crossmnt) the caller reports
+	if len(plan) == 0 && (!live.serves(row.Mount, c) || len(live.exposure(row.Mount, want)) > 0) {
 		plan = reshare(row, want)
 	}
 	return plan, row, nil
+}
+
+// publishWant is the client list a successful PlanPublishExport of c on
+// row leads to.
+func publishWant(row Row, c NFSClient) []NFSClient {
+	var cs []NFSClient
+	if row.NFSClientsSet {
+		cs, _ = decodeClients(row.NFSClients)
+	}
+	if _, ok := overlap(cs, c); ok {
+		return cs
+	}
+	return sortClients(append(cs, c))
+}
+
+// unpublishWant is the client list after removing host from row's.
+func unpublishWant(row Row, host string) []NFSClient {
+	var cs []NFSClient
+	if row.NFSClientsSet {
+		cs, _ = decodeClients(row.NFSClients)
+	}
+	h, err := parseClient(host)
+	if err != nil {
+		return cs
+	}
+	return slices.DeleteFunc(cs, func(x NFSClient) bool {
+		px, _ := x.prefix()
+		return px == h
+	})
 }
 
 // PlanUnpublishExport removes host from volume volID. A missing volume, a
@@ -567,7 +823,12 @@ func (p Planner) PlanUnpublishExport(t Table, live Etab, volID, host string) (Pl
 		pc, _ := c.prefix()
 		return px == pc
 	})
+	// served: its own line, or (on a volume whose sharenfs is ours) any
+	// line beyond want that can match it, e.g. an admin's edit of our
+	// sharenfs to "rw=*" (rewritten below). A foreign sharenfs is never
+	// rewritten, and a client it covers was never granted by us.
 	_, isLive := live.Lookup(row.Mount, c.Host)
+	isLive = isLive || (!foreign(row) && len(live.covers(row.Mount, c.Host, want)) > 0)
 	if len(want) == len(cs) {
 		// not one of ours; still served means drift or a foreign sharenfs
 		switch {
