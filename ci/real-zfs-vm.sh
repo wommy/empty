@@ -349,6 +349,9 @@ fi
 # csi-sanity spec floor: Identity + Controller specs run on the simulator
 # (44 of 103 with csi-test v5.6); a regex or skip regression drops below it
 ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
+# TestPropertyRoundTrip runs in every endpoint shard, a part of its rows
+# each (PROPRT_SHARD): every row must have run in exactly one of them
+ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$o"/endpoint.[0-9].log || rc=1
 ci/check-skips.sh vm csi "$work/csi-mount.log" "$work/csi.list" 44 || rc=1
 ci/check-skips.sh vm csi "$work/csi-block.log" "" 44 || rc=1
 exit $rc
