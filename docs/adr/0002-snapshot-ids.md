@@ -13,7 +13,7 @@ Status: proposed · Date: 2026-10-27 · Related: ADR 0001 (where the scope check
 - The spec says nothing about lookup tables. "Usable without a lookup table if possible" is our own goal. Today's id parses into a volume, so DeleteSnapshot scans only that one volume (`endpoint.go:497`), and CreateVolume locks `vol:<source volume>` before it scans (`endpoint.go:264-280`).
 - **Baseline ids.** democratic-csi issues `<vol>@<cleansed name>` for attached snapshots and `<vol>/<name>` for detached ones (`democratic-csi@69c7ebc src/driver/controller-zfs/index.js:2244-2257`, `:2460-2463`, `:2495`). It does not enforce 128 bytes.
 - The endpoint already adopts democratic-csi snapshots. It reads `csi_snapshot_name` and `csi_snapshot_source_volume_id` as locally set properties (`table.go:122-160`).
-- `zfs.Prop.Local()` treats `received` as local (`zfs.go:43`). A `zfs send -p | zfs recv` copy of a snapshot therefore also looks managed.
+- `zfs.Prop.Local()` treats `received` as local (`zfs.go:43`). A `zfs send -p | zfs recv` copy of a snapshot therefore also looks managed. (Since fixed: `Local()` is `local` only, per ADR 0003. The ids below still bind the volume.)
 
 ## Decision
 

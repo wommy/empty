@@ -111,7 +111,7 @@ var propRules = map[string]propRule{
 	"logbias":     {fs: true, zvol: true, canon: index(same("latency", "throughput"))},
 	"dedup":       {fs: true, zvol: true, canon: index(same("off", "on", "verify"))},
 	// xattr: only sa and off. "on" is an alias that zfs prints as "sa"
-	// (zfs_prop.c xattr_table, 2.4.0) and meant dir before 2.3, so a
+	// (zfs_prop.c xattr_table, 2.4.0) and meant dir in 2.2.9, so a
 	// StorageClass saying on is ambiguous; dir is the legacy layout.
 	"xattr":   {fs: true, canon: index(same("sa", "off"))},
 	"acltype": {fs: true, canon: index(map[string]string{"off": "off", "posix": "posix", "nfsv4": "nfsv4", "disabled": "off", "noacl": "off", "posixacl": "posix"})},
