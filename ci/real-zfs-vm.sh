@@ -103,7 +103,7 @@ overlay() {
   if [ -s "$cache/vmlinuz" ] && [ -s "$cache/initrd" ] && [ -s "$cache/cmdline" ] && [ -s "$cache/kernel.release" ]; then
     kernel=$(cat "$cache/kernel.release")
     echo "kernel=$kernel" >>"$work/state"
-    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline")"
+    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline"), initrd $(du -k "$cache/initrd" | cut -f1) KiB"
     boot "$work/run.qcow2" "$cache"
   else
     kernel=
@@ -268,7 +268,11 @@ fi
 # tests instead of after them (1.7s on the path in run 40494213342), and
 # printed after the logs. It waits for the boot to settle first: it fails
 # while units are still starting. Best effort, never a gate
-vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "NR <= 15"' \
+# critical-chain: what ssh and nfsd, the two the job waits for, waited for;
+# findmnt: /boot and /boot/efi stay unmounted (noauto, cloud-config)
+vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "NR <= 15"
+  systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
+  echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \
   >"$work/systemd-analyze.txt" 2>&1 &
 analyze=$!
 bins=()
