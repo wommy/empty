@@ -1,0 +1,8 @@
+# inherit of a non-inheritable, readonly or unknown property
+# covers: inherit
+zfs create $R/a
+zfs inherit refquota $R/a
+zfs inherit canmount $R/a
+zfs inherit type $R/a
+zfs inherit bogus $R/a
+zfs inherit -S refquota $R/a

@@ -1,0 +1,4 @@
+# growing a thick volume past the pool: ENOSPC on the synthetic refreservation and volsize is put back
+# covers: resv-auto
+zfs create -V 67108864 $R/v
+zfs set volsize=21474836480 $R/v

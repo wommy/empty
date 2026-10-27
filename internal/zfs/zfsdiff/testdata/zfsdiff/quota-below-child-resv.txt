@@ -1,0 +1,5 @@
+# quota below the reservations already under it
+# covers: quota
+zfs create $R/a
+zfs create -o refreservation=10485760 $R/a/c
+zfs set quota=1048576 $R/a

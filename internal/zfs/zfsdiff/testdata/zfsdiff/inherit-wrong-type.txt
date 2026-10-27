@@ -1,0 +1,5 @@
+# inherit of a filesystem property on a volume
+# covers: inherit
+zfs create -V 67108864 $R/v
+zfs inherit atime $R/v
+zfs inherit sharenfs $R/v

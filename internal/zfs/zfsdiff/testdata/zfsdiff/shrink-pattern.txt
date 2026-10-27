@@ -1,0 +1,4 @@
+# shrinking refquota and refreservation together: refquota is set first and fails against the old refreservation (partial apply)
+# covers: quota
+zfs create -o refquota=20971520 -o refreservation=20971520 $R/a
+zfs set refquota=10485760 refreservation=10485760 $R/a

@@ -1,0 +1,6 @@
+# plain destroy of a cloned snapshot lists the clones
+# covers: destroy-r-clones
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs destroy $R/a@s1

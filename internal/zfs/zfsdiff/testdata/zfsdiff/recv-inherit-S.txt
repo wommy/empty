@@ -1,0 +1,7 @@
+# inherit -S reverts to the received value
+# covers: received
+zfs create -o zd:a=1 $R/a
+zfs snapshot $R/a@s1
+@sendrecv $R/a@s1 $R/r
+zfs set zd:a=2 $R/r
+zfs inherit -S zd:a $R/r

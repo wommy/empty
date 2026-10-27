@@ -236,7 +236,9 @@ func TestSetNoMountLeavesUnmounted(t *testing.T) {
 	if m := mounted(); m != "no" {
 		t.Fatalf("set -u mounted it: %s", m)
 	}
-	if err := c.Set(ctx, "tank/fs", map[string]string{"sharenfs": "off"}); err != nil {
+	// changelist_postfix mounts an unmounted canmount=on filesystem only
+	// when a share property ends up on (sharenfs=off would leave it)
+	if err := c.Set(ctx, "tank/fs", map[string]string{"sharenfs": "rw=10.0.0.0/16"}); err != nil {
 		t.Fatal(err)
 	}
 	if m := mounted(); m != "yes" {

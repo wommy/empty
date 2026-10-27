@@ -1,0 +1,4 @@
+# refquota below refreservation is ENOSPC 'size is less than current used or reserved space'
+# covers: quota
+zfs create -o refreservation=10485760 $R/a
+zfs set refquota=1048576 $R/a

@@ -1,0 +1,5 @@
+# a non-share property set does not mount an unmounted filesystem even if shared
+# covers: sharenfs-unmounted
+zfs create -u -o sharenfs=on $R/a
+zfs set zd:a=1 $R/a
+zfs set compression=off $R/a

@@ -1,0 +1,4 @@
+# set -u mountpoint: no unmount or remount, the new value is reported
+# covers: set-u
+zfs create $R/a
+zfs set -u mountpoint=none $R/a

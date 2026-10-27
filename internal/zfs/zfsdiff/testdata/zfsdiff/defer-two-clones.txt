@@ -1,0 +1,9 @@
+# a deferred origin with two clones goes only with the last clone
+# covers: destroy-d
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs clone $R/a@s1 $R/y
+zfs destroy -d $R/a@s1
+zfs destroy $R/x
+zfs destroy $R/y

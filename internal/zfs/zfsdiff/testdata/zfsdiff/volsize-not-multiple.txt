@@ -1,0 +1,5 @@
+# volsize must be a multiple of volblocksize; 0 is refused
+# covers: resv-auto
+zfs create -V 67108864 $R/v
+zfs set volsize=1000000 $R/v
+zfs set volsize=0 $R/v

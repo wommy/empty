@@ -1,0 +1,6 @@
+# a thick volume's refreservation arrives received; resize keeps it tracking
+# covers: received
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+@sendrecv $R/v@s1 $R/r
+zfs set volsize=134217728 $R/r

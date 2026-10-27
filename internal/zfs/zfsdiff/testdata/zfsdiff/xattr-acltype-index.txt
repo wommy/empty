@@ -1,0 +1,5 @@
+# index values read back canonical: xattr=on is sa, acltype=posix is posix
+# covers: misc
+zfs create -o xattr=on -o acltype=posixacl $R/a
+zfs snapshot $R/a@s1
+zfs set compression=gzip-6 $R/a
