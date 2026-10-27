@@ -40,6 +40,7 @@ func run() error {
 	drain := flag.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
 	destroyForeign := flag.Bool("destroy-foreign-snapshots", false, "let DeleteVolume destroy snapshots the endpoint did not make along with their volume")
 	lockDir := flag.String("lock-dir", "/run/zfs-endpoint", "directory for the per-parent writer lock")
+	nfsMinPrefix := flag.Int("nfs-min-prefix", endpoint.DefaultNFSMinPrefix, "broadest IPv4 client network PublishFileExport accepts (prefix length, 1-32)")
 	flag.Parse()
 	if *parent == "" {
 		return fmt.Errorf("-parent is required")
@@ -68,7 +69,7 @@ func run() error {
 	// as the caller, and only root mounts. Without it the export calls stay
 	// unadvertised and UNIMPLEMENTED.
 	root := os.Geteuid() == 0
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix})
 	if err != nil {
 		return err
 	}

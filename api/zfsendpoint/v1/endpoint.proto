@@ -209,8 +209,11 @@ message ReconcileResponse {
 
 message PublishFileExportRequest {
   string volume_id = 1;
-  // a hostname, IPv4 address or IPv4 CIDR ("10.0.0.0/24"); no wildcards,
-  // netgroups or IPv6
+  // an IPv4 address or IPv4 CIDR ("10.0.0.0/24", host bits zero); no
+  // hostnames (nfs-utils drops a name it cannot resolve on any later
+  // exportfs), wildcards, netgroups or IPv6. Publish also refuses networks
+  // broader than the endpoint's -nfs-min-prefix (default /16), and one that
+  // overlaps a network the volume is already exported to.
   string client = 2;
   bool read_only = 3;
 }
