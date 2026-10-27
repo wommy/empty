@@ -7,8 +7,10 @@
 #   - run the endpoint there for the parent dataset:
 #       systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
 #   - set -parent below to that dataset: zfs-csi dials
-#     /run/zfs-endpoint/<systemd-escape parent>.sock, the socket the unit
-#     serves (the one convention, internal/unixsock EndpointAddr);
+#     /run/zfs-endpoint/sock/<systemd-escape parent>/endpoint.sock, the
+#     socket the unit serves (the one convention, internal/unixsock
+#     EndpointAddr), and set endpoint-dir's hostPath and mountPath to that
+#     socket's directory;
 #   - build and push the zfs-csi image (none is published yet) with the
 #     version stamped in:
 #       go build -ldflags "-X github.com/wommy/empty/internal/version.Version=v0.1.0" ./cmd/zfs-csi
@@ -20,9 +22,12 @@
 #   - /csi is an emptyDir shared by the four containers. kubelet makes it
 #     0777; zfs-csi serves csi.sock there 0600 (unixsock.ListenShared), so
 #     every container runs as uid 0, the socket's owner.
-#   - /run/zfs-endpoint is the host's endpoint directory (0700 root, socket
-#     0600 root): zfs-csi must run as uid 0 to dial it. It needs no
-#     capability: owning uid 0 is enough for the file modes.
+#   - /run/zfs-endpoint/sock/<escaped parent> is this endpoint's socket
+#     directory on the host (0700 root, socket 0600 root): zfs-csi must run
+#     as uid 0 to dial it. It needs no capability: owning uid 0 is enough
+#     for the file modes. Mount only that directory, never
+#     /run/zfs-endpoint: that one holds every endpoint's lock file and
+#     socket directory (ADR 0001 v2, F1).
 #   - No ControllerPublish, so no attacher sidecar (CSIDriver
 #     attachRequired: false).
 apiVersion: apps/v1
@@ -71,7 +76,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
             - name: endpoint-dir
-              mountPath: /run/zfs-endpoint
+              mountPath: /run/zfs-endpoint/sock/tank-k8s-vols
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v5.2.0
           args:
@@ -118,6 +123,7 @@ spec:
           emptyDir: {}
         - name: endpoint-dir
           hostPath:
-            path: /run/zfs-endpoint
-            # the unit's RuntimeDirectory: start zfs-endpoint first
+            # the endpoint's own socket directory, which zfs-endpoint
+            # creates: start it first
+            path: /run/zfs-endpoint/sock/tank-k8s-vols
             type: Directory

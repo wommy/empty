@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -111,6 +112,9 @@ func run(ctx context.Context, args []string, d deps) error {
 			// [A-Za-z0-9:_.], '-' included, is \xNN there, 4 bytes
 			return configErr("%v (the default socket, named after the systemd-escaped -parent); pass a shorter -listen", err)
 		}
+		return err
+	}
+	if err := sockOutsideLocks(sock, d.lockDir); err != nil {
 		return err
 	}
 	if *maxZFS < 1 {
@@ -269,6 +273,22 @@ func listenAddr(listen, parent string) string {
 		return unixsock.EndpointAddr(parent)
 	}
 	return listen
+}
+
+// sockOutsideLocks refuses a socket whose directory is the lock directory
+// or contains it. A pod reaches the socket through a hostPath of that
+// directory: it would also get every instance's lock files (flock one and
+// that endpoint cannot restart) and every other instance's socket (unlink
+// it and serve a fake). A directory of its own, under the lock directory
+// or anywhere else, is fine (F1).
+func sockOutsideLocks(sock, lockDir string) error {
+	dir := filepath.Dir(sock)
+	rel, err := filepath.Rel(dir, lockDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		return nil
+	}
+	return configErr("-listen %s: the socket's directory %s is or contains the lock directory %s, and a pod given the socket would get every endpoint's locks and sockets; "+
+		"use a directory of its own, as the default does (%s)", sock, dir, lockDir, strings.TrimPrefix(unixsock.EndpointAddr("<parent>"), "unix://"))
 }
 
 // socketPath accepts only unix:///absolute/path. TCP served the

@@ -3,15 +3,19 @@
 #
 #   systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
 #
-# serves tank/k8s/vols on /run/zfs-endpoint/tank-k8s-vols.sock. That is the
-# one socket convention, /run/zfs-endpoint/<systemd-escape parent>.sock:
+# serves tank/k8s/vols on /run/zfs-endpoint/sock/tank-k8s-vols/endpoint.sock.
+# That is the one socket convention,
+# /run/zfs-endpoint/sock/<systemd-escape parent>/endpoint.sock:
 # zfs-endpoint's default -listen and `zfs-csi -parent tank/k8s/vols` use
-# the same path (deploy/deploy_test.go pins it).
+# the same path (deploy/deploy_test.go pins it). Each instance has a socket
+# directory of its own, and that directory is all a pod mounts: never
+# /run/zfs-endpoint, which holds every instance's lock (ADR 0001 v2, F1).
+# zfs-endpoint refuses (78) a -listen whose directory is or contains it.
 #
-# %i keeps the escapes literally: tank/k8s-vols is served on
-# /run/zfs-endpoint/tank-k8s\x2dvols.sock, backslash and all, so each '-'
+# %i keeps the escapes literally: tank/k8s-vols is served in
+# /run/zfs-endpoint/sock/tank-k8s\x2dvols/, backslash and all, so each '-'
 # (and any byte outside [A-Za-z0-9:_.]) in the dataset name costs 4
-# bytes. A socket path holds at most 107 bytes (sun_path), which leaves 84
+# bytes. A socket path holds at most 107 bytes (sun_path), which leaves 70
 # for the escaped name; a longer one exits 78 at startup (no restart), and
 # needs a shorter -listen in a drop-in, with zfs-csi -endpoint to match.
 #
@@ -38,15 +42,17 @@ Type=notify
 NotifyAccess=main
 ExecStart=/usr/local/sbin/zfs-endpoint \
     -parent %I \
-    -listen unix:///run/zfs-endpoint/%i.sock \
+    -listen unix:///run/zfs-endpoint/sock/%i/endpoint.sock \
     -drain 30s \
     -stop-wait 10s \
     -parent-wait 60s
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
-# /run/zfs-endpoint, 0700, shared by all instances: it holds every
-# instance's socket and the per-parent locks (which must be shared to
-# refuse nested parents). Preserve it, so stopping one instance does not
+# /run/zfs-endpoint, 0700, shared by all instances: it holds the
+# per-parent locks (which must be shared to refuse nested parents) and,
+# under sock/, each instance's socket directory, which zfs-endpoint
+# creates 0700 itself (its name is the escaped %i, kept out of this
+# setting on purpose). Preserve it, so stopping one instance does not
 # delete the others' sockets and locks.
 RuntimeDirectory=zfs-endpoint
 RuntimeDirectoryMode=0700

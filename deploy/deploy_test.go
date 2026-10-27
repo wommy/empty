@@ -198,8 +198,10 @@ func TestManifests(t *testing.T) {
 	if get(vols["socket-dir"], "emptyDir") == nil {
 		t.Error("socket-dir is not an emptyDir")
 	}
-	if get(vols["endpoint-dir"], "hostPath", "path") != unixsock.EndpointDir {
-		t.Errorf("endpoint-dir hostPath %v, want %s", get(vols["endpoint-dir"], "hostPath", "path"), unixsock.EndpointDir)
+	hostDir, _ := get(vols["endpoint-dir"], "hostPath", "path").(string)
+	if hostDir == unixsock.EndpointDir || !strings.HasPrefix(hostDir, unixsock.EndpointDir+"/sock/") {
+		// F1: the endpoint directory holds every instance's locks and sockets
+		t.Errorf("endpoint-dir hostPath %q, want one instance's socket directory under %s/sock/", hostDir, unixsock.EndpointDir)
 	}
 
 	var names []string
@@ -222,11 +224,14 @@ func TestManifests(t *testing.T) {
 			if v, _ := flagValue(args, "-csi-address"); v != "unix:///csi/csi.sock" {
 				t.Errorf("zfs-csi -csi-address %q", v)
 			}
-			if v, ok := flagValue(args, "-parent"); !ok || v == "" {
+			parent, ok := flagValue(args, "-parent")
+			if !ok || parent == "" {
 				t.Errorf("zfs-csi has no -parent: %v", args)
 			}
-			if mounts["endpoint-dir"] != unixsock.EndpointDir {
-				t.Errorf("zfs-csi: endpoint-dir at %q, want %s", mounts["endpoint-dir"], unixsock.EndpointDir)
+			// the socket -parent dials, in the directory mounted from the
+			// host at the same path
+			if want := unixsock.EndpointSockDir(parent); hostDir != want || mounts["endpoint-dir"] != want {
+				t.Errorf("zfs-csi: endpoint-dir %q at %q, want %s at the same path", hostDir, mounts["endpoint-dir"], want)
 			}
 			if slices.Contains(args, "-enable-block") {
 				t.Error("the example enables block (ADR 0006: opt-in)")

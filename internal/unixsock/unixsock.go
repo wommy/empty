@@ -173,17 +173,28 @@ func ownedDir(dir string) (os.FileInfo, error) {
 	return fi, nil
 }
 
-// EndpointDir is where the endpoint sockets live: the unit's
-// RuntimeDirectory (deploy/systemd/zfs-endpoint@.service).
+// EndpointDir is the endpoint's runtime directory: the unit's
+// RuntimeDirectory (deploy/systemd/zfs-endpoint@.service). It holds the
+// per-parent lock files, and under sock/ one directory per instance for
+// its socket. It is never mounted into a pod; only an instance's socket
+// directory is (EndpointSockDir).
 const EndpointDir = "/run/zfs-endpoint"
 
+// EndpointSockDir is the directory of the socket an endpoint serving
+// parent listens on: /run/zfs-endpoint/sock/<systemd-escape parent>. One
+// directory per instance, so a pod given one endpoint's socket gets
+// neither another instance's socket nor any lock file (ADR 0001 v2, F1).
+func EndpointSockDir(parent string) string {
+	return EndpointDir + "/sock/" + SystemdEscape(parent)
+}
+
 // EndpointAddr is the one socket convention for an endpoint serving parent:
-// unix:///run/zfs-endpoint/<systemd-escape parent>.sock. The unit
-// zfs-endpoint@<escaped>.service serves %i.sock, zfs-endpoint's default
-// -listen and zfs-csi's -parent derive the same address, and
-// deploy_test.go pins all three.
+// unix:///run/zfs-endpoint/sock/<systemd-escape parent>/endpoint.sock. The
+// unit zfs-endpoint@<escaped>.service serves sock/%i/endpoint.sock,
+// zfs-endpoint's default -listen and zfs-csi's -parent derive the same
+// address, and deploy_test.go pins all three.
 func EndpointAddr(parent string) string {
-	return "unix://" + EndpointDir + "/" + SystemdEscape(parent) + ".sock"
+	return "unix://" + EndpointSockDir(parent) + "/endpoint.sock"
 }
 
 // SystemdEscape is `systemd-escape <s>` (not --path): '/' becomes '-', a
