@@ -1,0 +1,6 @@
+[
+{"label": "7e (BUG, fixed): the pre-fix rootErr, an unclassified first-op failure without a cell", "file": "internal/endpoint/apply.go",
+ "old": "\tdefault:\n\t\t// unclassified on the plan's first op: Internal, keyed as a zfs\n\t\t// failure would be, so that a resumed provision (resumeErr; the\n\t\t// set-root of a new NFS volume is its resume's first op) remaps it\n\t\t// to Aborted instead of stranding the half-made volume\n\t\treturn zfsFail(OpSetRoot, err, false, what)\n",
+ "new": "",
+ "pkg": "./internal/endpoint", "run": "TestFileExportCreateRootFailureIsRetryable|TestRootErrMapping"}
+]

@@ -86,3 +86,4 @@
 {"t": "2026-10-27T16:40:06Z", "lane": "writer", "id": "headroom-2", "tokens": 176636, "tools": 85, "ms": 794639, "tests_failing_first": 5, "outcome": "merged 022b205 (README conflict resolved by orchestrator)", "decision": "GetCapacity = childSpace - min-free-bytes floor"}
 {"t": "2026-10-27T16:41:20Z", "lane": "writer", "id": "csi-quick", "tokens": 126242, "tools": 49, "ms": 297638, "tests_failing_first": 6, "outcome": "merged 96c49ff; closes A-expand-refused-infeasible"}
 {"t": "2026-10-27T16:41:20Z", "lane": "reader", "id": "weakening", "tokens": 214673, "tools": 64, "ms": 958575, "weakened": 0, "preexisting_gaps": 4, "outcome": "-> own-gap writer"}
+{"t": "2026-10-27T16:44:06Z", "lane": "reader", "id": "sanity-skips", "agent": "ab101d6ed5cc624ee", "should_run_missing": 0, "holes": 3, "outcome": "folded into q-csi-sanity-nfs"}

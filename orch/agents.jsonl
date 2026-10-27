@@ -89,4 +89,4 @@
 {"id": "aec3b828c6a86e68b", "name": "scan-cut", "lane": "writer", "wave": 25, "status": "running", "branch": "scan-cut", "report": null, "anomaly": false, "queue": "q-scan-cut"}
 {"id": "a63b72f11e0c3fa4a", "name": "own-gap", "lane": "writer", "wave": 25, "status": "running", "branch": "own-gap", "report": null, "anomaly": true, "queue": "q-own-gap"}
 {"id": "ac259b3d72ffec8e1", "name": "mutation", "lane": "reader", "wave": 25, "status": "running", "branch": null, "report": "wave25/mutation.md", "anomaly": false, "queue": "q-mutation"}
-{"id": "ab101d6ed5cc624ee", "name": "sanity-skips", "lane": "reader", "wave": 25, "status": "running", "branch": null, "report": "wave25/sanity-skips.md", "anomaly": false, "queue": "q-sanity-skips"}
+{"id": "ab101d6ed5cc624ee", "name": "sanity-skips", "lane": "reader", "wave": 25, "status": "done", "branch": null, "report": "wave25/sanity-skips.md", "anomaly": false, "queue": "q-sanity-skips"}

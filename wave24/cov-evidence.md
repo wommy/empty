@@ -453,3 +453,110 @@ FAIL
 FAIL	github.com/wommy/empty/internal/endpoint	0.009s
 FAIL
 ```
+
+### 7d: after a change is not Aborted
+
+Mutation in `internal/endpoint/apply.go`:
+
+```diff
+- 	case i > 0:
+- 		return &Error{Code: Aborted, Msg: what + " (earlier ops applied; a retry converges)", Err: err}
++ 	case false && i > 0:
++ 		return &Error{Code: Aborted, Msg: what + " (earlier ops applied; a retry converges)", Err: err}
+```
+
+`go test -count=1 -run 'TestRootErrMapping'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestRootErrMapping (0.00s)
+    cov24_internal_test.go:38: unclassified, after a change: op 2/2 set-root tank/v/a: x (code 13), want code 10 with "earlier ops applied"
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.005s
+FAIL
+```
+
+### 7: bug found end to end
+
+cov24_test.go TestFileExportCreateRootFailureIsRetryable: an NFS CreateVolume with UID set, Config.Root
+wrapping the sim and returning errors.New("x"). Expected Aborted (a half-made volume must stay retryable);
+got Internal: `code = 13 (op 1/1 set-root tank/k8s/vols/pvc: x), want 10`. A new filesystem commits only
+after a re-scan, so the set-root runs as op 1/1 of the second pass's resume plan: rootErr maps an
+unclassified first-op failure to Internal with no error-table cell, and resumeErr (remapMutated) only
+remaps errors that have a cell, so it stayed Internal: a final code for external-provisioner, which then
+never deletes the half-made volume. Fix (separate commit): rootErr returns that case through
+zfsFail(OpSetRoot, err, false, what), Internal as before but with a cell, so resumeErr remaps it to Aborted.
+TestRootErrMapping also asserts resumeErr(rootErr(x, 0, ...)) is Aborted. Reverting the fix:
+
+### 7e (BUG, fixed): the pre-fix rootErr, an unclassified first-op failure without a cell
+
+Mutation in `internal/endpoint/apply.go`:
+
+```diff
+- 	default:
+- 		// unclassified on the plan's first op: Internal, keyed as a zfs
+- 		// failure would be, so that a resumed provision (resumeErr; the
+- 		// set-root of a new NFS volume is its resume's first op) remaps it
+- 		// to Aborted instead of stranding the half-made volume
+- 		return zfsFail(OpSetRoot, err, false, what)
+```
+
+`go test -count=1 -run 'TestFileExportCreateRootFailureIsRetryable|TestRootErrMapping'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestFileExportCreateRootFailureIsRetryable (0.00s)
+    cov24_test.go:314: code = 13 (op 1/1 set-root tank/k8s/vols/pvc: x), want 10
+--- FAIL: TestRootErrMapping (0.00s)
+    cov24_internal_test.go:48: unclassified, resumed: op 1/1 set-root tank/v/a: x (code 13), want Aborted
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.015s
+FAIL
+```
+
+## Item 8: a cancelled Reconcile run, and a failed re-scan under the locks
+
+internal/endpoint/cov24_internal_test.go (a4 harness, own simulator): TestReconcileCancelledMidRunStops cancels
+the context from Sim.Fail on the first destroy of a digested run over 3 undesired volumes: one action, the
+other two skipped with the SkipNotAttempted prefix and still present. TestReconcileRescanFailureDestroysNothing
+fails the second scan of the run (the re-scan under the locks): the error is returned and nothing is
+destroyed. The re-plan failure branch (PlanReconcile erroring on a scan that just succeeded) has no seam
+and is not tested.
+
+### 8a: applyReconcile does not stop when the context ends
+
+Mutation in `internal/endpoint/reconcile.go`:
+
+```diff
+- 		case ctx.Err() != nil:
+- 			failed[g] = true
++ 		case false && ctx.Err() != nil:
++ 			failed[g] = true
+```
+
+`go test -count=1 -run 'TestReconcileCancelledMidRunStops'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestReconcileCancelledMidRunStops (0.00s)
+    cov24_internal_test.go:78: 3 destroys, actions [{Op:{Kind:destroy Target:tank/v/a Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[] OkExists:false OkMissing:true GUID:1002 Path:} Target:a Reason:not in the desired set Volumes:[a]} {Op:{Kind:destroy Target:tank/v/b Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[] OkExists:false OkMissing:true GUID:1003 Path:} Target:b Reason:not in the desired set Volumes:[b]} {Op:{Kind:destroy Target:tank/v/c Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[] OkExists:false OkMissing:true GUID:1004 Path:} Target:c Reason:not in the desired set Volumes:[c]}]: want the first group only
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.008s
+FAIL
+```
+
+### 8b: a failed re-scan under the locks is ignored
+
+Mutation in `internal/endpoint/reconcile.go`:
+
+```diff
+- 	if t, err = e.scan(ctx, ""); err != nil {
++ 	if t, err = e.scan(ctx, ""); false && err != nil {
+```
+
+`go test -count=1 -run 'TestReconcileRescanFailureDestroysNothing'  ./internal/endpoint` exit 1:
+
+```
+--- FAIL: TestReconcileRescanFailureDestroysNothing (0.00s)
+    cov24_internal_test.go:118: re-scan failure not reported: reconcile needs a scan of the whole parent
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.005s
+FAIL
+```

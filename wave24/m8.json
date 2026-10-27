@@ -1,0 +1,10 @@
+[
+{"label": "8a: applyReconcile does not stop when the context ends", "file": "internal/endpoint/reconcile.go",
+ "old": "\t\tcase ctx.Err() != nil:\n\t\t\tfailed[g] = true",
+ "new": "\t\tcase false && ctx.Err() != nil:\n\t\t\tfailed[g] = true",
+ "pkg": "./internal/endpoint", "run": "TestReconcileCancelledMidRunStops"},
+{"label": "8b: a failed re-scan under the locks is ignored", "file": "internal/endpoint/reconcile.go",
+ "old": "\tif t, err = e.scan(ctx, \"\"); err != nil {",
+ "new": "\tif t, err = e.scan(ctx, \"\"); false && err != nil {",
+ "pkg": "./internal/endpoint", "run": "TestReconcileRescanFailureDestroysNothing"}
+]

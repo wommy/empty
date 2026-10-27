@@ -1,0 +1,103 @@
+passed | Controller Service [Controller Server] ControllerGetCapabilities should return appropriate capabilities | 
+passed | Controller Service [Controller Server] CreateVolume should create volume from an existing source snapshot | 
+passed | Controller Service [Controller Server] CreateVolume should create volume from an existing source volume | 
+passed | Controller Service [Controller Server] CreateVolume should fail when no name is provided | 
+passed | Controller Service [Controller Server] CreateVolume should fail when no volume capabilities are provided | 
+passed | Controller Service [Controller Server] CreateVolume should fail when requesting to create a volume with already existing name and different capacity | 
+passed | Controller Service [Controller Server] CreateVolume should fail when the volume source snapshot is not found | 
+passed | Controller Service [Controller Server] CreateVolume should fail when the volume source volume is not found | 
+passed | Controller Service [Controller Server] CreateVolume should not fail when creating volume with maximum-length name | 
+passed | Controller Service [Controller Server] CreateVolume should not fail when requesting to create a volume with already existing name and same capacity | 
+passed | Controller Service [Controller Server] CreateVolume should return appropriate values SingleNodeWriter NoCapacity | 
+passed | Controller Service [Controller Server] CreateVolume should return appropriate values SingleNodeWriter WithCapacity 1Gi | 
+passed | Controller Service [Controller Server] DeleteVolume should fail when no volume id is provided | 
+passed | Controller Service [Controller Server] DeleteVolume should return appropriate values (no optional values added) | 
+passed | Controller Service [Controller Server] DeleteVolume should succeed when an invalid volume id is used | 
+passed | Controller Service [Controller Server] GetCapacity should return capacity (no optional values added) | 
+passed | Controller Service [Controller Server] ListVolumes check the presence of new volumes and absence of deleted ones in the volume list | 
+passed | Controller Service [Controller Server] ListVolumes should fail when an invalid starting_token is passed | 
+passed | Controller Service [Controller Server] ListVolumes should return appropriate values (no optional values added) | 
+passed | Controller Service [Controller Server] ValidateVolumeCapabilities should fail when no volume capabilities are provided | 
+passed | Controller Service [Controller Server] ValidateVolumeCapabilities should fail when no volume id is provided | 
+passed | Controller Service [Controller Server] ValidateVolumeCapabilities should fail when the requested volume does not exist | 
+passed | Controller Service [Controller Server] ValidateVolumeCapabilities should return appropriate values (no optional values added) | 
+passed | CreateSnapshot [Controller Server] should fail when no name is provided | 
+passed | CreateSnapshot [Controller Server] should fail when no source volume id is provided | 
+passed | CreateSnapshot [Controller Server] should fail when requesting to create a snapshot with already existing name and different source volume ID | 
+passed | CreateSnapshot [Controller Server] should succeed when creating snapshot with maximum-length name | 
+passed | CreateSnapshot [Controller Server] should succeed when requesting to create a snapshot with already existing name and same source volume ID | 
+passed | DeleteSnapshot [Controller Server] should fail when no snapshot id is provided | 
+passed | DeleteSnapshot [Controller Server] should return appropriate values (no optional values added) | 
+passed | DeleteSnapshot [Controller Server] should succeed when an invalid snapshot id is used | 
+passed | ExpandVolume [Controller Server] should fail if no capacity range is given | 
+passed | ExpandVolume [Controller Server] should fail if no volume id is given | 
+passed | ExpandVolume [Controller Server] should work | 
+passed | Identity Service GetPluginCapabilities should return appropriate capabilities | 
+passed | Identity Service GetPluginInfo should return appropriate information | 
+passed | Identity Service Probe should return appropriate information | 
+passed | ListSnapshots [Controller Server] check the presence of new snapshots in the snapshot list | 
+passed | ListSnapshots [Controller Server] should return appropriate values (no optional values added) | 
+passed | ListSnapshots [Controller Server] should return empty when the specified snapshot id does not exist | 
+passed | ListSnapshots [Controller Server] should return empty when the specified source volume id does not exist | 
+passed | ListSnapshots [Controller Server] should return next token when a limited number of entries are requested | 
+passed | ListSnapshots [Controller Server] should return snapshots that match the specified snapshot id | 
+passed | ListSnapshots [Controller Server] should return snapshots that match the specified source volume id | 
+pending | Controller Service [Controller Server] ListVolumes pagination should detect volumes added between pages and accept tokens when the last volume from a page is deleted | 
+skipped | Controller Service [Controller Server] ControllerPublishVolume should fail when no node id is provided | ControllerPublishVolume not supported
+skipped | Controller Service [Controller Server] ControllerPublishVolume should fail when no volume capability is provided | ControllerPublishVolume not supported
+skipped | Controller Service [Controller Server] ControllerPublishVolume should fail when no volume id is provided | ControllerPublishVolume not supported
+skipped | Controller Service [Controller Server] ControllerPublishVolume should fail when publishing more volumes than the node max attach limit | ControllerPublishVolume not supported
+skipped | Controller Service [Controller Server] ControllerPublishVolume should fail when the node does not exist | ControllerPublishVolume not supported
+skipped | Controller Service [Controller Server] ControllerPublishVolume should fail when the volume does not exist | ControllerPublishVolume not supported
+skipped | Controller Service [Controller Server] ControllerPublishVolume should fail when the volume is already published but is incompatible | ControllerPublishVolume not supported
+skipped | Controller Service [Controller Server] ControllerUnpublishVolume should fail when no volume id is provided | ControllerUnpublishVolume not supported
+skipped | Controller Service [Controller Server] CreateVolume should create volume with a volume attribute class | Modify volume not supported
+skipped | Controller Service [Controller Server] CreateVolume should not create volume with an invalid volume attribute class | Modify Volume not supported
+skipped | Controller Service [Controller Server] volume lifecycle should be idempotent | Controller Publish, UnpublishVolume not supported
+skipped | Controller Service [Controller Server] volume lifecycle should work | Controller Publish, UnpublishVolume not supported
+skipped | ControllerGetVolumeHealth [Controller Server] should fail when no volume id is provided | ControllerGetVolumeHealth not supported
+skipped | ControllerGetVolumeHealth [Controller Server] should return health for a valid volume | ControllerGetVolumeHealth not supported
+skipped | ControllerListVolumeHealth [Controller Server] should return appropriate response | ControllerListVolumeHealth not supported
+skipped | CreateSnapshot [Controller Server] should succeed when creating a snapshot with accessibility requirements | SNAPSHOT_ACCESSIBILITY_CONSTRAINTS not supported
+skipped | GetSnapshot [Controller Server] should return an error when the specified snapshot id does not exist | GetSnapshot not supported
+skipped | GetSnapshot [Controller Server] should return an error | GetSnapshot not supported
+skipped | GetSnapshot [Controller Server] should return snapshot that match the specified snapshot id | GetSnapshot not supported
+skipped | GroupController Service [GroupController Server] GroupControllerGetCapabilities should return appropriate capabilities | 
+skipped | GroupController Service [GroupController VolumeGroupSnapshots] CreateVolumeGroupSnapshot should fail when no name is provided | 
+skipped | GroupController Service [GroupController VolumeGroupSnapshots] DeleteVolumeGroupSnapshot should fail when no volume id is provided | 
+skipped | GroupController Service [GroupController VolumeGroupSnapshots] DeleteVolumeGroupSnapshot should succeed when an invalid volume id is used | 
+skipped | GroupController Service [GroupController VolumeGroupSnapshots] GetVolumeGroupSnapshot should fail when an invalid volume id is used | 
+skipped | GroupController Service [GroupController VolumeGroupSnapshots] GetVolumeGroupSnapshot should fail when no volume id is provided | 
+skipped | ModifyVolume [Controller Server] should fail if no volume id is given | ControllerModifyVolume not supported
+skipped | ModifyVolume [Controller Server] should fail if specified mutable parameters are not supported by the volume | ControllerModifyVolume not supported
+skipped | ModifyVolume [Controller Server] should fail if volume does not exist | ControllerModifyVolume not supported
+skipped | ModifyVolume [Controller Server] should fail to modify a volume created with a volume attribute class if new mutable parameters are not supported by volume | ControllerModifyVolume not supported
+skipped | ModifyVolume [Controller Server] should modify a volume created with a volume attribute class | ControllerModifyVolume not supported
+skipped | ModifyVolume [Controller Server] should modify a volume created without a volume attribute class | ControllerModifyVolume not supported
+skipped | Node Service NodeExpandVolume should fail when no volume id is provided | 
+skipped | Node Service NodeExpandVolume should fail when no volume path is provided | 
+skipped | Node Service NodeExpandVolume should fail when volume is not found | 
+skipped | Node Service NodeExpandVolume should work if node-expand is called after node-publish | 
+skipped | Node Service NodeGetCapabilities should return appropriate capabilities | 
+skipped | Node Service NodeGetInfo should return appropriate values | 
+skipped | Node Service NodeGetStorageHealth should return appropriate response | 
+skipped | Node Service NodeGetVolumeHealth should fail when no volume id is provided | 
+skipped | Node Service NodeGetVolumeHealth should return health for a valid volume | 
+skipped | Node Service NodeGetVolumeStats should fail when no volume id is provided | 
+skipped | Node Service NodeGetVolumeStats should fail when no volume path is provided | 
+skipped | Node Service NodeGetVolumeStats should fail when volume does not exist on the specified path | 
+skipped | Node Service NodeGetVolumeStats should fail when volume is not found | 
+skipped | Node Service NodePublishVolume should fail when no target path is provided | 
+skipped | Node Service NodePublishVolume should fail when no volume capability is provided | 
+skipped | Node Service NodePublishVolume should fail when no volume id is provided | 
+skipped | Node Service NodePublishVolume with single node multi writer capability should fail when volume with single node single writer access mode is already mounted at a different target path | 
+skipped | Node Service NodeStageVolume should fail when no staging target path is provided | 
+skipped | Node Service NodeStageVolume should fail when no volume capability is provided | 
+skipped | Node Service NodeStageVolume should fail when no volume id is provided | 
+skipped | Node Service NodeUnpublishVolume should fail when no target path is provided | 
+skipped | Node Service NodeUnpublishVolume should fail when no volume id is provided | 
+skipped | Node Service NodeUnpublishVolume should remove target path | 
+skipped | Node Service NodeUnstageVolume should fail when no staging target path is provided | 
+skipped | Node Service NodeUnstageVolume should fail when no volume id is provided | 
+skipped | Node Service should be idempotent | 
+skipped | Node Service should work | 
