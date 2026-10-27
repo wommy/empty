@@ -33,7 +33,7 @@ jobs:
   # Go comes from the sha256-pinned tarball in .github/actions/setup-go, and
   # every job restores a Go build/module cache keyed by go.sum, saved by the
   # first run that misses it.
-  # Exploratory fuzzing, scale tests and the FSM explorer run in nightly.yml.
+  # Exploratory fuzzing, the model sweep and the FSM explorer run in nightly.yml.
   static:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -125,7 +125,15 @@ jobs:
           # Measured locally: lock 1.43s -> 0.21s, unixsock 1.11 -> 0.16,
           # zfs-csi 1.14 -> 0.12 (wave10 atexit.txt)
           GORACE: atexit_sleep_ms=0
-        run: go test -race -count=1 ./...
+          # every test binary is linked with -X setting the version, and
+          # both binaries' TestVersionFlag assert -version prints it: -X
+          # ignores a symbol that does not exist, so a renamed variable or
+          # package would ship "dev" silently. Link-time only, so the
+          # compile cache (cache-warm.yml's test build) is unchanged;
+          # measured 0s within noise (3 warm runs each, +-1s), where a go
+          # build of both binaries in the static job cost 1.7-2.0s
+          WANT_VERSION: test-1
+        run: go test -race -count=1 -ldflags "-X github.com/wommy/empty/internal/version.Version=$WANT_VERSION" ./...
       - name: save Go caches (none for this go.sum was restored)
         if: steps.go.outputs.save == 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3

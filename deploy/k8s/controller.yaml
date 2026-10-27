@@ -61,6 +61,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: zfs-csi
+          # TODO(digest): pin ghcr.io/wommy/zfs-csi:v0.1.0 by digest as well
+          # once a release build publishes it; no image exists yet (README)
           image: ghcr.io/wommy/zfs-csi:v0.1.0
           args:
             - -parent=tank/k8s/vols
@@ -78,7 +80,13 @@ spec:
             - name: endpoint-dir
               mountPath: /run/zfs-endpoint/sock/tank-k8s-vols
         - name: csi-provisioner
-          image: registry.k8s.io/sig-storage/csi-provisioner:v5.2.0
+          # Sidecars are pinned by tag and digest (the image index digest).
+          # The digests are the ones kubernetes/k8s.io promotes for these tags
+          # (registry.k8s.io/images/k8s-staging-sig-storage/images.yaml at
+          # 28a29bedd1d1eded47d8592e86e34844d59c8830); not read back from
+          # registry.k8s.io itself, which was unreachable when they were pinned.
+          # Check with: crane digest registry.k8s.io/sig-storage/<image>:<tag>
+          image: registry.k8s.io/sig-storage/csi-provisioner:v5.2.0@sha256:d5e46da8aff7d73d6f00c761dae94472bcda6e78f4f17b3802dc89d44de0111b
           args:
             - --csi-address=/csi/csi.sock
             # the endpoint waits up to -lock-wait (30s) for a busy resource
@@ -93,7 +101,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-resizer
-          image: registry.k8s.io/sig-storage/csi-resizer:v1.13.1
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.13.1@sha256:2a0b297cc7c4cd376ac7413df339ff2fdaa1ec9d099aed92b5ea1f031ef7f639
           args:
             - --csi-address=/csi/csi.sock
             - --timeout=60s
@@ -106,7 +114,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-snapshotter
-          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.2.0
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.2.0@sha256:dd788d79cf4c1b8edee6d9b80b8a1ebfc51a38a365c5be656986b129be9ac784
           args:
             - --csi-address=/csi/csi.sock
             - --timeout=60s

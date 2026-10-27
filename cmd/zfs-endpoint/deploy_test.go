@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -17,8 +18,16 @@ func TestVersionFlag(t *testing.T) {
 	if err := run(context.Background(), []string{"-version"}, deps{euid: 1000, stdout: &out}); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.TrimSpace(out.String()); got != version.Version || got == "" {
+	got := strings.TrimSpace(out.String())
+	if got != version.Version || got == "" {
 		t.Fatalf("printed %q, want %q", got, version.Version)
+	}
+	// CI's test job links every test binary with -ldflags -X
+	// <internal/version.Version>=$WANT_VERSION: -X ignores a symbol that
+	// does not exist, so a renamed variable or package would leave release
+	// builds saying "dev" with nothing failing
+	if want := os.Getenv("WANT_VERSION"); want != "" && got != want {
+		t.Fatalf("-version printed %q, want %q: -ldflags -X no longer sets internal/version.Version", got, want)
 	}
 }
 
