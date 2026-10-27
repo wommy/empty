@@ -172,8 +172,18 @@ func TestFileExportPreconditions(t *testing.T) {
 		wantCode(t, err, endpoint.InvalidArgument)
 		wantCode(t, ep.UnpublishFileExport(ctx, "fs", host), endpoint.InvalidArgument)
 	}
-	_, err = ep.PublishFileExport(ctx, "a/b", "10.0.0.1", false)
+	// an id this endpoint never issues names no volume, as for the other
+	// volume calls: Publish NotFound, Unpublish OK; a missing one is invalid
+	for _, id := range []string{"a/b", "a@b", strings.Repeat("x", 129)} {
+		_, err = ep.PublishFileExport(ctx, id, "10.0.0.1", false)
+		wantCode(t, err, endpoint.NotFound)
+		if err := ep.UnpublishFileExport(ctx, id, "10.0.0.1"); err != nil {
+			t.Fatalf("unpublish %q: %v", id, err)
+		}
+	}
+	_, err = ep.PublishFileExport(ctx, "", "10.0.0.1", false)
 	wantCode(t, err, endpoint.InvalidArgument)
+	wantCode(t, ep.UnpublishFileExport(ctx, "", "10.0.0.1"), endpoint.InvalidArgument)
 
 	// the floor is configurable; /16 by default
 	for _, bad := range []int{-1, 33} {

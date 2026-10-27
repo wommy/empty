@@ -689,18 +689,23 @@ func (e *Endpoint) exportTable(ctx context.Context, t Table, volID string) (Etab
 	return live, nil
 }
 
-// PublishFileExport exports a filesystem volume over NFS to one client
-// (hostname, IPv4 address or IPv4 CIDR), read-write or read-only, and
-// returns the export path on the storage host. Repeating it is a no-op; the
-// same client in the other mode is AlreadyExists. Unmounted volumes and
-// zvols are FailedPrecondition. Success means the kernel serves the export:
-// `zfs set sharenfs` cannot report a failed exportfs, so the export table is
-// read back and a mismatch is Unavailable (the retry re-shares).
+// PublishFileExport exports a filesystem volume over NFS to one client (an
+// IPv4 address or IPv4 CIDR no broader than Config.NFSMinPrefix; no
+// hostnames, see NFSClient), read-write or read-only, and returns the
+// export path on the storage host. Repeating it is a no-op; the same client
+// in the other mode is AlreadyExists, an overlapping network is
+// FailedPrecondition. A missing volume or an id this endpoint never issues
+// is NotFound. Zvols, volumes zfs would not mount (canmount off/noauto,
+// mountpoint none/legacy) and a sharenfs the endpoint did not write (set
+// locally by someone else, or received) are FailedPrecondition. Success
+// means the kernel serves the export and nfsd runs: `zfs set sharenfs`
+// cannot report a failed exportfs, so the export table is read back and a
+// mismatch is Unavailable (the retry re-shares).
 func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, readOnly bool) (string, error) {
 	if !e.cfg.FileExport {
 		return "", errorf(Unimplemented, "file export needs the endpoint to run as root")
 	}
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
 		return "", err
 	}
 	c, err := ParseClient(host, readOnly)
@@ -760,17 +765,22 @@ func (e *Endpoint) nfsdRunning(ctx context.Context) error {
 }
 
 // UnpublishFileExport revokes one client's NFS access to a volume. A
-// missing volume or a client that is not exported is OK. Success means the
-// kernel no longer serves the export to that client.
+// missing volume, an id this endpoint never issues or a client that is not
+// exported is OK. Any IPv4 address or CIDR is taken, whatever the floor.
+// An unmounted volume stays unmounted. Success means the kernel no longer
+// serves the export to that client.
 func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) error {
 	if !e.cfg.FileExport {
 		return errorf(Unimplemented, "file export needs the endpoint to run as root")
 	}
-	if _, err := volumeID(volID); err != nil {
-		return err
-	}
 	c, err := ParseClient(host, false)
 	if err != nil {
+		return err
+	}
+	if _, err := issuedVolumeID(volID); err != nil {
+		if CodeOf(err) == NotFound {
+			return nil // never issued, so never exported
+		}
 		return err
 	}
 	h := c.Host
