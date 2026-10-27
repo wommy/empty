@@ -3,12 +3,14 @@ package endpoint
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/netip"
 	"os"
-	"regexp"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,14 +24,32 @@ import (
 //
 // `zfs set sharenfs=...` exits 0 even when the export fails (libzfs discards
 // the exportfs status), so the kernel's export table (/var/lib/nfs/etab) is
-// a planner input and is re-read after every change.
+// a planner input and is re-read after every change, and Publish also
+// requires running nfsd threads.
 
-// NFSClient is one host allowed to mount a volume.
+// NFSClient is one client network allowed to mount a volume.
 type NFSClient struct {
-	// Host is a lowercase hostname, an IPv4 address or an IPv4 CIDR
-	// (masked; a /32 is written as the bare address).
+	// Host is a masked IPv4 CIDR that always carries its prefix length,
+	// "/32" for a single address: "10.0.0.5/32", "10.20.0.0/24".
+	//
+	// Why no hostnames: nfs-utils resolves a name on every `exportfs -ra`
+	// (any sharenfs change on any dataset, `zfs share -a` at boot, an
+	// nfs-server reload). When DNS or NSS fails at that moment it logs
+	// "Failed to resolve" and drops the client from etab, still exiting 0,
+	// and nothing re-adds it: the node silently loses access. It also
+	// writes a name or bare address under the canonical name of the first
+	// client with the same address, so etab cannot be checked against what
+	// was asked (support/export/client.c client_lookup).
+	//
+	// Why always "/N": nfs-utils classes a client containing '/' as a
+	// subnet (MCL_SUBNETWORK). It keeps that string verbatim, never
+	// resolves it and never merges it with other clients, so etab shows
+	// exactly the string written to sharenfs.
 	Host     string
 	ReadOnly bool
+	// unknownMode marks an etab line whose options start with neither ro
+	// nor rw. It serves no request, so verification fails closed.
+	unknownMode bool
 }
 
 func (c NFSClient) mode() string {
@@ -39,66 +59,139 @@ func (c NFSClient) mode() string {
 	return "rw"
 }
 
-// maxShareLen is ZFS_MAXPROPLEN minus the terminating NUL: the longest
-// sharenfs value zfs accepts.
-const maxShareLen = 4095
+// prefix is the client's network, normalized (masked). Clients compare by
+// it, never by spelling. An etab host that is not a subnet (a name, or a
+// bare address, which nfs-utils resolves and may rename) has none.
+func (c NFSClient) prefix() (netip.Prefix, bool) {
+	if !strings.Contains(c.Host, "/") {
+		return netip.Prefix{}, false
+	}
+	p, err := netip.ParsePrefix(c.Host)
+	if err != nil {
+		return netip.Prefix{}, false
+	}
+	return p.Masked(), true
+}
 
-var (
-	hostChars = regexp.MustCompile(`^[A-Za-z0-9./-]+$`)
-	hostLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-)
+// maxPropLen is ZFS_MAXPROPLEN (ZAP_MAXVALUELEN, 8192) minus the
+// terminating NUL: libzfs refuses a value with strlen >= ZFS_MAXPROPLEN
+// (libzfs_util.c zprop_parse_value), for sharenfs and user properties alike.
+const maxPropLen = 8191
 
-// ParseClient validates and normalizes a client spec. Only hostnames, IPv4
-// addresses and IPv4 CIDRs are accepted, from an allowlist of characters:
-// sharenfs separates options with ',' and hosts with ':', and exportfs reads
-// '(' '*' '@' and spaces, so none of them may reach the property. Wildcards
-// and netgroups are refused; "*" would export to every host.
+// DefaultNFSMinPrefix is the broadest client network Publish accepts by
+// default: an IPv4 /16.
+const DefaultNFSMinPrefix = 16
+
+// ParseClient validates and normalizes a client spec: an IPv4 address
+// (stored as a /32) or an IPv4 CIDR with its host bits zero. Hostnames,
+// IPv6, wildcards, netgroups, inet_aton spellings (hex, octal, short forms)
+// and /0 are refused. Only digits, '.' and '/' can come out, so none of
+// sharenfs' separators (',' ':' '=') or exportfs' syntax ('(' '*' '@'
+// space) can reach the property. The configured floor on the prefix length
+// is Publish's (Config.NFSMinPrefix), not this function's.
 func ParseClient(host string, readOnly bool) (NFSClient, error) {
-	h, err := normalizeHost(host)
+	p, err := parseClient(host)
 	if err != nil {
 		return NFSClient{}, err
 	}
-	return NFSClient{Host: h, ReadOnly: readOnly}, nil
+	return NFSClient{Host: p.String(), ReadOnly: readOnly}, nil
 }
 
-func normalizeHost(host string) (string, error) {
-	bad := errorf(InvalidArgument, "invalid NFS client %q: want a hostname, IPv4 address or IPv4 CIDR", host)
-	if host == "" || len(host) > 253 || !hostChars.MatchString(host) {
-		return "", bad
+func parseClient(host string) (netip.Prefix, error) {
+	bad := func(why string) error {
+		return errorf(InvalidArgument, "invalid NFS client %q: %s", host, why)
 	}
+	const want = "want an IPv4 address or IPv4 CIDR (hostnames are not accepted: nfs-utils drops a name it cannot resolve on any later exportfs)"
+	if len(host) > len("255.255.255.255/32") {
+		return netip.Prefix{}, bad(want)
+	}
+	var p netip.Prefix
 	if strings.Contains(host, "/") {
-		p, err := netip.ParsePrefix(host)
-		if err != nil || !p.Addr().Is4() {
-			return "", bad
+		var err error
+		if p, err = netip.ParsePrefix(host); err != nil || !p.Addr().Is4() || p.String() != host {
+			return netip.Prefix{}, bad(want)
 		}
-		p = p.Masked()
-		if p.Bits() == 32 {
-			return p.Addr().String(), nil
+		if p.Masked() != p {
+			return netip.Prefix{}, bad(fmt.Sprintf("host bits are set; the network is %s", p.Masked()))
 		}
-		return p.String(), nil
-	}
-	if a, err := netip.ParseAddr(host); err == nil {
-		if !a.Is4() {
-			return "", bad
+	} else {
+		a, err := netip.ParseAddr(host)
+		if err != nil || !a.Is4() || a.String() != host {
+			return netip.Prefix{}, bad(want)
 		}
-		return a.String(), nil
+		p = netip.PrefixFrom(a, 32)
 	}
-	h := strings.ToLower(host)
-	labels := strings.Split(h, ".")
-	for _, l := range labels {
-		if len(l) > 63 || !hostLabel.MatchString(l) {
-			return "", bad
+	if p.Bits() == 0 {
+		return netip.Prefix{}, bad("/0 exports to every host")
+	}
+	return p, nil
+}
+
+// checkFloor refuses a client network broader than /min.
+func checkFloor(c NFSClient, min int) error {
+	if p, ok := c.prefix(); !ok || p.Bits() < min {
+		return errorf(InvalidArgument, "NFS client %s is broader than the configured minimum prefix /%d", c.Host, min)
+	}
+	return nil
+}
+
+// compareClients is a total order: by network address, then prefix
+// length, then mode. Hosts that are not networks (never ours) sort after,
+// by spelling.
+func compareClients(a, b NFSClient) int {
+	pa, oka := a.prefix()
+	pb, okb := b.prefix()
+	switch {
+	case oka && okb:
+		if c := pa.Addr().Compare(pb.Addr()); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(pa.Bits(), pb.Bits()); c != 0 {
+			return c
+		}
+	case oka != okb:
+		if oka {
+			return -1
+		}
+		return 1
+	default:
+		if c := strings.Compare(a.Host, b.Host); c != 0 {
+			return c
 		}
 	}
-	// "10.1" or "1.2.3.4.5" would be read as (partial) addresses
-	if _, err := strconv.Atoi(strings.ReplaceAll(labels[len(labels)-1], "-", "")); err == nil {
-		return "", bad
+	switch {
+	case a.ReadOnly == b.ReadOnly:
+		return 0
+	case !a.ReadOnly:
+		return -1
 	}
-	return h, nil
+	return 1
+}
+
+func sortClients(cs []NFSClient) []NFSClient {
+	cs = slices.Clone(cs)
+	slices.SortStableFunc(cs, compareClients)
+	return cs
+}
+
+// overlap returns a client in cs whose network overlaps c's (contains it,
+// is contained by it, or is the same), if any.
+func overlap(cs []NFSClient, c NFSClient) (NFSClient, bool) {
+	pc, ok := c.prefix()
+	if !ok {
+		return NFSClient{}, false
+	}
+	for _, x := range cs {
+		if px, ok := x.prefix(); ok && px.Overlaps(pc) {
+			return x, true
+		}
+	}
+	return NFSClient{}, false
 }
 
 // encodeClients is the stored form of a client list: "host=rw,host=ro"
-// sorted by host, "none" for an empty list (a user property cannot hold "").
+// sorted by address, "none" for an empty list (a user property cannot hold
+// "").
 func encodeClients(cs []NFSClient) string {
 	if len(cs) == 0 {
 		return "none"
@@ -111,7 +204,9 @@ func encodeClients(cs []NFSClient) string {
 }
 
 // decodeClients parses encodeClients; any deviation is an error, so a hand
-// edit is refused instead of half-read.
+// edit is refused instead of half-read. Duplicate or overlapping networks
+// are refused too: nfs-utils applies the first matching line of a path, so
+// the second entry's mode would not hold.
 func decodeClients(s string) ([]NFSClient, error) {
 	if s == "none" {
 		return nil, nil
@@ -126,18 +221,15 @@ func decodeClients(s string) ([]NFSClient, error) {
 		if err != nil || c.Host != host {
 			return nil, errorf(FailedPrecondition, "invalid client entry %q", part)
 		}
+		if x, ok := overlap(cs, c); ok {
+			return nil, errorf(FailedPrecondition, "client entries %s and %s overlap", x.Host, c.Host)
+		}
 		cs = append(cs, c)
 	}
 	if encodeClients(cs) != s {
 		return nil, errorf(FailedPrecondition, "client list %q is not canonical", s)
 	}
 	return cs, nil
-}
-
-func sortClients(cs []NFSClient) []NFSClient {
-	cs = slices.Clone(cs)
-	slices.SortFunc(cs, func(a, b NFSClient) int { return strings.Compare(a.Host, b.Host) })
-	return cs
 }
 
 // ShareNFS is the sharenfs value for a client list: "rw=a:b,ro=c" with
@@ -172,7 +264,10 @@ func ShareNFS(cs []NFSClient) string {
 type Etab map[string][]NFSClient
 
 // ParseEtab reads /var/lib/nfs/etab: one "path<TAB>client(ro|rw,...)" line
-// per client, with special characters in the path written as \ooo.
+// per client, with special characters in the path written as \ooo. A line
+// whose first option is neither ro nor rw is kept with an unknown mode: it
+// is served (Unpublish must not report it gone) but in no mode Publish can
+// confirm.
 func ParseEtab(b []byte) Etab {
 	t := Etab{}
 	sc := bufio.NewScanner(bytes.NewReader(b))
@@ -187,9 +282,16 @@ func ParseEtab(b []byte) Etab {
 		if !ok {
 			continue
 		}
-		mode := opts[:strings.IndexAny(opts+",", ",)")]
+		c := NFSClient{Host: strings.ToLower(host)}
+		switch opts[:strings.IndexAny(opts+",", ",)")] {
+		case "ro":
+			c.ReadOnly = true
+		case "rw":
+		default:
+			c.unknownMode = true
+		}
 		path = unescapeOctal(path)
-		t[path] = append(t[path], NFSClient{Host: strings.ToLower(host), ReadOnly: mode == "ro"})
+		t[path] = append(t[path], c)
 	}
 	return t
 }
@@ -212,20 +314,55 @@ func unescapeOctal(s string) string {
 	return b.String()
 }
 
-// Lookup returns how path is exported to host. exportfs records a hostname
-// by its canonical (DNS) name, so "node-a" also matches "node-a.example".
+// Lookup returns how path is exported to client host (an address or CIDR,
+// as ParseClient takes it). Entries compare by normalized network: only an
+// etab subnet entry for the same network matches. A name or bare address
+// in etab never matches, and neither does a different network that merely
+// contains host.
 func (t Etab) Lookup(path, host string) (NFSClient, bool) {
+	want, err := parseClient(host)
+	if err != nil {
+		return NFSClient{}, false
+	}
 	for _, c := range t[path] {
-		if c.Host == host || (isName(host) && strings.HasPrefix(c.Host, host+".")) {
+		if p, ok := c.prefix(); ok && p == want {
 			return c, true
 		}
 	}
 	return NFSClient{}, false
 }
 
-// isName: a hostname has a letter; addresses and CIDRs have none.
-func isName(host string) bool {
-	return strings.ContainsFunc(host, func(r rune) bool { return 'a' <= r && r <= 'z' })
+// serves reports whether path is exported to c in c's mode.
+func (t Etab) serves(path string, c NFSClient) bool {
+	got, ok := t.Lookup(path, c.Host)
+	return ok && !got.unknownMode && got.ReadOnly == c.ReadOnly
+}
+
+// at returns the table with path's entries read from real: exportfs
+// stores each export under its realpath (nfs-utils nfsd_realpath), while
+// the endpoint knows the mountpoint property.
+func (t Etab) at(path, real string) Etab {
+	if path == real {
+		return t
+	}
+	v := make(Etab, len(t)+1)
+	for k, cs := range t {
+		v[k] = cs
+	}
+	v[path] = t[real]
+	return v
+}
+
+// realPath resolves symlinks in an export path like nfsd_realpath; a path
+// that cannot be resolved is used as it is.
+func realPath(p string) string {
+	if !filepath.IsAbs(p) {
+		return p
+	}
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
 }
 
 // EtabReader reads the kernel export table. The endpoint uses it to verify
@@ -249,12 +386,38 @@ func (f FileEtab) ReadEtab(context.Context) ([]byte, error) {
 	return b, err
 }
 
+// NFSDReader reports how many nfsd threads run. etab alone does not show a
+// running server: `exportfs -ra` (every sharenfs change) rewrites it with
+// nfs-server stopped. Tests inject a fake; the simulator models one.
+type NFSDReader interface {
+	NFSDThreads(ctx context.Context) (int, error)
+}
+
+// FileNFSD reads a thread count file. A missing file (nfsd module not
+// loaded or its filesystem not mounted) is 0 threads. Reading
+// /proc/fs/nfsd/threads needs root, which file export needs anyway.
+type FileNFSD string
+
+// DefaultNFSD is the kernel's nfsd thread count.
+const DefaultNFSD FileNFSD = "/proc/fs/nfsd/threads"
+
+func (f FileNFSD) NFSDThreads(context.Context) (int, error) {
+	b, err := os.ReadFile(string(f))
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(b)))
+}
+
 // ---- planners ---------------------------------------------------------------
 
 // exportRow checks what both directions need: a managed filesystem whose
-// stored client list is readable.
+// stored client list is readable. A malformed id names no volume.
 func (p Planner) exportRow(t Table, volID string) (Row, []NFSClient, bool, error) {
-	id, err := volumeID(volID)
+	id, err := issuedVolumeID(volID)
 	if err != nil {
 		return Row{}, nil, false, err
 	}
@@ -279,22 +442,41 @@ func (p Planner) exportRow(t Table, volID string) (Row, []NFSClient, bool, error
 	return row, cs, true, nil
 }
 
-// foreign reports a sharenfs set on the volume by something other than the
-// endpoint (e.g. democratic-csi's driver-wide value): never overwritten.
+// foreign reports a sharenfs that exports something and that the endpoint
+// did not write, so it never overwrites it:
+//   - set locally by someone else (e.g. democratic-csi's driver-wide value);
+//   - received (`zfs recv` of a stream with properties): the sending
+//     side's export decision. A local value would silently shadow it, and
+//     adopting it would mean parsing options and names the endpoint never
+//     writes; it is refused instead. `zfs set sharenfs=off` (local) hands
+//     the volume to the endpoint. A received "off" exports nothing and is
+//     pinned locally like an inherited one.
 func foreign(row Row) bool {
-	return !row.NFSClientsSet && row.ShareNFSLocal && row.ShareNFS != "off"
+	if row.ShareNFS == "off" {
+		return false
+	}
+	return row.ShareNFSRecv || (!row.NFSClientsSet && row.ShareNFSLocal)
+}
+
+func foreignErr(row Row, what string) error {
+	src := "set outside the endpoint"
+	if row.ShareNFSRecv {
+		src = "received from a replication stream"
+	}
+	return errorf(FailedPrecondition, "volume %s %s sharenfs=%q, %s; set sharenfs=off on it to let the endpoint manage exports", row.ID, what, row.ShareNFS, src)
 }
 
 // exportOps sets the stored list and sharenfs where they differ from want.
 // An inherited sharenfs is always pinned locally: a parent shared to "*"
 // would otherwise keep exporting the volume to everyone.
 func (p Planner) exportOps(row Row, want []NFSClient) (Plan, error) {
-	share := ShareNFS(want)
-	if len(share) > maxShareLen {
-		return nil, errorf(ResourceExhausted, "volume %s: %d clients exceed the sharenfs length limit; use a CIDR", row.ID, len(want))
+	share, enc := ShareNFS(want), encodeClients(want)
+	if len(share) > maxPropLen || len(enc) > maxPropLen {
+		return nil, errorf(ResourceExhausted, "volume %s: %d clients exceed the %d-byte property limit (sharenfs %d, %s %d bytes); use a CIDR",
+			row.ID, len(want), maxPropLen, len(share), p.Names.nfsClients(), len(enc))
 	}
 	set := map[string]string{}
-	if enc := encodeClients(want); !row.NFSClientsSet || row.NFSClients != enc {
+	if !row.NFSClientsSet || row.NFSClients != enc {
 		set[p.Names.nfsClients()] = enc
 	}
 	if !row.ShareNFSLocal || row.ShareNFS != share {
@@ -315,8 +497,10 @@ func reshare(row Row, want []NFSClient) Plan {
 
 // PlanPublishExport adds client c to volume volID. The same client in the
 // same mode is an empty plan (once the kernel serves it); in the other mode
-// it is AlreadyExists. live is the current kernel export table. It returns
-// the volume's row, whose Mount is the export path.
+// it is AlreadyExists; a different network overlapping one already
+// exported is FailedPrecondition. live is the current kernel export table,
+// keyed by the mountpoint. It returns the volume's row, whose Mount is the
+// export path.
 func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient) (Plan, Row, error) {
 	row, cs, ok, err := p.exportRow(t, volID)
 	if err != nil {
@@ -325,16 +509,23 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
 	if !ok {
 		return nil, Row{}, errorf(NotFound, "volume %s not found", volID)
 	}
-	if !row.Mounted {
-		return nil, Row{}, errorf(FailedPrecondition, "volume %s is not mounted on the storage host (mountpoint %q); zfs would store the export and serve nothing", row.ID, row.Mount)
+	// unmounted with canmount=on: setting sharenfs mounts and shares it
+	// (changelist_postfix), which is what a publish asks for
+	if !row.Mounted && (row.CanMount != "on" || row.Mount == "none" || row.Mount == "legacy" || row.Mount == "") {
+		return nil, Row{}, errorf(FailedPrecondition, "volume %s is not mounted on the storage host and zfs would not mount it (canmount=%s, mountpoint %q): sharenfs would be stored but nothing served",
+			row.ID, row.CanMount, row.Mount)
 	}
 	if foreign(row) {
-		return nil, Row{}, errorf(FailedPrecondition, "volume %s has sharenfs=%q set outside the endpoint; set it to off to let the endpoint manage exports", row.ID, row.ShareNFS)
+		return nil, Row{}, foreignErr(row, "has")
 	}
 	want := cs
-	if i := slices.IndexFunc(cs, func(x NFSClient) bool { return x.Host == c.Host }); i >= 0 {
-		if cs[i].ReadOnly != c.ReadOnly {
-			return nil, Row{}, errorf(AlreadyExists, "volume %s is already exported to %s %s", row.ID, c.Host, cs[i].mode())
+	if x, ok := overlap(cs, c); ok {
+		switch {
+		case x.Host != c.Host:
+			return nil, Row{}, errorf(FailedPrecondition, "volume %s is exported to %s, which overlaps %s: nfs-utils applies the first matching line, so both cannot hold; unpublish %s first",
+				row.ID, x.Host, c.Host, x.Host)
+		case x.ReadOnly != c.ReadOnly:
+			return nil, Row{}, errorf(AlreadyExists, "volume %s is already exported to %s %s", row.ID, c.Host, x.mode())
 		}
 	} else {
 		want = sortClients(append(slices.Clone(cs), c))
@@ -343,21 +534,26 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
 	if err != nil {
 		return nil, Row{}, err
 	}
-	if len(plan) == 0 {
-		if got, ok := live.Lookup(row.Mount, c.Host); !ok || got.ReadOnly != c.ReadOnly {
-			plan = reshare(row, want)
-		}
+	if len(plan) == 0 && !live.serves(row.Mount, c) {
+		plan = reshare(row, want)
 	}
 	return plan, row, nil
 }
 
-// PlanUnpublishExport removes host from volume volID. A missing volume or a
-// host that is not exported is done; the last host leaves sharenfs=off set
-// locally (never inherited: the parent may be shared). It returns the row,
-// or a zero Row when there is nothing to verify.
+// PlanUnpublishExport removes host from volume volID. A missing volume, a
+// malformed id or a host that is not exported is done; the last host leaves
+// sharenfs=off set locally (never inherited: the parent may be shared). It
+// returns the row, or a zero Row when there is nothing to verify.
 func (p Planner) PlanUnpublishExport(t Table, live Etab, volID, host string) (Plan, Row, error) {
+	c, err := ParseClient(host, false)
+	if err != nil {
+		return nil, Row{}, err
+	}
 	row, cs, ok, err := p.exportRow(t, volID)
 	if !ok {
+		if CodeOf(err) == NotFound {
+			return nil, Row{}, nil // never issued, so never exported
+		}
 		return nil, Row{}, err
 	}
 	if err != nil {
@@ -366,15 +562,19 @@ func (p Planner) PlanUnpublishExport(t Table, live Etab, volID, host string) (Pl
 		}
 		return nil, Row{}, err
 	}
-	want := slices.DeleteFunc(slices.Clone(cs), func(x NFSClient) bool { return x.Host == host })
-	_, isLive := live.Lookup(row.Mount, host)
+	want := slices.DeleteFunc(slices.Clone(cs), func(x NFSClient) bool {
+		px, _ := x.prefix()
+		pc, _ := c.prefix()
+		return px == pc
+	})
+	_, isLive := live.Lookup(row.Mount, c.Host)
 	if len(want) == len(cs) {
 		// not one of ours; still served means drift or a foreign sharenfs
 		switch {
 		case !isLive:
 			return nil, row, nil
 		case foreign(row):
-			return nil, Row{}, errorf(FailedPrecondition, "volume %s is exported to %s by sharenfs=%q, set outside the endpoint", row.ID, host, row.ShareNFS)
+			return nil, Row{}, foreignErr(row, "is exported to "+c.Host+" by")
 		}
 	}
 	plan, err := p.exportOps(row, want)

@@ -114,6 +114,11 @@ type Config struct {
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.
 	Etab EtabReader
+	// NFSMinPrefix is the broadest client network PublishFileExport
+	// accepts: an IPv4 prefix length, 1-32. Default DefaultNFSMinPrefix
+	// (/16). Unpublish takes any network, so raising it never strands an
+	// export.
+	NFSMinPrefix int
 	// DestroyForeignSnapshots lets DeleteVolume (and reconcile) destroy a
 	// volume together with snapshots the endpoint did not cut (no locally
 	// set csi_snapshot_name: an administrator's, a backup tool's, a
@@ -154,6 +159,12 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	}
 	if cfg.Etab == nil {
 		cfg.Etab = DefaultEtab
+	}
+	if cfg.NFSMinPrefix == 0 {
+		cfg.NFSMinPrefix = DefaultNFSMinPrefix
+	}
+	if cfg.NFSMinPrefix < 1 || cfg.NFSMinPrefix > 32 {
+		return nil, fmt.Errorf("NFS minimum prefix /%d: want 1-32", cfg.NFSMinPrefix)
 	}
 	names := props{cfg.PropertyPrefix}
 	return &Endpoint{
@@ -670,6 +681,9 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 	if err != nil {
 		return "", err
 	}
+	if err := checkFloor(c, e.cfg.NFSMinPrefix); err != nil {
+		return "", err
+	}
 	release, err := e.lock(ctx, "vol:"+volID)
 	if err != nil {
 		return "", err
@@ -713,10 +727,11 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	if _, err := volumeID(volID); err != nil {
 		return err
 	}
-	h, err := normalizeHost(host)
+	c, err := ParseClient(host, false)
 	if err != nil {
 		return err
 	}
+	h := c.Host
 	release, err := e.lock(ctx, "vol:"+volID)
 	if err != nil {
 		return err

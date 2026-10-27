@@ -36,6 +36,9 @@ type Row struct {
 	NFSClients    string // locally set desired client list (export.go)
 	NFSClientsSet bool
 
+	ShareNFSRecv bool   // sharenfs came from `zfs recv` (source "received")
+	CanMount     string // on, off, noauto; "-" for zvols and snapshots
+
 	// ownership, from user properties
 	Managed        bool
 	Committed      bool // provision_success
@@ -202,7 +205,7 @@ func (t Table) ClonesOf(snap string) iter.Seq[Row] { return t.pick(t.clonesOfSrc
 func (n props) columns() []string {
 	return append([]string{
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
-		"defer_destroy", "mountpoint", "sharenfs", "mounted",
+		"defer_destroy", "mountpoint", "sharenfs", "mounted", "canmount",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
 		n.snapshotName(), n.snapshotSource(), n.nfsClients(),
 	}, propNames[:]...)
@@ -220,7 +223,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 	for k, name := range propNames {
 		cLocal[k] = j(name)
 	}
-	cShare, cMounted, cClients := j("sharenfs"), j("mounted"), j(n.nfsClients())
+	cShare, cMounted, cCanMount, cClients := j("sharenfs"), j("mounted"), j("canmount"), j(n.nfsClients())
 
 	rows := make([]Row, 0, len(c.Names))
 	for i, name := range c.Names {
@@ -257,6 +260,8 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 			Mounted:        cell(cMounted).Value == "yes",
 			NFSClients:     own(cClients),
 			NFSClientsSet:  cell(cClients).Local(),
+			ShareNFSRecv:   cell(cShare).Source == "received",
+			CanMount:       cell(cCanMount).Value,
 		}
 		for k, col := range cLocal {
 			// only local values: an inherited compression is the parent's

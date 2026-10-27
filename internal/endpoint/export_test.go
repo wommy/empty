@@ -1,8 +1,10 @@
 package endpoint
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/wommy/empty/internal/zfs"
@@ -17,7 +19,7 @@ const clientsProp = "democratic-csi:nfs_clients"
 // at creation, as PlanCreateVolume makes it.
 func fsv(id string, mut func(*Row)) Row {
 	return vol(id, func(r *Row) {
-		r.Mount, r.Mounted = "/tank/v/"+id, true
+		r.Mount, r.Mounted, r.CanMount = "/tank/v/"+id, true, "on"
 		r.ShareNFS, r.ShareNFSLocal = "off", true
 		if mut != nil {
 			mut(r)
@@ -37,13 +39,11 @@ func etab(lines string) Etab { return ParseEtab([]byte(lines)) }
 
 func TestParseClient(t *testing.T) {
 	ok := map[string]string{
-		"10.0.0.1":          "10.0.0.1",
-		"10.0.0.1/32":       "10.0.0.1",
-		"10.1.2.3/8":        "10.0.0.0/8",
-		"192.168.0.0/24":    "192.168.0.0/24",
-		"Node-A":            "node-a",
-		"node-a.example":    "node-a.example",
-		"k8s-worker-01.lan": "k8s-worker-01.lan",
+		"10.0.0.1":       "10.0.0.1/32",
+		"10.0.0.1/32":    "10.0.0.1/32",
+		"10.0.0.0/8":     "10.0.0.0/8",
+		"192.168.0.0/24": "192.168.0.0/24",
+		"128.0.0.0/1":    "128.0.0.0/1", // syntax only; Publish applies the floor
 	}
 	for in, want := range ok {
 		c, err := ParseClient(in, false)
@@ -52,9 +52,18 @@ func TestParseClient(t *testing.T) {
 		}
 	}
 	bad := []string{
-		"", "*", "*.example", "@netgroup", "a,b", "a:b", "rw=x", "x(rw)", "a b", "-o", "-host",
-		"host-", "a..b", "::1", "[::1]", "fe80::/64", "10.0.0.1/33", "10.0.0", "1.2.3.4.5", "010.0.0.1",
-		"$(reboot)", "a;b", "a\nb", "no_root_squash,rw=*", string(make([]byte, 300)),
+		// hostnames, wildcards, netgroups: nfs-utils resolves them on every exportfs
+		"node-a", "Node-A", "node-a.example", "k8s-worker-01.lan", "*", "*.example", "@netgroup",
+		// separators and exportfs syntax
+		"", "a,b", "a:b", "rw=x", "x(rw)", "a b", "-o", "-host", "$(reboot)", "a;b", "a\nb", "no_root_squash,rw=*",
+		// IPv6 (IPv4 only for now), including the mapped and bracketed forms
+		"::1", "[::1]", "fe80::/64", "::ffff:10.0.0.1", "fd00::5/128",
+		// not canonical: host bits, partial or inet_aton spellings, leading zeros
+		"10.1.2.3/8", "10.0.0.1/33", "10.0.0", "1.2.3.4.5", "010.0.0.1", "10.0.0.0x5", "0x7f.0x1", "0xa000005",
+		"10.0.0.1/032", " 10.0.0.1", "10.0.0.1/", "/8",
+		// everyone
+		"0.0.0.0/0", "10.0.0.0/0",
+		string(make([]byte, 300)),
 	}
 	for _, in := range bad {
 		if _, err := ParseClient(in, false); CodeOf(err) != InvalidArgument {
@@ -63,19 +72,32 @@ func TestParseClient(t *testing.T) {
 	}
 }
 
+func TestCheckFloor(t *testing.T) {
+	for host, ok := range map[string]bool{"10.0.0.0/16": true, "10.0.0.1/32": true, "10.0.0.0/15": false, "128.0.0.0/1": false} {
+		c, err := ParseClient(host, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := checkFloor(c, 16); (err == nil) != ok {
+			t.Errorf("checkFloor(%s, 16) = %v", host, err)
+		}
+	}
+}
+
 func TestShareNFSAndClientEncoding(t *testing.T) {
-	cs := []NFSClient{{Host: "b"}, {Host: "10.0.0.0/8", ReadOnly: true}, {Host: "a"}}
-	if got := ShareNFS(cs); got != "rw=a:b,ro=10.0.0.0/8" {
+	cs := []NFSClient{{Host: "10.10.0.0/16"}, {Host: "10.0.0.0/16", ReadOnly: true}, {Host: "10.9.0.5/32"}}
+	// by address, not by spelling: 10.9 sorts before 10.10
+	if got := ShareNFS(cs); got != "rw=10.9.0.5/32:10.10.0.0/16,ro=10.0.0.0/16" {
 		t.Fatalf("ShareNFS = %q", got)
 	}
 	if got := ShareNFS(nil); got != "off" {
 		t.Fatalf("ShareNFS(nil) = %q", got)
 	}
-	if got := ShareNFS(cs[1:2]); got != "ro=10.0.0.0/8" {
+	if got := ShareNFS(cs[1:2]); got != "ro=10.0.0.0/16" {
 		t.Fatalf("ro only = %q", got)
 	}
 	enc := encodeClients(cs)
-	if enc != "10.0.0.0/8=ro,a=rw,b=rw" {
+	if enc != "10.0.0.0/16=ro,10.9.0.5/32=rw,10.10.0.0/16=rw" {
 		t.Fatalf("encode = %q", enc)
 	}
 	back, err := decodeClients(enc)
@@ -85,29 +107,70 @@ func TestShareNFSAndClientEncoding(t *testing.T) {
 	if back, err := decodeClients("none"); err != nil || back != nil {
 		t.Fatalf("none = %v %v", back, err)
 	}
-	for _, s := range []string{"", "a", "a=rx", "b=rw,a=rw", "A=rw", "*=rw", "a=rw,,b=rw", "10.0.0.1/32=rw"} {
+	for _, s := range []string{
+		"", "a", "a=rw", "10.0.0.1/32=rx", "10.0.0.2/32=rw,10.0.0.1/32=rw", "*=rw", "10.0.0.1/32=rw,,10.0.0.2/32=rw",
+		"10.0.0.1=rw", // legacy bare address: not canonical
+		// F14: duplicates, in either mode, and overlapping networks
+		"10.0.0.1/32=rw,10.0.0.1/32=rw", "10.0.0.1/32=ro,10.0.0.1/32=rw", "10.0.0.1/32=rw,10.0.0.1/32=ro",
+		"10.0.0.0/24=rw,10.0.0.5/32=ro",
+	} {
 		if _, err := decodeClients(s); err == nil {
 			t.Errorf("decodeClients(%q) accepted", s)
 		}
 	}
 }
 
+// F14: the order is total, so equal hosts in different modes sort the same
+// whatever the input order, and the canonical check cannot flip.
+func TestSortClientsIsTotal(t *testing.T) {
+	a := []NFSClient{{Host: "10.0.0.1/32", ReadOnly: true}, {Host: "10.0.0.1/32"}, {Host: "10.0.0.0/24"}}
+	b := []NFSClient{a[1], a[2], a[0]}
+	if x, y := sortClients(a), sortClients(b); !reflect.DeepEqual(x, y) {
+		t.Fatalf("%v != %v", x, y)
+	}
+}
+
 func TestParseEtab(t *testing.T) {
-	e := etab("/tank/v/a\t10.0.0.1(rw,sync,wdelay,root_squash,sec=sys,rw)\n" +
-		"/tank/v/a\tNode-B.example(ro,sync)\n" +
-		"/tank/with\\040space\t*(rw,sync)\n" +
+	e := etab("/tank/v/a\t10.0.0.1/32(rw,sync,wdelay,root_squash,sec=sys,rw)\n" +
+		"/tank/v/a\t10.9.0.0/16(ro,sync)\n" +
+		"/tank/v/a\tnode-a.evil.example(ro,sync)\n" +
+		"/tank/v/a\t10.0.0.2(rw,sync)\n" +
+		"/tank/v/a\t10.0.0.3/32(\n" +
+		"/tank/v/a\t10.0.0.4/32()\n" +
+		"/tank/v/a\t10.0.0.6/32(sync,rw)\n" +
+		"/tank/with\\040space\t10.0.0.1/32(rw,sync)\n" +
 		"garbage line\n")
-	if c, ok := e.Lookup("/tank/v/a", "10.0.0.1"); !ok || c.ReadOnly {
-		t.Fatalf("rw client: %v %v", c, ok)
+	// compared by network: a bare request matches its /32 subnet line
+	for _, h := range []string{"10.0.0.1", "10.0.0.1/32"} {
+		if c, ok := e.Lookup("/tank/v/a", h); !ok || c.ReadOnly {
+			t.Fatalf("rw client %s: %v %v", h, c, ok)
+		}
 	}
-	// exportfs records hostnames by their canonical name
-	if c, ok := e.Lookup("/tank/v/a", "node-b"); !ok || !c.ReadOnly {
-		t.Fatalf("canonical host: %v %v", c, ok)
+	if c, ok := e.Lookup("/tank/v/a", "10.9.0.0/16"); !ok || !c.ReadOnly {
+		t.Fatalf("ro subnet: %v %v", c, ok)
 	}
-	if _, ok := e.Lookup("/tank/v/a", "10.0.0"); ok {
-		t.Fatal("address prefix must not match")
+	for _, h := range []string{
+		"node-a",      // F3: no prefix rule
+		"10.9.1.0/24", // contained in a served network, but not that network
+		"10.0.0.2",    // a bare etab address is nfs-utils' FQDN class, never ours
+		"10.0.0",
+	} {
+		if c, ok := e.Lookup("/tank/v/a", h); ok {
+			t.Errorf("Lookup(%q) matched %v", h, c)
+		}
 	}
-	if _, ok := e.Lookup("/tank/with space", "*"); !ok {
+	// F13: no mode is served (Unpublish must see it) but never in a mode
+	for _, h := range []string{"10.0.0.3", "10.0.0.4", "10.0.0.6"} {
+		if _, ok := e.Lookup("/tank/v/a", h); !ok {
+			t.Errorf("%s: line not seen", h)
+		}
+		for _, ro := range []bool{false, true} {
+			if c, _ := ParseClient(h, ro); e.serves("/tank/v/a", c) {
+				t.Errorf("%s with no leading mode verifies as served ro=%v", h, ro)
+			}
+		}
+	}
+	if _, ok := e.Lookup("/tank/with space", "10.0.0.1"); !ok {
 		t.Fatalf("octal path: %v", e)
 	}
 	if len(e) != 2 {
@@ -116,10 +179,14 @@ func TestParseEtab(t *testing.T) {
 }
 
 func TestPlanPublishExport(t *testing.T) {
-	c1 := NFSClient{Host: "10.0.0.1"}
-	live1 := etab("/tank/v/a\t10.0.0.1(rw,sync)\n")
+	c1 := NFSClient{Host: "10.0.0.1/32"}
+	live1 := etab("/tank/v/a\t10.0.0.1/32(rw,sync)\n")
 	set := func(props map[string]string) Plan {
 		return Plan{{Kind: OpSet, Target: "tank/v/a", Props: props}}
+	}
+	var many []NFSClient
+	for i := range 500 {
+		many = append(many, NFSClient{Host: fmt.Sprintf("10.%d.%d.1/32", i/250, i%250)})
 	}
 	cases := []struct {
 		name string
@@ -130,29 +197,59 @@ func TestPlanPublishExport(t *testing.T) {
 		code Code
 	}{
 		{name: "first client", row: fsv("a", nil), c: c1,
-			want: set(map[string]string{clientsProp: "10.0.0.1=rw", "sharenfs": "rw=10.0.0.1"})},
-		{name: "repeat is empty", row: exported("a", "10.0.0.1=rw", "rw=10.0.0.1"), live: live1, c: c1},
-		{name: "repeat, not served: reshare", row: exported("a", "10.0.0.1=rw", "rw=10.0.0.1"), c: c1,
-			want: set(map[string]string{"sharenfs": "rw=10.0.0.1"})},
-		{name: "served in the other mode: reshare", row: exported("a", "10.0.0.1=rw", "rw=10.0.0.1"),
-			live: etab("/tank/v/a\t10.0.0.1(ro)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1"})},
-		{name: "second client", row: exported("a", "10.0.0.1=rw", "rw=10.0.0.1"), live: live1,
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+		{name: "repeat is empty", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live1, c: c1},
+		{name: "repeat, not served: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), c: c1,
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "served in the other mode: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32(ro)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "served with no mode: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\t10.0.0.1/32()\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "served only under a name: reshare", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"),
+			live: etab("/tank/v/a\tnode-a.example(rw)\n"), c: c1, want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
+		{name: "second client", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live1,
 			c:    NFSClient{Host: "10.9.0.0/16", ReadOnly: true},
-			want: set(map[string]string{clientsProp: "10.0.0.1=rw,10.9.0.0/16=ro", "sharenfs": "rw=10.0.0.1,ro=10.9.0.0/16"})},
-		{name: "other mode", row: exported("a", "10.0.0.1=rw", "rw=10.0.0.1"), live: live1,
-			c: NFSClient{Host: "10.0.0.1", ReadOnly: true}, code: AlreadyExists},
-		{name: "drifted sharenfs is rewritten", row: exported("a", "10.0.0.1=rw", "rw=10.0.0.1:10.6.6.6"), live: live1, c: c1,
-			want: set(map[string]string{"sharenfs": "rw=10.0.0.1"})},
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw,10.9.0.0/16=ro", "sharenfs": "rw=10.0.0.1/32,ro=10.9.0.0/16"})},
+		{name: "other mode", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live1,
+			c: NFSClient{Host: "10.0.0.1/32", ReadOnly: true}, code: AlreadyExists},
+		// nfs-utils applies the first matching line: both modes cannot hold
+		{name: "inside an exported network", row: exported("a", "10.0.0.0/24=rw", "rw=10.0.0.0/24"),
+			c: NFSClient{Host: "10.0.0.5/32", ReadOnly: true}, code: FailedPrecondition},
+		{name: "around an exported host", row: exported("a", "10.0.0.5/32=ro", "ro=10.0.0.5/32"),
+			c: NFSClient{Host: "10.0.0.0/24"}, code: FailedPrecondition},
+		{name: "drifted sharenfs is rewritten", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32:10.6.6.6/32"), live: live1, c: c1,
+			want: set(map[string]string{"sharenfs": "rw=10.0.0.1/32"})},
 		{name: "inherited sharenfs is pinned", c: c1, live: etab("/tank/v/a\t*(rw)\n"),
 			row:  fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal = "on", false }),
-			want: set(map[string]string{clientsProp: "10.0.0.1=rw", "sharenfs": "rw=10.0.0.1"})},
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
 		{name: "foreign local sharenfs", c: c1, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=@10.0.0.0/8,no_root_squash" })},
+		// a received value is the sending side's export: never shadowed
+		{name: "received sharenfs", c: c1, code: FailedPrecondition,
+			row: fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal, r.ShareNFSRecv = "rw=10.0.0.0/8", false, true })},
+		// `zfs inherit -S sharenfs` reverted to the received value
+		{name: "received sharenfs over our list", c: c1, code: FailedPrecondition, live: live1,
+			row: func() Row {
+				r := exported("a", "10.0.0.1/32=rw", "on")
+				r.ShareNFSLocal, r.ShareNFSRecv = false, true
+				return r
+			}()},
+		{name: "received off is pinned", c: c1,
+			row:  fsv("a", func(r *Row) { r.ShareNFSLocal, r.ShareNFSRecv = false, true }),
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
 		{name: "corrupt client list", c: c1, code: FailedPrecondition, row: exported("a", "x=yes", "off")},
+		{name: "duplicate client list", c: c1, code: FailedPrecondition, row: exported("a", "10.0.0.1/32=rw,10.0.0.1/32=rw", "rw=10.0.0.1/32")},
 		{name: "zvol", c: c1, code: FailedPrecondition,
 			row: vol("a", func(r *Row) { r.Type, r.Volsize, r.ShareNFS = zfs.TypeVolume, 1<<30, "-" })},
-		{name: "unmounted", c: c1, code: FailedPrecondition,
+		// canmount=on: setting sharenfs mounts and serves it
+		{name: "unmounted, canmount=on", c: c1, row: fsv("a", func(r *Row) { r.Mounted = false }),
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+		{name: "unmounted, canmount=noauto", c: c1, code: FailedPrecondition,
+			row: fsv("a", func(r *Row) { r.Mounted, r.CanMount = false, "noauto" })},
+		{name: "mountpoint none", c: c1, code: FailedPrecondition,
 			row: fsv("a", func(r *Row) { r.Mounted, r.Mount = false, "none" })},
+		{name: "too many clients", row: exported("a", encodeClients(many), ShareNFS(many)),
+			c: NFSClient{Host: "10.200.0.1/32"}, code: ResourceExhausted},
 		{name: "unmanaged", c: c1, code: NotFound, row: fsv("a", func(r *Row) { r.Managed = false })},
 		{name: "missing", c: c1, code: NotFound, row: fsv("b", nil)},
 	}
@@ -170,11 +267,43 @@ func TestPlanPublishExport(t *testing.T) {
 			}
 		})
 	}
+	// a malformed id names no volume: NotFound, like the other volume calls
+	_, _, err := pl.PlanPublishExport(NewTable(nil), nil, "a/b", c1)
+	if CodeOf(err) != NotFound {
+		t.Fatalf("malformed id: %v", err)
+	}
+}
+
+// F7: the limit is ZFS_MAXPROPLEN-1 on sharenfs and on the stored list,
+// which costs more per client (",host=rw" versus ":host").
+func TestExportSizeLimit(t *testing.T) {
+	var cs []NFSClient
+	for i := 0; len(ShareNFS(cs)) <= maxPropLen; i++ {
+		cs = append(cs, NFSClient{Host: fmt.Sprintf("10.%d.%d.%d/32", i/62500, i/250%250, i%250)})
+	}
+	if maxPropLen != 8191 {
+		t.Fatalf("maxPropLen %d", maxPropLen)
+	}
+	// both under the limit: planned
+	n := 0
+	for len(encodeClients(cs[:n+1])) <= maxPropLen {
+		n++
+	}
+	if _, err := pl.exportOps(fsv("a", nil), cs[:n]); err != nil {
+		t.Fatalf("%d clients: %v", n, err)
+	}
+	// sharenfs still fits, the stored list does not
+	if len(ShareNFS(cs[:n+1])) > maxPropLen {
+		t.Fatalf("test setup: sharenfs %d", len(ShareNFS(cs[:n+1])))
+	}
+	if _, err := pl.exportOps(fsv("a", nil), cs[:n+1]); CodeOf(err) != ResourceExhausted || !strings.Contains(err.Error(), "nfs_clients") {
+		t.Fatalf("%d clients: %v", n+1, err)
+	}
 }
 
 func TestPlanUnpublishExport(t *testing.T) {
-	two := exported("a", "10.0.0.1=rw,10.0.0.2=ro", "rw=10.0.0.1,ro=10.0.0.2")
-	live := etab("/tank/v/a\t10.0.0.1(rw)\n/tank/v/a\t10.0.0.2(ro)\n")
+	two := exported("a", "10.0.0.1/32=rw,10.0.0.2/32=ro", "rw=10.0.0.1/32,ro=10.0.0.2/32")
+	live := etab("/tank/v/a\t10.0.0.1/32(rw)\n/tank/v/a\t10.0.0.2/32(ro)\n")
 	set := func(props map[string]string) Plan {
 		return Plan{{Kind: OpSet, Target: "tank/v/a", Props: props}}
 	}
@@ -187,24 +316,30 @@ func TestPlanUnpublishExport(t *testing.T) {
 		code Code
 	}{
 		{name: "one of two", row: two, live: live, host: "10.0.0.2",
-			want: set(map[string]string{clientsProp: "10.0.0.1=rw", "sharenfs": "rw=10.0.0.1"})},
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
+		{name: "spelled as /32", row: two, live: live, host: "10.0.0.2/32",
+			want: set(map[string]string{clientsProp: "10.0.0.1/32=rw", "sharenfs": "rw=10.0.0.1/32"})},
 		// never inherit: the parent may be shared to everyone
-		{name: "last sets off locally", row: exported("a", "10.0.0.1=rw", "rw=10.0.0.1"), live: live, host: "10.0.0.1",
+		{name: "last sets off locally", row: exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32"), live: live, host: "10.0.0.1",
 			want: set(map[string]string{clientsProp: "none", "sharenfs": "off"})},
 		{name: "not a client", row: two, live: live, host: "10.0.0.3"},
+		{name: "network around a client is not that client", row: two, live: live, host: "10.0.0.0/24"},
 		{name: "already removed", row: exported("a", "none", "off"), host: "10.0.0.1"},
 		{name: "removed but still served: reshare", row: exported("a", "none", "off"), live: live, host: "10.0.0.1",
 			want: set(map[string]string{"sharenfs": "off"})},
 		{name: "served by a foreign sharenfs", host: "10.0.0.1", live: live, code: FailedPrecondition,
-			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1" })},
+			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32" })},
+		{name: "served by a received sharenfs", host: "10.0.0.1", live: live, code: FailedPrecondition,
+			row: fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal, r.ShareNFSRecv = "rw=10.0.0.1/32", false, true })},
 		{name: "foreign but not served", host: "10.0.0.9", live: live,
-			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1" })},
+			row: fsv("a", func(r *Row) { r.ShareNFS = "rw=10.0.0.1/32" })},
 		{name: "unmounted still revokes", host: "10.0.0.2",
-			row:  exported("a", "10.0.0.2=ro", "ro=10.0.0.2"),
+			row:  exported("a", "10.0.0.2/32=ro", "ro=10.0.0.2/32"),
 			want: set(map[string]string{clientsProp: "none", "sharenfs": "off"})},
 		{name: "zvol", host: "10.0.0.1", row: vol("a", func(r *Row) { r.Type = zfs.TypeVolume })},
 		{name: "missing", host: "10.0.0.1", row: fsv("b", nil)},
 		{name: "corrupt", host: "10.0.0.1", row: exported("a", "x", "off"), code: FailedPrecondition},
+		{name: "hostname", host: "node-a", row: two, live: live, code: InvalidArgument},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -216,6 +351,10 @@ func TestPlanUnpublishExport(t *testing.T) {
 				t.Fatalf("plan %+v\nwant %+v", plan, tc.want)
 			}
 		})
+	}
+	// a malformed id names no volume, so nothing is exported: done
+	if plan, _, err := pl.PlanUnpublishExport(NewTable(nil), nil, "a/b", "10.0.0.1"); err != nil || plan != nil {
+		t.Fatalf("malformed id: %v %v", plan, err)
 	}
 }
 
@@ -245,8 +384,8 @@ func TestExportConverges(t *testing.T) {
 		host    string
 		ro, del bool
 	}{
-		{host: "10.0.0.1"}, {host: "node-a", ro: true}, {host: "10.1.0.0/16"},
-		{host: "node-a", del: true}, {host: "10.0.0.1", del: true}, {host: "10.1.0.0/16", del: true},
+		{host: "10.0.0.1/32"}, {host: "10.2.0.0/16", ro: true}, {host: "10.1.0.0/16"},
+		{host: "10.2.0.0/16", del: true}, {host: "10.0.0.1/32", del: true}, {host: "10.1.0.0/16", del: true},
 	}
 	row, live := fsv("a", nil), Etab{}
 	want := map[string]bool{}

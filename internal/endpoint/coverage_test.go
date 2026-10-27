@@ -51,10 +51,10 @@ func TestPlannersRequireACoveringTable(t *testing.T) {
 	if _, err := pl.PlanReconcile(partial, Desired{}); code(err) != Internal {
 		t.Errorf("reconcile on a partial table: %v", err)
 	}
-	if _, _, err := pl.PlanUnpublishExport(partial, nil, "b", "h"); code(err) != Internal {
+	if _, _, err := pl.PlanUnpublishExport(partial, nil, "b", "10.0.0.1"); code(err) != Internal {
 		t.Errorf("unpublish uncovered: %v", err)
 	}
-	if _, _, err := pl.PlanPublishExport(partial, nil, "b", NFSClient{Host: "h"}); code(err) != Internal {
+	if _, _, err := pl.PlanPublishExport(partial, nil, "b", NFSClient{Host: "10.0.0.1/32"}); code(err) != Internal {
 		t.Errorf("publish uncovered: %v", err)
 	}
 }

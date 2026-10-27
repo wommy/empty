@@ -78,7 +78,7 @@ func TestFileExportLifecycle(t *testing.T) {
 	if err != nil || path != v.Mountpoint {
 		t.Fatalf("publish: %q %v (mountpoint %q)", path, err, v.Mountpoint)
 	}
-	if val, src := h.propSource(t, ds, "sharenfs"); val != "rw=10.0.0.1" || src != "local" {
+	if val, src := h.propSource(t, ds, "sharenfs"); val != "rw=10.0.0.1/32" || src != "local" {
 		t.Fatalf("sharenfs %q (%s)", val, src)
 	}
 	if c, ok := h.served(t, path, "10.0.0.1"); !ok || c.ReadOnly {
@@ -97,10 +97,10 @@ func TestFileExportLifecycle(t *testing.T) {
 		t.Fatalf("repeat publish ran %d zfs set", n)
 	}
 
-	if _, err := ep.PublishFileExport(ctx, "pvc-nfs", "10.9.1.2/16", true); err != nil {
+	if _, err := ep.PublishFileExport(ctx, "pvc-nfs", "10.9.0.0/16", true); err != nil {
 		t.Fatal(err)
 	}
-	if val := h.Prop(ds, "sharenfs"); val != "rw=10.0.0.1,ro=10.9.0.0/16" {
+	if val := h.Prop(ds, "sharenfs"); val != "rw=10.0.0.1/32,ro=10.9.0.0/16" {
 		t.Fatalf("sharenfs %q", val)
 	}
 	_, err = ep.PublishFileExport(ctx, "pvc-nfs", "10.0.0.1", true)
@@ -162,12 +162,27 @@ func TestFileExportPreconditions(t *testing.T) {
 	if err := ep.UnpublishFileExport(ctx, "missing", "10.0.0.1"); err != nil {
 		t.Fatalf("unpublish missing: %v", err)
 	}
-	for _, host := range []string{"", "*", "10.0.0.1,rw", "a:b", "no_root_squash", "-o", "x(rw)", "fe80::1", "a b"} {
+	for _, host := range []string{"", "*", "10.0.0.1,rw", "a:b", "no_root_squash", "-o", "x(rw)", "fe80::1", "a b", "node-a", "0.0.0.0/0", "10.0.0.1/8"} {
 		_, err = ep.PublishFileExport(ctx, "fs", host, false)
 		wantCode(t, err, endpoint.InvalidArgument)
 		wantCode(t, ep.UnpublishFileExport(ctx, "fs", host), endpoint.InvalidArgument)
 	}
 	_, err = ep.PublishFileExport(ctx, "a/b", "10.0.0.1", false)
+	wantCode(t, err, endpoint.InvalidArgument)
+
+	// the floor is configurable; /16 by default
+	for _, bad := range []int{-1, 33} {
+		if _, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, NFSMinPrefix: bad}); err == nil {
+			t.Fatalf("NFSMinPrefix %d accepted", bad)
+		}
+	}
+	_, err = ep.PublishFileExport(ctx, "fs", "10.0.0.0/15", false)
+	wantCode(t, err, endpoint.InvalidArgument)
+	wide, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true, NFSMinPrefix: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = wide.PublishFileExport(ctx, "fs", "10.0.0.0/7", false)
 	wantCode(t, err, endpoint.InvalidArgument)
 
 	off, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second})
@@ -240,7 +255,7 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if val, src := h.propSource(t, h.Parent+"/old", "sharenfs"); val != "rw=10.0.0.1" || src != "local" {
+	if val, src := h.propSource(t, h.Parent+"/old", "sharenfs"); val != "rw=10.0.0.1/32" || src != "local" {
 		t.Fatalf("sharenfs %q (%s)", val, src)
 	}
 	if _, ok := h.served(t, path, "*"); ok {
