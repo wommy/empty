@@ -116,6 +116,24 @@ func TestReachOriginOutsideParent(t *testing.T) {
 	}
 }
 
+// Lifecycle FSM I2: managed without the volume-name marker is a state
+// neither the endpoint nor democratic-csi writes; it is not ours.
+func TestManagedWithoutNameIsNotOwned(t *testing.T) {
+	raw := rawOf(dsCells(rParent+"/m", zfs.TypeFilesystem, map[string][2]string{
+		rNames.managed(): {"true", "local"}, rNames.success(): {"true", "local"},
+	}))
+	tbl, ep := tableFromRaw(t, raw)
+	if r, _ := tbl.Get("m"); r.OwnedVolume() {
+		t.Fatal("owned without a name marker")
+	}
+	if _, err := ep.GetVolume(context.Background(), "m"); CodeOf(err) != NotFound {
+		t.Fatalf("GetVolume: %v", err)
+	}
+	if _, err := ep.plan.PlanDeleteVolume(tbl, "m"); CodeOf(err) != FailedPrecondition {
+		t.Fatalf("DeleteVolume: %v", err)
+	}
+}
+
 // R12: a Planner built without VolBlockSize divided by zero on any block
 // request.
 func TestReachPlannerZeroBlockSize(t *testing.T) {

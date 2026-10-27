@@ -229,7 +229,8 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 	ctx := context.Background()
 	ep, h := setupPrefix(t, "democratic-csi")
 	h.NFS(t)
-	own := map[string]string{"democratic-csi:managed_resource": "true", "democratic-csi:provision_success": "true"}
+	own := map[string]string{"democratic-csi:managed_resource": "true", "democratic-csi:provision_success": "true",
+		"democratic-csi:csi_volume_name": "old"} // democratic-csi writes all three at create
 	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "on"}); err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +248,7 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 		t.Fatal("still served to everyone")
 	}
 
-	own["sharenfs"] = "rw=10.0.0.0/8"
+	own["sharenfs"], own["democratic-csi:csi_volume_name"] = "rw=10.0.0.0/8", "static"
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/static", own, false); err != nil {
 		t.Fatal(err)
 	}

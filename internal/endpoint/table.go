@@ -65,11 +65,14 @@ func (r Row) Kind() VolumeKind {
 }
 
 // OwnedVolume reports whether r is a volume the endpoint owns: marked
-// managed on the dataset itself and, where the volume-name marker is set,
-// marked for this id. A copy made with `zfs send | recv` or a renamed
-// dataset carries another volume's name and is not this volume (ADR 0003).
+// managed and with the volume-name marker for this id, both on the dataset
+// itself. A copy made with `zfs send | recv` or a renamed dataset carries
+// another volume's name and is not this volume (ADR 0003). Both the
+// endpoint and democratic-csi write the two markers in the same create, so
+// managed without a name is a state neither makes (an `zfs inherit`, a
+// hand-set marker): not ours.
 func (r Row) OwnedVolume() bool {
-	return r.Type != zfs.TypeSnapshot && r.Managed && (r.VolumeName == "" || r.VolumeName == r.ID)
+	return r.Type != zfs.TypeSnapshot && r.Managed && r.VolumeName == r.ID
 }
 
 // ServedVolume reports whether r is a volume front ends may see and use:
