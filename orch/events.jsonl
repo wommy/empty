@@ -101,3 +101,4 @@
 {"ts": "2026-10-27T07:34:00Z", "id": "af6bc4ba950ec770c", "from": "reported", "to": "triaged", "note": "4 conflicts resolved (main.go x2 keep-both; zfs-csi main_test dropped moved test; unixsock_test rebuilt as HEAD + 2 new funcs after splice broke syntax). Gate clean. Push after 4f092fd green."}
 {"ts": "2026-10-27T07:35:39Z", "id": "af6bc4ba950ec770c", "from": "triaged", "to": "merged", "note": "d6e4ac2"}
 {"ts": "2026-10-27T07:35:39Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:39:13Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
