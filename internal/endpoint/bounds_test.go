@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -125,4 +126,66 @@ func TestWholeParentScansAreBounded(t *testing.T) {
 			t.Errorf("peak %d whole-parent scans, want <= %d", p, maxWholeScans)
 		}
 	})
+}
+
+// H-10: every desired id that names nothing is a Skipped entry, so a large
+// set naming nothing (another cluster's, a page of a list) made an answer
+// larger than the message limit: on a dry run the digest could never be
+// read. The answer keeps the first maxMissingSkips such entries, in order,
+// plus one that counts the rest; an id too long to be issued is clamped.
+func TestReconcileBoundsItsOwnAnswer(t *testing.T) {
+	t.Parallel()
+	const n = maxMissingSkips + 4000
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("gone-%06d", i)
+	}
+	ids[0] = "0" + strings.Repeat("x", 64<<10) // sorts first: kept, clamped
+	d := desired(append(ids, "a")...)
+	plan, err := pl.PlanReconcile(NewTable([]Row{aged(vol("a", nil)), aged(vol("b", nil))}), d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var missing []ReconcileSkip
+	for _, s := range plan.Skipped {
+		if s.Reason == SkipDesiredMissing {
+			missing = append(missing, s)
+		}
+	}
+	if len(missing) != maxMissingSkips+1 {
+		t.Fatalf("%d missing-id skips for %d missing ids, want %d", len(missing), n, maxMissingSkips+1)
+	}
+	if !strings.HasPrefix(missing[0].Target, "0xxx") || missing[1].Target != "gone-000001" {
+		t.Errorf("first skips %.20q, %q: want the ids in order", missing[0].Target, missing[1].Target)
+	}
+	if want := fmt.Sprintf("(%d more)", n-maxMissingSkips); missing[maxMissingSkips].Target != want {
+		t.Errorf("last skip %q, want %q", missing[maxMissingSkips].Target, want)
+	}
+	for _, s := range plan.Skipped {
+		if len(s.Target) > 1024 {
+			t.Errorf("skip target of %d bytes", len(s.Target))
+		}
+	}
+	// the rest of the plan is unchanged: b is undesired and collected
+	if len(plan.Actions) != 1 || plan.Actions[0].Target != "b" {
+		t.Errorf("actions %+v, want b's destroy", plan.Actions)
+	}
+}
+
+// H-10: the desired set itself is capped (MaxDesiredVolumeIDs), before
+// any scan; the cap admits a set of 100k ids (server TestMessageSizes).
+func TestReconcileRefusesAnOversizedDesiredSet(t *testing.T) {
+	t.Parallel()
+	ep, _ := simEndpoint(t, Config{})
+	ids := make([]string, MaxDesiredVolumeIDs+1)
+	for i := range ids {
+		ids[i] = "v"
+	}
+	_, err := ep.Reconcile(context.Background(), ReconcileRequest{DesiredVolumeIDs: ids, DryRun: true})
+	if CodeOf(err) != InvalidArgument {
+		t.Fatalf("%d desired ids: %v, want InvalidArgument", len(ids), err)
+	}
+	if _, err := ep.Reconcile(context.Background(), ReconcileRequest{DesiredVolumeIDs: ids[1:], DryRun: true}); err != nil {
+		t.Fatalf("%d desired ids: %v", len(ids)-1, err)
+	}
 }
