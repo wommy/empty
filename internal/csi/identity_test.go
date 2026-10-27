@@ -5,7 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
@@ -52,5 +54,38 @@ func TestProbeFollowsEndpointHealth(t *testing.T) {
 		if err != nil || res.GetReady().GetValue() != serving {
 			t.Errorf("endpoint serving=%v: Probe ready=%v err=%v", serving, res.GetReady().GetValue(), err)
 		}
+	}
+}
+
+// unreachableConn is a connection to an endpoint socket that does not
+// exist, as while zfs-endpoint restarts: every call fails at once with
+// Unavailable.
+func unreachableConn(t *testing.T) *grpc.ClientConn {
+	t.Helper()
+	conn, err := grpc.NewClient("unix://"+filepath.Join(t.TempDir(), "endpoint.sock"), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return conn
+}
+
+// An unreachable endpoint (Unavailable) or a Check past its deadline
+// (DeadlineExceeded) is ready=false with no error: CSI's "still
+// initializing, but otherwise perfectly healthy", which the sidecars'
+// ProbeForever retries. On an error csi-provisioner and csi-snapshotter
+// exit, and restarting them cannot bring the endpoint back.
+func TestProbeEndpointUnreachableIsNotReady(t *testing.T) {
+	t.Parallel()
+	id := &zcsi.Identity{Health: healthpb.NewHealthClient(unreachableConn(t))}
+	res, err := id.Probe(context.Background(), &csi.ProbeRequest{})
+	if err != nil || res.GetReady() == nil || res.GetReady().GetValue() {
+		t.Errorf("unreachable: ready=%v err=%v, want ready=false and no error", res.GetReady(), err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), -time.Second)
+	defer cancel()
+	res, err = id.Probe(ctx, &csi.ProbeRequest{})
+	if err != nil || res.GetReady() == nil || res.GetReady().GetValue() {
+		t.Errorf("deadline: ready=%v err=%v, want ready=false and no error", res.GetReady(), err)
 	}
 }
