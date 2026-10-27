@@ -43,3 +43,4 @@
 {"run":40555805200,"sha":"08ca83f","result":"green","s":44,"note":"nfsd +4.2 VM gate passed first run"}
 {"run":40557164093,"sha":"c1e5248","result":"green","s":46,"note":"rollback (ADR 0010) survive-mode crash points + ops-endpoint first real-pool run"}
 {"run":40558567587,"sha":"439d48b","result":"green","s":39,"note":"first run on normalized weights"}
+{"run":40559709255,"sha":"934d7f5","result":"green","note":"ep0 10.6s/5723 forks slow runner, ep1 5.1s/3904"}
