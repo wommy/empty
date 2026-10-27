@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -460,9 +461,12 @@ func TestFileExportReceivedShareNFS(t *testing.T) {
 }
 
 // A volume adopted from democratic-csi (adoption mode) inherits sharenfs;
-// a parent shared to everyone exports it to "*". The first publish pins a
-// local value, and a sharenfs someone else set locally is refused, not
-// overwritten.
+// a parent shared to everyone exports it to "*". sharenfs=on is
+// "rw,crossmnt": the parent's export serves every mount below it to "*",
+// so no local value on the volume can narrow it, and publish is refused
+// until the parent stops (wave9 nfs-diff D1). With a parent shared without
+// crossmnt, the first publish pins a local value; a sharenfs someone else
+// set locally is refused, not overwritten.
 func TestFileExportAdoptedVolumes(t *testing.T) {
 	ctx := context.Background()
 	ep, h := setupPrefix(t, "democratic-csi")
@@ -473,6 +477,18 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/old", own, false); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ep.PublishFileExport(ctx, "old", "10.0.0.1", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if !strings.Contains(err.Error(), "crossmnt") {
+		t.Fatalf("unclear error: %v", err)
+	}
+	if _, src := h.propSource(t, h.Parent+"/old", "sharenfs"); src == "local" {
+		t.Fatal("refused publish changed sharenfs")
+	}
+	// shared without crossmnt: the volume inherits "rw=@10.0.0.0/8"
+	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "rw=@10.0.0.0/8"}); err != nil {
 		t.Fatal(err)
 	}
 	path, err := ep.PublishFileExport(ctx, "old", "10.0.0.1", false)
@@ -501,5 +517,106 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 	}
 	if err := h.Z.Destroy(ctx, h.Parent+"/static", zfs.DestroyOptions{}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// D3 (wave9 nfs-diff): Unpublish succeeds only once nothing serves the
+// host. Under an admin's edit of the volume's sharenfs to "*", success
+// must mean "*" is gone (today the value is rewritten to the stored list;
+// once nfs_clients goes, ADR 0004, it is foreign and Unpublish refuses).
+// An ancestor exported with crossmnt (sharenfs=on) still serves the volume
+// after its own line is gone, and Unpublish says so.
+func TestFileExportUnpublishStillServed(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.NFS(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc-d3", CapacityBytes: 1 << 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := ep.PublishFileExport(ctx, "pvc-d3", "10.0.0.2", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{"sharenfs": "rw=*"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc-d3", "10.0.0.1"); err != nil {
+		wantCode(t, err, endpoint.FailedPrecondition)
+	} else if hosts := h.servedHosts(t, path); slices.Contains(hosts, "*") {
+		t.Fatalf("unpublish of 10.0.0.1 succeeded, but %s is still served to %v (sharenfs %q)", path, hosts, h.Prop(v.Dataset, "sharenfs"))
+	}
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{"sharenfs": "ro=10.0.0.2/32"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "on"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "off"}) })
+	err = ep.UnpublishFileExport(ctx, "pvc-d3", "10.0.0.2")
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if !strings.Contains(err.Error(), "crossmnt") {
+		t.Fatalf("unclear error: %v", err)
+	}
+	if val := h.Prop(v.Dataset, "sharenfs"); val != "off" {
+		t.Fatalf("own line not revoked: sharenfs %q", val)
+	}
+	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "off"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc-d3", "10.0.0.2"); err != nil {
+		t.Fatalf("unpublish once the ancestor stops: %v", err)
+	}
+}
+
+// extraEtab is the export table plus lines of another exports file
+// (/etc/exports, another exports.d file), which the endpoint never writes
+// but must see.
+type extraEtab struct {
+	endpoint.EtabReader
+	extra func() string
+}
+
+func (e extraEtab) ReadEtab(ctx context.Context) ([]byte, error) {
+	b, err := e.EtabReader.ReadEtab(ctx)
+	return append(b, e.extra()...), err
+}
+
+// D1 (wave9 nfs-diff): Publish re-checks the table after applying. A line
+// of another exports file for the volume's path serves it beyond the
+// request whatever sharenfs says, so Publish fails instead of reporting
+// success.
+func TestFileExportServedBeyondRequest(t *testing.T) {
+	ctx := context.Background()
+	_, h := setup(t)
+	h.NFS(t)
+	var foreignLine string
+	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true,
+		Etab: extraEtab{h.etab(), func() string { return foreignLine }}}
+	if h.sim != nil {
+		cfg.NFSD = h.sim
+	}
+	ep, err := endpoint.New(h.Z, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc-d1", CapacityBytes: 1 << 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mp := v.Mountpoint
+	if r, err := filepath.EvalSymlinks(mp); err == nil {
+		mp = r
+	}
+	foreignLine = mp + "\t*(rw,sync,no_root_squash,sec=sys,rw)\n"
+	_, err = ep.PublishFileExport(ctx, "pvc-d1", "10.0.0.1", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if !strings.Contains(err.Error(), "beyond its client list") {
+		t.Fatalf("unclear error: %v", err)
+	}
+	foreignLine = ""
+	if _, err := ep.PublishFileExport(ctx, "pvc-d1", "10.0.0.1", false); err != nil {
+		t.Fatalf("publish once the foreign line is gone: %v", err)
 	}
 }

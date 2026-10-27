@@ -769,6 +769,13 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 				"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, c.Host, c.mode())
 		}
 	}
+	// served beyond the request: a line of another exports file for this
+	// path, or an ancestor exported with crossmnt (an inherited
+	// sharenfs=on) serves this mount to its own clients
+	if x := live.exposure(realPath(row.Mount), publishWant(row, c)); len(x) > 0 {
+		return "", errorf(FailedPrecondition, "volume %s is served beyond its client list by the NFS export table: %s; "+
+			"remove these exports (an ancestor dataset's sharenfs with crossmnt, e.g. \"on\", or /etc/exports) first", row.ID, strings.Join(x, "; "))
+	}
 	// etab is no proof of a server: exportfs -ra rewrites it with nfsd
 	// stopped
 	if err := e.nfsdRunning(ctx); err != nil {
@@ -839,6 +846,10 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	if _, ok := live.Lookup(row.Mount, h); ok {
 		return errorf(Unavailable, "sharenfs on %s is updated, but the NFS export table still serves %s to %s: "+
 			"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, h)
+	}
+	if x := live.covers(realPath(row.Mount), h, unpublishWant(row, h)); len(x) > 0 {
+		return errorf(FailedPrecondition, "sharenfs on %s is updated, but %s is still served to %s by: %s; "+
+			"remove these exports (another exports file, or an ancestor dataset's sharenfs with crossmnt)", row.Name, row.Mount, h, strings.Join(x, "; "))
 	}
 	return nil
 }

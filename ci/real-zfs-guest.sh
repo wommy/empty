@@ -7,7 +7,9 @@
 # here only says whether every shard exited 0.
 #
 # Shards: the endpoint binary split three ways by ci/real-zfs-weights.txt
-# (the file-export tests kept together: one nfsd, one export table), the csi
+# (the NFS tests, TestFileExport* and TestNFSReplay, kept together: one
+# nfsd, one export table; the replay writes malformed zfs.exports lines,
+# which end exportfs's read of the file for every dataset), the csi
 # tests other than csi-sanity, csi-sanity on filesystems, csi-sanity on
 # zvols. Six processes on six pools, so no shard's datasets, space
 # accounting or txg syncs meet another's.
@@ -37,7 +39,7 @@ mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -O compression=lz4 "
 # first onto the lightest shard
 shard() {
   awk 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
-       /^(Test|Fuzz|Example)/ { g = ($1 ~ /^TestFileExport/) ? "TestFileExport*" : $1
+       /^(Test|Fuzz|Example)/ { g = ($1 ~ /^(TestFileExport|TestNFSReplay$)/) ? "nfs" : $1
                  wt[g] += ($1 in w) ? w[$1] : 0.1; m[g] = m[g] " " $1 }
        END { for (g in wt) printf "%.3f%s\n", wt[g], m[g] }' "$2" "$1" |
     sort -k1,1gr -k2,2 |
@@ -49,6 +51,9 @@ shard "$out/endpoint.list" real-zfs-weights.txt "$ep_shards" >"$out/endpoint.pla
 
 rc=0
 t=(-test.count=1 -test.v -test.timeout=4m)
+# TestNFSReplay's report (internal/endpoint/nfs_replay_test.go), copied back
+# with the logs; ci/real-zfs-vm.sh puts it in the job summary
+export NFS_REPLAY_REPORT=$out/nfs-replay.log
 pids=() names=()
 # run <name> <pool> <command...>: one shard on its own pool, in the background
 run() {

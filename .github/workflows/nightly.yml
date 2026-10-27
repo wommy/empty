@@ -42,6 +42,12 @@ jobs:
           - { name: FuzzReconcileSafe, pkg: ./internal/endpoint }
           - { name: FuzzParseColumns, pkg: ./internal/zfs }
           - { name: FuzzClassify, pkg: ./internal/zfs }
+          # the NFS export chain against the libshare/exportfs/mountd
+          # models in internal/nfsref (wave9 nfs-diff)
+          - { name: FuzzNFSRoundTrip, pkg: ./internal/endpoint }
+          - { name: FuzzNFSClassifier, pkg: ./internal/endpoint }
+          - { name: FuzzNFSVerifier, pkg: ./internal/endpoint }
+          - { name: FuzzNFSEtabParse, pkg: ./internal/endpoint }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
