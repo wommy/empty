@@ -479,7 +479,7 @@ vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analy
   for u in systemd-modules-load zfs-load-module zfs-mount zfs-zed udisks2; do printf "%s: %s, %s; " $u "$(systemctl is-active $u.service)" "$(systemctl is-enabled $u.service 2>&1)"; done; echo
   echo "modules-load.d (not loaded at boot when masked): $(cat /etc/modules-load.d/*.conf /run/modules-load.d/*.conf /usr/lib/modules-load.d/*.conf 2>/dev/null | awk "!/^[#;]/ && NF" | tr "\n" " ")"
   echo "failed units: $(systemctl --failed --plain --no-legend | awk "{ print \$1 }" | tr "\n" " ")"
-  echo "sshd penalties: $(sudo sshd -T 2>&1 | awk "/penalt/" | tr "\n" " ")"
+  echo "sshd penalties: $(sudo sshd -T 2>&1 | awk "tolower(\$0) ~ /^persourcepenalt/" | tr "\n" " ")"
   sudo journalctl -b -u ssh.service -u ssh.socket --no-pager -o short-monotonic 2>/dev/null | awk "/penalt|nologin|not permitted|Failed|Connection closed|Accepted/ && ++n <= 12"
   systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
   echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \
