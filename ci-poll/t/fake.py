@@ -14,5 +14,8 @@ while True:
     if time.time() - t0 < T:
         if mode == "close": c.close()
         else: held.append(c)
+    elif mode == "slow":  # a banner 1s after every accept
+        import threading
+        threading.Timer(1.0, c.sendall, [b"SSH-2.0-OpenSSH_fake\r\n"]).start(); held.append(c)
     else:
         c.sendall(b"SSH-2.0-OpenSSH_fake\r\n"); held.append(c)

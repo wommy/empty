@@ -60,5 +60,5 @@
 {"id": "a27f596bb840a667d", "name": "ci-poll", "lane": "writer", "wave": 17, "status": "running", "branch": "ci-poll", "report": null, "anomaly": false, "queue": "q-ci-poll"}
 {"id": "acf7494638986ab8a", "name": "ci-split3", "lane": "writer", "wave": 17, "status": "running", "branch": "ci-split3", "report": null, "anomaly": false, "queue": "q-ci-split3"}
 {"id": "aca049f970d79dedd", "name": "r-review", "lane": "reader", "wave": 18, "status": "running", "branch": null, "report": "wave18/review.md", "anomaly": false, "queue": "q-r-review"}
-{"id": "a9ad34019bac5d798", "name": "r-guestcpu", "lane": "reader", "wave": 18, "status": "running", "branch": null, "report": "wave18/guestcpu.md", "anomaly": false, "queue": "q-r-guestcpu"}
+{"id": "a9ad34019bac5d798", "name": "r-guestcpu", "lane": "reader", "wave": 18, "status": "done", "branch": null, "report": "wave18/guestcpu.md", "anomaly": false, "queue": "q-r-guestcpu"}
 {"id": "ad2a854644691adce", "name": "r-simfacts-spec", "lane": "reader", "wave": 18, "status": "running", "branch": null, "report": "wave18/simfacts-spec.md", "anomaly": false, "queue": "q-r-simfacts-spec"}

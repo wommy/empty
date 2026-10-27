@@ -4,8 +4,8 @@
 set -euo pipefail
 src=$1 mode=$2 T=$3 rto=${4:-0.3} die=${5:-}
 here=$(cd "$(dirname "$0")" && pwd)
-eval "$(awk '/^banner\(\) \{/' "$src" | sed "s/-t 0.3/-t $rto/")"
-eval "$(awk '/^wait_ssh\(\) \{/,/^}/' "$src")"
+eval "$(awk '/^banner\(\) \{/' "$src")"
+eval "$(awk '/^wait_ssh\(\) \{/,/^}/' "$src" | sed "s/echo 0\.3)/echo $rto)/")"
 work=$(mktemp -d)
 noinitrd=
 sleep 1000 & q=$!

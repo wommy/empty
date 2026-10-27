@@ -11,3 +11,5 @@ echo "--- 5s banner bound (the old ConnectTimeout=5 shape)"
 for T in 3 6; do bash "$h" "$s" stall "$T" 5; done
 echo "--- qemu exits under a no-initrd boot: fallback"
 bash "$h" "$s" stall 3 0.3 die
+echo "--- sshd answers 1s after accept, always (reached by the 40th probe)"
+bash "$h" "$s" slow 0
