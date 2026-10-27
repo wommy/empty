@@ -5,6 +5,8 @@ package server
 
 import (
 	"context"
+	"math"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -81,6 +83,7 @@ func (s *Server) GetCapabilities(ctx context.Context, _ *pb.GetCapabilitiesReque
 			pb.Capability_CAPABILITY_LIST,
 			pb.Capability_CAPABILITY_CAPACITY,
 			pb.Capability_CAPABILITY_PROPERTIES,
+			pb.Capability_CAPABILITY_RECONCILE,
 		},
 	}, nil
 }
@@ -175,4 +178,31 @@ func (s *Server) GetCapacity(ctx context.Context, _ *pb.GetCapacityRequest) (*pb
 		return nil, grpcErr(err)
 	}
 	return &pb.GetCapacityResponse{AvailableBytes: n}, nil
+}
+
+func (s *Server) Reconcile(ctx context.Context, r *pb.ReconcileRequest) (*pb.ReconcileResponse, error) {
+	age := r.GetMinAgeSeconds()
+	if age > math.MaxInt64/uint64(time.Second) {
+		return nil, status.Error(codes.InvalidArgument, "min_age_seconds out of range")
+	}
+	plan, err := s.EP.Reconcile(ctx, endpoint.ReconcileRequest{
+		DesiredVolumeIDs: r.GetDesiredVolumeIds(),
+		MinAge:           time.Duration(age) * time.Second,
+		DryRun:           r.GetDryRun(),
+	})
+	if err != nil {
+		return nil, grpcErr(err)
+	}
+	out := &pb.ReconcileResponse{}
+	for _, a := range plan.Actions {
+		op := "destroy"
+		if a.Op.Defer {
+			op = "destroy-deferred"
+		}
+		out.Actions = append(out.Actions, &pb.ReconcileAction{Op: op, Target: a.Target, Reason: a.Reason})
+	}
+	for _, sk := range plan.Skipped {
+		out.Skipped = append(out.Skipped, &pb.ReconcileSkip{Target: sk.Target, Reason: sk.Reason})
+	}
+	return out, nil
 }
