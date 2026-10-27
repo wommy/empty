@@ -494,3 +494,9 @@
 {"ts": "2026-10-27T18:17:17Z", "id": "a43719727e37e1ecb", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-27T18:17:17Z", "id": "a43719727e37e1ecb", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T18:17:17Z", "id": "a43719727e37e1ecb", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T18:24:31Z", "id": "acc36dcd178e1063b", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T18:24:31Z", "id": "acc36dcd178e1063b", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T18:24:31Z", "id": "acc36dcd178e1063b", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T18:24:31Z", "id": "ac14abffb0d26c4bf", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T18:24:31Z", "id": "ac14abffb0d26c4bf", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T18:24:31Z", "id": "ac14abffb0d26c4bf", "from": "triaged", "to": "merged", "note": ""}

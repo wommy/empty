@@ -1,17 +1,27 @@
-endpoint: LocalRoot's Internal after a change is Aborted
+endpoint: report a filesystem's mountpoint with symlinks resolved, so share is the exported path
 
-rootErr kept the code of any classified *Error, and LocalRoot returns a
-classified Internal for open, fstat, mount table and chown/chmod failures
-it has no better code for. So 65c03cb's after-change Aborted reached only
-the bare errors test setters return: in production an NFS create whose
-set-root failed that way after the create returned Internal, which
-external-provisioner treats as final, stranding the exported, uncommitted
-volume once the PVC is deleted.
+Publish and the create-time export check verify the export in etab at
+realPath(mountpoint), as nfsd_realpath records it, but volumeView handed
+back zfs's mountpoint unresolved, and zfs-csi passes that on as
+volume_context share. With a parent mounted below a symlink, an NFSv4
+client walks share through nfsd's pseudo-root, which holds only resolved
+paths, and the mount fails (deploy seam review D3).
 
-rootErr now treats a classified Internal as unclassified: Aborted at
-op i > 0, and a zfsFail cell at op 0 that resumeErr remaps to Aborted.
-TestFileExportCreateRootFailureIsRetryable runs with LocalRoot's Internal
-too (code 13 before), and TestRootErrMapping pins both positions.
+The endpoint now reports Mountpoint resolved (realPath, a no-op when the
+path does not resolve, e.g. unmounted), so share, the mountpoint key and
+the etab entry agree. The fix sits in the endpoint because zfs-csi runs
+in a pod and cannot resolve host paths. The proto comment is unchanged
+(gen/ would drift); the Go Volume field and CtxShare document it.
+
+TestNFS_ShareIsTheResolvedPath: a parent mountpoint under a symlink on
+the simulator; share is EvalSymlinks(mountpoint), etab serves it, and a
+repeat and ListVolumes agree. It fails without the change. It sets no
+nfs.uid/gid/mode: SetRoot refuses any symlink on the path
+(RESOLVE_NO_SYMLINKS), so a symlinked parent with root parameters still
+fails CreateVolume FailedPrecondition. PublishFileExport's export_path
+is left unresolved (TestFileExportResolvesSymlinks pins it;
+zfs-csi does not use it).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
+

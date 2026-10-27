@@ -42,3 +42,4 @@
 {"run":40554288012,"sha":"bb66dc8","result":"green","s":48,"note":"nice probation run 2/3: login timings pending (part-balance reader reads logs)"}
 {"run":40555805200,"sha":"08ca83f","result":"green","s":44,"note":"nfsd +4.2 VM gate passed first run"}
 {"run":40557164093,"sha":"c1e5248","result":"green","s":46,"note":"rollback (ADR 0010) survive-mode crash points + ops-endpoint first real-pool run"}
+{"run":40558567587,"sha":"439d48b","result":"green","s":39,"note":"first run on normalized weights"}
