@@ -48,3 +48,29 @@ Status: accepted · Date: 2026-10-27 · Related: ADR 0003 (OpenZFS is the source
 - Stock Ubuntu 24.04 and Debian 12 hosts are unsupported until they ship 2.4.
 - A `node_id` used as an export client must be validated as a single host, never a CIDR.
 - Block (zvol) volumes still need a node story; csi-driver-nfs covers only NFS.
+
+## Implementation notes (2026-10-27, branch `nfs-csi`)
+
+These notes record how the decision was built. They do not change it.
+
+- **`nfs_clients` is gone from the export path.**
+  - sharenfs alone is read and written.
+  - Reconcile reports a leftover property in `skipped`. It is never cleared, so it stays on disk as evidence: `zfs inherit` clears it.
+  - Every list the property could hold round-trips through sharenfs (fuzzed), so no state is lost.
+  - Roll back only as far as the bridge commit "a canonical local sharenfs is ours without nfs_clients". An older build computes sharenfs from a stale list and revokes clients.
+- **The floor is not in the ownership grammar**, a deviation from "at or above the configured floor" above.
+  - The floor bounds new writes: Publish and CreateVolume.
+  - Ownership accepts any `/N` from 1 to 32. Otherwise, raising `-nfs-min-prefix` would turn existing exports foreign, and they could never be rewritten or unpublished.
+  - Reconcile is the place to report below-floor values.
+- **A foreign value is never written, even when it still serves the client.**
+  - An admin's `rw=*` over our list is not rewritten.
+  - Unpublish is FAILED_PRECONDITION while a foreign value still serves the host.
+  - A refused Publish changes nothing.
+- **The NFS server address is addressing metadata, not export state.**
+  - CSI requires it to be fixed per volume, and OpenZFS has no place for it. So `<prefix>:nfs_server` is recorded once, in the same `zfs create`/`clone -o` as sharenfs, and read local-only (wave13 Q1).
+  - Who may mount is still sharenfs alone.
+- **NFS mode** is on iff the endpoint advertises `-nfs-server`. In that mode every CSI CreateVolume needs `nfs.clients` (wave13 Q2).
+- **Not built yet:**
+  - root ownership ("Root squash stays on");
+  - the local mountpoint pin;
+  - the reconcile drift reports other than the leftover list and the server.

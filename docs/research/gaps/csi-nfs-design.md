@@ -2,6 +2,8 @@
 
 HEAD 0c884df, read-only. Governing decision: ADR 0004. Export state lives only in `sharenfs`, and OpenZFS is the source of truth. Static export at create comes first. Per-node publish may follow behind a flag. The node side is csi-driver-nfs. OpenZFS 2.4 only.
 
+**Built (wave13).** Static export at create, §1's removal of `nfs_clients`, and the CSI NFS mode are implemented. Where the build differs from the text below, a note marked "As built" says how and why. Not built yet: §4's local mountpoint pin, §13 Q1 (root ownership), §10's `reshare` action and the D1-D6 reports, and §12.
+
 Sources checked (upstream repositories, by repo-relative path):
 - openzfs `cmd/zfs/zfs_main.c:763-810,1340-1365` (create, then mount and share)
 - openzfs `module/zfs/zfs_ioctl.c:3980-4100` (create ioctl)
@@ -33,7 +35,9 @@ Sources checked (upstream repositories, by repo-relative path):
 - **ro/rw per client.** Already present in sharenfs (`rw=`/`ro=`).
 - **Canonical comparison.** Done by parsing sharenfs to a set and comparing sets.
 
-Migration: delete `encodeClients`/`decodeClients`, `NFSClientsSet` and the table column. A leftover `nfs_clients` property is reported by reconcile and is otherwise ignored. A legacy sharenfs written from it with bare IPs or hostnames is now non-canonical, so it is FOREIGN (§2). The admin fixes it once with `zfs set sharenfs=rw=<ip>/32…`. The project is pre-release, so expect no such volumes.
+Migration: delete `encodeClients`/`decodeClients`, `NFSClientsSet` and the table column. A leftover `nfs_clients` property is reported by reconcile and is otherwise ignored.
+
+As built: the property is never read for export state or written. The table keeps one boolean (`NFSClientsSet`), so that reconcile can report a leftover property in `skipped`. Rolling back is safe only to the bridge commit, which takes a canonical sharenfs as ours without `nfs_clients` and still writes the list. An older build would compute sharenfs from a stale list and revoke clients. A legacy sharenfs written from it with bare IPs or hostnames is now non-canonical, so it is FOREIGN (§2). The admin fixes it once with `zfs set sharenfs=rw=<ip>/32…`. The project is pre-release, so expect no such volumes.
 
 ## 2. Canonical grammar and ownership (the core rule)
 
@@ -56,6 +60,8 @@ Why `/N` is always written, even `/32`: by Fact C, every client we write is matc
 
 `minPrefix` is an endpoint flag (`-nfs-min-prefix`, default 16). It is reported in GetCapabilities.
 
+As built, the floor is **not** part of the ownership grammar. It applies to new writes, so Publish and CreateVolume refuse a network below it. Ownership accepts any `/N` from 1 to 32. With the floor in the grammar, raising `-nfs-min-prefix` would turn existing exports FOREIGN. They could then never be rewritten or unpublished, which breaks the flag's promise that raising it never strands an export. `0.0.0.0/0` stays out because it fails the round trip (`/0` is refused by the parser), and reconcile is the place to report `below-floor`. `nfs_min_prefix` is not in GetCapabilities yet.
+
 ## 3. StorageClass parameters
 
 | key | mode | meaning |
@@ -76,10 +82,18 @@ Proto (additive):
 - `Volume.nfs_clients = 12` (parsed, MANAGED only)
 - `GetCapabilitiesResponse.nfs_servers = 4`, `nfs_min_prefix = 5`
 
+As built (wave13), the proto change is smaller:
+- one message, `NFSExport { repeated string clients = 1; bool read_only = 2; string server = 3; }`;
+- `CreateVolumeRequest.nfs_export = 10`;
+- `Volume.nfs = 10`, which holds the recorded server and the local sharenfs when it is canonical;
+- `GetCapabilitiesResponse.nfs_servers = 4`.
+
+The raw value, the state enum and `nfs_min_prefix` wait until a front end needs them.
+
 `props.go` keeps refusing `sharenfs` in the generic `properties` map. The value comes only from `nfs_export`, in canonical form.
 
 Plan for a new filesystem:
-1. `zfs create -o sharenfs=<canonical> -o mountpoint=<parentMP>/<id> -o <prefix>:managed=true … <ds>`. A clone uses `zfs clone -o …` the same way. Setting it at create only replaces today's `sharenfs=off`. Pinning `mountpoint` locally keeps volume_context `share` valid if the parent moves (csi-node-seam §5.3). It is a native property, so it is not state of our own.
+1. `zfs create -o sharenfs=<canonical> -o <prefix>:nfs_server=<server> -o mountpoint=<parentMP>/<id> -o <prefix>:managed=true … <ds>`. (As built: the mountpoint is not pinned yet.) A clone uses `zfs clone -o …` the same way. Setting it at create only replaces today's `sharenfs=off`. Pinning `mountpoint` locally keeps volume_context `share` valid if the parent moves (csi-node-seam §5.3). It is a native property, so it is not state of our own.
 2. Verify the export:
    - `/proc/fs/nfsd/threads` > 0;
    - etab at `EvalSymlinks(mountpoint)` lists exactly the canonical clients with their modes, compared as strings.
@@ -97,7 +111,9 @@ volume_context (§5) also needs dataset root ownership (§11 Q1). Under `root_sq
 
 ## 5. volume_context
 
-`server` (from `nfs.server`), `share` (the volume's mountpoint as read after create), plus the existing `dataset`, `kind`, `mountpoint`.
+`server`, `share` (the volume's mountpoint), plus the existing `dataset`, `kind`, `mountpoint`.
+
+`server` is the address recorded at create in the local `<prefix>:nfs_server`: `nfs.server`, or the first advertised one. It is never recomputed (wave13 Q1), because CSI requires a volume to "always report the same volume_context" and a PV's attributes are immutable. Both keys are present only for a volume created with an export. A volume created before that reports neither, which is what it was created with. An inherited or received `nfs_server` belongs to no volume. It is ignored and reported (reconcile).
 
 Nothing else:
 - No `subdir`.
@@ -113,7 +129,10 @@ The CSI name maps to a volume id. Then:
   - Equal: OK. Return the volume. It does not re-verify etab, because reconcile owns that (§10).
   - Different: **ALREADY_EXISTS** ("exported rw to X, requested Y"). This holds even when the difference is an admin's in-grammar edit, so the message names the current value. It matches the existing rule for `properties`.
 - **Committed, FOREIGN or INHERITED.** **ALREADY_EXISTS** with the raw value. This covers adopted volumes, which are not re-created through CreateVolume anyway.
-- **`nfs.server` differs.** Not compared. It is not volume state, and the response carries the new value.
+- **`nfs.server`** (retracted: "not volume state" contradicted the spec's immutable volume_context; wave13 Q1).
+  - Uncommitted: converges to the request, like sharenfs.
+  - Committed: a different explicit server is **ALREADY_EXISTS**, naming the recorded one. An omitted server returns the recorded one, even after `-nfs-server` was reordered.
+  - A recorded server that is no longer advertised is still returned. The PVs hold it, and reconcile reports it (D8).
 
 ## 7. DeleteVolume, access modes, Validate
 
@@ -132,7 +151,9 @@ The CSI name maps to a volume id. Then:
 - access is `mount` with `fs_type` "" or "nfs";
 - if `nfs_state` is MANAGED and the value has only `ro=` clients, then no writer mode is requested;
 - the parameters parse in the current mode;
-- if volume_context is given, `share` equals the current mountpoint and `server` is advertised.
+- if volume_context is given, each key it names equals the volume's, compared per key: `share` is the current mountpoint, and `server` is the **recorded** one, not merely an advertised one. Kubernetes' own keys (`storage.kubernetes.io/…`) are ignored.
+
+As built, Validate also refuses a volume created without an export, and one whose recorded server is no longer advertised.
 
 A mismatch returns `Message` (not an error). This is the only drift a front end can see without its own state.
 
@@ -164,7 +185,8 @@ A mismatch returns `Message` (not an error). This is the only drift a front end 
 | `rw=10.9.0.0/16` (in grammar) | MANAGED | Accepted as truth. A CreateVolume retry would be ALREADY_EXISTS. In per-node mode it counts as a published client, and unpublish-all removes it. |
 | `zfs inherit sharenfs` | INHERITED | Parent must be off, so access is revoked. Reported. |
 | `off` | MANAGED | A decision, not drift. Nodes lose access. Static mode cannot tell this from intent without state. ValidateVolumeCapabilities does not refuse it. |
-| `/etc/exports` line for our path, or an ancestor with `crossmnt` | n/a | An extra etab client (D3-extra) or ancestor crossmnt (D5). An FQDN line outranks our subnet lines (Fact D). Reported only. |
+| `/etc/exports` line for our path, or an ancestor with `crossmnt` | n/a | An extra etab client (D3-extra) or ancestor crossmnt (D5). An FQDN line outranks our subnet lines (Fact D). **Refused, not just reported** (updated wave13). Publish is FAILED_PRECONDITION while anything serves the path beyond the volume's own list, and it is checked before any change, so a refused Publish changes nothing. Unpublish is FAILED_PRECONDITION while the client is still served. CreateVolume does not commit a volume served beyond its export. |
+| An admin's `rw=*`, or `rw=<ours>:*` | FOREIGN | Never rewritten (wave13). Publish is FAILED_PRECONDITION. Unpublish of a client the `*` still serves is FAILED_PRECONDITION. Before, it was rewritten to our list. |
 
 ### 9.2 CIDR overlap
 - **Within one value:** banned (Fact D), as above.
@@ -207,6 +229,10 @@ Add `ReconcileResponse.drift = 3 { target, kind, detail }` and one action, `resh
 | D5 `parent-shared` / `ancestor-crossmnt` | the parent's effective sharenfs ≠ off; or an etab export of an ancestor path has crossmnt |
 | D6 `orphan-export` | etab path under the parent's mountpoint matching no volume |
 | D7 `legacy-nfs_clients` | `<prefix>:nfs_clients` still set |
+| D8 `server-unadvertised` | a committed volume's recorded `<prefix>:nfs_server` is not in `-nfs-server` (its PVs still mount it) |
+| D9 `server-elsewhere` | `<prefix>:nfs_server` inherited or received: ignored, not the volume's |
+
+As built (wave13): D7, D8 and D9 are reported in the existing `ReconcileResponse.skipped`, one entry per volume, so no `drift` field was added. D1-D6 and `reshare` are not built.
 
 "Drift" means OpenZFS disagrees with *itself* (sharenfs against etab), or with policy (grammar, floor, parent). It never means OpenZFS disagrees with a stored desire, because none is stored. A static volume an admin switched to `off` is not drift (§9.1).
 
