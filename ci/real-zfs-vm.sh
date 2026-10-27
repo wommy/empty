@@ -4,11 +4,14 @@
 # lives in the kernel, so a container would test the host's ZFS instead.
 #
 # usage: ci/real-zfs-vm.sh <ubuntu-series> [image-build]
-#   ci/real-zfs-vm.sh stonking release      # Ubuntu 26.10, OpenZFS 2.4.x
+#   ci/real-zfs-vm.sh stonking current      # Ubuntu 26.10 RC track, OpenZFS 2.4.x
+# Images come from the per-series tree (cloud-images.ubuntu.com/<series>/),
+# whose files are named <series>-server-cloudimg-amd64.img; the releases/
+# tree names them ubuntu-<version>-... instead.
 set -euo pipefail
 
 series=${1:?series, e.g. stonking}
-build=${2:-release}
+build=${2:-current}
 work=${RUNNER_TEMP:-/tmp}/zfsvm
 mkdir -p "$work"
 cd "$(git rev-parse --show-toplevel)"
@@ -19,7 +22,7 @@ for pkg in endpoint server; do
 done
 
 img="$work/$series.img"
-url="https://cloud-images.ubuntu.com/releases/$series/$build/$series-server-cloudimg-amd64.img"
+url="https://cloud-images.ubuntu.com/$series/$build/$series-server-cloudimg-amd64.img"
 curl -fsSL --retry 3 -o "$img" "$url"
 qemu-img resize "$img" 20G
 

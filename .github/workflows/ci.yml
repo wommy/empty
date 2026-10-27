@@ -56,7 +56,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
       - name: test (Ubuntu 26.10, real zfs)
-        run: ci/real-zfs-vm.sh stonking release
+        run: ci/real-zfs-vm.sh stonking current
 
   real-zfs-noble:
     # compatibility: the distro ZFS on the hosted runner (24.04)
