@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -81,11 +82,24 @@ func (p Planner) want(r CreateVolumeRequest, props map[string]string) uint64 {
 	return r.CapacityBytes
 }
 
+// MaxCapacityBytes is the largest capacity or limit a request may name:
+// 8 EiB. Above it, rounding up to a block size could wrap past 2^64 to a
+// small number, and OpenZFS keeps sizes in int64 arithmetic in places.
+const MaxCapacityBytes = math.MaxInt64
+
+// defaultVolBlockSize is the rounding unit when neither the volume nor the
+// Planner names one (a Planner built outside New).
+const defaultVolBlockSize = 16 * 1024
+
 // roundTo rounds n up to a multiple of bs (a volume's own volblocksize,
-// falling back to the configured default).
+// falling back to the configured default). Callers bound n by
+// MaxCapacityBytes first, so the result cannot wrap.
 func (p Planner) roundTo(n, bs uint64) uint64 {
 	if bs == 0 {
 		bs = p.VolBlockSize
+	}
+	if bs == 0 {
+		bs = defaultVolBlockSize
 	}
 	if r := n % bs; r != 0 {
 		n += bs - r
@@ -99,6 +113,9 @@ func (p Planner) validateCreate(r CreateVolumeRequest) (string, map[string]strin
 	id, err := volumeID(r.Name)
 	if err != nil {
 		return "", nil, err
+	}
+	if r.CapacityBytes > MaxCapacityBytes || r.LimitBytes > MaxCapacityBytes {
+		return "", nil, errorf(OutOfRange, "capacity %d / limit %d above %d bytes", r.CapacityBytes, r.LimitBytes, uint64(MaxCapacityBytes))
 	}
 	props, err := ValidateProperties(r.Kind, r.Properties)
 	if err != nil {
@@ -434,6 +451,9 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 	row, ok := t.Get(id)
 	if !ok || !row.OwnedVolume() {
 		return nil, Row{}, errorf(NotFound, "volume %s not found", id)
+	}
+	if capacity > MaxCapacityBytes || limit > MaxCapacityBytes {
+		return nil, Row{}, errorf(OutOfRange, "capacity %d / limit %d above %d bytes", capacity, limit, uint64(MaxCapacityBytes))
 	}
 	want := capacity
 	if row.Kind() == Block {
