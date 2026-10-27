@@ -63,17 +63,19 @@ Counts are code lines. "Replaced" is what each candidate would touch.
 - Why it is redundant, not a blocker: a verification-driving log only records "I created X" (and maybe "a failed op may have run", the `made` flag). It needs no GUID, because rollback re-scans and guid-checks as `rollbackCreate` does today (apply.go:112 `sameDataset`). What it would add is the list of created names, which `PlanRollbackCreate` already derives from the post-failure scan (its guards: OwnedVolume, not committed, same kind and source). Crash recovery must come from ZFS anyway, so the log can never be the source of truth. A GUID-storing log would add a `zfs get guid` per create. That would change the success path, so `TestRPCCallBudget` (callbudget_test.go:121) would fail, but this variant is not needed.
 - Crash consistency: the log is lost on process death. The persistent state would still have to come from a re-scan (PlanRollbackCreate), so the log duplicates the planner, not replaces it. ADR 0010 R2 requires the re-scan anyway.
 - Pinned by: rollback_test.go (568 lines, 12 tests), rollback_plan_test.go (91), crash_test.go:400-471 (rollback-crashes sweep), crash_test.go:597 (rollback-create guid swap), callbudget_test.go (0 failure rows; it pins success and retry only, per ADR 0010 consequences).
-- Verdict: reject. Net add, and it breaks the success-path budget.
+- Test lines: about 0 for the rollback tests that stay; about +60 to +100 for log unit tests.
+- Verdict: reject. Net add in code and tests, and redundant with the re-scan that already exists.
 
 ### (b) Explicit per-volume state machine (absent → uncommitted → committed; one function gives next op and inverse)
 - Production already has the states as `Row` predicates plus `PlanCreateVolume`. An enum would replace the `OwnedVolume`/`Committed`/`ServedVolume` checks: 30 non-test mentions (plan.go 11, reconcile.go 10, endpoint.go 8, export.go 1), each a line or two and would need a `switch` in `PlanCreateVolume` and `PlanRollbackCreate` (about 20-30 code lines).
 - Promoting `classify()` (123 code) to production would be a net add of about 120, and it would make the test oracle non-independent. The independence is the value.
 - Pinned by: fsm_classify_test.go, fsm_explore_test.go, modelrun_test.go, model_test.go, plan_test.go, rollback_plan_test.go.
+- Test lines: 0 if classify() stays as the independent oracle; about -120 if it is replaced by production code, which would weaken the oracle.
 - Verdict: net add, low gain, and it weakens the oracle. Reject, or keep as a documentation-only table in CONTEXT.md.
 
 ### (c) One "what did this call change" tracker, replacing `changed`/`fresh`/`made`
 - Replaces: the three booleans and their 15 references inside CreateVolume (lines 566-694), plus the `fail` closure (13 code).
-- Would add a struct with methods (`changed`, `fresh`, `made`, `mark`, `failed`) of about 15-20 code lines.
+- Would add a struct with methods (`changed`, `fresh`, `made`, `mark`, `failed`) of about 15-20 code lines. Test lines: 0 (the tests drive the behaviour, not the flags).
 - Net: about 0 (maybe 2 lines saved from `fail`). Clarity gain only. Medium confidence, low risk (no crash-relevant change). Worth doing only with a rename pass, not for the count.
 - Pinned by: rollback_test.go (ambiguous first op, deadline, resume), errors_test.go, cov24_internal_test.go.
 
@@ -83,6 +85,7 @@ Counts are code lines. "Replaced" is what each candidate would touch.
 - A fuller `compensate(ctx, ids, plan)` helper saves about 6 lines across the two scan-plan-apply sites, minus about 8 for the closure definition. Net about 0.
 - Risk: low. Crash sweeps cover the mutations, and the helper keeps the same mutation order. Must keep `rollbackCreate`'s `undone` and `errors.Join` semantics intact.
 - Pinned by: rollback_test.go:310 (deadline), rollback_test.go:378 (joined failure), crash_test.go rollback-create, cov24_test.go and export_contract_test.go for restoreShareNFS.
+- Test lines: 0.
 - Verdict: take it only as part of a larger pass. Alone, it is not worth a change.
 
 ### (d2) Duplicate destroy-op literal
@@ -92,6 +95,7 @@ Counts are code lines. "Replaced" is what each candidate would touch.
 ### (e) Error re-keying: merge `resumeErr`/`afterChange`/`remapMutated`/`beforeChange`
 - `resumeErr` + `afterChange` are 7 code lines. `remapMutated` + `beforeChange` + `noSpaceAfterChange` are 25 code lines. `rootErr` + `opErr` are 32 code lines.
 - These already key on `errCell{op, kind, mutated}` and `Error.pre`. Merging the wrappers saves maybe 3-5 lines. Risk: the error table (errors.go errRules) is pinned by errors_test.go (419 lines) and the after-change rules in ADR 0010's list.
+- Test lines: 0.
 - Verdict: no gain worth the risk.
 
 ### (f) Locks
@@ -112,7 +116,7 @@ Counts are code lines. "Replaced" is what each candidate would touch.
 1. (d1) Shared bounded-undo context helper. About 2 to 6 lines saved, high confidence, low risk. Do it only in a pass that touches these functions anyway.
 2. (c) Named attempt struct for `changed`/`fresh`/`made`. About 0 lines saved; clarity gain, low risk. Optional.
 3. Documentation: add to CONTEXT.md under **Rollback** that the state is the marker properties classified by `Row` predicates, and that `classify()` in fsm_classify_test.go is the spec oracle. Zero code change.
-4. Reject: (a) undo log (net add, breaks the call budget, duplicates PlanRollbackCreate); (b) production state enum (duplicates Row predicates; promoting classify() removes the independent oracle); (d2), (e), (f).
+4. Reject: (a) undo log (net add, redundant with PlanRollbackCreate's re-scan); (b) production state enum (duplicates Row predicates; promoting classify() removes the independent oracle); (d2), (e), (f).
 
 Honest answer to the owner's question: the daemon does not lack a state model. It already keeps state in ZFS marker properties and re-derives it on each pass. Cleanup hooks in Go would be net additive, and the only real dedupe is a few lines.
 
@@ -122,7 +126,7 @@ Honest answer to the owner's question: the daemon does not lack a state model. I
 2. Undo sites all re-derive from a fresh scan: rollbackCreate (endpoint.go:718, 31 code), PlanRollbackCreate (plan.go:766, 24), releaseCloneSource (plan.go:737).
 3. Exceptions: rollbackExpand (endpoint.go:1098, 12 code) uses a before-Row; restoreShareNFS (endpoint.go:1423, 8 code) uses a before-Row with no re-scan.
 4. In-memory state is three booleans in CreateVolume (changed/fresh/made, endpoint.go:601-602) and Error.pre (errors.go:286).
-5. An undo log (a) is net additive (about +0 to +40 code), needs a GUID read on success (breaks TestRPCCallBudget), and dies with the process.
+5. An undo log (a) is net additive (about +0 to +40 code, +60 to +100 test lines) and redundant: it only records names the post-failure re-scan already finds. It dies with the process.
 6. A production state enum (b) duplicates Row predicates. The test oracle classify() (fsm_classify_test.go:23, 123 code) is independent by design.
 7. Tracker (c) and error re-keying (e) are about 0 net lines.
 8. Compensation helper (d1) saves about 2 to 6 lines; the best candidate, high confidence, low risk.

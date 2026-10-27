@@ -117,4 +117,4 @@
 {"id": "acc36dcd178e1063b", "name": "rollback-review", "lane": "reader", "wave": 31, "status": "done", "branch": null, "report": "wave31/rollback-review.md", "anomaly": false, "queue": "q-rollback-review"}
 {"id": "aff061cf1dafa51a5", "name": "pr-body", "lane": "reader", "wave": 32, "model": "haiku", "status": "done", "branch": null, "report": "wave32/pr-body.md", "anomaly": false, "queue": "q-pr-body"}
 {"id": "a0ebeb089443dcffe", "name": "ci-check", "lane": "reader", "wave": 32, "model": "haiku", "status": "done", "branch": null, "report": "wave32/ci-check.md", "anomaly": false, "queue": "q-ci-check"}
-{"id": "a8935027b164d11a0", "name": "state-dedup", "lane": "reader", "wave": 32, "model": "haiku", "status": "running", "branch": null, "report": "wave32/state-dedup.md", "anomaly": false, "queue": "q-state-dedup"}
+{"id": "a8935027b164d11a0", "name": "state-dedup", "lane": "reader", "wave": 32, "model": "haiku", "status": "done", "branch": null, "report": "wave32/state-dedup.md", "anomaly": false, "queue": "q-state-dedup"}
