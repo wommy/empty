@@ -78,7 +78,8 @@ func TestDependentCloneSaysUncommitted(t *testing.T) {
 		t.Errorf("skipped %q, want %q", skips, want)
 	}
 
-	// end to end: a clone from a volume whose commit failed
+	// end to end: a clone from a volume whose commit failed and whose
+	// rollback (ADR 0010) failed too, so the uncommitted clone stays
 	ep, sim := simEndpoint(t, Config{})
 	ctx := context.Background()
 	if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: "src", CapacityBytes: 1 << 20}); err != nil {
@@ -87,6 +88,9 @@ func TestDependentCloneSaysUncommitted(t *testing.T) {
 	sim.Fail = func(args []string) error {
 		if args[0] == "set" && slices.ContainsFunc(args, func(a string) bool { return strings.Contains(a, "provision_success") }) {
 			return &zfs.ExitError{Code: 1, Stderr: "cannot set property: I/O error\n"}
+		}
+		if args[0] == "destroy" {
+			return &zfs.ExitError{Code: 1, Stderr: "cannot destroy: I/O error\n"}
 		}
 		return nil
 	}
