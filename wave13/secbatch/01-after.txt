@@ -1,0 +1,6 @@
+=== RUN   TestCallWithoutDeadlineGetsOne
+=== RUN   TestHandlerPanicIsInternalAndTheDaemonServes
+--- PASS: TestHandlerPanicIsInternalAndTheDaemonServes (0.02s)
+--- PASS: TestCallWithoutDeadlineGetsOne (0.03s)
+PASS
+ok  	github.com/wommy/empty/internal/server	1.064s

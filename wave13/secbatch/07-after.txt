@@ -1,0 +1,3 @@
+--- PASS: TestParseEtabSurvivesALongLine (0.10s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	1.128s

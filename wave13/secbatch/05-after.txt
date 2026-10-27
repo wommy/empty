@@ -1,0 +1,4 @@
+--- PASS: TestReconcileBoundsItsOwnAnswer (0.06s)
+--- PASS: TestReconcileRefusesAnOversizedDesiredSet (0.09s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	1.143s

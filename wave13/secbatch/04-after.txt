@@ -1,0 +1,9 @@
+--- PASS: TestErrorsDoNotEchoUnboundedInput (1.18s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	2.209s
+--- PASS: TestStderrIsBounded (0.02s)
+PASS
+ok  	github.com/wommy/empty/internal/zfs	1.047s
+--- PASS: TestLoggedAndReturnedInputIsBounded (0.51s)
+PASS
+ok  	github.com/wommy/empty/internal/server	1.549s

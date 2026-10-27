@@ -1,0 +1,36 @@
+panic: runtime error: index out of range [6] with length 0
+goroutine 43 [running]:
+github.com/wommy/empty/internal/server_test.(*panicOnce).Run(0x7fc839241bc8?, {0x7fc839311a00?, 0x60?}, {0x27e201500008?, 0x27e2017aa480?}, {0x27e2017aa480?, 0x48fe65?, 0x60?})
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/internal/server/guard_test.go:68 +0x5b
+github.com/wommy/empty/internal/zfs.(*Client).run(0xa225c0?, {0x104c430, 0x27e201516de0}, {0x9e931f, 0x3}, {0x9ede99, 0x9}, {0x27e2017aa480, 0x6, 0x6})
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/internal/zfs/zfs.go:115 +0x9f
+github.com/wommy/empty/internal/zfs.(*Client).Get(0x27e20151e000, {0x104c430, 0x27e201516de0}, {0x9ede99, 0x9}, {0x27e201423730, 0x1, 0x1})
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/internal/zfs/zfs.go:142 +0x1cf
+github.com/wommy/empty/internal/endpoint.(*Endpoint).GetCapacity(0x27e201524000, {0x104c430?, 0x27e201516de0?})
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/internal/endpoint/endpoint.go:745 +0x65
+github.com/wommy/empty/internal/server.(*Server).GetCapacity(0x10ad880?, {0x104c430?, 0x27e201516de0?}, 0x27e2014237b0?)
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/internal/server/server.go:201 +0x25
+github.com/wommy/empty/gen/zfsendpoint/v1._EndpointService_GetCapacity_Handler.func1({0x104c430?, 0x27e201516de0?}, {0xf4ae60?, 0x27e201516d80?})
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/gen/zfsendpoint/v1/endpoint_grpc.pb.go:499 +0xcb
+github.com/wommy/empty/internal/server.(*Daemon).unary(0x27e201528000, {0x104c430, 0x27e201516d50}, {0xf4ae60, 0x27e201516d80}, 0x27e20151e3a0, 0x27e201514318)
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/internal/server/daemon.go:164 +0x1eb
+github.com/wommy/empty/gen/zfsendpoint/v1._EndpointService_GetCapacity_Handler({0xf3b4c0, 0x27e201514018}, {0x104c430, 0x27e201516d50}, 0x27e201514300, 0x27e201512020)
+	/home/user/empty/.claude/worktrees/agent-a1ef6cfe663da83d2/gen/zfsendpoint/v1/endpoint_grpc.pb.go:501 +0x166
+google.golang.org/grpc.(*Server).wrapUnaryHandler.func1({0xf3b4c0, 0x27e201514018}, {0x104d0e0, 0x27e20133a200})
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1284 +0xc3
+google.golang.org/grpc.(*Server).processRPC(0x27e201530008, {0x104c430, 0x27e201516cf0}, 0x27e20135c1c0, 0x27e201516210, 0x27e20151e180, 0x0)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1450 +0x1230
+google.golang.org/grpc.(*Server).handleStream(0x27e201530008, {0x104c708, 0x27e20153e1a0}, 0x27e20135c1c0)
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1595 +0xa94
+google.golang.org/grpc.(*Server).serveStreams.func2.1()
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1096 +0x7f
+created by google.golang.org/grpc.(*Server).serveStreams.func2 in goroutine 58
+	/root/go/pkg/mod/google.golang.org/grpc@v1.84.0/server.go:1107 +0x127
+FAIL	github.com/wommy/empty/internal/server	0.028s
+FAIL
+2026/10/27 11:02:38 INFO rpc method=/zfsendpoint.v1.EndpointService/GetCapacity code=OK duration=10.866µs peer=bufconn
+--- FAIL: TestCallWithoutDeadlineGetsOne (0.00s)
+    guard_test.go:45: a call with no client deadline reaches zfs with no deadline
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.013s
+FAIL

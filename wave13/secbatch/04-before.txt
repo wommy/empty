@@ -1,0 +1,31 @@
+# github.com/wommy/empty/internal/endpoint [github.com/wommy/empty/internal/endpoint.test]
+internal/endpoint/reach_helpers_test.go:137:6: simEndpoint redeclared in this block
+	internal/endpoint/bounds_test.go:21:6: other declaration of simEndpoint
+internal/endpoint/lockwait_test.go:13:26: too many arguments in call to simEndpoint
+	have (*testing.T, Config)
+	want (*testing.T)
+internal/endpoint/seams_test.go:91:26: too many arguments in call to simEndpoint
+	have (*testing.T, Config)
+	want (*testing.T)
+internal/endpoint/seams_test.go:111:28: too many arguments in call to simEndpoint
+	have (*testing.T, Config)
+	want (*testing.T)
+internal/endpoint/seams_test.go:336:26: too many arguments in call to simEndpoint
+	have (*testing.T, Config)
+	want (*testing.T)
+FAIL	github.com/wommy/empty/internal/endpoint [build failed]
+FAIL
+--- FAIL: TestStderrIsBounded (0.08s)
+    runner_bounds_test.go:25: ExitError carries 3000057 bytes of stderr (Error() 3000193)
+    runner_bounds_test.go:31: a cut stderr does not say so: ..."xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+FAIL
+FAIL	github.com/wommy/empty/internal/zfs	0.082s
+FAIL
+--- FAIL: TestLoggedAndReturnedInputIsBounded (0.14s)
+    guard_test.go:81: GetVolume error 1048628 bytes for a 1048576-byte id: rpc error: code = NotFound desc = volume "vvvvvvvvvvvvvvvvvv
+    guard_test.go:85: log line of 1048717 bytes: {"time":"2026-10-27T11:08:32.455349947Z","level":"INFO","msg":"delete volume","volume_id":"vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    guard_test.go:85: log line of 1048721 bytes: {"time":"2026-10-27T11:08:32.489497009Z","level":"INFO","msg":"delete snapshot","snapshot_id":"vvvvvvvvvvvvvvvvvvvvvvvvv
+    guard_test.go:85: log line of 1048865 bytes: {"time":"2026-10-27T11:08:32.536511929Z","level":"INFO","msg":"rpc","method":"/zfsendpoint.v1.EndpointService/GetVolume"
+FAIL
+FAIL	github.com/wommy/empty/internal/server	0.150s
+FAIL

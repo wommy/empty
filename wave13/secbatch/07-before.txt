@@ -1,0 +1,7 @@
+--- FAIL: TestParseEtabSurvivesALongLine (0.02s)
+    bounds_test.go:76: an export after an oversized etab line is invisible: Unpublish would report it gone
+    bounds_test.go:79: the last line, without a newline, is lost
+    bounds_test.go:82: the long line itself: 0 clients, want 1
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.027s
+FAIL

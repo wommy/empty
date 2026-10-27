@@ -1,0 +1,30 @@
+endpoint: model-based suite with expiring masks, and real-zfs facts
+
+TestModel runs random sequences of RPCs and out-of-band actions against
+the endpoint and a pure reference model (model_test.go), injecting kills,
+errors and races at plan steps, and shrinks a failure to a replayable
+seed. Known divergences are masked with a spec row and an expiry
+(D07/VOL-06, GAP-RECRACE/OWN-15, both 2026-12-15); an expired mask fails
+TestModel. The OWN-12 and HOLD-REPLAN masks are gone: the planner now
+refuses held snapshots and datasets below a volume, and the model agrees.
+
+Budget (ADR 0005): a PR runs 64 sequences on the simulator (about 3 s
+under -race; the endpoint package stays near 9 s) and MODEL_BUDGET=50
+steps on a real pool. The nightly tier (model_nightly_test.go) sweeps
+20,000 sequences from a daily seed (4m13s measured) and checks that each
+mask still finds a failure.
+
+TestRealFacts checks the OpenZFS facts that the model and the simulator
+share against the real pool. CR-03 now states that lzc_destroy_snaps is
+atomic within one batch. SNP-11 no longer expects the simulator to
+diverge.
+
+Mutants at PR size: TestModel kills the name guard, received-as-local and
+unstamped-clone-source mutants. The held-snapshot and child-dataset
+planner mutants are killed at 2,000 sequences (nightly) and by planner
+tests on PR. Clone-source-uses-OwnedVolume survives the model, because
+the generator does not make uncommitted volumes; TestCloneSourcesMustBeOwned
+kills it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

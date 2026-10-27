@@ -28,6 +28,9 @@ try:
         print(f'{name}: BUILD FAILED\n{out[:2000]}')
     elif fails:
         print(f'{name}: KILLED by {", ".join(fails)}')
+        for l in out.splitlines():
+            if 'model check failed' in l or l.strip().startswith(('step ', 'minimal trace')) or l.startswith('           '):
+                print('    ' + l.strip()[:300])
     elif r.returncode != 0:
         print(f'{name}: FAILED (no test line)\n{out[-1500:]}')
     else:

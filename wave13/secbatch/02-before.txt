@@ -1,0 +1,6 @@
+--- FAIL: TestWholeParentScansAreBounded (0.00s)
+    bounds_test.go:74: 8 whole-parent scans in flight with 32 callers (zfs limit 8), want 2
+    bounds_test.go:82: peak 8 whole-parent scans, want <= 2
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.015s
+FAIL

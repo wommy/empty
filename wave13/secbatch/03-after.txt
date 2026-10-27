@@ -1,0 +1,6 @@
+--- PASS: TestNamesAndPropsNeverBecomeOptions (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/zfs	1.025s
+--- PASS: TestSnapshotComponentNeverDots (0.00s)
+PASS
+ok  	github.com/wommy/empty/internal/endpoint	1.035s

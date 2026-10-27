@@ -1,0 +1,5 @@
+--- FAIL: TestChildRunsInTheCLocale (0.00s)
+    runner_bounds_test.go:60: child saw LC_ALL|LANGUAGE|PATH = "de_DE.UTF-8|de|/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64/bin:/nix/var/nix/profiles/default/bin:/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin:/opt/node22/bin:/opt/maven/bin:/opt/gradle/bin:/opt/rbenv/bin:/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", want C|C|...
+FAIL
+FAIL	github.com/wommy/empty/internal/zfs	0.007s
+FAIL

@@ -7,3 +7,5 @@ endpoint package without model, -race: 4.687265045s wall
 ok  	github.com/wommy/empty/internal/endpoint	5.225s
     modelrun_test.go:1231: 200 sequences x 40 steps (8014 steps) in 8.007s
 ok  	github.com/wommy/empty/internal/endpoint	9.049s
+    modelrun_test.go:1231: 400 sequences x 40 steps (16020 steps) in 14.363s
+ok  	github.com/wommy/empty/internal/endpoint	15.400s

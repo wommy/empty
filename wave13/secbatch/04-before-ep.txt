@@ -1,0 +1,17 @@
+--- FAIL: TestErrorsDoNotEchoUnboundedInput (0.28s)
+    bounds_test.go:52: GetVolume: error message is 1048627 bytes for a 1048576-byte input
+    bounds_test.go:52: SnapshotSource: error message is 1048627 bytes for a 1048576-byte input
+    bounds_test.go:52: ListToken: error message is 1048601 bytes for a 1048576-byte input
+    bounds_test.go:52: volumeID: error message is 1048598 bytes for a 1048576-byte input
+    bounds_test.go:52: snapshotID: error message is 1048600 bytes for a 1048576-byte input
+    bounds_test.go:52: validateProp: error message is 1048602 bytes for a 1048576-byte input
+    bounds_test.go:52: wideValue: error message is 1048616 bytes for a 1048576-byte input
+    bounds_test.go:52: planSnapshot: error message is 1048602 bytes for a 1048576-byte input
+    bounds_test.go:52: ExpandVolume: error message is 1048627 bytes for a 1048576-byte input
+    bounds_test.go:52: CreateSnapshot: error message is 1048600 bytes for a 1048576-byte input
+    bounds_test.go:52: issuedID: error message is 1048628 bytes for a 1048576-byte input
+    bounds_test.go:52: propValue: error message is 1048616 bytes for a 1048576-byte input
+    bounds_test.go:52: CreateVolume: error message is 1048598 bytes for a 1048576-byte input
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.296s
+FAIL

@@ -1,0 +1,7 @@
+--- FAIL: TestReconcileBoundsItsOwnAnswer (0.01s)
+    bounds_test.go:156: 5000 missing-id skips for 5000 missing ids, want 1001
+--- FAIL: TestReconcileRefusesAnOversizedDesiredSet (0.02s)
+    bounds_test.go:186: 250001 desired ids: <nil>, want InvalidArgument
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.034s
+FAIL

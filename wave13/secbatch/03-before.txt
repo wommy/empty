@@ -1,0 +1,28 @@
+--- FAIL: TestNamesAndPropsNeverBecomeOptions (0.00s)
+    names_test.go:27: ValidDataset("tank/..") = true, zfs refuses it
+    names_test.go:27: ValidDataset("tank/../x") = true, zfs refuses it
+    names_test.go:27: ValidDataset("tank/./x") = true, zfs refuses it
+    names_test.go:27: ValidDataset("a/b/..") = true, zfs refuses it
+    names_test.go:27: ValidDataset("tank/.") = true, zfs refuses it
+    names_test.go:27: ValidDataset("tank/x/.") = true, zfs refuses it
+    names_test.go:32: ValidSnapshot("tank/x@.") = true, zfs refuses it
+    names_test.go:32: ValidSnapshot("tank/x@..") = true, zfs refuses it
+    names_test.go:32: ValidSnapshot("tank/../x@s") = true, zfs refuses it
+    names_test.go:32: ValidSnapshot("tank/.@s") = true, zfs refuses it
+    names_test.go:53: Set accepted property "-u"
+    names_test.go:56: Inherit accepted property "-r"
+    names_test.go:60: Get accepted property "-r"
+    names_test.go:63: List accepted property "-H"
+    names_test.go:66: ListColumns accepted properties ["type,name" "-t"]
+    names_test.go:69: zfs ran: [["set" "-u=1" "tank/x"] ["inherit" "-r" "tank/x"] ["get" "-Hp" "-o" "name,property,value,source" "-r" "tank/x"] ["get" "-Hp" "-o" "name,property,value,source" "-t" "filesystem,volume" "-d" "1" "type,-H" "tank"] ["get" "-Hp" "-o" "name,property,value,source" "-t" "filesystem,volume" "-d" "1" "type,name,-t" "tank"]]
+FAIL
+FAIL	github.com/wommy/empty/internal/zfs	0.010s
+FAIL
+--- FAIL: TestSnapshotComponentNeverDots (0.00s)
+    names_test.go:16: snapComponent(".") = ".", want a csi- hash
+    names_test.go:23: plan would run: zfs snapshot tank/v/v@.
+    names_test.go:16: snapComponent("..") = "..", want a csi- hash
+    names_test.go:23: plan would run: zfs snapshot tank/v/v@..
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.009s
+FAIL
