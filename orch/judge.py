@@ -29,7 +29,12 @@ wq = first([q for q in queue if q["lane"] == "writer" and ready(q)])
 nw = len(running("writer")); slots = max(0, state.get("caps", {}).get("writers", 3) - nw)
 if slots and wq and not blocked: out.append(("LAUNCH-WRITERS", ", ".join(q["id"] for q in wq[:slots])))
 elif wq: out.append(("WAIT-WRITERS", f"{nw} writers running (max 3); next: {wq[0]['id']}"))
-for q in state.get("questions", []): out.append(("ASK", q))
+# owner rule: never ask the owner an unresearched question; research and an
+# adversarial pass come first, then the question carries the recommendation
+for q in state.get("questions", []):
+    q = q if isinstance(q, dict) else {"text": q}
+    if q.get("researched") and q.get("attacked"): out.append(("ASK", f"{q['text']} (recommend: {q.get('recommend')}; evidence: {q.get('report')})"))
+    else: out.append(("RESEARCH-FIRST", q["text"]))
 last_cp = max([i for i, e in enumerate(events) if e["to"] == "checkpoint"], default=-1)
 if len(events) - 1 > last_cp: out.append(("CHECKPOINT", f"{len(events) - 1 - last_cp} transitions since the last one"))
 print(f"readers {nr} running, writers {nw} running (caps {state.get('caps')}), CI {state.get('ci')}")

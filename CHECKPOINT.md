@@ -198,3 +198,4 @@ Currently running writers (pre-rule): tests a0f85a15, ci a12cc517, vm a7831adb, 
 - WRITER lane: max 3 writers (builders that edit/commit); launch a builder whenever running WRITERS < 3. (50%-of-total rule superseded by the split: it coupled the lanes. Told owner.)
 - Lanes now: readers 5 (model aa3129c3, zfs-diff a5b209d5, nfs-diff a5e4557d, csi-diff ab47454f, timing a3777e1a) -> wave11 waits for readers < 4. Writers 3 (vm a7831adb, tests a0f85a15, mutation aa10b675) -> full.
 - Writer queue (in order): core step 0 (one error table + JSON scan beside text + diff check); apply wave11/12 patches; README stale claims; nfs_clients removal + CSI NFS.
+## OWNER RULE: never ask the owner an unresearched question: research + adversarial pass first, then ask with the recommendation and evidence (enforced in orch/judge.py).

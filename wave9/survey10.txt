@@ -1,0 +1,2 @@
+known: map[create-vol-resv-auto:71]
+model step success by verb: @sendrecv 684/1989 clone 1242/4034 create 7749/11826 destroy 2049/4855 hold 932/1876 inherit 1011/2776 promote 206/2027 release 79/933 rename 445/1581 set 3003/6629 snapshot 2239/6403

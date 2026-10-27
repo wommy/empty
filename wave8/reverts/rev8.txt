@@ -57,3 +57,9 @@
            1 CreateSnapshot(v3, s0)
 === R10
 --- existing:
+--- FAIL: TestKilledCommandIsInterrupted (0.41s)
+--- FAIL: TestLimitWaiterRespectsContext (0.05s)
+--- model:
+    modelrun_test.go:1273: model check failed: detected after 12ms and 40 steps; shrunk by 65ms (seed 1, replay: MODEL_SEED=1 go test ./internal/endpoint -run TestModel)
+        minimal trace (1 of 35 steps):
+           0 CreateVolume(v1 block cap=1048576 sparse) !killAfter@0

@@ -1,0 +1,597 @@
+From 03dfa663fbb32bb986745cdcc9d5c3b8e0108744 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 27 Oct 2026 06:24:03 +0000
+Subject: [PATCH] ci: real-ZFS VM: parallel guest shards, cached qemu tree,
+ leaner warm boot
+
+On top of c73e40d's provisioned-guest cache:
+
+- Tests: ci/real-zfs-guest.sh runs six concurrent shards in the guest,
+  each on its own tmpfs-backed pool: endpoint split three ways by
+  ci/real-zfs-weights.txt (file-export tests kept together), the
+  non-sanity csi tests, csi-sanity mount, csi-sanity block. The serial
+  run took 13.4-19.4s. check-skips reads the merged logs, so the skip
+  budget, the test-list coverage (tests, fuzz seeds, examples) and the
+  44-spec floor are unchanged.
+- qemu: ci/qemu-tree.sh unpacks the packages apt would add on this
+  runner image (dpkg-deb -x, no apt-get update), cached per ImageVersion;
+  apt-get install took 13-14s, a warm verify takes 0.4s. apt stays the
+  fallback. cloud-image-utils is installed only on a cold guest.
+- Boot: provisioning disables cloud-init, purges snapd and masks timers
+  for every later boot and loads zfs via modules-load.d; the script waits
+  for nfs-server, not for the whole boot; ssh shares one ControlMaster
+  connection and polls every 0.2s; the guest gets all vCPUs and 6G.
+- Guest cache: keyed by the image sha256 and the cloud-config's hash
+  (ci/real-zfs-cloud-config.yaml), not the whole script, so editing how
+  tests run does not reprovision; the stored disk is fstrimmed and zstd
+  compressed (it was 2.3G, 838MB as a cache archive).
+
+Not run under KVM here (no /dev/kvm); the qemu tree was built and booted
+to SeaBIOS + iPXE under TCG, and the sharding was run on the simulator.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
+---
+ .github/workflows/ci.yml      |  46 +++++++++++--
+ ci/qemu-tree.sh               |  68 +++++++++++++++++++
+ ci/real-zfs-cloud-config.yaml |  23 +++++++
+ ci/real-zfs-guest.sh          |  88 +++++++++++++++++++++++++
+ ci/real-zfs-vm.sh             |  87 ++++++++++++------------
+ ci/real-zfs-weights.txt       | 120 ++++++++++++++++++++++++++++++++++
+ 6 files changed, 379 insertions(+), 53 deletions(-)
+ create mode 100755 ci/qemu-tree.sh
+ create mode 100644 ci/real-zfs-cloud-config.yaml
+ create mode 100755 ci/real-zfs-guest.sh
+ create mode 100644 ci/real-zfs-weights.txt
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index adeec73..21586bf 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -150,12 +150,6 @@ jobs:
+           sudo udevadm control --reload-rules
+           sudo udevadm trigger --name-match=kvm
+           test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+-      - name: install qemu
+-        run: |
+-          sudo apt-get update
+-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils
+-          # the cloud image signing key ships in ubuntu-keyring on 24.04
+-          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+       - name: resolve the cloud image
+         # the provisioned-guest cache is keyed by the image's sha256 (the
+         # script verifies it against the gpg-signed list) and the script
+@@ -164,13 +158,51 @@ jobs:
+           f=stonking-server-cloudimg-amd64.img
+           sum=$(curl -fsSL --retry 3 https://cloud-images.ubuntu.com/stonking/current/SHA256SUMS | awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }')
+           test -n "$sum"
+-          echo "key=zfsvm-stonking-$sum-${{ hashFiles('ci/real-zfs-vm.sh') }}" >>"$GITHUB_OUTPUT"
++          # provisioning inputs only: editing how the tests run must not
++          # reprovision. v2: trimmed, zstd-compressed disk
++          echo "key=zfsvm-v2-stonking-$sum-${{ hashFiles('ci/real-zfs-cloud-config.yaml') }}" >>"$GITHUB_OUTPUT"
++          # the qemu tree is unpacked from this runner image's apt view
++          echo "qemu=qemu-tree-$ImageOS-$ImageVersion-${{ hashFiles('ci/qemu-tree.sh') }}" >>"$GITHUB_OUTPUT"
+       - name: restore the provisioned guest
+         id: guest
+         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+         with:
+           path: ${{ runner.temp }}/zfsvm-cache
+           key: ${{ steps.image.outputs.key }}
++      # qemu without apt: the packages apt would add, unpacked once per
++      # runner image version and cached (~90 MB); 14s of apt-get becomes ~1s
++      - name: restore qemu
++        id: qemu
++        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
++        with:
++          path: ${{ runner.temp }}/qemu
++          key: ${{ steps.image.outputs.qemu }}
++      - name: set up qemu
++        id: qemutree
++        run: |
++          # verifies a restored tree, or builds one; apt is the fallback
++          if ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then
++            echo "$RUNNER_TEMP/qemu/bin" >>"$GITHUB_PATH"
++            echo "ok=1" >>"$GITHUB_OUTPUT"
++          else
++            echo "::warning::qemu tree unusable; installing qemu from apt"
++            rm -rf "$RUNNER_TEMP/qemu"
++            sudo apt-get update -qq
++            sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils
++          fi
++          # the cloud image signing key ships in ubuntu-keyring on 24.04
++          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
++      - name: install cloud-image-utils (cold guest only)
++        if: steps.guest.outputs.cache-hit != 'true'
++        run: |
++          sudo apt-get update -qq
++          sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
++      - name: save qemu
++        if: steps.qemu.outputs.cache-hit != 'true' && steps.qemutree.outputs.ok == '1'
++        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
++        with:
++          path: ${{ runner.temp }}/qemu
++          key: ${{ steps.image.outputs.qemu }}
+       - name: test (Ubuntu 26.10, real zfs 2.4)
+         env:
+           ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+diff --git a/ci/qemu-tree.sh b/ci/qemu-tree.sh
+new file mode 100755
+index 0000000..66ab3f9
+--- /dev/null
++++ b/ci/qemu-tree.sh
+@@ -0,0 +1,68 @@
++#!/usr/bin/env bash
++# Build a relocatable qemu tree for the real-ZFS job: the packages apt would
++# add to this runner image for qemu-system-x86 and qemu-utils, downloaded and
++# unpacked with dpkg-deb (no dpkg database, no triggers, no apt-get update on
++# a warm run), plus wrappers in <dir>/bin that point the binaries at the
++# tree's libraries and firmware. The workflow caches <dir> per runner image
++# version; on a cache hit this script only re-verifies it.
++#
++# usage: ci/qemu-tree.sh <dir>
++#   then: export PATH=<dir>/bin:$PATH
++# Exits non-zero if the tree does not run here; the caller then falls back
++# to apt-get install.
++set -euo pipefail
++
++dir=${1:?tree directory}
++
++verify() {
++  "$dir/bin/qemu-system-x86_64" --version | head -n 1 &&
++    "$dir/bin/qemu-img" --version | head -n 1 &&
++    # the firmware a pc boot with virtio-net loads, through the wrapper's -L
++    for f in bios-256k.bin kvmvapic.bin linuxboot_dma.bin vgabios-stdvga.bin efi-virtio.rom; do
++      [ -e "$dir/usr/share/qemu/$f" ] || [ -e "$dir/usr/share/seabios/$f" ] || [ -e "$dir/usr/lib/ipxe/qemu/$f" ] ||
++        { echo "missing firmware $f" >&2; return 1; }
++    done
++}
++
++if [ -x "$dir/bin/qemu-system-x86_64" ]; then
++  verify && exit 0
++  echo "cached qemu tree does not run on this runner image; rebuilding" >&2
++fi
++
++rm -rf "$dir"
++mkdir -p "$dir/debs" "$dir/bin"
++sudo apt-get update -qq
++# exactly what apt would install on this image: no more (no recommends),
++# no less (a library the image lacks)
++mapfile -t pkgs < <(apt-get install -s --no-install-recommends qemu-system-x86 qemu-utils | awk '/^Inst /{ print $2 }')
++if [ "${#pkgs[@]}" -eq 0 ]; then
++  # already installed on this image: take the packages themselves
++  pkgs=(qemu-system-x86 qemu-system-common qemu-system-data qemu-utils seabios ipxe-qemu)
++fi
++chmod 0777 "$dir/debs" # apt downloads as _apt
++(cd "$dir/debs" && apt-get download "${pkgs[@]}" >/dev/null)
++for d in "$dir"/debs/*.deb; do dpkg-deb -x "$d" "$dir"; done
++rm -rf "$dir/debs"
++# absolute links (firmware into /usr/share/seabios, /usr/lib/ipxe) must
++# resolve inside the tree
++find "$dir" -type l -lname '/*' -print0 | while IFS= read -r -d '' l; do
++  ln -sfn "$(realpath -m --relative-to="$(dirname "$l")" "$dir$(readlink "$l")")" "$l"
++done
++# wrappers find the tree from their own path, so a cache restored
++# elsewhere still works
++cat >"$dir/bin/qemu-system-x86_64" <<'EOF'
++#!/bin/sh
++t=$(dirname "$(readlink -f "$0")")/..
++LD_LIBRARY_PATH=$t/usr/lib/x86_64-linux-gnu:$t/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
++  QEMU_MODULE_DIR=$t/usr/lib/x86_64-linux-gnu/qemu \
++  exec "$t/usr/bin/qemu-system-x86_64" -L "$t/usr/share/qemu" -L "$t/usr/share/seabios" -L "$t/usr/lib/ipxe/qemu" "$@"
++EOF
++cat >"$dir/bin/qemu-img" <<'EOF'
++#!/bin/sh
++t=$(dirname "$(readlink -f "$0")")/..
++LD_LIBRARY_PATH=$t/usr/lib/x86_64-linux-gnu:$t/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH} \
++  exec "$t/usr/bin/qemu-img" "$@"
++EOF
++chmod +x "$dir/bin/qemu-system-x86_64" "$dir/bin/qemu-img"
++printf '%s\n' "${pkgs[@]}" >"$dir/packages"
++verify
+diff --git a/ci/real-zfs-cloud-config.yaml b/ci/real-zfs-cloud-config.yaml
+new file mode 100644
+index 0000000..451a769
+--- /dev/null
++++ b/ci/real-zfs-cloud-config.yaml
+@@ -0,0 +1,23 @@
++#cloud-config
++# Provisions the real-ZFS guest once (ci/real-zfs-vm.sh, cold run); the
++# result is cached keyed by the image's sha256 and this file's hash, so
++# editing it reprovisions and editing the test runner does not.
++# @SSH_KEY@ is replaced with the run's public key.
++users:
++  - name: ci
++    sudo: ALL=(ALL) NOPASSWD:ALL
++    shell: /bin/bash
++    ssh_authorized_keys: [@SSH_KEY@]
++package_update: true
++packages: [zfsutils-linux, nfs-kernel-server]
++runcmd:
++  - [modprobe, zfs]
++  - [systemctl, enable, --now, nfs-server]
++  # every later (warm) boot: zfs loaded by systemd, nothing on the boot path
++  # the tests do not need. The version, module and nfsd checks run on every
++  # boot regardless
++  - [sh, -c, 'echo zfs >/etc/modules-load.d/zfs.conf']
++  - [sh, -c, 'for p in snapd unattended-upgrades; do if dpkg -s $p >/dev/null 2>&1; then apt-get purge -y -qq $p; fi; done']
++  - [sh, -c, 'for u in apt-daily.timer apt-daily-upgrade.timer motd-news.timer man-db.timer e2scrub_all.timer fstrim.timer fwupd-refresh.timer ModemManager.service multipathd.service multipathd.socket lxd-installer.socket; do if systemctl list-unit-files "$u" --no-legend | grep -q .; then systemctl mask "$u"; fi; done']
++  # cloud-init has done its one job; a warm boot skips its four stages
++  - [touch, /etc/cloud/cloud-init.disabled]
+diff --git a/ci/real-zfs-guest.sh b/ci/real-zfs-guest.sh
+new file mode 100755
+index 0000000..ae15c03
+--- /dev/null
++++ b/ci/real-zfs-guest.sh
+@@ -0,0 +1,88 @@
++#!/usr/bin/env bash
++# Runs inside the real-ZFS guest, as root, from the directory ci/real-zfs-vm.sh
++# copied the test binaries, this script and ci/real-zfs-weights.txt into.
++# Runs the real-pool tests as concurrent shards, each on its own pool, and
++# leaves their -test.v logs and -test.list output in out/. Pass or fail is
++# decided on the host by ci/check-skips.sh on the merged logs; the exit code
++# here only says whether every shard exited 0.
++#
++# Shards: the endpoint binary split three ways by ci/real-zfs-weights.txt
++# (the file-export tests kept together: one nfsd, one export table), the csi
++# tests other than csi-sanity, csi-sanity on filesystems, csi-sanity on
++# zvols. Six processes on six pools, so no shard's datasets, space
++# accounting or txg syncs meet another's.
++#
++# usage: sudo bash real-zfs-guest.sh
++set -uo pipefail
++out=$PWD/out
++rm -rf "$out"
++mkdir -p "$out"
++up() { cut -d' ' -f1 /proc/uptime; }
++echo "start at uptime $(up)s"
++
++# pools on a tmpfs: real vdevs to the real kmod, without the guest disk,
++# qcow2 and host page cache in every txg sync. Sparse 10G files, as before;
++# the tests write little, and the tmpfs cap makes a runaway write an
++# ENOSPC (pool suspends, test times out) rather than a guest OOM
++vd=/run/zfsci
++mkdir -p "$vd"
++mountpoint -q "$vd" || mount -t tmpfs -o size=60% zfsci "$vd"
++mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -O compression=lz4 "$1" "$vd/$1.vdev"; }
++
++./endpoint.test -test.list '.*' >"$out/endpoint.list"
++./csi.test -test.list '.*' >"$out/csi.list"
++
++# shard <list> <weights> <n>: "<shard> <test>" per top-level test, fuzz
++# target (its seed corpus) and example, as check-skips counts them; longest
++# first onto the lightest shard
++shard() {
++  awk 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
++       /^(Test|Fuzz|Example)/ { g = ($1 ~ /^TestFileExport/) ? "TestFileExport*" : $1
++                 wt[g] += ($1 in w) ? w[$1] : 0.1; m[g] = m[g] " " $1 }
++       END { for (g in wt) printf "%.3f%s\n", wt[g], m[g] }' "$2" "$1" |
++    sort -k1,1gr -k2,2 |
++    awk -v n="$3" '{ b = 0; for (i = 1; i < n; i++) if (load[i] + 0 < load[b] + 0) b = i
++                     load[b] += $1; for (j = 2; j <= NF; j++) print b, $j }'
++}
++ep_shards=3
++shard "$out/endpoint.list" real-zfs-weights.txt "$ep_shards" >"$out/endpoint.plan"
++
++rc=0
++t=(-test.count=1 -test.v -test.timeout=4m)
++pids=() names=()
++# run <name> <pool> <command...>: one shard on its own pool, in the background
++run() {
++  local name=$1 pool=$2
++  shift 2
++  mkpool "$pool" || { echo "zpool create $pool failed" | tee "$out/$name.log"; rc=1; return; }
++  (
++    s=$(up)
++    env ZFS_TEST_POOL="$pool" ZFS_REQUIRE_REAL=1 "$@" >"$out/$name.log" 2>&1
++    r=$?
++    echo "$name rc=$r ${s}s..$(up)s" >>"$out/shards.txt"
++    exit $r
++  ) &
++  pids+=($!) names+=("$name")
++}
++for i in $(seq 0 $((ep_shards - 1))); do
++  re=$(awk -v s="$i" '$1 == s { printf "%s%s", sep, $2; sep = "|" }' "$out/endpoint.plan")
++  [ -n "$re" ] || continue
++  run "endpoint.$i" "zep$i" ./endpoint.test "${t[@]}" -test.run "^($re)\$"
++done
++# csi: the non-sanity tests do not depend on the access type and run once,
++# with mount as before; csi-sanity runs for filesystems and for zvols
++run csi-other zcsi0 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.skip '^TestSanity$'
++run csi-mount zcsi1 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.run '^TestSanity$'
++run csi-block zcsi2 env CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run '^TestSanity$'
++
++for k in "${!pids[@]}"; do
++  wait "${pids[$k]}" || { echo "${names[$k]} failed"; rc=1; }
++done
++cat "$out/shards.txt"
++# as before: a pool that will not go means a test left something busy
++for p in $(zpool list -H -o name); do
++  case $p in zep[0-9] | zcsi[0-9]) zpool destroy -f "$p" || { echo "zpool destroy $p failed"; rc=1; } ;; esac
++done
++chown -R "${SUDO_UID:-0}:${SUDO_GID:-0}" "$out"
++echo "end at uptime $(up)s, rc $rc"
++exit "$rc"
+diff --git a/ci/real-zfs-vm.sh b/ci/real-zfs-vm.sh
+index ef0eb50..4a10065 100755
+--- a/ci/real-zfs-vm.sh
++++ b/ci/real-zfs-vm.sh
+@@ -16,7 +16,8 @@
+ # runs: guest apt took 47-73s per run, varying with the mirror. A cold run
+ # provisions, powers off and stores the disk; a warm run boots a copy-on-
+ # write overlay of it and skips the image download and apt. The workflow
+-# keys the directory by the image's sha256 and this script's hash. Every
++# keys the directory by the image's sha256 and the hash of
++# ci/real-zfs-cloud-config.yaml (what provisioning installs). Every
+ # boot still runs the version, module and nfsd checks below, so a stale
+ # disk fails them rather than testing another ZFS.
+ set -euo pipefail
+@@ -54,27 +55,16 @@ else
+   qemu-img resize "$img" 20G
+   ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
+ fi
+-cat >"$work/user-data" <<EOF
+-#cloud-config
+-users:
+-  - name: ci
+-    sudo: ALL=(ALL) NOPASSWD:ALL
+-    shell: /bin/bash
+-    ssh_authorized_keys: [$(cat "$work/key.pub")]
+-package_update: true
+-packages: [zfsutils-linux, nfs-kernel-server]
+-runcmd:
+-  - [modprobe, zfs]
+-  - [systemctl, enable, --now, nfs-server]
+-EOF
++sed "s|@SSH_KEY@|$(cat "$work/key.pub")|" ci/real-zfs-cloud-config.yaml >"$work/user-data"
+ [ -n "$warm" ] || cloud-localds "$work/seed.img" "$work/user-data"
+ 
+ # -display none, not -nographic: QEMU refuses -nographic with -daemonize.
+-# A warm boot reuses the cold boot's seed: same instance-id, so cloud-init
+-# does not provision again.
++# A warm boot reuses the cold boot's seed, though the provisioned disk has
++# cloud-init disabled. All the runner's vCPUs and 6G: the tests run as six
++# concurrent shards with their pools on a guest tmpfs.
+ boot() {
+-  qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -display none \
+-    -drive file="$1",if=virtio -drive file="$work/seed.img",if=virtio,format=raw \
++  qemu-system-x86_64 -enable-kvm -cpu host -m 6144 -smp "$(nproc)" -display none \
++    -drive file="$1",if=virtio,discard=unmap,cache=unsafe -drive file="$work/seed.img",if=virtio,format=raw \
+     -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
+     -serial file:"$work/console.log" -daemonize -pidfile "$work/qemu.pid"
+ }
+@@ -85,7 +75,9 @@ overlay() {
+ # boot first: provisioning (or a warm boot) overlaps the test compile below
+ if [ -n "$warm" ]; then overlay; else boot "$img"; fi
+ 
+-common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
++# one TCP+SSH handshake for the whole run, not one per command
++common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR
++  -o ControlMaster=auto -o ControlPath="$work/ssh-%C" -o ControlPersist=300)
+ vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
+ 
+ # on failure, show what the guest printed (console: boot errors) and, if it
+@@ -98,7 +90,7 @@ diag() {
+   timeout 60 ssh "${common[@]}" -p 2222 ci@127.0.0.1 \
+     'cloud-init status --long; sudo tail -n 80 /var/log/cloud-init-output.log; sudo dmesg | grep -iE "zfs|spl|nfsd" | tail -n 20' || true
+ }
+-trap 'rc=$?; [ $rc -eq 0 ] || diag; [ -f "$work/qemu.pid" ] && kill "$(cat "$work/qemu.pid")" 2>/dev/null; exit $rc' EXIT
++trap 'rc=$?; [ $rc -eq 0 ] || diag; ssh "${common[@]}" -O exit -p 2222 ci@127.0.0.1 2>/dev/null || true; kill "$(cat "$work/qemu.pid" 2>/dev/null)" 2>/dev/null || true; exit $rc' EXIT
+ 
+ # test binaries: static, so the VM needs no Go toolchain; built as the
+ # runner user, only the binaries run as root
+@@ -108,7 +100,8 @@ done
+ 
+ wait_ssh() {
+   local up=
+-  for _ in $(seq 1 180); do vm true 2>/dev/null && { up=1; break; }; sleep 1; done
++  # sshd refuses at once until it is up, so a short poll costs nothing
++  for _ in $(seq 1 900); do vm true 2>/dev/null && { up=1; break; }; sleep 0.2; done
+   [ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
+ }
+ wait_ssh
+@@ -123,12 +116,15 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
+   # store the provisioned disk, then carry on from an overlay of it, as a
+   # warm run would; failing to store only costs the next run its speed
+   t0=$SECONDS
+-  vm 'sudo apt-get clean; sudo sync'
++  # trimmed (discard=unmap) and zstd-compressed: the cached disk shrinks
++  # from 2.3G, which every warm run restores and writes out
++  vm 'sudo apt-get clean; sudo fstrim -av; sudo sync'
+   vm 'sudo systemctl poweroff' 2>/dev/null || true
+-  for _ in $(seq 1 60); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 1; done
++  ssh "${common[@]}" -O exit -p 2222 ci@127.0.0.1 2>/dev/null || true
++  for _ in $(seq 1 300); do kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null || break; sleep 0.2; done
+   if ! kill -0 "$(cat "$work/qemu.pid")" 2>/dev/null; then
+     rm -rf "$cache" && mkdir -p "$cache"
+-    qemu-img convert -O qcow2 "$img" "$cache/disk.qcow2"
++    qemu-img convert -c -O qcow2 -o compression_type=zstd "$img" "$cache/disk.qcow2"
+     cp "$work/key" "$work/key.pub" "$work/seed.img" "$cache/"
+     echo "$sum" >"$cache/sum"
+     touch "$cache/ok"
+@@ -142,8 +138,9 @@ if [ -z "$warm" ] && [ -n "$cache" ]; then
+   fi
+   wait_ssh
+ fi
+-# services (zfs module, nfsd) come up after sshd on a reboot
+-vm 'systemctl is-system-running --wait >/dev/null || true'
++# services (zfs module, nfsd) come up after sshd on a reboot; wait for the
++# two the tests need, not for the whole boot to settle
++vm 'for _ in $(seq 1 300); do systemctl is-active -q nfs-server && break; sleep 0.1; done'
+ # cloud-init's runcmd ran only on the provisioning boot
+ vm 'sudo modprobe zfs'
+ vm 'cloud-init status --long || true; cat /etc/cloud/build.info; uname -r'
+@@ -172,27 +169,25 @@ vm 'n=$(sudo cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd thread
+ 
+ bins=()
+ for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
+-scp "${common[@]}" -P 2222 "${bins[@]}" ci@127.0.0.1:
++scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/real-zfs-weights.txt ci@127.0.0.1:
+ rc=0
+-vm 'set -eo pipefail
+-  # 10G on a 20G guest disk that also holds the OS: the sparse vdev must
+-  # not outgrow the filesystem under it, or the pool suspends on ENOSPC
+-  truncate -s 10G vdev0
+-  sudo zpool create -f -O compression=lz4 zfsep-test "$PWD/vdev0"
+-  env=(ZFS_TEST_POOL=zfsep-test ZFS_REQUIRE_REAL=1)
+-  rc=0
+-  t=(-test.count=1 -test.v -test.timeout=8m)
+-  ./endpoint.test -test.list ".*" >endpoint.list
+-  ./csi.test -test.list ".*" >csi.list
+-  sudo "${env[@]}" ./endpoint.test "${t[@]}" 2>&1 | tee endpoint.log || rc=$?
+-  # csi-sanity, Identity and Controller groups, for filesystems and zvols;
+-  # the non-sanity csi tests do not depend on the access type, run them once
+-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" 2>&1 | tee csi-mount.log || rc=$?
+-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run "^TestSanity\$" 2>&1 | tee csi-block.log || rc=$?
+-  sudo zpool destroy -f zfsep-test
+-  exit $rc' || rc=$?
+-
+-scp "${common[@]}" -P 2222 'ci@127.0.0.1:*.log' 'ci@127.0.0.1:*.list' "$work/" || rc=1
++# six concurrent shards on six tmpfs-backed pools (ci/real-zfs-guest.sh);
++# the logs come back per shard and are merged per check below
++vm 'sudo bash real-zfs-guest.sh' || rc=$?
++mkdir -p "$work/out"
++scp "${common[@]}" -P 2222 'ci@127.0.0.1:out/*' "$work/out/" || rc=1
++o=$work/out
++for f in "$o"/*.log; do
++  echo "::group::$(basename "$f")"
++  cat "$f"
++  echo "::endgroup::"
++done
++# what check-skips reads: endpoint = the union of its shards (it must
++# cover endpoint.list); csi-mount = the non-sanity tests plus csi-sanity on
++# filesystems (it must cover csi.list); csi-block = csi-sanity on zvols
++cat "$o"/endpoint.[0-9].log >"$work/endpoint.log" || rc=1
++cat "$o/csi-other.log" "$o/csi-mount.log" >"$work/csi-mount.log" || rc=1
++cp "$o/csi-block.log" "$o/endpoint.list" "$o/csi.list" "$work/" || rc=1
+ {
+   echo "| leg | package | skips | skipped tests |"
+   echo "|---|---|---|---|"
+diff --git a/ci/real-zfs-weights.txt b/ci/real-zfs-weights.txt
+new file mode 100644
+index 0000000..b1777da
+--- /dev/null
++++ b/ci/real-zfs-weights.txt
+@@ -0,0 +1,120 @@
++# Seconds each top-level endpoint test took on the real-ZFS VM: the time
++# cost of a test as data (ADR 0005). ci/real-zfs-guest.sh shards the endpoint
++# binary by these weights (longest first, onto the lightest shard); a test
++# missing here weighs 0.1s. Only the balance depends on this file, never the
++# coverage: every listed test runs in exactly one shard, and
++# ci/check-skips.sh fails a test that neither passed nor skipped.
++#
++# Source: run 40456494050 (8cc52ef), one serial pass on a 10G file-backed
++# pool. Refresh with the durations from a newer run when shards drift apart.
++#
++# <test> <seconds>
++TestCreateVolumeProperties 1.27
++TestReconcileAgainstDesiredSet 0.68
++TestReserveRestoreIsIdempotent 0.57
++TestCloneSourcesMustBeOwned 0.46
++TestSnapshotLifecycleWithClones 0.43
++TestCloneLargerThanLimitIsOutOfRange 0.39
++TestReconcileCollectsLeakedCloneSource 0.36
++TestCloneFromVolumeReleasesInternalSnapshot 0.29
++TestThickCloneRetryIsIdempotent 0.29
++TestPagination 0.28
++TestFileExportLifecycle 0.26
++TestConcurrentCreatesSerialize 0.25
++TestDeleteVolumeAfterItsCloneIsGone 0.25
++TestSimulateDestroyAllEquivalent 0.25
++TestBusyIsMappedByOperation 0.24
++TestFileExportPreconditions 0.24
++TestDeleteVolume 0.23
++TestFileExportAdoptedVolumes 0.22
++TestCloneFailureAfterCloneConvergesToSameState 0.20
++TestExpand 0.17
++TestInheritedOwnershipIsNotOwnership 0.16
++TestCloneResizeFailureConverges 0.15
++TestCreateVolumeIdempotent 0.15
++TestCreateVolumeResumesInterruptedProvision 0.15
++TestDeleteVolumeSparesForeignSnapshots 0.15
++TestVolumeNameMustMatchID 0.15
++TestReconcileCollectsAbandonedCreate 0.14
++TestNeverAdoptsOrDeletesUnmanaged 0.10
++TestUnknownFailureAfterAMutationIsRetryable 0.07
++TestExportSizeLimit 0.06
++TestMissingParentIsUnavailableForWholeScans 0.06
++TestReconcileLocksTargets 0.06
++TestAdv4CommitRaceDestroysJustProvisionedVolume 0.05
++TestFileExportRequiresNFSD 0.05
++TestFileExportUnmountedVolume 0.05
++TestFileExportVerifiesKernelTable 0.05
++TestMissingParentIsUnavailableNotAbsent 0.05
++TestReconcileSparesReceivedAndRenamed 0.05
++TestFileExportDroppedHost 0.04
++TestFileExportReceivedShareNFS 0.04
++TestFileExportResolvesSymlinks 0.04
++TestReceivedCopyIsNotOwned 0.04
++TestAdv4PartialDesiredSetMassDeletes 0.01
++TestPlanPublishExport 0.01
++TestAdv4BusyDestroyAbortsRun 0.00
++TestAdv4ChildDatasetsDestroyed 0.00
++TestAdv4OneBusyLockAbortsWholeRun 0.00
++TestAdv4OneFailureStarvesAndHidesDestroys 0.00
++TestAdv4ReleasedOriginOutsideParent 0.00
++TestAdv4TinyMinAgeInFlightCreate 0.00
++TestAdv4UserSnapshotWithReservedPrefixCollected 0.00
++TestAdv4_AddressDedupPublishNeverVerifies 0.00
++TestAdv4_ClientPolicyGaps 0.00
++TestAdv4_PrefixMatchPublishFalseSuccess 0.00
++TestAdv4_PrefixMatchUnpublishLivelock 0.00
++TestAdv4_TwoSpellingsBypassModeConflict 0.00
++TestApplyRefusesAnUnknownOpKind 0.00
++TestCheckFloor 0.00
++TestCloneNeverAdoptsARacingDataset 0.00
++TestCloneRefusesUnstampedReservedSnapshot 0.00
++TestCodeOfNeverReportsAFailureAsOK 0.00
++TestDecodeRejectsImpossibleZvolSizes 0.00
++TestDefaultPropertyPrefixIsOurOwn 0.00
++TestDeleteCloneInterruptedThenRetriedReleasesOrigin 0.00
++TestDeleteVolumeSparesChildDatasets 0.00
++TestDeleteVolumeSparesSnapshotCutAfterScan 0.00
++TestExportConverges 0.00
++TestLegacyUnstampedOriginReleasedWithItsClone 0.00
++TestLiteralDashMarkerIsAValue 0.00
++TestManagedWithoutNameIsNotOwned 0.00
++TestOpKindString 0.00
++TestParseClient 0.00
++TestParseEtab 0.00
++TestPlanCreateAppliesProperties 0.00
++TestPlanCreateConvergesUncommittedClone 0.00
++TestPlanCreateFilesystemsAreNotShared 0.00
++TestPlanCreateHonorsLimitOnly 0.00
++TestPlanCreateIsEmptyWhenSatisfied 0.00
++TestPlanCreateMalformedSourceIsNotFound 0.00
++TestPlanCreatePropertiesConvergeUncommitted 0.00
++TestPlanCreatePropertiesDenyList 0.00
++TestPlanCreatePropertiesRetry 0.00
++TestPlanCreateRefusesForeignAndIncompatible 0.00
++TestPlanCreateThickZvolLeavesReservationToZFS 0.00
++TestPlanDeleteVolume 0.00
++TestPlanExpand 0.00
++TestPlanReconcile 0.00
++TestPlanReconcileHeldLimitsActions 0.00
++TestPlanReconcileLocksEveryTarget 0.00
++TestPlanSnapshotLongAndUnusualNames 0.00
++TestPlanSnapshotReservedPrefix 0.00
++TestPlanUnpublishExport 0.00
++TestPlannersRequireACoveringTable 0.00
++TestPropertyPrefixIsValidated 0.00
++TestReachCapacityWrap 0.00
++TestReachOriginOutsideParent 0.00
++TestReachOutsideCloneWedgesReconcile 0.00
++TestReachPlannerZeroBlockSize 0.00
++TestReachUncommittedServed 0.00
++TestReconcileAgesFromCommit 0.00
++TestReconcileMaxDeletionsAndDigest 0.00
++TestReconcileSkipsSourceOfFailedClone 0.00
++TestScanRecordsCoverage 0.00
++TestShareNFSAndClientEncoding 0.00
++TestSimulateDestroyReapsDeferredOrigins 0.00
++TestSortClientsIsTotal 0.00
++TestUserValueDash 0.00
++TestValidatePropertyValues 0.00
++TestZfsErrCodes 0.00
+-- 
+2.43.0
+

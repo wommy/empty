@@ -1,44 +1,5 @@
 {"id": 23, "file": "internal/endpoint/plan.go", "line": 108, "op": "GUARD_DELETE", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 88.0}
 {"id": 25, "file": "internal/endpoint/plan.go", "line": 107, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["TestCloneFailureAfterCloneConvergesToSameState", "TestCloneFromVolumeReleasesInternalSnapshot", "TestCloneLargerThanLimitIsOutOfRange", "TestCloneRefusesUnstampedReservedSnapshot", "TestCloneSourcesMustBeOwned", "TestDeleteCloneInterruptedThenRetriedReleasesOrigin", "TestDeleteVolumeAfterItsCloneIsGone", "TestPlanCreateAppliesProperties", "TestPlanCreateMalformedSourceIsNotFound", "TestPlannersRequireACoveringTable", "TestReachUncommittedServed", "TestReconcileAgainstDesiredSet", "TestReconcileCollectsLeakedCloneSource", "TestReconcileSkipsSourceOfFailedClone", "TestReserveRestoreIsIdempotent", "TestSanity", "TestThickCloneRetryIsIdempotent"], "pkgfail": ["FAIL"], "secs": 72.2}
-{"id": 30, "status": "MISMATCH"}
-{"id": 32, "status": "MISMATCH"}
-{"id": 37, "status": "MISMATCH"}
-{"id": 44, "status": "MISMATCH"}
-{"id": 48, "status": "MISMATCH"}
-{"id": 52, "status": "MISMATCH"}
-{"id": 63, "status": "MISMATCH"}
-{"id": 73, "status": "MISMATCH"}
-{"id": 92, "status": "MISMATCH"}
-{"id": 105, "status": "MISMATCH"}
-{"id": 113, "status": "MISMATCH"}
-{"id": 123, "status": "MISMATCH"}
-{"id": 127, "status": "MISMATCH"}
-{"id": 153, "status": "MISMATCH"}
-{"id": 165, "status": "MISMATCH"}
-{"id": 190, "status": "MISMATCH"}
-{"id": 203, "status": "MISMATCH"}
-{"id": 217, "status": "MISMATCH"}
-{"id": 232, "status": "MISMATCH"}
-{"id": 253, "status": "MISMATCH"}
-{"id": 259, "status": "MISMATCH"}
-{"id": 272, "status": "MISMATCH"}
-{"id": 276, "status": "MISMATCH"}
-{"id": 282, "status": "MISMATCH"}
-{"id": 286, "status": "MISMATCH"}
-{"id": 289, "status": "MISMATCH"}
-{"id": 294, "status": "MISMATCH"}
-{"id": 297, "status": "MISMATCH"}
-{"id": 299, "status": "MISMATCH"}
-{"id": 321, "status": "MISMATCH"}
-{"id": 327, "status": "MISMATCH"}
-{"id": 349, "status": "MISMATCH"}
-{"id": 399, "status": "MISMATCH"}
-{"id": 411, "status": "MISMATCH"}
-{"id": 420, "status": "MISMATCH"}
-{"id": 436, "status": "MISMATCH"}
-{"id": 441, "status": "MISMATCH"}
-{"id": 465, "status": "MISMATCH"}
-{"id": 478, "status": "MISMATCH"}
 {"id": 495, "file": "internal/endpoint/reconcile.go", "line": 113, "op": "GUARD_DELETE", "status": "KILLED", "fails": ["TestPlannersRequireACoveringTable"], "pkgfail": ["FAIL"], "secs": 53.2}
 {"id": 503, "file": "internal/endpoint/reconcile.go", "line": 135, "op": "IF_NEGATE", "status": "KILLED", "fails": ["FuzzReconcileSafe", "TestAdv4BusyDestroyAbortsRun", "TestAdv4ChildDatasetsDestroyed", "TestAdv4OneBusyLockAbortsWholeRun", "TestAdv4OneFailureStarvesAndHidesDestroys", "TestAdv4PartialDesiredSetMassDeletes", "TestAdv4ReleasedOriginOutsideParent", "TestDeleteVolumeSparesForeignSnapshots", "TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestPlanReconcileLocksEveryTarget", "TestReachOutsideCloneWedgesReconcile", "TestReconcile", "TestReconcileAgainstDesiredSet", "TestReconcileAgesFromCommit", "TestReconcileCollectsAbandonedCreate", "TestReconcileCollectsLeakedCloneSource", "TestReconcileLocksTargets", "TestReconcileMaxDeletionsAndDigest", "TestReconcileSkipsSourceOfFailedClone", "TestReconcileSparesReceivedAndRenamed"], "pkgfail": ["FAIL"], "secs": 77.3}
 {"id": 505, "file": "internal/endpoint/reconcile.go", "line": 135, "op": "ANDOR_SWAP", "status": "KILLED", "fails": ["FuzzReconcileSafe", "TestAdv4BusyDestroyAbortsRun", "TestAdv4ChildDatasetsDestroyed", "TestAdv4OneFailureStarvesAndHidesDestroys", "TestAdv4PartialDesiredSetMassDeletes", "TestDeleteVolumeSparesForeignSnapshots", "TestPlanReconcile", "TestPlanReconcileHeldLimitsActions", "TestPlanReconcileLocksEveryTarget", "TestReconcile", "TestReconcileAgainstDesiredSet", "TestReconcileCollectsLeakedCloneSource", "TestReconcileLocksTargets", "TestReconcileMaxDeletionsAndDigest", "TestReconcileSkipsSourceOfFailedClone", "TestReconcileSparesReceivedAndRenamed"], "pkgfail": ["FAIL"], "secs": 61.7}
@@ -52,3 +13,5 @@
 {"id": 621, "file": "internal/endpoint/table.go", "line": 60, "op": "REL_FLIP", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 73.2}
 {"id": 635, "file": "internal/endpoint/table.go", "line": 80, "op": "DROP_OPERAND", "status": "KILLED", "fails": ["FuzzReconcileSafe", "TestCloneSourcesMustBeOwned", "TestInheritedOwnershipIsNotOwnership", "TestMessageSizes", "TestReceivedCopyIsNotOwned", "TestSanity", "TestSnapshotLifecycleWithClones"], "pkgfail": ["FAIL"], "secs": 69.9}
 {"id": 638, "file": "internal/endpoint/table.go", "line": 80, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 57.9}
+{"id": 30, "file": "internal/endpoint/plan.go", "line": 110, "op": "IF_NEGATE", "status": "KILLED", "fails": ["TestAdv4CommitRaceDestroysJustProvisionedVolume", "TestAdv4_AddressDedupPublishNeverVerifies", "TestAdv4_ClientPolicyGaps", "TestAdv4_PrefixMatchPublishFalseSuccess", "TestAdv4_PrefixMatchUnpublishLivelock", "TestAdv4_TwoSpellingsBypassModeConflict", "TestBusyIsMappedByOperation", "TestCloneFailureAfterCloneConvergesToSameState", "TestCloneFromVolumeReleasesInternalSnapshot", "TestCloneLargerThanLimitIsOutOfRange", "TestCloneNeverAdoptsARacingDataset", "TestCloneRefusesUnstampedReservedSnapshot", "TestCloneResizeFailureConverges", "TestCloneSourcesMustBeOwned", "TestConcurrentCreatesSerialize", "TestCreateVolumeIdempotent", "TestCreateVolumeProperties", "TestCreateVolumeResumesInterruptedProvision", "TestDefaultPropertyPrefixIsOurOwn", "TestDeleteCloneInterruptedThenRetriedReleasesOrigin", "TestDeleteVolume", "TestDeleteVolumeAfterItsCloneIsGone", "TestDeleteVolumeSparesForeignSnapshots", "TestExpand", "TestExpandNodeExpansionRequired", "TestExpandUnlimitedFilesystem", "TestFileExport", "TestFileExportDroppedHost", "TestFileExportLifecycle", "TestFileExportPreconditions", "TestFileExportReceivedShareNFS", "TestFileExportRequiresNFSD", "TestFileExportResolvesSymlinks", "TestFileExportUnmountedVolume", "TestFileExportVerifiesKernelTable", "TestInheritedOwnershipIsNotOwnership", "TestMessageSizes", "TestMissingParentIsUnavailableNotAbsent", "TestNeverAdoptsOrDeletesUnmanaged", "TestPagination", "TestParametersAndAccessChecks", "TestPlanCreateAppliesProperties", "TestPlanCreateConvergesUncommittedClone", "TestPlanCreateFilesystemsAreNotShared", "TestPlanCreateHonorsLimitOnly", "TestPlanCreateIsEmptyWhenSatisfied", "TestPlanCreateMalformedSourceIsNotFound", "TestPlanCreatePropertiesConvergeUncommitted", "TestPlanCreatePropertiesRetry", "TestPlanCreateRefusesForeignAndIncompatible", "TestPlanCreateThickZvolLeavesReservationToZFS", "TestPlannersRequireACoveringTable", "TestReachCapacityWrap", "TestReachOutsideCloneWedgesReconcile", "TestReachPlannerZeroBlockSize", "TestReachUncommittedServed", "TestReceivedCopyIsNotOwned", "TestReconcile", "TestReconcileAgainstDesiredSet", "TestReconcileAgesFromCommit", "TestReconcileCollectsLeakedCloneSource", "TestReconcileLocksTargets", "TestReconcileSkipsSourceOfFailedClone", "TestReconcileSparesReceivedAndRenamed", "TestRequestIDReachesTheAuditLog", "TestReserveRestoreIsIdempotent", "TestRoundTripAndCodes", "TestSanity", "TestServeHealthNotifyAndStop", "TestSnapshotLifecycleWithClones", "TestThickCloneRetryIsIdempotent", "TestUnknownFailureAfterAMutationIsRetryable"], "pkgfail": ["FAIL"], "secs": 40.0}
+{"id": 32, "file": "internal/endpoint/plan.go", "line": 110, "op": "ANDOR_SWAP", "status": "KILLED", "fails": ["TestAdv4CommitRaceDestroysJustProvisionedVolume", "TestAdv4_AddressDedupPublishNeverVerifies", "TestAdv4_ClientPolicyGaps", "TestAdv4_PrefixMatchPublishFalseSuccess", "TestAdv4_PrefixMatchUnpublishLivelock", "TestAdv4_TwoSpellingsBypassModeConflict", "TestBusyIsMappedByOperation", "TestCloneFailureAfterCloneConvergesToSameState", "TestCloneFromVolumeReleasesInternalSnapshot", "TestCloneLargerThanLimitIsOutOfRange", "TestCloneNeverAdoptsARacingDataset", "TestCloneResizeFailureConverges", "TestCloneSourcesMustBeOwned", "TestConcurrentCreatesSerialize", "TestCreateVolumeIdempotent", "TestCreateVolumeProperties", "TestCreateVolumeResumesInterruptedProvision", "TestDefaultPropertyPrefixIsOurOwn", "TestDeleteVolume", "TestDeleteVolumeAfterItsCloneIsGone", "TestDeleteVolumeSparesForeignSnapshots", "TestExpand", "TestExpandNodeExpansionRequired", "TestExpandUnlimitedFilesystem", "TestFileExport", "TestFileExportDroppedHost", "TestFileExportLifecycle", "TestFileExportPreconditions", "TestFileExportReceivedShareNFS", "TestFileExportRequiresNFSD", "TestFileExportResolvesSymlinks", "TestFileExportUnmountedVolume", "TestFileExportVerifiesKernelTable", "TestInheritedOwnershipIsNotOwnership", "TestMessageSizes", "TestMissingParentIsUnavailableNotAbsent", "TestNeverAdoptsOrDeletesUnmanaged", "TestPagination", "TestParametersAndAccessChecks", "TestPlanCreateAppliesProperties", "TestPlanCreateConvergesUncommittedClone", "TestPlanCreateFilesystemsAreNotShared", "TestPlanCreateHonorsLimitOnly", "TestPlanCreateIsEmptyWhenSatisfied", "TestPlanCreateMalformedSourceIsNotFound", "TestPlanCreatePropertiesConvergeUncommitted", "TestPlanCreatePropertiesRetry", "TestPlanCreateRefusesForeignAndIncompatible", "TestPlanCreateThickZvolLeavesReservationToZFS", "TestPlannersRequireACoveringTable", "TestReachCapacityWrap", "TestReachOutsideCloneWedgesReconcile", "TestReachPlannerZeroBlockSize", "TestReceivedCopyIsNotOwned", "TestReconcile", "TestReconcileAgainstDesiredSet", "TestReconcileAgesFromCommit", "TestReconcileCollectsLeakedCloneSource", "TestReconcileLocksTargets", "TestReconcileSparesReceivedAndRenamed", "TestRequestIDReachesTheAuditLog", "TestReserveRestoreIsIdempotent", "TestRoundTripAndCodes", "TestSanity", "TestServeHealthNotifyAndStop", "TestSnapshotLifecycleWithClones", "TestThickCloneRetryIsIdempotent", "TestUnknownFailureAfterAMutationIsRetryable"], "pkgfail": ["FAIL"], "secs": 40.9}

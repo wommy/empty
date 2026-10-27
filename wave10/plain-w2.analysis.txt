@@ -1,0 +1,43 @@
+plain-w2 pkgs 10 tests 284 paused 0
+pkg                                elapsed  first    end    topsum  ntop  npar
+internal/server                      10.96    2.1   13.0     10.87     9     0
+internal/endpoint                     1.88    2.1    4.0      1.80   111     0
+cmd/zfs-endpoint                      1.38    0.4    1.8      1.34     6     0
+internal/csi                          0.63    2.1    2.7      0.58     6     0
+internal/zfs                          0.52    2.4    2.9      0.50    16     0
+cmd/zfs-csi                           0.39    0.0    0.4      0.00     1     0
+internal/unixsock                     0.21    2.2    2.4      0.03     6     0
+internal/lock                         0.08    2.1    2.1      0.05     5     0
+gen/zfsendpoint/v1                    0.00    0.6    0.6      0.00     0     0
+internal/zfs/zfstest                  0.00    2.7    2.7      0.00     0     0
+top 30
+   8.26 pass  internal/server TestMessageSizes
+   2.39 pass  internal/server TestShutdownWaitsForCancelledHandlers
+   1.37 pass  internal/endpoint TestSimulateDestroyAllEquivalent
+   1.00 pass  cmd/zfs-endpoint TestStartupWaitsForTheParent
+   0.54 pass  internal/csi TestSanity
+   0.29 pass  internal/zfs TestKilledCommandIsInterrupted
+   0.26 pass  cmd/zfs-endpoint TestCheckVersion
+   0.22 pass  internal/endpoint TestExportSizeLimit
+   0.15 pass  internal/server TestConcurrentZFSIsBounded
+   0.13 pass  internal/zfs TestLimitBoundsConcurrentCommands
+   0.06 pass  internal/server TestShutdownDrainsInFlightCalls
+   0.06 pass  internal/endpoint FuzzReconcileSafe
+   0.05 pass  cmd/zfs-endpoint TestServeHealthNotifyAndStop
+   0.05 pass  internal/endpoint TestAdv4CommitRaceDestroysJustProvisionedVolume
+   0.05 pass  internal/zfs TestLimitWaiterRespectsContext
+   0.04 pass  internal/lock TestNoStarvation
+   0.03 pass  cmd/zfs-endpoint TestStartupRefusals
+   0.03 pass  internal/zfs TestChildRunsInItsOwnProcessGroup
+   0.02 pass  internal/csi TestCapabilitiesAdvertised
+   0.02 pass  internal/endpoint TestPlanPublishExport
+   0.01 pass  internal/lock TestWaitersAreServedInOrder
+   0.01 pass  internal/endpoint TestAdv4OneFailureStarvesAndHidesDestroys
+   0.01 pass  internal/csi TestExpandNodeExpansionRequired
+   0.01 pass  internal/endpoint TestAdv4PartialDesiredSetMassDeletes
+   0.01 pass  internal/csi TestNeverIssuedIDs
+   0.01 pass  internal/endpoint TestReconcileMaxDeletionsAndDigest
+   0.01 pass  internal/endpoint TestPlanPublishExport/too_many_clients
+   0.01 pass  internal/unixsock TestListenIsOwnerOnly
+   0.01 pass  internal/unixsock TestListenReplacesAStaleSocket
+   0.01 pass  internal/unixsock TestListenRefusesAnUnsafeDirectory

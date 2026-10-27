@@ -6,9 +6,8 @@
   "writers": 3,
   "readers": 5
  },
- "questions": [
-  "NFS: which server goes in volume_context (first advertised / recorded in a property / accept spec deviation)?",
-  "NFS: may a driver in NFS mode still create plain filesystem volumes with no NFS parameters?",
-  "NFS: one client grammar everywhere (always /N), dropping bare IPv4 from file export?"
+ "questions": [],
+ "pending_research": [
+  "NFS decisions -> r-nfs-decisions, then ask owner"
  ]
 }
