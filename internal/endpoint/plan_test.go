@@ -30,6 +30,19 @@ func snap(id string, mut func(*Row)) Row {
 
 func code(err error) Code { return CodeOf(err) }
 
+// csi-sanity: a content source id the endpoint could never have issued
+// names nothing, so it is NotFound (CSI), not InvalidArgument.
+func TestPlanCreateMalformedSourceIsNotFound(t *testing.T) {
+	for _, r := range []CreateVolumeRequest{
+		{Name: "a", CapacityBytes: 1, SourceSnapshotID: "non-existing-snapshot-id"},
+		{Name: "a", CapacityBytes: 1, SourceVolumeID: "no/such@volume"},
+	} {
+		if _, err := pl.PlanCreateVolume(NewTable(nil), r); code(err) != NotFound {
+			t.Errorf("%+v: %v", r, err)
+		}
+	}
+}
+
 func TestPlanCreateIsEmptyWhenSatisfied(t *testing.T) {
 	tab := NewTable([]Row{vol("a", func(r *Row) { r.Refquota = 100 })})
 	plan, err := pl.PlanCreateVolume(tab, CreateVolumeRequest{Name: "a", CapacityBytes: 100})

@@ -81,6 +81,14 @@ jobs:
         env:
           ZFS_TEST_POOL: zfsep-test
         run: sudo -E "$(command -v go)" test -count=1 -v ./internal/endpoint/... ./internal/server/...
+      - name: csi-sanity (real zfs, filesystems and zvols)
+        # Identity and Controller groups only; see internal/csi/sanity_test.go
+        env:
+          ZFS_TEST_POOL: zfsep-test
+        run: |
+          for at in mount block; do
+            CSI_SANITY_ACCESS_TYPE=$at sudo -E "$(command -v go)" test -count=1 -v ./internal/csi/...
+          done
       - name: destroy test pool
         if: always()
         run: sudo zpool destroy -f zfsep-test || true

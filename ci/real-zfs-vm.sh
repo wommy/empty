@@ -17,7 +17,7 @@ mkdir -p "$work"
 cd "$(git rev-parse --show-toplevel)"
 
 # test binaries: static, so the VM needs no Go toolchain
-for pkg in endpoint server; do
+for pkg in endpoint server csi; do
   CGO_ENABLED=0 go test -c -o "$work/$pkg.test" "./internal/$pkg"
 done
 
@@ -57,7 +57,7 @@ for _ in $(seq 1 90); do vm true 2>/dev/null && break; sleep 5; done
 # status exits non-zero on recoverable warnings; zfs version is the real check
 vm 'cloud-init status --wait >/dev/null || true; zfs version; uname -r'
 
-scp "${common[@]}" -P 2222 "$work/endpoint.test" "$work/server.test" ci@127.0.0.1:
+scp "${common[@]}" -P 2222 "$work/endpoint.test" "$work/server.test" "$work/csi.test" ci@127.0.0.1:
 
 vm 'set -e
   truncate -s 20G vdev0
@@ -65,5 +65,9 @@ vm 'set -e
   rc=0
   sudo ZFS_TEST_POOL=zfsep-test ./endpoint.test -test.count=1 -test.v || rc=$?
   sudo ZFS_TEST_POOL=zfsep-test ./server.test -test.count=1 -test.v || rc=$?
+  # csi-sanity, Identity and Controller groups, for filesystems and zvols
+  for at in mount block; do
+    sudo ZFS_TEST_POOL=zfsep-test CSI_SANITY_ACCESS_TYPE=$at ./csi.test -test.count=1 -test.v || rc=$?
+  done
   sudo zpool destroy -f zfsep-test
   exit $rc'

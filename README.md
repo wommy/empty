@@ -13,7 +13,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
 | File export (NFS/SMB) | not started; the design calls for `sharenfs`/`sharesmb` properties (`docs/research/edges/file-export.md`) |
 | Block export (iSCSI/NVMe-oF) | not started; the design calls for LIO/nvmet configfs (`docs/research/edges/block-export.md`) |
-| CSI front end | not started |
+| CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS. Node side not started |
 | Transport auth | not started; the socket is mode 0600 until then (`docs/research/edges2/transport-auth.md`) |
 
 ## Design

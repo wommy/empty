@@ -153,9 +153,11 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	var plan Plan
 	switch {
 	case r.SourceSnapshotID != "":
+		// ids are opaque to CSI callers: one this endpoint could never have
+		// issued names no snapshot, which CSI reports as NOT_FOUND
 		vol, _, err := parseSnapshotID(r.SourceSnapshotID)
 		if err != nil {
-			return nil, err
+			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
 		}
 		snap, ok := t.Get(r.SourceSnapshotID)
 		if !ok || snap.Type != zfs.TypeSnapshot || snap.Deferred {
@@ -176,7 +178,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	case r.SourceVolumeID != "":
 		srcID, err := volumeID(r.SourceVolumeID)
 		if err != nil {
-			return nil, err
+			return nil, errorf(NotFound, "source volume %s not found", r.SourceVolumeID)
 		}
 		src, ok := t.Get(srcID)
 		if !ok || src.Type == zfs.TypeSnapshot {
