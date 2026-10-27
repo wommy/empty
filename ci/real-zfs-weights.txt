@@ -10,7 +10,7 @@
 # (sequential test: wall, parallel subtests included; parallel test:
 # test-seconds / nproc). Do not edit by hand; rerun the script on newer
 # runs when shards drift apart (shards.txt in the job summary).
-# Source: run 40511369632 (806727d, job 122213851523), its -test.v shard logs from the job log through ci/test-times.awk, without timestamps. TestDestroyNeverHitsAReplacedDataset: 4.69 measured with its every-destroy sweep (18.77 test-s over 19 subtests), set by hand to 1.99 for the PR leg's first-destroy-per-case run on a real pool (its 5 destroy0 subtests: 7.96 test-s / nproc 4; crash_test.go swapSweep). Estimated by hand until the next run measures them: TestRealFacts 8.35 + 3.15 for SPC-01, SPC-02, MNT-01, MNT-02 and VOL-12 (0.75 + 0.6 + 0.6 + 0.7 + 0.5, from the 0.22-0.77 s per row of run 40513522394), and TestFileExportStaleShareOnlySharenfsHeals 0.80 (a shared create, two exportfs, three cheap sets).
+# Source: run 40511369632 (806727d, job 122213851523), its -test.v shard logs from the job log through ci/test-times.awk, without timestamps. TestDestroyNeverHitsAReplacedDataset: 4.69 measured with its every-destroy sweep (18.77 test-s over 19 subtests), set by hand to 1.99 for the PR leg's first-destroy-per-case run on a real pool (its 5 destroy0 subtests: 7.96 test-s / nproc 4; crash_test.go swapSweep). Estimated by hand until the next run measures them: TestRealFacts 8.35 + 3.15 for SPC-01, SPC-02, MNT-01, MNT-02 and VOL-12 (0.75 + 0.6 + 0.6 + 0.7 + 0.5, from the 0.22-0.77 s per row of run 40513522394), TestFileExportStaleShareOnlySharenfsHeals 0.80 (a shared create, two exportfs, three cheap sets), and TestCreateVolumeCatchesDatasetReplacedBeforeCommit 0.30 (its filesystem subtest: one create, a rename, a create, three cheap calls; the block subtest is simulator-only).
 #
 # <test> <seconds>
 TestPropertyRoundTrip 19.33
@@ -49,6 +49,7 @@ TestFileExportPreconditions 0.41
 TestCloneFromVolumeReleasesInternalSnapshot 0.39
 TestFileExportAdoptedVolumes 0.39
 TestDeleteVolume 0.36
+TestCreateVolumeCatchesDatasetReplacedBeforeCommit 0.30
 TestExpand 0.28
 TestH_ScanRejectsRowsZFSNeverListed 0.28
 TestVolumeNameMustMatchID 0.28
@@ -140,6 +141,7 @@ TestLegacyUnstampedOriginReleasedWithItsClone 0.00
 TestLiteralDashMarkerIsAValue 0.00
 TestLocalRoot 0.00
 TestManagedWithoutNameIsNotOwned 0.00
+TestMissingParentFailsCreateAndDeleteUnavailable 0.00
 TestMissingParentIsUnavailableForWholeScans 0.00
 TestMissingParentIsUnavailableNotAbsent 0.00
 TestOpKindString 0.00
@@ -184,6 +186,7 @@ TestPlannerErrorCodes 0.00
 TestPlannersRequireACoveringTable 0.00
 TestPropertyPrefixIsValidated 0.00
 TestPropertyRoundTripCoversEveryKey 0.00
+TestRPCCallBudget 0.00
 TestReachCapacityWrap 0.00
 TestReachOriginOutsideParent 0.00
 TestReachOutsideCloneWedgesReconcile 0.00

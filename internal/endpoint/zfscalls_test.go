@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -123,4 +124,53 @@ func callerOf() (class, fn string) {
 		}
 	}
 	return "harness", fn
+}
+
+// RecordCalls wraps r so that every zfs call the endpoint's own code makes
+// through it (callerOf) is recorded, whatever ZFS_TEST_CALLS says. take
+// returns the calls since the last take, oldest first, each as its argv
+// after the command name. TestRPCCallBudget pins RPCs' sequences with it.
+func RecordCalls(r zfs.Runner) (wrapped zfs.Runner, take func() [][]string) {
+	rec := &callRecorder{Runner: r}
+	take = func() [][]string {
+		rec.mu.Lock()
+		defer rec.mu.Unlock()
+		out := rec.calls
+		rec.calls = nil
+		return out
+	}
+	if s, ok := r.(zfs.Streamer); ok {
+		return &streamRecorder{callRecorder: rec, s: s}, take
+	}
+	return rec, take
+}
+
+type callRecorder struct {
+	zfs.Runner
+	mu    sync.Mutex
+	calls [][]string
+}
+
+func (c *callRecorder) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	c.record(args)
+	return c.Runner.Run(ctx, name, args...)
+}
+
+func (c *callRecorder) record(args []string) {
+	if class, _ := callerOf(); class != "endpoint" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls = append(c.calls, slices.Clone(args))
+}
+
+type streamRecorder struct {
+	*callRecorder
+	s zfs.Streamer
+}
+
+func (c *streamRecorder) Stream(ctx context.Context, read func(io.Reader) error, name string, args ...string) error {
+	c.record(args)
+	return c.s.Stream(ctx, read, name, args...)
 }
