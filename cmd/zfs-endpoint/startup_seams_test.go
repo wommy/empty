@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
@@ -67,6 +68,16 @@ func TestStartupConfigRefusals(t *testing.T) {
 			}
 			t.Cleanup(unlock)
 		}, "already manages"},
+		// H-13: a symlink at a lock path is never followed
+		{"symlinked lock", nil, func(t *testing.T, d *deps) {
+			victim := filepath.Join(t.TempDir(), "victim")
+			if err := os.WriteFile(victim, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(victim, filepath.Join(d.lockDir, "tank.lock")); err != nil {
+				t.Fatal(err)
+			}
+		}, "symlink"},
 	} {
 		d, _ := simDeps(t)
 		if tc.edit != nil {
@@ -99,6 +110,33 @@ func TestDefaultSocketLimit(t *testing.T) {
 	dash := "tank/" + strings.Repeat("v", 77) + "-v"
 	if _, err := socketPath(listenAddr("", dash)); exitCode(err) != exitConfig {
 		t.Errorf("%q: exit %d %v", dash, exitCode(err), err)
+	}
+}
+
+// H-13: the lock open never follows a symlink, and leaves its target alone.
+func TestLockParentDoesNotFollowSymlinks(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim")
+	if err := os.WriteFile(victim, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"tank.lock", "tank%k8s.lock"} {
+		link := filepath.Join(dir, name)
+		if err := os.Symlink(victim, link); err != nil {
+			t.Fatal(err)
+		}
+		unlock, err := lockParent(dir, "tank/k8s")
+		if err == nil {
+			unlock()
+			t.Errorf("%s: opened a symlink at a lock path", name)
+		} else if exitCode(err) != exitConfig {
+			t.Errorf("%s: exit %d %v", name, exitCode(err), err)
+		}
+		os.Remove(link)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "keep" {
+		t.Errorf("victim now %q", b)
 	}
 }
 
@@ -144,7 +182,10 @@ func TestLockWaitZeroTriesOnce(t *testing.T) {
 	go func() {
 		done <- run(ctx, []string{"-parent", "tank/k8s", "-listen", "unix://" + sock, "-lock-wait", "0"}, d)
 	}()
-	conn, err := grpc.NewClient("unix://"+sock, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// a dial before the socket exists is retried after BaseDelay, not
+	// grpc's default 1s
+	conn, err := grpc.NewClient("unix://"+sock, grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.Config{BaseDelay: time.Millisecond, Multiplier: 2, MaxDelay: 10 * time.Millisecond}}))
 	if err != nil {
 		t.Fatal(err)
 	}

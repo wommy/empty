@@ -53,7 +53,14 @@ func lockParent(dir, parent string) (func(), error) {
 			return nil, configErr("parent %s: lock file name %s is %d bytes, over the %d a file name may have", parent, base, len(base), maxNameLen)
 		}
 		path := filepath.Join(dir, base)
-		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+		// never through a symlink: the open would create or lock its
+		// target instead. SecureDir leaves only root and this euid able
+		// to plant one, so this is hygiene; still, a restart cannot fix it.
+		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW, 0o600)
+		if errors.Is(err, syscall.ELOOP) {
+			unlock()
+			return nil, configErr("lock %s is a symlink: refusing to follow it", path)
+		}
 		if err != nil {
 			unlock()
 			return nil, err
