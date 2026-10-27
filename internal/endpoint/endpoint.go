@@ -114,6 +114,13 @@ type Config struct {
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.
 	Etab EtabReader
+	// DestroyForeignSnapshots lets DeleteVolume (and reconcile) destroy a
+	// volume together with snapshots the endpoint did not cut (no locally
+	// set csi_snapshot_name: an administrator's, a backup tool's, a
+	// received one). Default false: such a volume is refused with
+	// FailedPrecondition naming them (ADR 0003: never touch what you
+	// don't own).
+	DestroyForeignSnapshots bool
 }
 
 // Endpoint is the volume service.
@@ -153,7 +160,7 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		zfs:   z,
 		cfg:   cfg,
 		names: names,
-		plan:  Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize},
+		plan:  Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize, DestroyForeignSnapshots: cfg.DestroyForeignSnapshots},
 	}, nil
 }
 

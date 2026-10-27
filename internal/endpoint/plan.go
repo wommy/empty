@@ -59,6 +59,8 @@ type Planner struct {
 	Parent       string
 	Names        props
 	VolBlockSize uint64
+	// DestroyForeignSnapshots: Config.DestroyForeignSnapshots.
+	DestroyForeignSnapshots bool
 }
 
 func (p Planner) full(id string) string { return p.Parent + "/" + id }
@@ -369,6 +371,9 @@ func (p Planner) compatible(row Row, r CreateVolumeRequest, want uint64) error {
 // PlanDeleteVolume: missing is done; unmanaged, snapshotted (like the
 // baseline: CSI snapshots must outlive the call or it fails unchanged) or
 // cloned volumes are refused; an internal clone-source origin is released.
+// A volume with snapshots the endpoint did not cut is refused too, unless
+// DestroyForeignSnapshots: `zfs destroy -r` would take them, and they are
+// not the endpoint's (ADR 0003).
 func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	id, err := issuedVolumeID(volID)
 	if err != nil {
@@ -384,9 +389,13 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 	if !row.OwnedVolume() {
 		return nil, errorf(FailedPrecondition, "dataset %s is not managed", row.Name)
 	}
+	var foreign []string
 	for s := range t.SnapshotsOf(id) {
 		if s.SnapshotName != "" && !s.Deferred {
 			return nil, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
+		}
+		if s.SnapshotName == "" && !s.Deferred && !internalCloneSource(s) {
+			foreign = append(foreign, s.ID)
 		}
 		for c := range t.ClonesOf(s.Name) {
 			if !strings.HasPrefix(c.Name, row.Name+"/") {
@@ -394,11 +403,23 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 			}
 		}
 	}
+	if len(foreign) > 0 && !p.DestroyForeignSnapshots {
+		return nil, errorf(FailedPrecondition, "volume %s has snapshots the endpoint did not make: %s (delete them, or run with -destroy-foreign-snapshots)",
+			id, strings.Join(foreign, ", "))
+	}
 	plan := Plan{{Kind: OpDestroy, Target: row.Name, Recursive: true, OkMissing: true}}
 	if strings.Contains(row.Origin, "@"+cloneSourceSnapshotPrefix) {
 		plan = append(plan, Op{Kind: OpDestroy, Target: row.Origin, Defer: true, OkMissing: true})
 	}
 	return plan, nil
+}
+
+// internalCloneSource reports whether s is the snapshot a volume-to-volume
+// clone hangs off: cut by the endpoint, unmarked, under a reserved name
+// (PlanCreateSnapshot refuses that prefix for CSI names).
+func internalCloneSource(s Row) bool {
+	_, name, _ := strings.Cut(s.ID, "@")
+	return strings.HasPrefix(name, cloneSourceSnapshotPrefix)
 }
 
 // PlanExpandVolume grows to at least capacity; shrinking is a no-op.

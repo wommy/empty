@@ -38,6 +38,7 @@ func run() error {
 	prefix := flag.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
 	lockWait := flag.Duration("lock-wait", 30*time.Second, "max wait for a busy resource")
 	drain := flag.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
+	destroyForeign := flag.Bool("destroy-foreign-snapshots", false, "let DeleteVolume destroy snapshots the endpoint did not make along with their volume")
 	lockDir := flag.String("lock-dir", "/run/zfs-endpoint", "directory for the per-parent writer lock")
 	flag.Parse()
 	if *parent == "" {
@@ -67,7 +68,7 @@ func run() error {
 	// as the caller, and only root mounts. Without it the export calls stay
 	// unadvertised and UNIMPLEMENTED.
 	root := os.Geteuid() == 0
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign})
 	if err != nil {
 		return err
 	}
