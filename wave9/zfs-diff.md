@@ -58,7 +58,7 @@ Corpus coverage:
   - `FuzzDiff` for 2 minutes;
   - all 100 corpus sequences.
 - After the fixes:
-  - the final survey (seeds × steps, see the end of this file) shows no divergence beyond `Known`;
+  - the final survey (4,000 seeds × 40 steps, about 160,000 steps, 76,000 of them succeeding on the model) shows no divergence beyond `Known` (444 hits of `create-vol-resv-auto`);
   - the corpus shows 1 divergence, the `Known` one;
   - `go test -race ./...` passes, and so do `go vet` and `gofmt`.
 

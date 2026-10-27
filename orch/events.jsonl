@@ -45,3 +45,7 @@
 {"ts": "2026-10-27T06:51:35Z", "id": "a9650f942cd067cd8", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T06:53:42Z", "id": "a1f29cbd90f96571f", "from": "queued", "to": "running", "note": "w12-gaps"}
 {"ts": "2026-10-27T06:53:42Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:55:21Z", "id": "a06eea62fed2fe3ee", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:55:21Z", "id": "a06eea62fed2fe3ee", "from": "reported", "to": "triaged", "note": "10/10 probes reproduce at a02c5b0 (I ran them). 13 seams, 3 anomalies (S1,S2,S3). Planner items -> b-seam-plan; startup -> b-startup; S1 -> b-json-scan; S12 -> b-csi-bugs; S7 -> b-nfs-csi."}
+{"ts": "2026-10-27T06:55:21Z", "id": "a06eea62fed2fe3ee", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:55:31Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
