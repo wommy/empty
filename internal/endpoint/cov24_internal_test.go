@@ -6,6 +6,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/wommy/empty/internal/zfs"
 )
 
 // Item 7 (wave22): rootErr maps a failed OpSetRoot. A classified *Error
@@ -119,5 +123,106 @@ func TestReconcileRescanFailureDestroysNothing(t *testing.T) {
 	}
 	if scans != 2 || !h.has(a4Parent+"/a") {
 		t.Fatalf("%d scans; a destroyed: %v", scans, !h.has(a4Parent+"/a"))
+	}
+}
+
+// Item 10 (wave22): DeleteVolume's lock passes are bounded. A clone's
+// source held by another call through the whole delete is the lock error
+// of the second pass (Aborted, after LockWait). A delete that names a new
+// busy volume on each of its three passes (here: a stale clone-source
+// snapshot for it appears on another, busy, volume while it waits) gives
+// up Aborted "kept changing" rather than looping. Both leave the clone.
+// LockWait runs on the synctest bubble's fake clock.
+func TestDeleteVolumeLockPassesAreBounded(t *testing.T) {
+	ctx := context.Background()
+	t.Run("source held throughout", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ep, sim := cloneFixture(t, func(r zfs.Runner) zfs.Runner { return r })
+			ep.cfg.LockWait = time.Minute
+			release, ok := ep.locks.TryAcquire("vol:src")
+			if !ok {
+				t.Fatal("vol:src busy")
+			}
+			defer release()
+			err := ep.DeleteVolume(ctx, "clone")
+			if CodeOf(err) != Aborted || !strings.Contains(err.Error(), "operation pending") {
+				t.Fatalf("DeleteVolume(clone) with vol:src held: %v, want the lock wait's Aborted", err)
+			}
+			if !sim.Has("tank/v/clone") {
+				t.Fatal("clone destroyed")
+			}
+		})
+	})
+	t.Run("a new busy volume each pass", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ep, sim := cloneFixture(t, func(r zfs.Runner) zfs.Runner { return r })
+			ep.cfg.LockWait = time.Minute
+			z := zfs.New(sim)
+			for _, id := range []string{"s2", "s3"} {
+				if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: id, CapacityBytes: 10 << 20}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			stamp := map[string]string{ep.names.managed(): "true", ep.names.cloneSourceFor(): "clone"}
+			held := map[string]func(){}
+			hold := func(v string) {
+				r, ok := ep.locks.TryAcquire("vol:" + v)
+				if !ok {
+					t.Fatalf("vol:%s busy", v)
+				}
+				held[v] = r
+			}
+			hold("src")
+			done := make(chan error, 1)
+			go func() { done <- ep.DeleteVolume(ctx, "clone") }()
+			// each pass waits for the volume the previous one found busy;
+			// meanwhile another busy volume gains a source snapshot for clone
+			for _, next := range []string{"s2", "s3"} {
+				synctest.Wait()
+				if err := z.Snapshot(ctx, "tank/v/"+next+"@"+cloneSourceSnapshotPrefix+"clone", stamp); err != nil {
+					t.Fatal(err)
+				}
+				hold(next)
+				for v, r := range held {
+					if v != next {
+						r()
+						delete(held, v)
+					}
+				}
+			}
+			err := <-done
+			if CodeOf(err) != Aborted || !strings.Contains(err.Error(), "kept changing") {
+				t.Fatalf("DeleteVolume(clone): %v, want Aborted after three passes", err)
+			}
+			held["s3"]()
+			if !sim.Has("tank/v/clone") {
+				t.Fatal("clone destroyed")
+			}
+		})
+	})
+}
+
+// Item 10 (wave22): the wait for a whole-parent scan slot (maxWholeScans,
+// the namespace-deletion memory bound) ends with the caller's context:
+// DeadlineExceeded on its deadline, Aborted on a cancel.
+func TestWholeScanSlotWaitEndsWithTheContext(t *testing.T) {
+	t.Parallel()
+	h := newA4(t)
+	for range maxWholeScans {
+		h.ep.scans <- struct{}{}
+	}
+	expired, cancel1 := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer cancel1()
+	if _, _, err := h.ep.ListVolumes(expired, 0, ""); CodeOf(err) != DeadlineExceeded || !strings.Contains(err.Error(), "scan slot") {
+		t.Fatalf("expired: %v, want DeadlineExceeded waiting for a slot", err)
+	}
+	cancelled, cancel2 := context.WithCancel(context.Background())
+	cancel2()
+	if _, _, err := h.ep.ListVolumes(cancelled, 0, ""); CodeOf(err) != Aborted || !strings.Contains(err.Error(), "scan slot") {
+		t.Fatalf("cancelled: %v, want Aborted waiting for a slot", err)
+	}
+	<-h.ep.scans
+	if _, _, err := h.ep.ListVolumes(context.Background(), 0, ""); err != nil {
+		t.Fatalf("with a slot free: %v", err)
 	}
 }
