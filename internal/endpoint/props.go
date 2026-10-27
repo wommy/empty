@@ -118,8 +118,12 @@ var propRules = map[string]propRule{
 	"snapdir": {fs: true, canon: index(same("hidden", "visible", "disabled"))},
 	// copies only on zvols: on a filesystem the extra copies count against
 	// refquota (zfsprops.7, copies), so copies=2 would silently halve the
-	// capacity; a zvol's refreservation=auto already scales by copies
-	// (zvol_volsize_to_reservation)
+	// capacity. A zvol's refreservation=auto does not scale by copies:
+	// zvol_volsize_to_reservation reads copies only as a string, and the
+	// validated props of zfs create hold it as a uint64 (every other
+	// caller passes volblocksize alone), so a thick copies=N zvol reserves
+	// about volsize and the headroom guard counts just that
+	// (libzfs_dataset.c:5509, libzfs_util.c zprop_parse_value)
 	"copies":         {zvol: true, canon: index(same("1", "2", "3"))},
 	volblocksizeProp: {zvol: true, canon: blockSize(512, 128<<10)},
 }

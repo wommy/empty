@@ -1258,7 +1258,9 @@ func (s *Sim) hasRecvd(name string) bool {
 
 // autoResv is zvol_volsize_to_reservation (libzfs_dataset.c) for a pool of
 // plain or mirror vdevs, with ncopies 1: volsize plus two copies of every
-// indirect block (128K, 1024 pointers each) and 7 dnode blocks.
+// indirect block (128K, 1024 pointers each) and 7 dnode blocks. ncopies
+// is 1 whatever copies is: libzfs looks copies up as a string, and no
+// caller passes one (zfs create's validated props hold it as a uint64).
 func autoResv(volsize, volblocksize string) string {
 	n, err := strconv.ParseUint(volsize, 10, 64)
 	bs, err2 := strconv.ParseUint(volblocksize, 10, 64)

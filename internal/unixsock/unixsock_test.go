@@ -303,6 +303,57 @@ func TestShareWithGroupOpensOnlyTheSocketAndItsDirectory(t *testing.T) {
 	}
 }
 
+// A run killed between bindPrivate's MkdirTemp and its RemoveAll leaves
+// its private directory beside the socket. The restart must still share
+// the socket (a refusal is exit 78, which systemd does not restart), and
+// the leftover goes; anything else in the directory is still refused.
+func TestShareWithGroupSweepsALeftoverBindDirectory(t *testing.T) {
+	t.Parallel()
+	gid := os.Getegid()
+	if os.Geteuid() == 0 {
+		gid = 65534
+	}
+	dir := filepath.Join(t.TempDir(), "sock")
+	sock := filepath.Join(dir, "endpoint.sock")
+	leftover := filepath.Join(dir, ".3141592653")
+	if err := os.MkdirAll(leftover, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(leftover, "s"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l, err := unixsock.Listen(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if err := unixsock.ShareWithGroup(sock, gid); err != nil {
+		t.Fatalf("a leftover bind directory blocks the restart: %v", err)
+	}
+	if _, err := os.Lstat(leftover); !os.IsNotExist(err) {
+		t.Errorf("the leftover is still there: %v", err)
+	}
+	// not MkdirTemp's name, or not a directory: still refused, kept
+	for _, name := range []string{".x", ".12a", ".012", ".4294967296", "9"} {
+		other := filepath.Join(dir, name)
+		if err := os.Mkdir(other, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := unixsock.ShareWithGroup(sock, gid); err == nil {
+			t.Errorf("%s was taken for a leftover", other)
+		}
+		if err := os.Remove(other); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".42"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := unixsock.ShareWithGroup(sock, gid); err == nil {
+		t.Error("a file named like a leftover was taken for one")
+	}
+}
+
 // The escaping is systemd-escape's (expected values are its output), so %i
 // in zfs-endpoint@.service names the same socket as EndpointAddr.
 func TestSystemdEscape(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -152,6 +153,8 @@ func (l *listener) Close() error {
 // The directory must be the socket's own: it may hold nothing but the
 // socket. Opening a shared directory (/run, say) to a group would be
 // far wider than the socket, so it is refused, and nothing is changed.
+// The one exception is a private bind directory a killed run left
+// (leftoverBindDir): it is removed.
 // Without ShareWithGroup a socket stays 0600, whatever its directory's
 // mode: a directory a previous run opened keeps 0710, which grants no
 // connect.
@@ -164,9 +167,19 @@ func ShareWithGroup(path string, gid int) error {
 	if err != nil {
 		return err
 	}
+	var leftovers []string
 	for _, e := range ents {
-		if e.Name() != filepath.Base(path) {
+		switch {
+		case e.Name() == filepath.Base(path):
+		case leftoverBindDir(dir, e.Name()):
+			leftovers = append(leftovers, filepath.Join(dir, e.Name()))
+		default:
 			return fmt.Errorf("%s holds %s besides the socket: a socket group needs a directory of the socket's own", dir, e.Name())
+		}
+	}
+	for _, d := range leftovers {
+		if err := os.RemoveAll(d); err != nil {
+			return err
 		}
 	}
 	for _, step := range []struct {
@@ -181,6 +194,26 @@ func ShareWithGroup(path string, gid int) error {
 		}
 	}
 	return nil
+}
+
+// leftoverBindDir says whether name in dir is a private directory
+// bindPrivate made and a run killed before its RemoveAll left behind:
+// exactly MkdirTemp's name for the pattern "." (a dot, then a uint32 in
+// decimal), a real 0700 directory (not a symlink) owned by this euid.
+// Nobody else can have put anything in it. ShareWithGroup, which needs a
+// directory of the socket's own, removes it rather than refusing, so a
+// restart is not kept down (exit 78) by its own crashed predecessor.
+func leftoverBindDir(dir, name string) bool {
+	digits, ok := strings.CutPrefix(name, ".")
+	if n, err := strconv.ParseUint(digits, 10, 32); !ok || err != nil || strconv.FormatUint(n, 10) != digits {
+		return false
+	}
+	fi, err := os.Lstat(filepath.Join(dir, name))
+	if err != nil || !fi.IsDir() || fi.Mode().Perm() != 0o700 {
+		return false
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	return ok && int(st.Uid) == os.Geteuid()
 }
 
 // MaxPathLen is the longest socket path bind accepts: sockaddr_un's
