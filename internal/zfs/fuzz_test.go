@@ -35,3 +35,19 @@ func FuzzClassify(f *testing.F) {
 		}
 	})
 }
+
+// A user property value with a newline is printed raw by zfs get -Hp, so it
+// can forge lines for another dataset. Here pvc-a's csi_volume_name forges
+// ownership of victim; victim's own lines still follow, and the repeat must
+// fail the whole scan rather than let either line win.
+func TestParseColumnsRejectsForgedLines(t *testing.T) {
+	props := []string{"p:managed_resource", "p:csi_volume_name"}
+	out := []byte("tank/csi/pvc-a\tp:managed_resource\ttrue\tlocal\n" +
+		"tank/csi/pvc-a\tp:csi_volume_name\tx\tlocal\n" +
+		"tank/csi/victim\tp:managed_resource\ttrue\tlocal\n" + // forged
+		"tank/csi/victim\tp:managed_resource\t-\t-\n" +
+		"tank/csi/victim\tp:csi_volume_name\t-\t-\n")
+	if _, err := parseColumns(out, props); err == nil {
+		t.Fatal("forged duplicate line accepted")
+	}
+}

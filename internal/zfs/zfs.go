@@ -425,6 +425,7 @@ func parseColumns(out []byte, props []string) (*Columns, error) {
 	c := &Columns{Props: props}
 	row := map[string]int{}
 	unset := Prop{Value: "-", Source: "-"}
+	var seen []bool
 	for i, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
 		if line == "" {
 			continue
@@ -441,12 +442,22 @@ func parseColumns(out []byte, props []string) (*Columns, error) {
 			c.Names = append(c.Names, f[0])
 			for range props {
 				c.Cells = append(c.Cells, unset)
+				seen = append(seen, false)
 			}
 		}
 		j, ok := col[f[1]]
 		if !ok {
 			continue // a property we did not ask for
 		}
+		// zfs prints exactly one line per (dataset, property), and user
+		// property values are printed raw: a value with a newline can forge
+		// a line for another dataset, e.g. claiming ownership of it. The
+		// forged line always collides with that dataset's real one, so a
+		// repeat means the output cannot be trusted at all.
+		if seen[r*len(props)+j] {
+			return nil, fmt.Errorf("line %d: %s %s printed twice: a property value contains a newline", i+1, f[0], f[1])
+		}
+		seen[r*len(props)+j] = true
 		c.Cells[r*len(props)+j] = Prop{Value: line[len(f[0])+len(f[1])+2 : last], Source: line[last+1:]}
 	}
 	return c, nil
