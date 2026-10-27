@@ -3,27 +3,37 @@
 # image booted under KVM. GitHub has no runner for a non-LTS Ubuntu, and ZFS
 # lives in the kernel, so a container would test the host's ZFS instead.
 #
-# usage: ci/real-zfs-vm.sh <ubuntu-series> [image-build]
-#   ci/real-zfs-vm.sh stonking current      # Ubuntu 26.10 RC track, OpenZFS 2.4.x
+# usage: ci/real-zfs-vm.sh <ubuntu-series> [image-build] [openzfs-minor]
+#   ci/real-zfs-vm.sh stonking current 2.4  # Ubuntu 26.10 RC track, OpenZFS 2.4.x
 # Images come from the per-series tree (cloud-images.ubuntu.com/<series>/),
 # whose files are named <series>-server-cloudimg-amd64.img; the releases/
-# tree names them ubuntu-<version>-... instead.
+# tree names them ubuntu-<version>-... instead. The image is verified
+# against SHA256SUMS, itself verified with the Ubuntu cloud image key
+# (/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg, from ubuntu-keyring).
+# Both `zfs version` lines (userland and kmod) must be <openzfs-minor>.x.
 set -euo pipefail
 
 series=${1:?series, e.g. stonking}
 build=${2:-current}
+want=${3:-2.4}
 work=${RUNNER_TEMP:-/tmp}/zfsvm
+summary=${GITHUB_STEP_SUMMARY:-/dev/null}
+keyring=/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+pkgs=(endpoint server csi zfs)
 mkdir -p "$work"
 cd "$(git rev-parse --show-toplevel)"
 
-# test binaries: static, so the VM needs no Go toolchain
-for pkg in endpoint server csi; do
-  CGO_ENABLED=0 go test -c -o "$work/$pkg.test" "./internal/$pkg"
-done
-
+# image: verify the signed checksum list, then the image against it
+base="https://cloud-images.ubuntu.com/$series/$build"
+file="$series-server-cloudimg-amd64.img"
 img="$work/$series.img"
-url="https://cloud-images.ubuntu.com/$series/$build/$series-server-cloudimg-amd64.img"
-curl -fsSL --retry 3 -o "$img" "$url"
+curl -fsSL --retry 3 -o "$work/SHA256SUMS" "$base/SHA256SUMS"
+curl -fsSL --retry 3 -o "$work/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg"
+gpgv --keyring "$keyring" "$work/SHA256SUMS.gpg" "$work/SHA256SUMS"
+sum=$(awk -v f="$file" '$2 == f || $2 == "*" f { print $1 }' "$work/SHA256SUMS")
+[ -n "$sum" ] || { echo "$file is not in $base/SHA256SUMS" >&2; exit 1; }
+curl -fsSL --retry 3 -o "$img" "$base/$file"
+echo "$sum  $img" | sha256sum -c -
 qemu-img resize "$img" 20G
 
 ssh-keygen -q -t ed25519 -N '' -f "$work/key" <<<y >/dev/null
@@ -35,39 +45,89 @@ users:
     shell: /bin/bash
     ssh_authorized_keys: [$(cat "$work/key.pub")]
 package_update: true
-packages: [zfsutils-linux]
+packages: [zfsutils-linux, nfs-kernel-server]
 runcmd:
   - [modprobe, zfs]
+  - [systemctl, enable, --now, nfs-server]
 EOF
 cloud-localds "$work/seed.img" "$work/user-data"
 
+# boot first: the guest's apt install overlaps the test compile below
 # -display none, not -nographic: QEMU refuses -nographic with -daemonize
 qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 2 -display none \
   -drive file="$img",if=virtio -drive file="$work/seed.img",if=virtio,format=raw \
   -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n0 \
   -serial file:"$work/console.log" -daemonize -pidfile "$work/qemu.pid"
 
-# on failure, show what the guest printed: cloud-init and boot errors land there
-trap 'rc=$?; [ $rc -eq 0 ] || { echo "--- guest console (tail) ---"; tail -n 80 "$work/console.log" 2>/dev/null; }; [ -f "$work/qemu.pid" ] && kill "$(cat "$work/qemu.pid")" 2>/dev/null; exit $rc' EXIT
-
 common=(-i "$work/key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR)
 vm() { ssh "${common[@]}" -p 2222 ci@127.0.0.1 "$@"; }
 
-for _ in $(seq 1 90); do vm true 2>/dev/null && break; sleep 5; done
-# status exits non-zero on recoverable warnings; zfs version is the real check
-vm 'cloud-init status --wait >/dev/null || true; zfs version; uname -r'
+# on failure, show what the guest printed (console: boot errors) and, if it
+# answers, cloud-init's own account (apt failures land there); the workflow
+# uploads console.log as an artifact
+diag() {
+  echo "--- guest console (tail) ---"
+  tail -n 80 "$work/console.log" 2>/dev/null || true
+  echo "--- cloud-init (best effort) ---"
+  timeout 60 ssh "${common[@]}" -p 2222 ci@127.0.0.1 \
+    'cloud-init status --long; sudo tail -n 80 /var/log/cloud-init-output.log; sudo dmesg | grep -iE "zfs|spl|nfsd" | tail -n 20' || true
+}
+trap 'rc=$?; [ $rc -eq 0 ] || diag; [ -f "$work/qemu.pid" ] && kill "$(cat "$work/qemu.pid")" 2>/dev/null; exit $rc' EXIT
 
-scp "${common[@]}" -P 2222 "$work/endpoint.test" "$work/server.test" "$work/csi.test" ci@127.0.0.1:
+# test binaries: static, so the VM needs no Go toolchain; built as the
+# runner user, only the binaries run as root
+for pkg in "${pkgs[@]}"; do
+  CGO_ENABLED=0 go test -c -o "$work/$pkg.test" "./internal/$pkg"
+done
 
-vm 'set -e
-  truncate -s 20G vdev0
+up=
+for _ in $(seq 1 90); do vm true 2>/dev/null && { up=1; break; }; sleep 5; done
+[ -n "$up" ] || { echo "VM never became reachable over ssh" >&2; exit 1; }
+# status exits non-zero on recoverable warnings; the version, module and
+# nfsd checks below are the real gates
+vm 'cloud-init status --wait --long || true; cat /etc/cloud/build.info; uname -r'
+
+ver=$(vm 'zfs version 2>&1' || true) # a missing module fails below, with the output
+echo "$ver"
+serial=$(vm 'sed -n "s/^serial: *//p" /etc/cloud/build.info')
+{
+  echo "### real ZFS VM: $series/$build"
+  echo "- image serial: \`$serial\`, sha256 \`$sum\` (gpg-verified SHA256SUMS)"
+  echo "- kernel: \`$(vm 'uname -r')\`"
+  echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
+} >>"$summary"
+grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
+  || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
+vm 'n=$(cat /proc/fs/nfsd/threads 2>/dev/null || echo 0); echo "nfsd threads: $n"; [ "$n" -gt 0 ]' \
+  || { echo "nfs-server is not running in the VM" >&2; exit 1; }
+
+bins=()
+for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
+scp "${common[@]}" -P 2222 "${bins[@]}" ci@127.0.0.1:
+rc=0
+vm 'set -eo pipefail
+  # 10G on a 20G guest disk that also holds the OS: the sparse vdev must
+  # not outgrow the filesystem under it, or the pool suspends on ENOSPC
+  truncate -s 10G vdev0
   sudo zpool create -f -O compression=lz4 zfsep-test "$PWD/vdev0"
+  env=(ZFS_TEST_POOL=zfsep-test ZFS_REQUIRE_REAL=1)
   rc=0
-  sudo ZFS_TEST_POOL=zfsep-test ./endpoint.test -test.count=1 -test.v || rc=$?
-  sudo ZFS_TEST_POOL=zfsep-test ./server.test -test.count=1 -test.v || rc=$?
-  # csi-sanity, Identity and Controller groups, for filesystems and zvols
-  for at in mount block; do
-    sudo ZFS_TEST_POOL=zfsep-test CSI_SANITY_ACCESS_TYPE=$at ./csi.test -test.count=1 -test.v || rc=$?
+  for pkg in endpoint server zfs; do
+    sudo "${env[@]}" ./$pkg.test -test.count=1 -test.v 2>&1 | tee $pkg.log || rc=$?
   done
+  # csi-sanity, Identity and Controller groups, for filesystems and zvols;
+  # the non-sanity csi tests do not depend on the access type, run them once
+  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test -test.count=1 -test.v 2>&1 | tee csi-mount.log || rc=$?
+  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test -test.count=1 -test.v -test.run "^TestSanity\$" 2>&1 | tee csi-block.log || rc=$?
   sudo zpool destroy -f zfsep-test
-  exit $rc'
+  exit $rc' || rc=$?
+
+scp "${common[@]}" -P 2222 'ci@127.0.0.1:*.log' "$work/" || rc=1
+{
+  echo "| leg | package | skips | skipped tests |"
+  echo "|---|---|---|---|"
+} >>"$summary"
+for log in endpoint server zfs csi-mount csi-block; do
+  ci/check-skips.sh vm "${log%%-*}" "$work/$log.log" || rc=1
+done
+exit $rc

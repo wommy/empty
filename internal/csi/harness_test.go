@@ -35,6 +35,8 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
 				t.Errorf("cleanup %s: %v", parent, err)
 			}
 		})
+	} else if os.Getenv("ZFS_REQUIRE_REAL") != "" {
+		t.Fatal("ZFS_REQUIRE_REAL is set but ZFS_TEST_POOL is not: refusing the simulator fallback")
 	} else {
 		z = zfs.New(zfstest.New("tank"))
 		parent = "tank/vols"

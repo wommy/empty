@@ -1,0 +1,25 @@
+# Tests allowed to SKIP on the real-ZFS legs (the skip budget).
+# ci/check-skips.sh fails a leg when a test binary's -test.v output has a
+# `--- SKIP:` line whose test is not listed here for that leg and package, or
+# when the binary ran no test at all. A skip is not a pass: every entry is
+# something that leg does not measure, so keep the list short and say why.
+#
+# format: <leg> <package under internal/> <test name>   # reason
+# legs:   vm     ci/real-zfs-vm.sh (Ubuntu 26.10 under KVM, OpenZFS 2.4, the
+#                only supported version and the only real-ZFS leg)
+#
+# Derived from the t.Skip conditions at the time of writing:
+# - harness.Sim (internal/endpoint/endpoint_test.go) skips on a real pool;
+# - harness.NFS (internal/endpoint/export_contract_test.go) skips when
+#   /proc/fs/nfsd/threads is 0 or absent. The VM now starts nfs-server, so
+#   TestFileExportLifecycle and TestFileExportAdoptedVolumes must RUN and are
+#   deliberately not listed.
+# internal/server tests are wired to the simulator and never skip;
+# internal/zfs and internal/csi have no t.Skip. csi-sanity's own skipped
+# specs are Ginkgo skips inside TestSanity, not go test skips.
+
+vm    endpoint TestConcurrentCreatesSerialize          # Sim: call accounting
+vm    endpoint TestCloneResizeFailureConverges         # Sim: fault injection
+vm    endpoint TestMissingParentIsUnavailableNotAbsent # Sim: missing pool
+vm    endpoint TestReconcileLocksTargets               # Sim: parked runner
+vm    endpoint TestFileExportVerifiesKernelTable       # Sim: SetNFSDown

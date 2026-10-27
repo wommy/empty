@@ -8,16 +8,30 @@ on:
 permissions:
   contents: read
 
+# one run per PR: a new push cancels the old run; pushes to main all finish
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash # -eo pipefail, so `| tee` does not hide a failure
+
 jobs:
   unit:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
       - name: gofmt
         run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: go.mod and go.sum tidy
+        run: go mod tidy -diff
       - name: vet
         run: go vet ./...
       - name: test (simulator)
@@ -26,24 +40,51 @@ jobs:
         run: |
           go test -run '^$' -fuzz FuzzCreateConverges -fuzztime 20s ./internal/endpoint
           go test -run '^$' -fuzz FuzzParseColumns -fuzztime 10s ./internal/zfs
-      - name: proto lint and generated code up to date
+
+  proto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # buf is run at a pinned version rather than added as a go.mod tool:
+      # its large dependency tree would take part in this module's version
+      # selection (grpc, protobuf, x/...). `go run pkg@version` is verified
+      # against sum.golang.org and leaves no stale binary on PATH. The
+      # protoc plugins are go.mod tools (buf.gen.yaml runs `go tool ...`),
+      # so they always match the protobuf/grpc versions in go.sum.
+      BUF: go run github.com/bufbuild/buf/cmd/buf@v1.47.2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: buf lint
+        run: $BUF lint
+      - name: generated code up to date
         run: |
-          go install github.com/bufbuild/buf/cmd/buf@v1.47.2
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-          buf lint
-          buf generate
+          $BUF generate
+          test -z "$(gofmt -l gen | tee /dev/stderr)"
           git diff --exit-code -- gen/
+          test -z "$(git status --porcelain -- gen | tee /dev/stderr)"
 
   real-zfs:
-    # the contract tests against Ubuntu 26.10 (OpenZFS 2.4.x, what TrueNAS 27
-    # ships), booted under KVM: no hosted runner exists for it, and ZFS lives
-    # in the kernel, so a container would test the host's ZFS instead
+    # The real-ZFS gate: the contract tests, internal/zfs, and csi-sanity
+    # (mount and block) against Ubuntu 26.10 (OpenZFS 2.4.x, the only
+    # supported version, what TrueNAS 27 ships), with nfs-server running so
+    # the file-export tests hit a real nfsd. Booted under KVM: no hosted
+    # runner exists for it, and ZFS lives in the kernel, so a container
+    # would test the host's ZFS instead. The script asserts that `zfs
+    # version` reports 2.4.x for both userland and kmod, and enforces the
+    # skip budget in ci/expected-skips.txt.
+    name: real ZFS 2.4 (Ubuntu 26.10 VM)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
       - name: enable kvm
@@ -54,41 +95,18 @@ jobs:
       - name: install qemu
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
-      - name: test (Ubuntu 26.10, real zfs)
-        run: ci/real-zfs-vm.sh stonking current
-
-  real-zfs-noble:
-    # compatibility: the distro ZFS on the hosted runner (24.04)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils cloud-image-utils
+          # the cloud image signing key ships in ubuntu-keyring on 24.04
+          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+      - name: test (Ubuntu 26.10, real zfs 2.4)
+        run: ci/real-zfs-vm.sh stonking current 2.4
+      - name: upload VM console and test logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          go-version-file: go.mod
-      - name: install zfs
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zfsutils-linux
-          sudo modprobe zfs
-          zfs version
-      - name: create test pool
-        run: |
-          # sparse: thick zvols reserve space, the file uses none until written
-          truncate -s 20G "$RUNNER_TEMP/vdev0"
-          sudo zpool create -f -O compression=lz4 zfsep-test "$RUNNER_TEMP/vdev0"
-      - name: test (real zfs)
-        env:
-          ZFS_TEST_POOL: zfsep-test
-        run: sudo -E "$(command -v go)" test -count=1 -v ./internal/endpoint/... ./internal/server/...
-      - name: csi-sanity (real zfs, filesystems and zvols)
-        # Identity and Controller groups only; see internal/csi/sanity_test.go
-        env:
-          ZFS_TEST_POOL: zfsep-test
-        run: |
-          for at in mount block; do
-            CSI_SANITY_ACCESS_TYPE=$at sudo -E "$(command -v go)" test -count=1 -v ./internal/csi/...
-          done
-      - name: destroy test pool
-        if: always()
-        run: sudo zpool destroy -f zfsep-test || true
+          name: real-zfs-vm-logs
+          path: |
+            ${{ runner.temp }}/zfsvm/*.log
+            ${{ runner.temp }}/zfsvm/user-data
+          if-no-files-found: ignore
+          retention-days: 14

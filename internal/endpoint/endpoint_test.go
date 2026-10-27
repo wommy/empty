@@ -64,6 +64,8 @@ func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
 				t.Errorf("cleanup %s: %v", h.Parent, err)
 			}
 		})
+	} else if os.Getenv("ZFS_REQUIRE_REAL") != "" {
+		t.Fatal("ZFS_REQUIRE_REAL is set but ZFS_TEST_POOL is not: refusing the simulator fallback")
 	} else {
 		h.sim = zfstest.New("tank")
 		h.Z = zfs.New(h.sim)
