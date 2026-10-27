@@ -109,7 +109,6 @@ var rpcCallBudget = []rpcBudget{
 	}},
 	{"DeleteVolume absent", []string{
 		"get -t filesystem,volume,snapshot -d 1 <cols> P/d",
-		"get type P",
 		"get -t snapshot -d 2 type P",
 	}},
 }

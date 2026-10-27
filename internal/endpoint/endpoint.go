@@ -805,7 +805,9 @@ func (e *Endpoint) deleteLocked(ctx context.Context, volID string, vols *[]strin
 // The table covers those volumes and every such snapshot (srcsFor).
 // vol:<id> is held: no CreateVolume of id cuts a new one meanwhile.
 func (e *Endpoint) scanDelete(ctx context.Context, id string) (Table, error) {
-	t, err := e.scan(ctx, id)
+	// a missing volume's parent is proven by the listing of the parent
+	// right after, Unavailable when it is missing: no Exists of its own
+	t, _, err := e.scanUnproven(ctx, id)
 	if err != nil {
 		return Table{}, err
 	}
