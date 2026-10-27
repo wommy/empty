@@ -1,1 +1,1 @@
-{"id": "q-sim-facts", "name": "sim-facts", "lane": "writer", "wave": 18, "branch": "sim-facts", "report": null, "anomaly": false}
+{"id":"q-headroom-parent","name":"headroom-parent","lane":"writer","wave":21,"branch":"headroom-parent","report":"wave18/simfacts-spec.md (out-of-scope finding)","note":"headroom reads parent available: includes parent own unused refreservation, capped by parent refquota"}

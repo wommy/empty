@@ -1,0 +1,701 @@
+diff --git a/internal/endpoint/export_stale_test.go b/internal/endpoint/export_stale_test.go
+new file mode 100644
+index 0000000..3fd95f5
+--- /dev/null
++++ b/internal/endpoint/export_stale_test.go
+@@ -0,0 +1,45 @@
++package endpoint_test
++
++import (
++	"context"
++	"testing"
++)
++
++// zfs re-shares only through a changelist (libzfs_changelist.c
++// changelist_gather: mountpoint, sharenfs, sharesmb, canmount=off): a set
++// or inherit of any other property leaves a stale zfs.exports line as it
++// is, so only a sharenfs set (verifyExport's reshare) heals it. The stale
++// line is made with `zfs set -u sharenfs` (CL_GATHER_DONT_UNMOUNT: no
++// share), and read back from the kernel's export table.
++func TestFileExportStaleShareOnlySharenfsHeals(t *testing.T) {
++	ctx := context.Background()
++	_, h := setup(t)
++	h.NFS(t)
++	run := func(args ...string) {
++		t.Helper()
++		if _, err := h.Z.Runner.Run(ctx, "zfs", args...); err != nil {
++			t.Fatalf("zfs %v: %v", args, err)
++		}
++	}
++	ds := h.Parent + "/stale"
++	run("create", "-o", "sharenfs=rw=10.0.0.1/32", ds)
++	mp := h.Prop(ds, "mountpoint")
++	want := func(when, served, not string) {
++		t.Helper()
++		if _, ok := h.served(t, mp, served); !ok {
++			t.Fatalf("%s: %s not served", when, served)
++		}
++		if _, ok := h.served(t, mp, not); ok {
++			t.Fatalf("%s: %s served", when, not)
++		}
++	}
++	want("created", "10.0.0.1", "10.0.0.2")
++	run("set", "-u", "sharenfs=rw=10.0.0.2/32", ds)
++	want("set -u sharenfs", "10.0.0.1", "10.0.0.2")
++	run("set", "factcheck:x=1", ds)
++	run("set", "atime=off", ds)
++	run("inherit", "factcheck:x", ds)
++	want("set and inherit of other properties", "10.0.0.1", "10.0.0.2")
++	run("set", "sharenfs=rw=10.0.0.2/32", ds)
++	want("sharenfs set again", "10.0.0.2", "10.0.0.1")
++}
+diff --git a/internal/endpoint/realfacts_test.go b/internal/endpoint/realfacts_test.go
+index 12f09cb..0220163 100644
+--- a/internal/endpoint/realfacts_test.go
++++ b/internal/endpoint/realfacts_test.go
+@@ -18,6 +18,7 @@ import (
+ 	"fmt"
+ 	"os"
+ 	"strconv"
++	"strings"
+ 	"testing"
+ 	"time"
+ 
+@@ -305,6 +306,116 @@ var facts = []fact{
+ 		f.zfs("destroy", "-d", f.p+"/a@s")
+ 		return f.zfs("clone", f.p+"/a@s", f.p+"/c")
+ 	}},
++	// libzfs reads copies for the thick reservation as a string
++	// (zvol_volsize_to_reservation: nvlist_lookup_string), but zfs create
++	// hands it real_props, where zfs_valid_proplist made the index a
++	// uint64: ncopies stays 1 (settled in wave18; the Sim's autoResv
++	// ignores copies on purpose)
++	{row: "VOL-12", what: "`create -V 1M -o copies=2` reserves what copies=1 does", check: func(f *factEnv) error {
++		if err := f.zfs("create", "-V", "1048576", f.p+"/one"); err != nil {
++			return err
++		}
++		if err := f.zfs("create", "-V", "1048576", "-o", "copies=2", f.p+"/two"); err != nil {
++			return err
++		}
++		one, _ := f.get(f.p+"/one", "refreservation")
++		two, _ := f.get(f.p+"/two", "refreservation")
++		if one == "" || one == "0" || two != one {
++			return fmt.Errorf("refreservation copies=1 %q, copies=2 %q; want equal and nonzero", one, two)
++		}
++		return nil
++	}},
++	// the space and mount rows of wave18 (simfacts-spec.md)
++	{row: "SPC-01", what: "a reservation leaves its dataset's available unchanged; a child's refreservation inside it is charged once; a refreservation is its own dataset's available",
++		check: func(f *factEnv) error {
++			g, p, c := f.p, f.p+"/p", f.p+"/p/c"
++			if err := f.zfs("set", "quota=268435456", g); err != nil {
++				return err
++			}
++			if err := f.zfs("create", "-o", "reservation=67108864", p); err != nil {
++				return err
++			}
++			if err := availNear(f, p, 256<<20); err != nil {
++				return fmt.Errorf("after the reservation: %w", err)
++			}
++			if err := f.zfs("create", "-o", "refreservation=33554432", c); err != nil {
++				return err
++			}
++			if err := availNear(f, p, 224<<20); err != nil {
++				return fmt.Errorf("after the child's refreservation: %w", err)
++			}
++			return availNear(f, c, 256<<20)
++		}},
++	{row: "SPC-02", what: "refquota caps available", check: func(f *factEnv) error {
++		if err := f.zfs("create", "-o", "refquota=16777216", f.p+"/d"); err != nil {
++			return err
++		}
++		return availNear(f, f.p+"/d", 16<<20)
++	}},
++	{row: "MNT-01", what: "canmount=off on a mounted filesystem with a pinned child mounted inside it fails busy, and changes nothing",
++		check: func(f *factEnv) error {
++			p := f.p + "/p"
++			if err := f.zfs("create", p); err != nil {
++				return err
++			}
++			mp, err := f.get(p, "mountpoint")
++			if err != nil {
++				return err
++			}
++			if err := f.zfs("create", "-o", "mountpoint="+mp+"/b", p+"/b"); err != nil {
++				return err
++			}
++			if err := f.z.Set(context.Background(), p, map[string]string{"canmount": "off"}); !errors.Is(err, zfs.ErrBusy) {
++				return fmt.Errorf("set canmount=off: %v, want busy", err)
++			}
++			for name, want := range map[string]string{p + "/mounted": "yes", p + "/canmount": "on", p + "/b/mounted": "yes"} {
++				ds, prop := name[:strings.LastIndex(name, "/")], name[strings.LastIndex(name, "/")+1:]
++				if v, _ := f.get(ds, prop); v != want {
++					return fmt.Errorf("%s %s=%q, want %q", ds, prop, v, want)
++				}
++			}
++			return nil
++		}},
++	{row: "MNT-02", what: "a mountpoint change refused busy by a pinned child remounts the inherited children it had unmounted",
++		check: func(f *factEnv) error {
++			p := f.p + "/p"
++			f.zfs("create", p)
++			f.zfs("create", p+"/a")
++			mp, err := f.get(p, "mountpoint")
++			if err != nil {
++				return err
++			}
++			if err := f.zfs("create", "-o", "mountpoint="+mp+"/b", p+"/b"); err != nil {
++				return err
++			}
++			if err := f.z.Set(context.Background(), p, map[string]string{"mountpoint": mp + "-moved"}); !errors.Is(err, zfs.ErrBusy) {
++				return fmt.Errorf("set mountpoint: %v, want busy", err)
++			}
++			if v, _ := f.get(p+"/a", "mounted"); v != "yes" {
++				return fmt.Errorf("inherited child mounted=%q after the refused move, want yes", v)
++			}
++			if v, _ := f.get(p, "mountpoint"); v != mp {
++				return fmt.Errorf("mountpoint %q after the refused move, want %q", v, mp)
++			}
++			return nil
++		}},
++}
++
++// availNear: name's available is want within 1 MiB (the real pool's
++// metadata: referenced, unique; the Sim takes both as 0).
++func availNear(f *factEnv, name string, want uint64) error {
++	v, err := f.get(name, "available")
++	if err != nil {
++		return err
++	}
++	got, err := strconv.ParseUint(v, 10, 64)
++	if err != nil {
++		return err
++	}
++	if d := int64(got) - int64(want); d > 1<<20 || d < -(1<<20) {
++		return fmt.Errorf("%s available %d, want %d (1 MiB)", name, got, want)
++	}
++	return nil
+ }
+ 
+ func TestRealFacts(t *testing.T) {
+diff --git a/internal/zfs/zfsdiff/cmds.go b/internal/zfs/zfsdiff/cmds.go
+index e79fa36..809bf66 100644
+--- a/internal/zfs/zfsdiff/cmds.go
++++ b/internal/zfs/zfsdiff/cmds.go
+@@ -2,6 +2,7 @@ package zfsdiff
+ 
+ import (
+ 	"fmt"
++	"math"
+ 	"slices"
+ 	"sort"
+ 	"strconv"
+@@ -138,54 +139,41 @@ func (m *Model) validProps(list []kv, typ kind, zhp *dset, errbuf string) ([]pva
+ 
+ const enospc = "ENOSPC"
+ 
+-// reserved sums reservations charged against the pool (approximation of
+-// dsl_dir space accounting with referenced = 0).
+-func (m *Model) reserved() uint64 {
+-	var n uint64
+-	for _, d := range m.ds {
+-		if d.kind == kSnap {
+-			continue
+-		}
+-		n += num(m.effective(d, "refreservation"))
+-		n += num(m.effective(d, "reservation"))
++// dirUsed is dd_used_bytes with referenced and unique 0 (module/zfs/
++// dsl_dir.c dsl_dir_diduse_transfer_space): d's refreservation plus, per
++// child, the larger of its used and its reservation.
++func (m *Model) dirUsed(d *dset) uint64 {
++	n := num(m.effective(d, "refreservation"))
++	for _, c := range m.childrenOf(d.name) {
++		n += max(m.dirUsed(c), num(m.effective(c, "reservation")))
+ 	}
+ 	return n
+ }
+ 
+-func (m *Model) available(d *dset) uint64 {
+-	r := m.reserved()
+-	avail := uint64(0)
+-	if r < m.PoolFree {
+-		avail = m.PoolFree - r
+-	}
+-	// dsl_dir_space_available (module/zfs/dsl_dir.c:1240-1310) caps by
+-	// every ancestor's quota
+-	for x := d; x != nil; x = m.ds[parentName(x.name)] {
+-		if q := num(m.effective(x, "quota")); q > 0 {
+-			u := m.dirUsed(x)
+-			if q < u {
+-				return 0
+-			}
+-			avail = min(avail, q-u)
+-		}
+-	}
+-	return avail
+-}
+-
+-// dirUsed approximates dd_used for the quota check: the refreservations
+-// of every head under d plus descendants' reservations.
+-func (m *Model) dirUsed(d *dset) uint64 {
+-	var n uint64
+-	for k, x := range m.ds {
+-		if x.kind == kSnap || !under(k, d.name) {
+-			continue
+-		}
+-		n += num(m.effective(x, "refreservation"))
+-		if x != d {
+-			n += num(m.effective(x, "reservation"))
+-		}
+-	}
+-	return n
++// dirAvail is dsl_dir_space_available(dd, NULL, 0, TRUE) (dsl_dir.c:
++// 1198-1250): the parent's space plus d's unused reservation, capped by
++// d's quota; at the pool root the quota is PoolFree.
++func (m *Model) dirAvail(d *dset) uint64 {
++	parentspace := uint64(math.MaxUint64)
++	p := m.ds[parentName(d.name)]
++	if p != nil {
++		parentspace = m.dirAvail(p)
++	}
++	quota := uint64(math.MaxUint64)
++	if q := num(m.effective(d, "quota")); q > 0 {
++		quota = q
++	}
++	if p == nil {
++		quota = min(quota, m.PoolFree)
++	}
++	used := m.dirUsed(d)
++	if r := num(m.effective(d, "reservation")); r > used && parentspace != math.MaxUint64 {
++		parentspace += r - used
++	}
++	if used > quota {
++		return 0
++	}
++	return min(parentspace, quota-used)
+ }
+ 
+ // setSpecial is zfs_prop_set_special (module/zfs/zfs_ioctl.c:2625-2720)
+@@ -211,7 +199,7 @@ func (m *Model) setSpecial(d *dset, p pval) (string, bool) {
+ 			if d.kind == kFS {
+ 				rq = num(m.effective(d, "refquota"))
+ 			}
+-			if newval-cur > m.available(d) || rq > 0 && newval > rq {
++			if newval-cur > m.dirAvail(d) || rq > 0 && newval > rq {
+ 				return enospc, true
+ 			}
+ 		}
+@@ -222,13 +210,22 @@ func (m *Model) setSpecial(d *dset, p pval) (string, bool) {
+ 		}
+ 	case "reservation":
+ 		// dsl_dir_set_reservation_check (dsl_dir.c:1830-1870)
+-		cur := num(m.effective(d, "reservation"))
+-		if newval > cur {
++		// :1795-1820: delta = MAX(used, new) - MAX(used, old) against
++		// the parent's space (PoolFree less used at the root)
++		used := m.dirUsed(d)
++		cur := max(used, num(m.effective(d, "reservation")))
++		if nv := max(used, newval); nv > cur {
++			avail := uint64(0)
++			if p := m.ds[parentName(d.name)]; p != nil {
++				avail = m.dirAvail(p)
++			} else if used < m.PoolFree {
++				avail = m.PoolFree - used
++			}
+ 			q := uint64(0)
+ 			if d.kind == kFS {
+ 				q = num(m.effective(d, "quota"))
+ 			}
+-			if newval-cur > m.available(d) || q > 0 && newval > q {
++			if nv-cur > avail || q > 0 && newval > q {
+ 				return enospc, true
+ 			}
+ 		}
+diff --git a/internal/zfs/zfsdiff/testdata/zfsdiff/quota-over-child-resv-and-refresv.txt b/internal/zfs/zfsdiff/testdata/zfsdiff/quota-over-child-resv-and-refresv.txt
+new file mode 100644
+index 0000000..36709bb
+--- /dev/null
++++ b/internal/zfs/zfsdiff/testdata/zfsdiff/quota-over-child-resv-and-refresv.txt
+@@ -0,0 +1,8 @@
++# a child's reservation and refreservation are charged to its parent as
++# the larger of the two, not their sum (dsl_dir_set_quota_check on
++# dd_used_bytes)
++# covers: quota
++zfs create $R/g
++zfs create -o reservation=10485760 -o refreservation=10485760 $R/g/p
++zfs set quota=15728640 $R/g
++zfs set quota=5242880 $R/g
+diff --git a/internal/zfs/zfsdiff/testdata/zfsdiff/resv-grow-into-parent-resv.txt b/internal/zfs/zfsdiff/testdata/zfsdiff/resv-grow-into-parent-resv.txt
+new file mode 100644
+index 0000000..a690c60
+--- /dev/null
++++ b/internal/zfs/zfsdiff/testdata/zfsdiff/resv-grow-into-parent-resv.txt
+@@ -0,0 +1,9 @@
++# a refreservation grows into its parent's unused reservation: the
++# parent's reservation is charged to the grandparent once, not again for
++# the child (dsl_dir_space_available, dsl_dataset_set_refreservation_check)
++# covers: quota
++zfs create -o quota=104857600 $R/g
++zfs create -o reservation=62914560 $R/g/p
++zfs create -o refreservation=41943040 $R/g/p/c
++zfs set refreservation=83886080 $R/g/p/c
++zfs set refreservation=115343360 $R/g/p/c
+diff --git a/internal/zfs/zfstest/sim.go b/internal/zfs/zfstest/sim.go
+index 69f8054..4067dae 100644
+--- a/internal/zfs/zfstest/sim.go
++++ b/internal/zfs/zfstest/sim.go
+@@ -48,6 +48,7 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"maps"
++	"math"
+ 	"path/filepath"
+ 	"slices"
+ 	"sort"
+@@ -778,12 +779,22 @@ func (s *Sim) spaceCheck(name, prop, value string) string {
+ 		if nv != 0 && (nv < get("reservation") || nv < s.dirUsed(name)) {
+ 			return less
+ 		}
+-	case "refreservation", "reservation":
+-		limit := "refquota"
+-		if prop == "reservation" {
+-			limit = "quota"
++	case "refreservation":
++		// unique is 0: delta is new less old
++		if cur := get(prop); nv > cur && (nv-cur > s.dirAvail(name) || get("refquota") > 0 && nv > get("refquota")) {
++			return more
+ 		}
+-		if cur := get(prop); nv > cur && (nv-cur > s.available(name) || get(limit) > 0 && nv > get(limit)) {
++	case "reservation":
++		// delta = MAX(used, new) - MAX(used, old), against the parent's
++		// space (the pool's adjusted size less used at the root)
++		used := s.dirUsed(name)
++		avail := uint64(0)
++		if p := parent(name); p != "" {
++			avail = s.dirAvail(p)
++		} else if used < s.PoolSize {
++			avail = s.PoolSize - used
++		}
++		if a, b := max(used, nv), max(used, get(prop)); a > b && (a-b > avail || get("quota") > 0 && nv > get("quota")) {
+ 			return more
+ 		}
+ 	}
+@@ -816,44 +827,54 @@ func (s *Sim) num(name, prop string) uint64 {
+ 	return v
+ }
+ 
+-// dirUsed approximates a dataset's dd_used_bytes with empty datasets: the
+-// refreservations of the heads under it and its descendants'
+-// reservations.
++// dirUsed is a dataset's dd_used_bytes with empty datasets (referenced
++// and unique taken as 0): its own refreservation (usedbyrefreservation)
++// plus what each child dir charges it, the larger of the child's used and
++// its reservation (dsl_dir.c dsl_dir_diduse_transfer_space: a reservation
++// is charged to the parent only above what the child uses).
+ func (s *Sim) dirUsed(name string) uint64 {
+-	var u uint64
+-	for _, k := range append([]string{name}, s.children(name)...) {
+-		if s.ds[k].typ == zfs.TypeSnapshot {
++	u := s.num(name, "refreservation")
++	for _, k := range s.children(name) {
++		if parent(k) != name || s.ds[k].typ == zfs.TypeSnapshot {
+ 			continue
+ 		}
+-		u += s.num(k, "refreservation")
+-		if k != name {
+-			u += s.num(k, "reservation")
+-		}
++		u += max(s.dirUsed(k), s.num(k, "reservation"))
+ 	}
+ 	return u
+ }
+ 
+-// available approximates dsl_dir_space_available: the pool's free space
+-// less every reservation, capped by each ancestor's quota.
+-func (s *Sim) available(name string) uint64 {
+-	var used uint64
+-	for k, n := range s.ds {
+-		if n.typ != zfs.TypeSnapshot {
+-			used += s.num(k, "refreservation") + s.num(k, "reservation")
+-		}
++// dirAvail is dsl_dir_space_available(dd, NULL, 0, TRUE) (dsl_dir.c):
++// the parent's space plus this dir's unused reservation, capped by its
++// quota; at the root the quota is the pool's size.
++func (s *Sim) dirAvail(name string) uint64 {
++	parentspace := uint64(math.MaxUint64)
++	if p := parent(name); p != "" {
++		parentspace = s.dirAvail(p)
+ 	}
+-	avail := uint64(0)
+-	if used < s.PoolSize {
+-		avail = s.PoolSize - used
++	quota := uint64(math.MaxUint64)
++	if q := s.num(name, "quota"); q > 0 {
++		quota = q
+ 	}
+-	for p := name; p != ""; p = parent(p) {
+-		if q := s.num(p, "quota"); q > 0 {
+-			u := s.dirUsed(p)
+-			if q < u {
+-				return 0
+-			}
+-			avail = min(avail, q-u)
+-		}
++	if parent(name) == "" {
++		quota = min(quota, s.PoolSize)
++	}
++	used := s.dirUsed(name)
++	if r := s.num(name, "reservation"); r > used && parentspace != math.MaxUint64 {
++		parentspace += r - used
++	}
++	if used > quota {
++		return 0
++	}
++	return min(parentspace, quota-used)
++}
++
++// available is dsl_dataset_space's availbytes: the dir's space plus the
++// head's unused refreservation (all of it: unique is 0), capped by its
++// refquota less referenced (0).
++func (s *Sim) available(name string) uint64 {
++	avail := s.dirAvail(name) + s.num(name, "refreservation")
++	if rq := s.num(name, "refquota"); rq > 0 {
++		avail = min(avail, rq)
+ 	}
+ 	return avail
+ }
+@@ -1108,23 +1129,21 @@ func (s *Sim) set(args []string) error {
+ 			list[i].v = autoResv(vs, s.volblocksize(n))
+ 		}
+ 	}
+-	var cls []string
++	// zfs_prop_set_list_flags: a changelist per property; only
++	// mountpoint, the share properties and canmount=off on a mounted
++	// filesystem gather nodes (changelist_gather), and -u
++	// (CL_GATHER_DONT_UNMOUNT) does neither prefix nor postfix
++	var cls []*clist
+ 	for _, p := range list {
+ 		switch {
+ 		case noMount || n.typ != zfs.TypeFilesystem:
+-		case p.k == "mountpoint" || p.k == "sharenfs" || p.k == "sharesmb":
+-			cls = append(cls, p.k)
+-		case p.k == "canmount" && p.v == "off":
+-			// only canmount=off goes through the changelist, and it
+-			// unmounts (zfs_prop_set_list_flags)
+-			n.mounted = false
+-		}
+-	}
+-	was := map[string]map[string]bool{}
+-	for _, c := range cls {
+-		var err error
+-		if was[c], err = s.prefix(name, c); err != nil {
+-			return err
++		case p.k == "mountpoint" || p.k == "sharenfs" || p.k == "sharesmb",
++			p.k == "canmount" && p.v == "off" && n.mounted:
++			cl := s.gather(name, p.k)
++			if err := s.prefix(cl); err != nil {
++				return err
++			}
++			cls = append(cls, cl)
+ 		}
+ 	}
+ 	// zfs_set_prop_nvlist: the space properties are set one by one in
+@@ -1146,13 +1165,9 @@ func (s *Sim) set(args []string) error {
+ 	if len(errs) > 0 {
+ 		return exit("%s", strings.Join(errs, "\n"))
+ 	}
+-	for _, c := range cls {
+-		s.postfix(c, was[c])
+-	}
+-	if noMount {
+-		return nil // -u: no changelist postfix, so no mount and no (re)share
++	for _, cl := range cls {
++		s.postfix(cl)
+ 	}
+-	s.reshare(name)
+ 	return nil
+ }
+ 
+@@ -1207,11 +1222,10 @@ func (s *Sim) inherit(args []string) error {
+ 		if _, bad := misfit(map[string]string{prop: ""}, tn.typ); bad {
+ 			continue
+ 		}
+-		cl := tn.typ == zfs.TypeFilesystem && (prop == "mountpoint" || prop == "sharenfs" || prop == "sharesmb")
+-		var was map[string]bool
+-		if cl {
+-			var err error
+-			if was, err = s.prefix(t, prop); err != nil {
++		var cl *clist
++		if tn.typ == zfs.TypeFilesystem && (prop == "mountpoint" || prop == "sharenfs" || prop == "sharesmb") {
++			cl = s.gather(t, prop)
++			if err := s.prefix(cl); err != nil {
+ 				return err
+ 			}
+ 		}
+@@ -1227,11 +1241,10 @@ func (s *Sim) inherit(args []string) error {
+ 			}
+ 			tn.inh[prop] = true
+ 		}
+-		if cl {
+-			s.postfix(prop, was)
++		if cl != nil {
++			s.postfix(cl)
+ 		}
+ 	}
+-	s.reshare(name)
+ 	return nil
+ }
+ 
+@@ -1659,53 +1672,125 @@ func (s *Sim) changelist(name, prop string) []string {
+ 	return out
+ }
+ 
+-// prefix is changelist_prefix: a mountpoint change unmounts every node,
+-// deepest mountpoint first (compare_mountpoints). It returns which nodes
+-// were mounted. A node with a filesystem mounted below its mountpoint that
+-// is not in the list (its own mountpoint and sharenfs set locally, as
+-// every endpoint volume has) cannot unmount: the change fails busy before
+-// anything is set, and the nodes unmounted before it stay unmounted, since
+-// that path runs no postfix.
+-func (s *Sim) prefix(name, prop string) (map[string]bool, error) {
+-	cl := s.changelist(name, prop)
+-	was := map[string]bool{}
+-	for _, k := range cl {
+-		was[k] = s.ds[k].mounted
+-	}
+-	if prop != "mountpoint" {
+-		return was, nil
++// clist is a gathered changelist (libzfs_changelist.c prop_changelist_t):
++// prop is cl_prop (canmount gathers as mountpoint), real cl_realprop.
++type clist struct {
++	prop, real string
++	nodes      []string        // deepest mountpoint first for mountpoint
++	mounted    map[string]bool // cn_mounted
++	shared     map[string]bool // cn_shared
++	needpost   map[string]bool // cn_needpost
++}
++
++// gather is changelist_gather for real at name.
++func (s *Sim) gather(name, real string) *clist {
++	prop := real
++	if real == "canmount" {
++		prop = "mountpoint"
++	}
++	cl := &clist{prop: prop, real: real, mounted: map[string]bool{}, shared: map[string]bool{}, needpost: map[string]bool{}}
++	cl.nodes = s.changelist(name, prop)
++	for _, k := range cl.nodes {
++		cl.mounted[k] = s.ds[k].mounted
++		_, cl.shared[k] = s.shared[k]
++		cl.needpost[k] = true
++	}
++	if prop == "mountpoint" {
++		mp := func(k string) string { v, _, _ := s.value(k, "mountpoint"); return v }
++		slices.SortStableFunc(cl.nodes, func(a, b string) int { return strings.Compare(mp(b), mp(a)) })
++	}
++	return cl
++}
++
++// prefix is changelist_prefix: for a mountpoint changelist every node is
++// unmounted (zfs_unmount: unshare, commit, umount), deepest mountpoint
++// first. A node with a filesystem mounted below its mountpoint that is not
++// in the list (a pinned child: its own mountpoint set locally) cannot
++// unmount: zfs_unmount shares it again, the nodes after it are left alone,
++// and changelist_postfix remounts and reshares the nodes before it; the
++// change then fails busy before anything is set.
++func (s *Sim) prefix(cl *clist) error {
++	if cl.prop != "mountpoint" {
++		return nil
+ 	}
+ 	mp := func(k string) string { v, _, _ := s.value(k, "mountpoint"); return v }
+-	slices.SortStableFunc(cl, func(a, b string) int { return strings.Compare(mp(b), mp(a)) })
+-	for _, k := range cl {
+-		if !s.ds[k].mounted {
++	for i, k := range cl.nodes {
++		if !s.mounted(k) {
+ 			continue
+ 		}
+ 		dir := mp(k)
+ 		for o, n := range s.ds {
+ 			if n.mounted && o != k && strings.HasPrefix(mp(o), dir+"/") {
+-				return was, exit("cannot unmount '%s': pool or dataset is busy", dir)
++				cl.needpost[k] = false
++				for _, r := range cl.nodes[i+1:] {
++					cl.needpost[r] = false
++				}
++				if s.unshare(k) {
++					s.exportfs()
++				}
++				s.shareOne(k)
++				s.postfix(cl)
++				return exit("cannot unmount '%s': pool or dataset is busy", dir)
+ 			}
+ 		}
++		if s.unshare(k) {
++			s.exportfs()
++		}
+ 		s.ds[k].mounted = false
+ 	}
+-	return was, nil
++	return nil
+ }
+ 
+-// postfix is changelist_postfix: a node that is not mounted is mounted
+-// when it was mounted before, or when canmount=on and the property is
+-// mountpoint or a share property is on.
+-func (s *Sim) postfix(prop string, was map[string]bool) {
+-	for k, wasMounted := range was {
++// postfix is changelist_postfix: walking the nodes in reverse (parents
++// first), a node that is not mounted is mounted when it was mounted
++// before, or when canmount=on and the property is mountpoint itself or a
++// share property is on; then a mounted node with sharenfs on is shared and
++// an unmounted one that was shared is unshared. exportfs runs when any node
++// was (un)shared, so an empty changelist runs nothing.
++func (s *Sim) postfix(cl *clist) {
++	commit := false
++	for i := len(cl.nodes) - 1; i >= 0; i-- {
++		k := cl.nodes[i]
+ 		n := s.ds[k]
+-		if n == nil || n.mounted || !s.mountable(k) {
++		if n == nil || !cl.needpost[k] {
++			continue
++		}
++		cl.needpost[k] = false
++		if n.typ != zfs.TypeFilesystem {
+ 			continue
+ 		}
+ 		nfs, _, _ := s.value(k, "sharenfs")
+ 		smb, _, _ := s.value(k, "sharesmb")
+-		if wasMounted || (prop == "mountpoint" || nfs != "off" || smb != "off") && s.canmount(k) == "on" {
++		if !n.mounted && s.mountable(k) && (cl.mounted[k] || (cl.prop == "mountpoint" && cl.real == "mountpoint" || nfs != "off" || smb != "off") && s.canmount(k) == "on") {
+ 			n.mounted = true
+ 		}
++		switch {
++		case nfs != "off" && n.mounted:
++			s.shareOne(k)
++			commit = true
++		case cl.shared[k]:
++			s.unshare(k)
++			commit = true
++		}
++	}
++	if commit && !s.nfsDown {
++		s.exportfs()
++	}
++}
++
++// shareOne is zfs_share for NFS: writes name's zfs.exports line when it
++// is mountable, mounted and sharenfs is on (no exportfs).
++func (s *Sim) shareOne(name string) {
++	if s.nfsDown || !s.mounted(name) || !s.mountable(name) {
++		return
++	}
++	v, _, _ := s.value(name, "sharenfs")
++	if v == "off" {
++		return
++	}
++	mp, _, _ := s.value(name, "mountpoint")
++	if f, err := nfsref.ShareFile(s.exports, mp, v); err == nil {
++		s.exports, s.shared[name] = f, mp
+ 	}
+ }
+ 

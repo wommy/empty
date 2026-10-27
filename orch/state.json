@@ -1,6 +1,6 @@
 {
- "ci": "pending d0aae91",
- "head": "local merge of 548afe7 on d0aae91",
+ "ci": "pending; 8a9784d measures quiet guest",
+ "head": "3a45760",
  "caps": {
   "total": 8,
   "writers": 3,
