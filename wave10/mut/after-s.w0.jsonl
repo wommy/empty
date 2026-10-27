@@ -1,0 +1,7 @@
+{"id": 23, "file": "internal/endpoint/plan.go", "line": 108, "op": "GUARD_DELETE", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 37.8}
+{"id": 73, "file": "internal/endpoint/plan.go", "line": 120, "op": "GUARD_DELETE", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 39.7}
+{"id": 123, "file": "internal/endpoint/plan.go", "line": 169, "op": "GUARD_DELETE", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 26.4}
+{"id": 217, "file": "internal/endpoint/plan.go", "line": 252, "op": "CODE_INTERNAL", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 25.0}
+{"id": 259, "file": "internal/endpoint/plan.go", "line": 321, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 36.5}
+{"id": 298, "file": "internal/endpoint/plan.go", "line": 356, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 50.0}
+{"id": 423, "file": "internal/endpoint/plan.go", "line": 472, "op": "DROP_OPERAND", "status": "SURVIVED", "fails": [], "pkgfail": [], "secs": 38.8}

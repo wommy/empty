@@ -77,3 +77,8 @@
 {"ts": "2026-10-27T07:14:05Z", "id": "a8e06e71519dea03c", "from": "reported", "to": "triaged", "note": "11/11 Probe13 fail at HEAD, 0 pre-existing failures (I ran). Corrections adopted: N1 direction reversed, T2 narrower, E2 narrower, SEAM-DEL-LOCK harm unshown (fix anyway: README:35 invariant, cheap). Decided (reversible): S12 via grpc health Check; D07 accept unlimited fs as satisfying want (matches Expand); CSI-06 params half deferred (needs proto)."}
 {"ts": "2026-10-27T07:14:05Z", "id": "a8e06e71519dea03c", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T07:14:22Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:20:14Z", "id": "a682e26295247bdb6", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T07:20:15Z", "id": "a682e26295247bdb6", "from": "reported", "to": "triaged", "note": "Gate clean on merged tree; read S6 diff (RequireMounted gated on FileExport/root, 2-pass cap). Not yet on VM."}
+{"ts": "2026-10-27T07:20:16Z", "id": "a682e26295247bdb6", "from": "triaged", "to": "merged", "note": "0a0bea3"}
+{"ts": "2026-10-27T07:20:40Z", "id": "af6bc4ba950ec770c", "from": "queued", "to": "running", "note": "b-deploy"}
+{"ts": "2026-10-27T07:20:40Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

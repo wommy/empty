@@ -39,9 +39,9 @@ Sum of top-level in-test time went from 9.87 s to ~4.9 s, and **no test sleeps o
 
 Checks on the final tree (0548c7a):
 - `go vet ./...` clean; `gofmt -l .` empty.
-- `go test -race -count=1 ./...` green (also green 50x for the server package, 10x for lock and endpoint `-shuffle=on`).
+- `go test -race -count=1 -shuffle=on ./...` green on 0548c7a; the new Shutdown test was also run 50x under race.
 - **Skip budget.** Every one of the 17 entries of `ci/expected-skips.txt` still exists, all in internal/endpoint. With `ZFS_TEST_POOL=nopool` (the real-leg switch), all 17 report `--- SKIP` and nothing else skips. On b5c4ec4 the same command made all 17 **fail** on a box without zfs: they created a dataset on the pool before `h.Sim(t)` skipped. On the VM, which has a pool, both trees skip all 17, so the semantics are unchanged; the after tree just skips first (`requireSim(t)` as the first line; commit 0548c7a for the last five export tests). No test was added to or removed from the list.
-- csi-sanity on the simulator: "Ran 44 of 103 Specs" for mount and block (floor 44 met).
+- csi-sanity on the simulator: TestSanity on 0548c7a reports "Ran 44 of 103 Specs" (floor 44 met; the VM runs the mount and block binaries separately).
 
 ## 2. The changes, commit by commit
 

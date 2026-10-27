@@ -1,0 +1,17 @@
+--- a/internal/endpoint/reconcile_fuzz_test.go
++++ b/internal/endpoint/reconcile_fuzz_test.go
+@@
+ 		third, err := ep.Reconcile(ctx, req)
+ 		if err != nil || len(third.Actions) != 0 {
+ 			t.Fatalf("third reconcile: %+v %v", third.Actions, err)
+ 		}
++		// convergence is "nothing left to do and nothing stuck": a group that
++		// fails on every run reports in Skipped, not in Actions
++		for _, s := range third.Skipped {
++			if strings.HasPrefix(s.Reason, SkipFailed) || s.Reason == SkipDependentFailed {
++				t.Fatalf("third reconcile still failing %s: %s", s.Target, s.Reason)
++			}
++		}
++		if again, err := ep.Reconcile(ctx, dryReq); err != nil || len(again.Actions) != 0 {
++			t.Fatalf("dry run after convergence still plans %+v %v", again.Actions, err)
++		}
