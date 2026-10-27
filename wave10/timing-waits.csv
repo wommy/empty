@@ -1,0 +1,25 @@
+file_line,kind,configured,cost_measured_s,where_hit,note
+internal/server/daemon_test.go:48 (set at :155),time.Sleep in fake runner (onCancel 2s),2s,2.2-2.4,TestShutdownWaitsForCancelledHandlers 2.36-2.39s in 7 runs,"Shutdown returns after 200ms stopWait but the test's t.Cleanup d.GRPC.Stop() waits for the stuck handler's 2s sleep; first half uses onCancel 200ms (:142)"
+cmd/zfs-endpoint/startup.go:114 (backoff := time.Second; sleep at :137),retry backoff first step,1s,1.00,TestStartupWaitsForTheParent (main_test.go:76-94) 1.00-1.02s,"parent appears at 300ms (main_test.go:79) but the first retry is at 1s: 0.7s idle"
+internal/server/daemon.go:128,time.After(1s) in Shutdown idle path (wait for GracefulStop with health watches),1s,0 in tests,not hit: TestShutdownDrainsInFlightCalls 0.06s; TestServeHealthNotifyAndStop <=0.39s,production default only
+internal/server/daemon.go:134 / cmd/zfs-endpoint/main.go:65,drain default,30s,0 in tests,tests pass 100ms/50ms/10s or shut down idle,
+internal/server/daemon.go:140 / cmd/zfs-endpoint/main.go:66,stop-wait default,10s,0 in tests,tests pass 5s/200ms,
+cmd/zfs-csi/main.go:39 and :78,drain default,30s,0,idle shutdown,
+internal/endpoint/endpoint.go:173,LockWait default,30s,0,tests set LockWait 200ms (adv4_test.go:42; reconcile_contract_test.go:207) or 1s (endpoint_test.go:84 and 6 more); no endpoint test is > 0.15s locally for lock waiting,"TestAdv4OneBusyLockAbortsWholeRun (adv4_test.go:247-270) asserts it does NOT wait; VM skips at 0.24-0.25s are simulator-only tests that run setup before skipping"
+internal/endpoint/endpoint.go:289,lockMargin,1s,0,only with a caller deadline,
+internal/server/daemon_test.go:91,time.Sleep 100ms,100ms,0.10 (+CPU),TestConcurrentZFSIsBounded 0.15-0.18s plain / 0.44-0.58s race,300 goroutines to queue behind the limiter
+internal/server/daemon_test.go:115,time.Sleep 50ms,50ms,0.05,TestShutdownDrainsInFlightCalls 0.06s,
+internal/server/daemon_test.go:111/146/159/174,1ms poll loops,1ms,~0.001 each,,
+internal/endpoint/adv4_test.go:99,time.Sleep 50ms,50ms,0.05,TestAdv4CommitRaceDestroysJustProvisionedVolume 0.05s,
+internal/zfs/zfs_test.go:145-153,ctx 50ms + WaitDelay 200ms on a script that sleeps 30s,250ms,0.25-0.29,TestKilledCommandIsInterrupted,
+internal/zfs/runner_test.go:34 and :64,1ms and 50ms,50ms,0.05-0.11,TestLimitWaiterRespectsContext / TestLimitBoundsConcurrentCommands,
+internal/zfs/runner.go:86,WaitDelay default,5s,0,tests override (200ms) or assert <2s,
+internal/lock/lock_test.go:56,1ms poll with 5s deadline,1ms,~0.01,waitWaiters,
+internal/lock/lock_test.go:83 and :88,200us x8 goroutines; 10ms,10ms,0.04,TestNoStarvation 0.04s,
+internal/lock/lock_test.go:89 and :140,ctx timeouts 2s and 5s,0 on pass,0,failure bounds only,
+cmd/zfs-endpoint/main_test.go:98,10ms poll for socket,10ms,~0.01 per start (3 starts),waitSocket,
+cmd/zfs-endpoint/main_test.go:176/:186,10s and 5s failure bounds,0,0,,
+race runtime atexit_sleep_ms (GORACE default 1000),1s sleep at exit of every -race test binary,1000ms x 9 binaries,~1.0 per binary (CI: zfs-csi 1.02s lock 1.05s unixsock 1.01s with <0.1s of tests); local GORACE=atexit_sleep_ms=0: whole race run wall 37.2s -> 32.1s,every binary,not in the repo: it is a go test -race default
+ci/real-zfs-vm.sh:86 and :93,sleep 5 in two ssh/cloud-init poll loops,5s granularity,expected 2.5 each (0-5),every run,5.0 expected / 10 worst
+ci/real-zfs-vm.sh:123-139,3 test legs run one after another,0,sequential 9.2 + 5.5 + 4.6,every run,
+.github/workflows/ci.yml:69,-fuzztime 30s -fuzzminimizetime 10s,30s,31.2 (+12.4 build),4 jobs in parallel,fixed by flag

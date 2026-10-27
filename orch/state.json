@@ -1,6 +1,6 @@
 {
  "ci": "pending",
- "head": "4c1386e",
+ "head": "a02c5b0",
  "caps": {
   "total": 8,
   "writers": 3,
@@ -9,5 +9,6 @@
  "questions": [],
  "pending_research": [
   "NFS decisions -> r-nfs-decisions, then ask owner"
- ]
+ ],
+ "notes": "4c1386e green cold (2:21, new guest key + qemu tree build). First warm run = next push: measure guest restore, boot->nfs, shards, total vs 33s projection."
 }

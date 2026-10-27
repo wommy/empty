@@ -19,3 +19,16 @@
 {"ts": "2026-10-27T06:36:00Z", "id": "aa3129c3b9e3b1a3b", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T06:36:22Z", "id": "ae6970226d3d7c24d", "from": "queued", "to": "running", "note": "w11-threat"}
 {"ts": "2026-10-27T06:36:22Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:41:45Z", "id": "a2adf9af7595af207", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:41:45Z", "id": "a8add075ca10fcee4", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:41:45Z", "id": "a3777e1ab243b4e78", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:41:45Z", "id": "a2adf9af7595af207", "from": "reported", "to": "triaged", "note": "A7 LocalRunner group-kill bug confirmed+fixed a02c5b0 (test red->green). A1 cache scope confirmed (default branch = PR head) -> b-cache-warm. Patches 01/02/06 superseded by e0ee9f5."}
+{"ts": "2026-10-27T06:41:45Z", "id": "a2adf9af7595af207", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:41:45Z", "id": "a8add075ca10fcee4", "from": "reported", "to": "triaged", "note": "Both DECISIVE+REVERSIBLE -> DECIDE+RECORD: Q1 <prefix>:nfs_server local property; Q2 NFS mode refuses vols without nfs.clients. Record in ADR 0004 amendment (b-readme) and implement in b-nfs-csi."}
+{"ts": "2026-10-27T06:41:45Z", "id": "a8add075ca10fcee4", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:41:45Z", "id": "a3777e1ab243b4e78", "from": "reported", "to": "triaged", "note": "Mostly superseded by merged CI/VM work; new: GORACE=atexit_sleep_ms=0 (1s x 9 binaries), 2s fake sleep in TestShutdownWaitsForCancelledHandlers, startup 1s backoff -> b-cache-warm / speed-tests"}
+{"ts": "2026-10-27T06:41:45Z", "id": "a3777e1ab243b4e78", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:42:32Z", "id": "a4801d3c50380546b", "from": "queued", "to": "running", "note": "w11-attacker"}
+{"ts": "2026-10-27T06:42:33Z", "id": "a9650f942cd067cd8", "from": "queued", "to": "running", "note": "w12-ledger"}
+{"ts": "2026-10-27T06:42:33Z", "id": "a06eea62fed2fe3ee", "from": "queued", "to": "running", "note": "w12-seams"}
+{"ts": "2026-10-27T06:42:33Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
