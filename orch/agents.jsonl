@@ -56,9 +56,12 @@
 {"id": "ae5bbba5f5297c943", "name": "reader: rank unpinned sim-vs-real OpenZFS 2.4 divergences (wave16/sim-gaps.md)", "lane": "reader", "wave": 16, "status": "done", "branch": null, "report": null, "anomaly": false, "queue": "r-sim-gaps"}
 {"id": "a8806c3aad4d92fff", "name": "reader: critical-path breakdown + levers to <=45s (wave16/ci-45.md)", "lane": "reader", "wave": 16, "status": "done", "branch": null, "report": null, "anomaly": false, "queue": "r-ci-45"}
 {"id": "af6985ce32183060f", "name": "reader: defensive review of recent landings' seams (wave16/seams.md)", "lane": "reader", "wave": 16, "status": "done", "branch": null, "report": null, "anomaly": false, "queue": "r-seams"}
-{"id": "ab861af8ad2341413", "name": "seams-fix", "lane": "writer", "wave": 17, "status": "running", "branch": "seams-fix", "report": null, "anomaly": false, "queue": "q-seams-fix"}
-{"id": "a27f596bb840a667d", "name": "ci-poll", "lane": "writer", "wave": 17, "status": "running", "branch": "ci-poll", "report": null, "anomaly": false, "queue": "q-ci-poll"}
-{"id": "acf7494638986ab8a", "name": "ci-split3", "lane": "writer", "wave": 17, "status": "running", "branch": "ci-split3", "report": null, "anomaly": false, "queue": "q-ci-split3"}
-{"id": "aca049f970d79dedd", "name": "r-review", "lane": "reader", "wave": 18, "status": "running", "branch": null, "report": "wave18/review.md", "anomaly": false, "queue": "q-r-review"}
+{"id": "ab861af8ad2341413", "name": "seams-fix", "lane": "writer", "wave": 17, "status": "merged", "branch": "seams-fix", "report": null, "anomaly": false, "queue": "q-seams-fix"}
+{"id": "a27f596bb840a667d", "name": "ci-poll", "lane": "writer", "wave": 17, "status": "merged", "branch": "ci-poll", "report": null, "anomaly": false, "queue": "q-ci-poll"}
+{"id": "acf7494638986ab8a", "name": "ci-split3", "lane": "writer", "wave": 17, "status": "merged", "branch": "ci-split3", "report": null, "anomaly": false, "queue": "q-ci-split3"}
+{"id": "aca049f970d79dedd", "name": "r-review", "lane": "reader", "wave": 18, "status": "done", "branch": null, "report": "wave18/review.md", "anomaly": false, "queue": "q-r-review"}
 {"id": "a9ad34019bac5d798", "name": "r-guestcpu", "lane": "reader", "wave": 18, "status": "done", "branch": null, "report": "wave18/guestcpu.md", "anomaly": false, "queue": "q-r-guestcpu"}
 {"id": "ad2a854644691adce", "name": "r-simfacts-spec", "lane": "reader", "wave": 18, "status": "running", "branch": null, "report": "wave18/simfacts-spec.md", "anomaly": false, "queue": "q-r-simfacts-spec"}
+{"id": "ab0261b5194e01777", "name": "review-fix", "lane": "writer", "wave": 19, "status": "running", "branch": "review-fix", "report": "wave18/review.md", "anomaly": false, "queue": "q-review-fix"}
+{"id": "a733b63aec4ec9e31", "name": "ci-quiet", "lane": "writer", "wave": 18, "status": "running", "branch": "ci-quiet", "report": "wave18/guestcpu.md", "anomaly": false, "queue": "q-ci-quiet"}
+{"id": "af7270742003065e0", "name": "r-cimerge", "lane": "reader", "wave": 19, "status": "running", "branch": null, "report": "wave19/cimerge.md", "anomaly": false, "queue": "q-r-cimerge"}

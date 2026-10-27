@@ -1,0 +1,15 @@
+Merge branch 'ci-split3' into claude/gallant-johnson-1qaxp5
+
+The endpoint real-ZFS suite runs as two VM jobs, each half of one fixed
+6-shard plan (ci/real-zfs-plan.sh, balanced by the weights). Every
+endpoint job remakes the plan, requires its own to match byte for byte,
+and proves it covers the test list exactly once over all six shards,
+then checks its own run against its part: exactly-once across jobs with
+no final job on the critical path. Skip budgets per part; check-suites
+requires every part once. Nightly (one part) keeps the old plan.
+
+Conflict with ci-poll in ci/real-zfs-vm.sh: kept ci-poll's reordered
+guest checks and gave the moved summary heading the part.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

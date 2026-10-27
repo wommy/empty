@@ -1,0 +1,14 @@
+Merge branch 'ci-poll' into claude/gallant-johnson-1qaxp5
+
+- wait_ssh reads sshd's banner over plain TCP with a 0.3s bound before
+  logging in, instead of 5s ssh attempts that stall on qemu's slirp;
+  every 40th try waits 5s for a slow sshd; an explicit 600s deadline.
+- Direct boots mask systemd-modules-load, zfs-load-module and zfs-mount;
+  zfs is loaded by a timed modprobe beside the checks that do not need
+  it, and zed is started as the boot would have. nfs-server is awaited
+  last.
+- Separate commit: mitigations=off init_on_alloc=0 on the guest kernel
+  command line (kept only if the endpoint phase drops by >= 1s).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
