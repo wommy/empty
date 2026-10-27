@@ -95,3 +95,4 @@
 {"lane": "writer", "id": "csi-sanity", "tokens": 179371, "tools": 111, "ms": 766975, "outcome": "merged 2f72064; first VM exact-name compare pending", "t": "2026-10-27T17:19:51Z"}
 {"lane": "reader", "id": "pr-body", "tokens": 131207, "tools": 23, "ms": 141342, "stale_claims": 20, "outcome": "draft used for PR edit", "t": "2026-10-27T17:19:51Z"}
 {"lane": "reader", "id": "rollback", "tokens": 150515, "tools": 27, "ms": 365285, "outcome": "recommend rollback except deadline/cancel; queued after retry-fix", "t": "2026-10-27T17:19:51Z"}
+{"t": "2026-10-27T17:27:02Z", "lane": "reader", "id": "ci-drift", "agent": "ad09e32994f9b0fb5", "growth_s": "3.5-5", "noise": "run 89 +16s restore/queue", "outcome": "q-ci-rebalance after ci-guards"}

@@ -1,0 +1,1 @@
+apply-guid-cmp del-csisnap del-foreign-class origin-stamped relsrc-whole create-kind-src create-volblock snapid-shape pub-uncommitted unpub-covers csi-rootparam-range csi-fstype apply-guid-first relsrc-owned relsrc-stamp snap-src-served export-crossmnt export-exposure-plan verify-exposure pub-exposure unpub-lookup

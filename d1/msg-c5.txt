@@ -1,0 +1,23 @@
+csi: mount access without NFS is opt-in (-enable-local-filesystem, ADR 0009)
+
+With no -nfs-server the endpoint is not in NFS mode, and CreateVolume for
+mount access returned a bare dataset that no node plugin can publish:
+kubelet finds no registered driver, and csi-driver-nfs refuses a volume
+without server and share. The PVC bound and its pod never started.
+
+Off by default, now: CreateVolume refuses mount access outside NFS mode
+with InvalidArgument naming zfs-endpoint -nfs-server and the flag, and
+ValidateVolumeCapabilities never confirms it, the same shape as ADR
+0006's block rule. ControllerExpandVolume still checks only the access
+type, so an existing volume still grows; Delete is untouched.
+
+- cmd/zfs-csi: -enable-local-filesystem, logged at startup beside
+  enable_block; the flags are parsed by parseFlags, tested by
+  TestControllerFlags.
+- TestMountRefusedWithoutNFS (failed first: the create returned OK).
+- Tests that create or confirm mount volumes outside NFS mode set the
+  flag; TestSanity sets it in mount mode only. The pinned passed-spec
+  lists are unchanged: 44/44 in mount, block and NFS mode.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

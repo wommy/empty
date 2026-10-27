@@ -35,3 +35,4 @@
 {"t": "2026-10-27T17:13:23Z", "id": "A-final-code-after-change", "sev": "high", "state": "open", "note": "CreateVolume reads, CreateSnapshot post-cut, ENOSPC post-clone return final codes; retry-fix"}
 {"t": "2026-10-27T17:13:23Z", "id": "A-weights-header-conflicts", "sev": "low", "state": "open", "note": "3 merges in a row conflicted on the one-line Source header in ci/real-zfs-weights.txt; consider one note per line"}
 {"id":"A-builder-sim-only-skips-not-listed","sev":"med","state":"closed","fix":"17877d2","note":"builder briefs must say: sim-only tests need ci/expected-skips.txt entries; unit gate cannot catch it. Add check-suites static check?"}
+{"t": "2026-10-27T17:27:02Z", "id": "A-hand-weights-unbalance-parts", "sev": "med", "state": "open", "note": "hand-raised weights put 62% of endpoint work in part 0; +3s"}

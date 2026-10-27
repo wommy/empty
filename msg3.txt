@@ -1,0 +1,19 @@
+endpoint: CreateSnapshot after the cut is never final
+
+Once `zfs snapshot` succeeded, CreateSnapshot's re-read failing
+unclassified was Internal, and a snapshot gone by the re-read was
+Internal "vanished after creation". Both are final for
+external-snapshotter v8.2.0, which then drops the being-created
+annotation: the VolumeSnapshotContent can be deleted without a
+DeleteSnapshot, leaking the snapshot, and its source's DeleteVolume is
+then refused for good ("has snapshot").
+
+The re-read's failure now goes through afterChange (resumeErr's mapping,
+with its own reason), and the vanished case is Aborted. Kept local to
+the error mapping: the snapshot size path is untouched.
+
+TestCreateSnapshotAfterCutIsRetryable: both cases were code 13, are
+Aborted now, and a retry returns the same id with one snapshot listed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

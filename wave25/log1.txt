@@ -67,3 +67,28 @@ lock-publish survived
 cfg-minprefix killed TestFileExportPreconditions (internal/endpoint)
 cfg-server-valid survived 
 scan-deeper killed TestAdv4ChildDatasetsDestroyed (internal/endpoint)
+scan-only-parent killed TestMissingParentIsUnavailableNotAbsent (internal/endpoint)
+cover killed TestPlannersRequireACoveringTable (internal/endpoint)
+headroom killed TestMinFreeBytesGuardLevelUpUnreadable (internal/endpoint)
+root-range killed TestRootPropsRoundTrip (internal/endpoint)
+setroot-clean killed TestLocalRoot (internal/endpoint)
+setroot-dev killed TestLocalRoot (internal/endpoint)
+srv-adminpeer survived 
+srv-adminpeer-euid killed TestAdminPeerIsRootOrTheDaemonsUser (internal/server)
+srv-noauth killed TestRolesPerListener (internal/server)
+srv-publish-csi killed TestRolesPerListener (internal/server)
+srv-stream survived 
+srv-peercred killed TestPeerCredentialsAreLogged (internal/server)
+srv-maxentries-neg killed TestRoundTripAndCodes (internal/server)
+srv-reqid-chars killed TestRequestIDReachesTheAuditLog (internal/server)
+csi-nfs-clients-req killed TestNFS_N15_ClientsRequired (internal/csi)
+csi-unknown-param killed TestParametersAndAccessChecks (internal/csi)
+csi-noparams survived 
+csi-cap-order survived 
+csi-vvc-server killed TestNFS_N10_Validate (internal/csi)
+csi-kind-mode killed TestNFS_OffWithoutServers (internal/csi)
+csi-kind-block killed TestBlockIsOptIn (internal/csi)
+csi-cap-ro killed TestNFS_N10_Validate (internal/csi)
+csi-kind-mixed survived 
+csi-del-id-req survived 
+csi-snap-noparams survived 

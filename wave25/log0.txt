@@ -69,3 +69,26 @@ cfg-servers-root killed TestFileExportCreateNeedsServers (internal/endpoint)
 scan-parent-prefix survived 
 scan-children killed TestAdv4ChildDatasetsDestroyed (internal/endpoint)
 scandel-src survived 
+mustcover killed TestPlannersRequireACoveringTable (internal/endpoint)
+capacity-floor killed TestGetCapacityIsChildSpace (internal/endpoint)
+root-max killed TestFileExportCreateRootOwner (internal/endpoint)
+setroot-source killed TestLocalRoot (internal/endpoint)
+srv-allowed killed TestRolesPerListener (internal/server)
+srv-adminpeer-any killed TestAdminPeerIsRootOrTheDaemonsUser (internal/server)
+srv-norole killed TestRolesPerListener (internal/server)
+srv-reconcile-csi killed TestEveryMethodHasARole (internal/server)
+srv-unpublish-csi killed TestEveryMethodHasARole (internal/server)
+srv-health-prefix killed TestRolesPerListener (internal/server)
+srv-minage-overflow killed TestReconcile (internal/server)
+srv-reqid-len survived 
+srv-draining killed TestShutdownWaitsForCancelledHandlers (internal/server)
+csi-nfs-keys-mode killed TestNFS_OffWithoutServers (internal/csi)
+csi-rootparam-range compile-fail internal/csi/controller.go:274:8: declared and not used: limit
+csi-cap-neg survived 
+csi-context killed TestNFS_N10_Validate (internal/csi)
+csi-vvc-cap killed TestNFS_N10_Validate (internal/csi)
+csi-cap-mode killed TestParametersAndAccessChecks (internal/csi)
+csi-cap-block killed TestBlockIsOptIn (internal/csi)
+csi-fstype compile-fail internal/csi/controller.go:200:20: syntax error: unexpected :=, expected )
+csi-name-req survived 
+csi-expand-block killed TestExpandValidatesCapability (internal/csi)

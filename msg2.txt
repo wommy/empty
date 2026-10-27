@@ -1,18 +1,34 @@
-zfstest: space checks read received space properties
+endpoint: a read that fails after CreateVolume's change is Aborted
 
-num() and spaceCheck's get() read only the local value, so a received
-refreservation (a thick zvol from `zfs send -p | zfs recv`) charged
-nothing: the sim accepted a quota below it and a second thick volume
-over the parent's quota, both of which OpenZFS refuses with ENOSPC (the
-kernel reads the effective value: local, else received). Read the
-effective value through node.effective, the rule the property printer
-already applies.
+The error table's after-change Aborted row covered only the apply ops, so
+remapMutated could not re-key a scan or get, and CreateVolume returned its
+reads after a change raw anyway: the second pass's scan, the headroom
+read, verifyExport's scan and the re-read after the commit. An
+unclassified failure there (unknown stderr, an undecodable scan) was
+Internal, final for external-provisioner, stranding the half-made (for
+NFS, exported) volume once the PVC is deleted, or a committed volume no
+PV ever names.
 
-Failing first: TestSimReceivedRefreservationIsCharged (second 64M thick
-zvol under quota=100M accepted) and the new corpus case
-recv-vol-resv-space (TestCorpusModelVsSim: the zfsdiff model refuses
-quota=10M, the sim accepted it). Both pass with the fix.
+- errors.go: the row drops its ops restriction, so KindUnknown after a
+  change is Aborted for every op, reads included.
+- CreateVolume marks the volume changed once a pass applied an op or the
+  scan found it uncommitted, and sends every later failure through
+  resumeErr, the re-read after the commit included.
+- resumeErr also takes a cell-less Internal (a scan whose output does not
+  decode) as unclassified: Aborted. Every other code is a refusal made on
+  purpose and is kept: FailedPrecondition "served beyond its export",
+  NotFound, Unavailable stay as they were.
+
+TestCreateVolumeReadAfterChangeIsRetryable fails the second-pass scan,
+verifyExport's scan and the post-commit re-read (plain and NFS): code 13
+before, Aborted now, and a retry commits. TestResumeErrKeepsRefusals pins
+the refusals; TestCreateVolumeReadBeforeChangeStaysInternal pins Internal
+before any change. TestErrTableMatchesHead lists the changed cells
+(changedSinceHead).
+
+docs: sidecar-conformance.md said non-gRPC errors are final in the
+provisioner; v5.2.0's checkError returns InBackground for them. README's
+ABORTED line now states the wider rule.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
-

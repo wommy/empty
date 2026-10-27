@@ -1,0 +1,20 @@
+endpoint: refuse an NFS create under a parent mounted nowhere
+
+A parent with mountpoint none or legacy leaves a new filesystem's
+mountpoint inherited, so it never mounts and is never served. The fresh
+plan did not check: CreateVolume made the exported dataset, then its
+second pass refused it FailedPrecondition "is not mounted" (with a root
+owner), or verifyExport returned Unavailable on every retry (without),
+one uncommitted, unmountable dataset per PVC.
+
+PlanCreateVolume's fresh branch now refuses an NFS filesystem whose
+parent mountpoint (read by CreateVolume already, no new zfs call; the
+call budget is unchanged) is not a path: FailedPrecondition before any
+op, nothing created.
+
+TestFileExportCreateUnderUnmountedParentIsRefused (none, legacy; with
+and without a root owner): Unavailable 14 or a created dataset before,
+FailedPrecondition with nothing made now.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

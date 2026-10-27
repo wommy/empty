@@ -1,0 +1,72 @@
+
+// Item 4: no space for a fresh clone's reservation, after the snapshot and
+// the clone ran, is Aborted, not ResourceExhausted (Finished for
+// external-provisioner under Immediate binding): the uncommitted clone
+// would be stranded, and with it the source's DeleteVolume ("has dependent
+// clone"). A retry once the space is there converges, and the source can
+// then be deleted after its clone.
+func TestCloneNoSpaceAfterChangeIsRetryable(t *testing.T) {
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	z := zfs.New(sim)
+	if err := z.CreateFilesystem(ctx, "tank/k8s/vols", nil, true); err != nil {
+		t.Fatal(err)
+	}
+	ep, err := endpoint.New(z, endpoint.Config{Parent: "tank/k8s/vols"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 1 << 30}); err != nil {
+		t.Fatal(err)
+	}
+	req := endpoint.CreateVolumeRequest{Name: "dst", SourceVolumeID: "src", Reserve: true}
+	cloned, fired := false, false
+	sim.Fail = func(a []string) error {
+		switch {
+		case a[0] == "clone":
+			cloned = true
+		case cloned && !fired && a[0] == "set" && strings.Contains(strings.Join(a, " "), "refreservation="):
+			fired = true
+			return &zfs.ExitError{Code: 1, Stderr: "cannot set property for 'tank/k8s/vols/dst': size is greater than available space\n"}
+		}
+		return nil
+	}
+	_, err = ep.CreateVolume(ctx, req)
+	if !fired {
+		t.Fatalf("the reservation was never failed (%v)", err)
+	}
+	wantCode(t, err, endpoint.Aborted)
+	sim.Fail = nil
+	if _, err := ep.CreateVolume(ctx, req); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if err := ep.DeleteVolume(ctx, "dst"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ep.DeleteVolume(ctx, "src"); err != nil {
+		t.Fatalf("source after its clone: %v", err)
+	}
+}
+
+// Before any change, no space stays ResourceExhausted (rescheduled under
+// WaitForFirstConsumer, final otherwise: nothing was made to strand).
+func TestCreateNoSpaceBeforeChangeStaysExhausted(t *testing.T) {
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	z := zfs.New(sim)
+	if err := z.CreateFilesystem(ctx, "tank/k8s/vols", nil, true); err != nil {
+		t.Fatal(err)
+	}
+	ep, err := endpoint.New(z, endpoint.Config{Parent: "tank/k8s/vols"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim.Fail = func(a []string) error {
+		if a[0] == "create" {
+			return &zfs.ExitError{Code: 1, Stderr: "cannot create 'tank/k8s/vols/v': out of space\n"}
+		}
+		return nil
+	}
+	_, err = ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "v", Kind: endpoint.Block, CapacityBytes: 1 << 30})
+	wantCode(t, err, endpoint.ResourceExhausted)
+}

@@ -1,0 +1,75 @@
+
+// afterSnapshot runs do, once, right before the first single-volume scan
+// that follows a `zfs snapshot`: CreateSnapshot's re-read of the cut.
+type afterSnapshot struct {
+	zfs.Runner
+	do      []string
+	fail    error
+	cut     bool
+	trigger bool
+}
+
+func (r *afterSnapshot) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if r.cut && !r.trigger && args[0] == "get" && slices.Contains(args, "-d") {
+		r.trigger = true
+		if r.do != nil {
+			if _, err := r.Runner.Run(ctx, "zfs", r.do...); err != nil {
+				return nil, err
+			}
+		}
+		if r.fail != nil {
+			return nil, r.fail
+		}
+	}
+	out, err := r.Runner.Run(ctx, name, args...)
+	if args[0] == "snapshot" && err == nil {
+		r.cut = true
+	}
+	return out, err
+}
+
+// Item 3: once CreateSnapshot cut the snapshot, a failed re-read and a
+// snapshot gone by then are Aborted: a final code makes external-snapshotter
+// drop its being-created annotation, and the content is then deleted
+// without a DeleteSnapshot, leaking the snapshot (and refusing its source's
+// DeleteVolume for good).
+func TestCreateSnapshotAfterCutIsRetryable(t *testing.T) {
+	ctx := context.Background()
+	const snap = "tank/k8s/vols/src@s"
+	for _, tc := range []struct {
+		name string
+		r    afterSnapshot
+	}{
+		{"re-read fails", afterSnapshot{fail: boom}},
+		{"vanished", afterSnapshot{do: []string{"destroy", snap}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sim := zfstest.New("tank")
+			r := tc.r
+			r.Runner = sim
+			z := zfs.New(&r)
+			if err := z.CreateFilesystem(ctx, "tank/k8s/vols", nil, true); err != nil {
+				t.Fatal(err)
+			}
+			ep, err := endpoint.New(z, endpoint.Config{Parent: "tank/k8s/vols"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 1 << 30}); err != nil {
+				t.Fatal(err)
+			}
+			_, err = ep.CreateSnapshot(ctx, "s", "src")
+			if !r.trigger {
+				t.Fatalf("no re-read after the cut (%v)", err)
+			}
+			wantCode(t, err, endpoint.Aborted)
+			s, err := ep.CreateSnapshot(ctx, "s", "src")
+			if err != nil || s.ID != "src@s" {
+				t.Fatalf("retry: %+v %v", s, err)
+			}
+			if snaps, _, err := ep.ListSnapshots(ctx, "", "src", 0, ""); err != nil || len(snaps) != 1 {
+				t.Fatalf("listed %+v (%v), want the one snapshot", snaps, err)
+			}
+		})
+	}
+}

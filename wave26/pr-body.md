@@ -1,10 +1,8 @@
-Suggested title: **zfs-endpoint: ZFS volume/snapshot lifecycle over gRPC, NFS export, CSI controller, Reconcile, hyperconverged deploy**
-
 A Go daemon, `zfs-endpoint`, that owns volume and snapshot lifecycle on one ZFS parent dataset and serves it over gRPC (`api/zfsendpoint/v1`). CSI drivers and other front ends then only translate requests. `zfs-csi`, a CSI controller, is the first of those front ends.
 
 **OpenZFS is the source of truth** (ADR 0003). Behavior follows OpenZFS's semantics, checked against its source and a real 2.4.x pool. **OpenZFS 2.4 is the only supported version** (ADR 0004). democratic-csi is an adoption target, not the baseline. By default, state lives under `zfs-endpoint:*` user properties. `-property-prefix democratic-csi` turns on adoption mode, which reads and writes that driver's properties.
 
-Size: 350 commits on `main` (an empty root commit), 397 files, +62,145 lines. About 19k lines of non-generated Go, 25.7k lines of tests in 124 test files, and 49 research files.
+Size: about 350 commits ahead of `main`, which holds only an empty root commit;, 397 files, +62,145 lines. About 19k lines of non-generated Go, 25.7k lines of tests in 124 test files, and 49 research files.
 
 ## What's in it
 
@@ -63,10 +61,10 @@ kubectl apply -f deploy/k8s/
 
 | Tier | Where | What |
 |---|---|---|
-| Simulator (every push) | `ci.yml` `test` | `go test -race ./...` against `zfstest`. Includes the contract tests, planner tests over hand-built `Table`s, and `TestModel` (64 random RPC and out-of-band sequences with injected kills, errors and races, checked against a pure reference model). |
+| Simulator (every push) | `ci.yml` `test` | `go test -race ./...` against `zfstest`. Includes the contract tests, planner tests over hand-built `Table`s, and `TestModel` (64 random RPC and out-of-band sequences with injected kills, errors and races, checked against a pure reference model), plus csi-sanity in NFS mode. csi-sanity's passed spec names are pinned per mode in `internal/csi/testdata/sanity-passed-*.txt`. |
 | Static (every push) | `ci.yml` `static` | gofmt, `go mod tidy`, vet, buf lint, generated-code drift, and every `Fuzz*` seed corpus. Also checks the CI wiring: every suite and part runs exactly once (`ci/check-suites.sh`). |
 | Real ZFS (every push) | `ci.yml` `real-zfs`, three jobs: **`endpoint 0/2`**, **`endpoint 1/2`**, **`csi`** | Ubuntu 26.10 under KVM with OpenZFS 2.4.x (asserted for both userland and kmod), and nfs-server running. The endpoint suite is split into two parts of 3 shards, using a fixed 6-shard plan (`ci/real-zfs-plan.sh`, proven a partition by `ci/check-split.sh`). The csi job runs the csi tests plus csi-sanity on filesystems and on zvols, and checks the sandboxing drop-in under the systemd unit (`ci/real-zfs-unit.sh`). Each shard gets its own pool on a sparse file in guest tmpfs. Skips are budgeted in `ci/expected-skips.txt` (`ci/check-skips.sh`). |
-| Nightly | `nightly.yml` | 5 min of fuzzing for each of the 11 targets (`FuzzCreateConverges`, `FuzzReconcileSafe`, `FuzzModel`, the NFS chain, `FuzzDiff`, ...). `real-zfs-full` runs each suite unsplit through the fallback boot path. `explore` runs the FSM explorer (every world two volumes reach in four steps) and a 20,000-sequence model sweep. A failure opens an issue labelled `needs-triage`. |
+| Nightly | `nightly.yml` | 5 min of fuzzing for each of the 11 targets (`FuzzCreateConverges`, `FuzzReconcileSafe`, `FuzzModel`, the NFS chain, `FuzzDiff`, ...). `real-zfs-full` runs each suite unsplit through the fallback boot path, plus csi-sanity in NFS mode on a real pool. `explore` runs the FSM explorer (every world two volumes reach in four steps) and a 20,000-sequence model sweep. A failure opens an issue labelled `needs-triage`. |
 | Cache warm | `cache-warm.yml`, hourly | Keeps the guest/qemu entry and the four Go cache namespaces warm on the default branch, which is where PRs read caches from. |
 
 ## CI budget (ADR 0005)
@@ -75,7 +73,6 @@ A PR's checks must finish within 60 s of a push, with a 45 s nominal margin for 
 
 ## Known limitations and open items
 
-- **Current head is red.** On `f7aa459`, `real ZFS 2.4 (endpoint 0/2, ...)` fails the skip budget. Three simulator-only tests skip on the VM but are not listed in `ci/expected-skips.txt`: `TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block`, `TestMissingParentFailsCreateAndDeleteUnavailable`, `TestRPCCallBudget` (run 40548404256). The other four checks pass.
 - **Nightly and cache-warm have never run.** Both trigger only on `schedule`/`workflow_dispatch`, which run from the default branch, and `main` holds only the empty root commit. Until this merges, every PR run starts with cold caches unless a run on this PR saved some, and the nightly tier has produced no results.
 - **The `needs-triage` label does not exist yet.** Nightly's `gh issue create --label needs-triage` will fail until it is created. Any of the other canonical labels (`needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) that are missing should be created at the same time.
 - **Branch protection:** the required checks must use the exact job names `real ZFS 2.4 (endpoint 0/2, Ubuntu 26.10 VM)`, `real ZFS 2.4 (endpoint 1/2, Ubuntu 26.10 VM)` and `real ZFS 2.4 (csi, Ubuntu 26.10 VM)`, plus `static` and `test`. Parts are numbered from 0, so there is no `2/2`.

@@ -1,0 +1,25 @@
+endpoint: no space after a change is Aborted
+
+A fresh clone with a thick size runs snapshot (from a volume), clone,
+then sets its refreservation. ENOSPC there ("size is greater than
+available space", likely on a near-full pool with the headroom guard off)
+was ResourceExhausted: Finished for external-provisioner under Immediate
+binding. That strands the uncommitted clone, and for a clone from a
+volume its source's DeleteVolume is FailedPrecondition "has dependent
+clone" until an operator reconciles.
+
+The error table gets an after-change NoSpace row for the apply ops:
+Aborted, and a retry converges once there is space. Before any change it
+stays ResourceExhausted. The rule's comment notes the better fix, not
+built: roll a fresh create back by the guid just read and return the
+classified code (Aborted only when the rollback fails), which would also
+cover the deterministic codes mid-plan.
+
+TestCloneNoSpaceAfterChangeIsRetryable: code 8 before, Aborted now; the
+retry commits and the source deletes after its clone.
+TestCreateNoSpaceBeforeChangeStaysExhausted pins the other side, and
+TestErrTableMatchesHead lists the changed cells. README's
+RESOURCE_EXHAUSTED line says so.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

@@ -1,0 +1,35 @@
+
+// Item 5: an NFS filesystem under a parent mounted nowhere (mountpoint
+// none or legacy) would inherit that, never mount, and so never be
+// served: created, then refused (with a root owner) or Unavailable on
+// every retry. It is refused before anything is made.
+func TestFileExportCreateUnderUnmountedParentIsRefused(t *testing.T) {
+	ctx := context.Background()
+	for _, mp := range []string{"none", "legacy"} {
+		for _, owner := range []bool{false, true} {
+			name := mp
+			if owner {
+				name += " with a root owner"
+			}
+			t.Run(name, func(t *testing.T) {
+				sim, z, ep := simNFS(t, nil)
+				if err := z.Set(ctx, "tank/k8s/vols", map[string]string{"mountpoint": mp}); err != nil {
+					t.Fatal(err)
+				}
+				req := nfsCreate("pvc", "", "10.20.0.0/24")
+				if owner {
+					uid := uint32(1000)
+					req.NFS.UID = &uid
+				}
+				_, err := ep.CreateVolume(ctx, req)
+				wantCode(t, err, endpoint.FailedPrecondition)
+				if !strings.Contains(err.Error(), "mountpoint="+mp) {
+					t.Fatalf("not the parent's refusal: %v", err)
+				}
+				if sim.Has("tank/k8s/vols/pvc") {
+					t.Fatal("created before the refusal")
+				}
+			})
+		}
+	}
+}

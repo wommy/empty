@@ -36,7 +36,9 @@ internal/endpoint/apply.go
 internal/endpoint/apply_test.go
 internal/endpoint/belowfloor_test.go
 internal/endpoint/bounds_test.go
+internal/endpoint/callbudget_test.go
 internal/endpoint/clonesize_test.go
+internal/endpoint/commitswap_test.go
 internal/endpoint/converge_test.go
 internal/endpoint/cov24_internal_test.go
 internal/endpoint/cov24_test.go
@@ -100,6 +102,7 @@ internal/endpoint/reconcile.go
 internal/endpoint/reconcile_contract_test.go
 internal/endpoint/reconcile_fuzz_test.go
 internal/endpoint/reconcile_test.go
+internal/endpoint/retry25_test.go
 internal/endpoint/root.go
 internal/endpoint/root_linux.go
 internal/endpoint/root_linux_test.go

@@ -59,6 +59,8 @@ MUTANTS = [
     ff("rec-refuses-planned", R, "d.planned != nil", "guid-recheck", "D", "locked re-plan accepts actions not in the dry/unlocked plan"),
     m("rec-vol-refuses", R, "if why = d.refuses(a); why != \"\" {", "if why = d.refuses(a); false {",
       "lock", "D", "volume groups skip refuses() under locks"),
+    m("rec-vol-refuses2", R, "if why != \"\" {\n\t\t\t\tskip(c.id, why)", "if false && why != \"\" {\n\t\t\t\tskip(c.id, why)",
+      "lock", "D", "volume groups skip refuses() under locks (result ignored)"),
     m("rec-src-refuses", R, "if why := d.refuses(a); why != \"\" {", "if why := d.refuses(a); false && why != \"\" {",
       "lock", "D", "orphan clone-source destroys skip refuses() under locks"),
     m("rec-src-unstamped", R, "if !ours {\n\t\t\tskip(r.ID, SkipUnstampedCloneSource)", "if false && !ours {\n\t\t\tskip(r.ID, SkipUnstampedCloneSource)",
