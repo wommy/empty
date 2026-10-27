@@ -16,13 +16,11 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
+	"github.com/wommy/empty/internal/version"
 )
 
 // DefaultDriverName is the CSI driver name reported by GetPluginInfo.
 const DefaultDriverName = "zfs-endpoint.wommy.github.io"
-
-// Version is reported by GetPluginInfo.
-var Version = "dev"
 
 // Identity implements csi.IdentityServer.
 type Identity struct {
@@ -36,7 +34,7 @@ func (s *Identity) GetPluginInfo(context.Context, *csi.GetPluginInfoRequest) (*c
 	if name == "" {
 		name = DefaultDriverName
 	}
-	return &csi.GetPluginInfoResponse{Name: name, VendorVersion: Version}, nil
+	return &csi.GetPluginInfoResponse{Name: name, VendorVersion: version.Version}, nil
 }
 
 func (s *Identity) GetPluginCapabilities(context.Context, *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
