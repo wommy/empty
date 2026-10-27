@@ -4,7 +4,7 @@ package csi_test
 // (scratchpad wave9 csi-diff), with wave13's decisions applied: Q1 the
 // server is recorded per volume (N9's last assertion inverted, N10 and N14
 // against the recorded value), Q2 nfs.clients is required in NFS mode (N15
-// widened), and N16. N11 (root ownership parameters) is not built yet.
+// widened), N16, and N11 (root ownership parameters, nfs_root_test.go).
 //
 // Refusals are asserted twice: the code (InvalidArgument) and that the
 // refusal is about the value, not about the key being unknown.

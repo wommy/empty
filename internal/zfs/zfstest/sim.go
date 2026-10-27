@@ -33,6 +33,10 @@
 //     changes still repopulate it (exportfs -ra writes etab without nfsd);
 //     starting again re-exports every shared dataset (exportfs -r);
 //   - DropHost: exportfs leaves one client out and applies the rest.
+//
+// Root directories: each filesystem's root owner and mode (SetRoot,
+// RootOf), root:root 0755 as created, carried by snapshots into clones
+// and receives. Not a zfs call, so never in Calls.
 package zfstest
 
 import (
@@ -66,6 +70,11 @@ type node struct {
 	// (see mount).
 	mounted bool
 	guid    uint64 // assigned on first read; kept across rename (sim_ext.go)
+	// root: a filesystem's root directory owner and mode (SetRoot); nil
+	// is how zfs creates it, root:root 0755. A snapshot keeps its
+	// filesystem's, and a clone or receive starts with its snapshot's.
+	// Replaced, never changed in place, so nodes may share one.
+	root *Root
 }
 
 // Sim is an in-memory zfs. Safe for concurrent use.
@@ -204,7 +213,7 @@ func (s *Sim) SendRecv(snap, dst string) error {
 		return exit("cannot receive new filesystem stream: destination '%s' does not exist", parent(dst))
 	}
 	head := s.ds[parent(snap)]
-	n := &node{typ: head.typ, props: map[string]string{}, recv: map[string]string{}, birth: s.now()}
+	n := &node{typ: head.typ, props: map[string]string{}, recv: map[string]string{}, birth: s.now(), root: src.root}
 	for k, v := range head.recv {
 		if !head.inh[k] {
 			n.recv[k] = v
@@ -475,7 +484,7 @@ func (s *Sim) snapshot(args []string) error {
 	}
 	for _, k := range names {
 		s.txg++
-		n := &node{typ: zfs.TypeSnapshot, props: maps.Clone(props), birth: s.now(), txg: s.txg}
+		n := &node{typ: zfs.TypeSnapshot, props: maps.Clone(props), birth: s.now(), txg: s.txg, root: s.ds[parent(k)].root}
 		if v, ok := s.ds[parent(k)].props["volsize"]; ok {
 			// a zvol snapshot keeps the volume's size at snapshot time
 			n.props["volsize"] = v
@@ -515,7 +524,7 @@ func (s *Sim) clone(args []string) error {
 	if _, ok := s.ds[name]; ok {
 		return exit("cannot create '%s': dataset already exists", name)
 	}
-	n := &node{typ: typ, props: props, origin: snap, birth: s.now()}
+	n := &node{typ: typ, props: props, origin: snap, birth: s.now(), root: src.root}
 	if typ == zfs.TypeVolume {
 		n.props["volsize"] = src.props["volsize"]
 		if bs, ok := s.ds[parent(snap)].props["volblocksize"]; ok {
@@ -1742,4 +1751,59 @@ func (s *Sim) Exports() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.exports
+}
+
+// ---- root directory ownership ------------------------------------------------
+
+// Root is a filesystem's root directory owner and mode.
+type Root struct{ UID, GID, Mode uint32 }
+
+// defaultRoot is how zfs creates a filesystem's root directory.
+var defaultRoot = Root{0, 0, 0o755}
+
+// SetRoot sets a mounted filesystem's root directory owner and mode, as the
+// endpoint's LocalRoot does on a host: only while name is mounted at
+// mountpoint (its effective mountpoint property), and -1 leaves one
+// attribute as it is. It implements the endpoint's RootSetter, and is not
+// a zfs call (never in Calls).
+func (s *Sim) SetRoot(_ context.Context, name, mountpoint string, uid, gid, mode int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.ds[name]
+	if n == nil || n.typ != zfs.TypeFilesystem {
+		return fmt.Errorf("set root: %s is not a filesystem", name)
+	}
+	if mp, _, _ := s.value(name, "mountpoint"); !n.mounted || mp != mountpoint {
+		return fmt.Errorf("set root: %s is not mounted at %s (mounted=%v, mountpoint %s)", name, mountpoint, n.mounted, mp)
+	}
+	r := defaultRoot
+	if n.root != nil {
+		r = *n.root
+	}
+	if uid >= 0 {
+		r.UID = uint32(uid)
+	}
+	if gid >= 0 {
+		r.GID = uint32(gid)
+	}
+	if mode >= 0 {
+		r.Mode = uint32(mode)
+	}
+	n.root = &r
+	return nil
+}
+
+// RootOf reports a filesystem's (or snapshot's) root directory owner and
+// mode (test helper).
+func (s *Sim) RootOf(name string) (Root, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.ds[name]
+	if n == nil || n.typ == zfs.TypeVolume {
+		return Root{}, false
+	}
+	if n.root == nil {
+		return defaultRoot, true
+	}
+	return *n.root, true
 }

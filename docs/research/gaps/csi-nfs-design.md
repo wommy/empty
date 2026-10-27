@@ -2,7 +2,7 @@
 
 HEAD 0c884df, read-only. Governing decision: ADR 0004. Export state lives only in `sharenfs`, and OpenZFS is the source of truth. Static export at create comes first. Per-node publish may follow behind a flag. The node side is csi-driver-nfs. OpenZFS 2.4 only.
 
-**Built (wave13).** Static export at create, §1's removal of `nfs_clients`, and the CSI NFS mode are implemented. Where the build differs from the text below, a note marked "As built" says how and why. Not built yet: §4's local mountpoint pin, §13 Q1 (root ownership), §10's `reshare` action and the D1-D6 reports, and §12.
+**Built (wave13).** Static export at create, §1's removal of `nfs_clients`, and the CSI NFS mode are implemented. Where the build differs from the text below, a note marked "As built" says how and why. §13 Q1 (root ownership) is built as option (a) (wave14). Not built yet: §4's local mountpoint pin, §10's `reshare` action and the D1-D6 reports, and §12.
 
 Sources checked (upstream repositories, by repo-relative path):
 - openzfs `cmd/zfs/zfs_main.c:763-810,1340-1365` (create, then mount and share)
@@ -270,6 +270,8 @@ As built (wave13): D7, D8 and D9 are reported in the existing `ReconcileResponse
   - (b) Admit exactly one option, `no_root_squash`, into the canonical grammar via an SC flag.
   
   Recommendation: (a). Adopted democratic-csi volumes stay FOREIGN either way.
+
+  As built (wave14): (a). `NFSExport` carries optional `uid`, `gid` and `mode` (SC `nfs.uid`, `nfs.gid`, `nfs.mode`). The endpoint sets them on the mounted root through a descriptor opened without following any symlink and checked against the mount table, in the resume before verification and commit, on every pass (idempotent, so crash-safe without a record). Unset leaves an attribute as the create made it: root:root 0755, or a clone's source's. A committed volume is not compared on them.
 
 Decided here, not owner questions:
 - Pinning mountpoint locally, because volume_context requires a stable `share`.

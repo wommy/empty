@@ -185,6 +185,11 @@ type Config struct {
 	// (zfs_ioctl.c zfs_ioc_create). Nil: no settle and no retry (the
 	// simulator, which has no devices).
 	Settle func(context.Context) error
+	// Root sets a mounted filesystem volume's root directory owner and
+	// mode (NFSExport.UID, GID, Mode). Default: Etab when it also
+	// implements RootSetter (the simulator), else LocalRoot, which works
+	// on the mounted directory itself and follows no symlink.
+	Root RootSetter
 }
 
 // Endpoint is the volume service.
@@ -235,6 +240,12 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		cfg.NFSD = DefaultNFSD
 		if r, ok := cfg.Etab.(NFSDReader); ok {
 			cfg.NFSD = r
+		}
+	}
+	if cfg.Root == nil {
+		cfg.Root = LocalRoot{}
+		if r, ok := cfg.Etab.(RootSetter); ok {
+			cfg.Root = r
 		}
 	}
 	if cfg.NFSMinPrefix == 0 {
@@ -330,7 +341,21 @@ type NFSExport struct {
 	ReadOnly bool
 	// Server is one of Config.NFSServers; "" is the first.
 	Server string
+	// UID, GID and Mode set the volume's root directory (its mountpoint
+	// once mounted) when CreateVolume provisions it, before the commit:
+	// under root_squash, a root:root 0755 root is writable by no client.
+	// Nil leaves that attribute as the create made it (root:root 0755,
+	// or a clone's source's). UID and GID are at most MaxRootID, Mode at
+	// most 07777. They are file metadata, never volume state: nothing
+	// records them, a committed volume is not compared on them, and a
+	// Volume never reports them.
+	UID, GID, Mode *uint32
 }
+
+// MaxRootID is the largest UID or GID an NFS export's root takes: the
+// largest Kubernetes accepts for runAsUser and runAsGroup (2^31-1). It
+// also keeps 2^32-1, which chown(2) reads as "leave unchanged", out.
+const MaxRootID = 1<<31 - 1
 
 // Snapshot as returned to front ends.
 type Snapshot struct {
