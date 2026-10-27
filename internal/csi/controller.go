@@ -20,7 +20,16 @@ import (
 type Controller struct {
 	csi.UnimplementedControllerServer
 	EP pb.EndpointServiceClient
+	// EnableBlock admits raw block access (zvols). Off by default: no node
+	// plugin attaches a zvol to a node yet (ADR 0004, ADR 0006), so a block
+	// PVC would bind and its pod never start. Off, CreateVolume refuses a
+	// block capability with InvalidArgument and ValidateVolumeCapabilities
+	// does not confirm one.
+	EnableBlock bool
 }
+
+// errBlockDisabled is the reason a block capability is refused.
+const errBlockDisabled = "block access is disabled: no node plugin can attach a zvol yet; start zfs-csi with -enable-block to provision block volumes anyway"
 
 // StorageClass parameters understood here; each maps to an endpoint field.
 const (
@@ -89,8 +98,9 @@ func modeSupported(m csi.VolumeCapability_AccessMode_Mode) bool {
 }
 
 // kindOf maps the request's access type: block to BLOCK, mount to
-// FILESYSTEM. Mixed or missing access types are invalid.
-func kindOf(caps []*csi.VolumeCapability) (pb.VolumeKind, error) {
+// FILESYSTEM. Mixed or missing access types are invalid, and so is block
+// unless enabled.
+func kindOf(caps []*csi.VolumeCapability, enableBlock bool) (pb.VolumeKind, error) {
 	if len(caps) == 0 {
 		return 0, invalid("volume_capabilities are required")
 	}
@@ -102,6 +112,9 @@ func kindOf(caps []*csi.VolumeCapability) (pb.VolumeKind, error) {
 		var k pb.VolumeKind
 		switch {
 		case vc.GetBlock() != nil:
+			if !enableBlock {
+				return 0, invalid(errBlockDisabled)
+			}
 			k = pb.VolumeKind_VOLUME_KIND_BLOCK
 		case vc.GetMount() != nil:
 			if fs := vc.GetMount().GetFsType(); fs != "" && fs != "zfs" {
@@ -121,13 +134,17 @@ func kindOf(caps []*csi.VolumeCapability) (pb.VolumeKind, error) {
 
 // capSupported reports whether an existing volume of kind can serve vc. A
 // zvol may also carry a filesystem (mount access, e.g. one adopted from the
-// baseline); a ZFS filesystem can never be a raw block device.
-func capSupported(kind pb.VolumeKind, vc *csi.VolumeCapability) string {
+// baseline); a ZFS filesystem can never be a raw block device. Block access
+// is never confirmed unless enabled, as CreateVolume never grants it.
+func capSupported(kind pb.VolumeKind, vc *csi.VolumeCapability, enableBlock bool) string {
 	if !modeSupported(vc.GetAccessMode().GetMode()) {
 		return fmt.Sprintf("access mode %v is not supported", vc.GetAccessMode().GetMode())
 	}
 	switch {
 	case vc.GetBlock() != nil:
+		if !enableBlock {
+			return errBlockDisabled
+		}
 		if kind != pb.VolumeKind_VOLUME_KIND_BLOCK {
 			return "a filesystem volume has no block access"
 		}
@@ -246,7 +263,7 @@ func (c *Controller) CreateVolume(ctx context.Context, r *csi.CreateVolumeReques
 	if r.GetName() == "" {
 		return nil, invalid("name is required")
 	}
-	kind, err := kindOf(r.GetVolumeCapabilities())
+	kind, err := kindOf(r.GetVolumeCapabilities(), c.EnableBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +319,7 @@ func (c *Controller) ValidateVolumeCapabilities(ctx context.Context, r *csi.Vali
 		return nil, err
 	}
 	for _, vc := range r.GetVolumeCapabilities() {
-		if msg := capSupported(got.GetVolume().GetKind(), vc); msg != "" {
+		if msg := capSupported(got.GetVolume().GetKind(), vc, c.EnableBlock); msg != "" {
 			return &csi.ValidateVolumeCapabilitiesResponse{Message: msg}, nil
 		}
 	}

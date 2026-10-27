@@ -14,8 +14,9 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
 | File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; an IPv4 address or IPv4 CIDR, always written as a masked CIDR with `/N`, no broader than `-nfs-min-prefix` (default /16), no overlapping networks on one volume; rw/ro), desired clients in a local `<prefix>:nfs_clients` property with `sharenfs` computed from it, each Publish verified against `/var/lib/nfs/etab` (at the mountpoint's real path) and running nfsd threads; root only (`docs/research/gaps/file-export.md` and its reviews). SMB not started |
 | Block export (iSCSI/NVMe-oF) | design v2 done, not implemented: sole configfs owner, minted `block_id` identity, fail-closed build order (`docs/research/gaps/block-export-v2.md`) |
-| CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS. Node side not started |
-| Transport auth | not started; both daemons' sockets are mode 0600 in a 0700 directory until then (`internal/unixsock`, `docs/research/edges2/transport-auth.md`) |
+| CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS. Node side not started, so block access is opt-in (`-enable-block`, default off) |
+| Deployment (`deploy/`) | hyperconverged, unix sockets only (`docs/adr/0006-first-deployment-shape.md`): systemd unit per parent serving `/run/zfs-endpoint/<systemd-escape parent>.sock` (also zfs-endpoint's default `-listen`; `zfs-csi -parent` dials it), Kubernetes manifests in `deploy/k8s/`. Version set at build with `-ldflags -X github.com/wommy/empty/internal/version.Version=...`, printed by `-version`. No image or release build yet |
+| Transport auth | not started; the endpoint socket is mode 0600 in a 0700 directory until then, the CSI socket 0600 in the pod's emptyDir (`internal/unixsock`, `docs/research/edges2/transport-auth.md`) |
 
 ## Design
 

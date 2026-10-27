@@ -1,0 +1,22 @@
+# Example classes. Parameters zfs-csi understands (internal/csi
+# controller.go): reserve (filesystems: refreservation = capacity) and
+# sparse (zvols, only with -enable-block). Any other key is refused.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: zfs
+provisioner: zfs-endpoint.wommy.github.io
+parameters:
+  reserve: "false"
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+---
+# Needs the snapshot CRDs and snapshot-controller installed cluster-wide
+# (kubernetes-csi/external-snapshotter); they are not part of this driver.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: zfs
+driver: zfs-endpoint.wommy.github.io
+deletionPolicy: Delete

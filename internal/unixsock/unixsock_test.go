@@ -1,13 +1,12 @@
 package unixsock_test
 
 import (
+	"github.com/wommy/empty/internal/unixsock"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/wommy/empty/internal/unixsock"
 )
 
 func TestListenIsOwnerOnly(t *testing.T) {
@@ -155,5 +154,84 @@ func TestTargetIsAnAbsoluteSocketPath(t *testing.T) {
 		if _, err := unixsock.Target(bad); err == nil {
 			t.Errorf("%q accepted", bad)
 		}
+	}
+}
+
+// ListenShared serves in a kubelet emptyDir (0777) that Listen refuses, and
+// keeps every other refusal: the socket is 0600; a symlinked directory, a
+// non-socket and a live socket are refused; nothing is deleted.
+func TestListenSharedRelaxesOnlyTheDirectoryMode(t *testing.T) {
+	t.Parallel()
+	base := t.TempDir()
+	open := filepath.Join(base, "csi")
+	if err := os.Mkdir(open, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(open, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	sock := filepath.Join(open, "csi.sock")
+	if l, err := unixsock.Listen(sock); err == nil {
+		l.Close()
+		t.Fatal("Listen accepted a 0777 directory")
+	}
+	l, err := unixsock.ListenShared(sock)
+	if err != nil {
+		t.Fatalf("ListenShared in a 0777 directory: %v", err)
+	}
+	defer l.Close()
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	if fi, err := os.Lstat(sock); err != nil || fi.Mode()&os.ModeSocket == 0 || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("socket %v %v, want 0600", fi.Mode(), err)
+	}
+	if _, err := unixsock.ListenShared(sock); err == nil || !strings.Contains(err.Error(), "already being served") {
+		t.Fatalf("live socket: %v", err)
+	}
+
+	file := filepath.Join(open, "file")
+	if err := os.WriteFile(file, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(open, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{file, filepath.Join(link, "x.sock"), "@csi", "csi.sock"} {
+		if l, err := unixsock.ListenShared(p); err == nil {
+			l.Close()
+			t.Errorf("%s: listened", p)
+		}
+	}
+	if b, _ := os.ReadFile(file); string(b) != "keep" {
+		t.Error("non-socket replaced")
+	}
+}
+
+// The escaping is systemd-escape's (expected values are its output), so %i
+// in zfs-endpoint@.service names the same socket as EndpointAddr.
+func TestSystemdEscape(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"tank/k8s/vols": "tank-k8s-vols",
+		"tank/my-vols":  `tank-my\x2dvols`,
+		"tank/a b":      `tank-a\x20b`,
+		"tank/x:y_z.w":  "tank-x:y_z.w",
+		"tank/é":        `tank-\xc3\xa9`,
+		".x/y":          `\x2ex-y`,
+	} {
+		if got := unixsock.SystemdEscape(in); got != want {
+			t.Errorf("SystemdEscape(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := unixsock.EndpointAddr("tank/k8s/vols"); got != "unix:///run/zfs-endpoint/tank-k8s-vols.sock" {
+		t.Errorf("EndpointAddr = %q", got)
 	}
 }

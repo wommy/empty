@@ -54,7 +54,7 @@ func TestCapabilitiesAdvertised(t *testing.T) {
 func TestExpandNodeExpansionRequired(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	c := &zcsi.Controller{EP: endpointClient(t)}
+	c := &zcsi.Controller{EP: endpointClient(t), EnableBlock: true}
 	for _, block := range []bool{true, false} {
 		name := "fs"
 		if block {
@@ -102,7 +102,7 @@ func TestParametersAndAccessChecks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ep := endpointClient(t)
-	c := &zcsi.Controller{EP: ep}
+	c := &zcsi.Controller{EP: ep, EnableBlock: true}
 	create := func(name string, block bool, params map[string]string) error {
 		_, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{
 			Name: name, VolumeCapabilities: []*csi.VolumeCapability{capability(block)},
@@ -149,6 +149,54 @@ func TestParametersAndAccessChecks(t *testing.T) {
 	}
 	if validate("res", capability(true)) || validate("res", multi) {
 		t.Error("unsupported capability confirmed")
+	}
+}
+
+// Block is opt-in until a node plugin exists (ADR 0006). Off (the default),
+// CreateVolume refuses block access with InvalidArgument and creates
+// nothing, and ValidateVolumeCapabilities never confirms block access, not
+// even on an existing zvol; mount access is unaffected. On, both admit it.
+func TestBlockIsOptIn(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep := endpointClient(t)
+	off := &zcsi.Controller{EP: ep}
+	on := &zcsi.Controller{EP: ep, EnableBlock: true}
+	create := func(c *zcsi.Controller, name string, caps ...*csi.VolumeCapability) error {
+		_, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{
+			Name: name, VolumeCapabilities: caps, CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 30},
+		})
+		return err
+	}
+	validate := func(c *zcsi.Controller, vol string, vc *csi.VolumeCapability) (bool, string) {
+		res, err := c.ValidateVolumeCapabilities(ctx, &csi.ValidateVolumeCapabilitiesRequest{VolumeId: vol, VolumeCapabilities: []*csi.VolumeCapability{vc}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.GetConfirmed() != nil, res.GetMessage()
+	}
+
+	err := create(off, "blk", capability(true))
+	if status.Code(err) != codes.InvalidArgument || !strings.Contains(status.Convert(err).Message(), "-enable-block") {
+		t.Fatalf("block with block off: %v", err)
+	}
+	if _, err := ep.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "blk"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("refused block volume exists: %v", err)
+	}
+	if err := create(off, "fs", capability(false)); err != nil {
+		t.Fatalf("mount with block off: %v", err)
+	}
+	if err := create(on, "zvol", capability(true)); err != nil {
+		t.Fatalf("block with block on: %v", err)
+	}
+	if ok, msg := validate(off, "zvol", capability(true)); ok || !strings.Contains(msg, "-enable-block") {
+		t.Errorf("block confirmed with block off: %q", msg)
+	}
+	if ok, _ := validate(off, "zvol", capability(false)); !ok {
+		t.Error("mount on a zvol not confirmed with block off")
+	}
+	if ok, msg := validate(on, "zvol", capability(true)); !ok {
+		t.Errorf("block not confirmed with block on: %q", msg)
 	}
 }
 

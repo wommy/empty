@@ -1,0 +1,123 @@
+# The CSI controller: zfs-csi plus the provisioner, resizer and snapshotter
+# sidecars, on the ZFS host itself (hyperconverged, ADR 0006).
+#
+# Before applying:
+#   - label the ZFS host:
+#       kubectl label node <host> zfs-endpoint.wommy.github.io/host=true
+#   - run the endpoint there for the parent dataset:
+#       systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
+#   - set -parent below to that dataset: zfs-csi dials
+#     /run/zfs-endpoint/<systemd-escape parent>.sock, the socket the unit
+#     serves (the one convention, internal/unixsock EndpointAddr);
+#   - build and push the zfs-csi image (none is published yet) with the
+#     version stamped in:
+#       go build -ldflags "-X github.com/wommy/empty/internal/version.Version=v0.1.0" ./cmd/zfs-csi
+#
+# Images are pinned by version tag. Pin each by digest (image@sha256:...)
+# before production: a tag can be re-pushed.
+#
+# Sockets and users:
+#   - /csi is an emptyDir shared by the four containers. kubelet makes it
+#     0777; zfs-csi serves csi.sock there 0600 (unixsock.ListenShared), so
+#     every container runs as uid 0, the socket's owner.
+#   - /run/zfs-endpoint is the host's endpoint directory (0700 root, socket
+#     0600 root): zfs-csi must run as uid 0 to dial it. It needs no
+#     capability: owning uid 0 is enough for the file modes.
+#   - No ControllerPublish, so no attacher sidecar (CSIDriver
+#     attachRequired: false).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zfs-csi-controller
+  namespace: zfs-csi
+spec:
+  # one endpoint per parent per host already serializes every call; a
+  # second controller would add nothing but a leader election
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: zfs-csi-controller
+  template:
+    metadata:
+      labels:
+        app: zfs-csi-controller
+    spec:
+      serviceAccountName: zfs-csi-controller
+      priorityClassName: system-cluster-critical
+      nodeSelector:
+        zfs-endpoint.wommy.github.io/host: "true"
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        runAsNonRoot: false
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: zfs-csi
+          image: ghcr.io/wommy/zfs-csi:v0.1.0
+          args:
+            - -parent=tank/k8s/vols
+            - -csi-address=unix:///csi/csi.sock
+            # block volumes stay off until a node plugin exists (ADR 0006)
+            # - -enable-block
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: endpoint-dir
+              mountPath: /run/zfs-endpoint
+        - name: csi-provisioner
+          image: registry.k8s.io/sig-storage/csi-provisioner:v5.2.0
+          args:
+            - --csi-address=/csi/csi.sock
+            # the endpoint waits up to -lock-wait (30s) for a busy resource
+            - --timeout=60s
+            - --extra-create-metadata
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: csi-resizer
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.13.1
+          args:
+            - --csi-address=/csi/csi.sock
+            - --timeout=60s
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: csi-snapshotter
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.2.0
+          args:
+            - --csi-address=/csi/csi.sock
+            - --timeout=60s
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: endpoint-dir
+          hostPath:
+            path: /run/zfs-endpoint
+            # the unit's RuntimeDirectory: start zfs-endpoint first
+            type: Directory

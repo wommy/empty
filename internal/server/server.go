@@ -14,10 +14,8 @@ import (
 
 	pb "github.com/wommy/empty/gen/zfsendpoint/v1"
 	"github.com/wommy/empty/internal/endpoint"
+	"github.com/wommy/empty/internal/version"
 )
-
-// Version is reported by GetCapabilities.
-var Version = "dev"
 
 // Server implements pb.EndpointServiceServer.
 type Server struct {
@@ -95,7 +93,7 @@ func (s *Server) GetCapabilities(ctx context.Context, _ *pb.GetCapabilitiesReque
 	if s.EP.FileExportEnabled() {
 		caps = append(caps, pb.Capability_CAPABILITY_FILE_EXPORT)
 	}
-	return &pb.GetCapabilitiesResponse{Parent: s.Parent, Version: Version, Capabilities: caps}, nil
+	return &pb.GetCapabilitiesResponse{Parent: s.Parent, Version: version.Version, Capabilities: caps}, nil
 }
 
 func (s *Server) PublishFileExport(ctx context.Context, r *pb.PublishFileExportRequest) (*pb.PublishFileExportResponse, error) {
