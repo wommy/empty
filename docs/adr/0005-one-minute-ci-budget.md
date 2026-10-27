@@ -186,6 +186,13 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - zero-filling the free space instead of `fstrim`: the disk is 20G, and writing it would add a cold-run cost for a few MB.
 - **The first cold run must confirm:** `cloud-init status` without errors, no `slim: not purging` line and the `df` of `/` before the store; the checks and both suites pass on the slimmed guest; the stored size near the prediction. Warm runs must show `Cache Size` near 590 MB, no `booting it through the BIOS and GRUB` warning, and `direct kernel boot: … no initrd`.
 
+### Where the endpoint phase's CPU goes
+
+- **Data.** Run 2026-10-27T13:36 (the unsplit endpoint suite, 3 shards): the test phase took 22.8s on 4 vCPUs at 91% busy, about 83 CPU-s, of which about 57 are sys+irq. There were about 28k context switches/s and 12k interrupts/s, and `bi` ran at 4–10 MB/s, which the tmpfs vdevs cannot cause (vdev_file I/O never reaches submit_bio). The workload is about 10k zfs(8) launches, roughly 8 ms of CPU each. Each launch posts history zevents, which zed fans out to zedlets, and each zvol add/change/remove is a uevent that udev and udisks2 probe. The split of those CPU-s by source was unknown.
+- **Counters (diagnostics only, `counters` in `ci/real-zfs-guest.sh`).** Before and after the shards, one awk reads `/proc/stat` (busy ticks, `processes` = forks, `ctxt`, `intr`), `/proc/interrupts` (the total, and LOC, RES, CAL and TLB), `/proc/vmstat` (pgpgin, pgfault, pgmajfault), vda's sectors read from `/proc/diskstats`, and cgroup v2 `cpu.stat` (`usage_usec`, `system_usec`) of the root, `init.scope`, `system.slice`, the session scope the shards run in (`tests`: the test binaries and their zfs(8)), and `zfs-zed`, `udisks2`, `systemd-udevd`, `systemd-journald` and `rsyslog`. The deltas are appended to `out/load.txt`, so to the job summary: forks/s and CPU-ms per fork, context switches/s, interrupts, block reads split into vda and the rest (zvols, which leave diskstats once destroyed), and CPU-s per cgroup.
+  - Only files that exist are read. A stopped unit or a missing cgroup prints `-`, and nothing in it can fail the job. Measured on a 4-CPU container: 4 ms per snapshot, so well under 0.1s for the job.
+  - Kernel threads and irq are root − (init + system + user.slice). The table prints root, init and system; the tests' scope is most of user.slice.
+
 ### ssh poll and module load
 
 - **Data.** Run 40513522394 (2b648ef, jobs 122221249079 endpoint and 122221249080 csi), times after qemu started:
