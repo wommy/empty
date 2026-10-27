@@ -61,7 +61,7 @@ These notes record how the decision was built. They do not change it.
 - **The floor is not in the ownership grammar**, a deviation from "at or above the configured floor" above.
   - The floor bounds new writes: Publish and CreateVolume.
   - Ownership accepts any `/N` from 1 to 32. Otherwise, raising `-nfs-min-prefix` would turn existing exports foreign, and they could never be rewritten or unpublished.
-  - Reconcile is the place to report below-floor values.
+  - Reconcile reports a below-floor network in a value of ours in `skipped` (`SkipNFSBelowFloor`, naming each network and mode) and never rewrites it (wave14).
 - **A foreign value is never written, even when it still serves the client.**
   - An admin's `rw=*` over our list is not rewritten.
   - Unpublish is FAILED_PRECONDITION while a foreign value still serves the host.
@@ -81,4 +81,4 @@ These notes record how the decision was built. They do not change it.
   - A parent with mountpoint `none` or `legacy` pins nothing.
   - **Volumes made before the pin are reported, not rewritten.** Reconcile lists a committed filesystem with an inherited path mountpoint in `skipped`. `zfs set mountpoint` unmounts and remounts the volume, and its export, under whoever uses it, so the operator picks the moment.
 - **Not built yet:**
-  - the reconcile drift reports other than the leftover list and the server.
+  - the reconcile drift reports other than the leftover list, the server, the mountpoint pin and below-floor.

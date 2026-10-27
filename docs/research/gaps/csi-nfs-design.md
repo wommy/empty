@@ -60,7 +60,7 @@ Why `/N` is always written, even `/32`: by Fact C, every client we write is matc
 
 `minPrefix` is an endpoint flag (`-nfs-min-prefix`, default 16). It is reported in GetCapabilities.
 
-As built, the floor is **not** part of the ownership grammar. It applies to new writes, so Publish and CreateVolume refuse a network below it. Ownership accepts any `/N` from 1 to 32. With the floor in the grammar, raising `-nfs-min-prefix` would turn existing exports FOREIGN. They could then never be rewritten or unpublished, which breaks the flag's promise that raising it never strands an export. `0.0.0.0/0` stays out because it fails the round trip (`/0` is refused by the parser), and reconcile is the place to report `below-floor`. `nfs_min_prefix` is not in GetCapabilities yet.
+As built, the floor is **not** part of the ownership grammar. It applies to new writes, so Publish and CreateVolume refuse a network below it. Ownership accepts any `/N` from 1 to 32. With the floor in the grammar, raising `-nfs-min-prefix` would turn existing exports FOREIGN. They could then never be rewritten or unpublished, which breaks the flag's promise that raising it never strands an export. `0.0.0.0/0` stays out because it fails the round trip (`/0` is refused by the parser), and Reconcile reports a `below-floor` network in a value in the grammar, without rewriting it (wave14). `nfs_min_prefix` is not in GetCapabilities yet.
 
 ## 3. StorageClass parameters
 
@@ -179,7 +179,7 @@ A mismatch returns `Message` (not an error). This is the only drift a front end 
 | Edit | Classified as | Effect |
 |---|---|---|
 | `rw=10.0.0.0/24:` / `rw=a::b` / `rw=` | FOREIGN | **Exports to everyone** (Fact B). `zfs set` accepts these. Reconcile reports `world-export`, the highest severity. The endpoint never writes them, and our writer cannot produce an empty host because a non-empty sorted list is joined with `:`. |
-| `on`, `rw`, `*`, `0.0.0.0/0`, `/8` with floor 16 | FOREIGN | world-export or below-floor drift. This is also how democratic-csi's `sharenfs=on` volumes look. |
+| `on`, `rw`, `*`, `0.0.0.0/0`, `/8` with floor 16 | FOREIGN, except `/8` (as built: MANAGED, reported below-floor, never rewritten) | world-export or below-floor drift. This is also how democratic-csi's `sharenfs=on` volumes look. |
 | `rw=10.0.0.0/24,ro=10.0.0.5/32` | FOREIGN | Overlap. By Fact D the `/32` gets **rw** (first line wins), so ro is not enforced. That is why the grammar bans overlap. |
 | `rw=X,sec=krb5,ro=Y` | FOREIGN | `sec` applies to later hosts (libshare :127-128). Options are never ours. |
 | `rw=10.9.0.0/16` (in grammar) | MANAGED | Accepted as truth. A CreateVolume retry would be ALREADY_EXISTS. In per-node mode it counts as a published client, and unpublish-all removes it. |
@@ -232,7 +232,7 @@ Add `ReconcileResponse.drift = 3 { target, kind, detail }` and one action, `resh
 | D8 `server-unadvertised` | a committed volume's recorded `<prefix>:nfs_server` is not in `-nfs-server` (its PVs still mount it) |
 | D9 `server-elsewhere` | `<prefix>:nfs_server` inherited or received: ignored, not the volume's |
 
-As built (wave13): D7, D8 and D9 are reported in the existing `ReconcileResponse.skipped`, one entry per volume, so no `drift` field was added. D1-D6 and `reshare` are not built.
+As built (wave13): D7, D8 and D9 are reported in the existing `ReconcileResponse.skipped`, one entry per volume, so no `drift` field was added. Wave14 adds D2's `below-floor` for a value in the grammar (the floor is not in it, §2 as built), and an unpinned mountpoint (§4), the same way. The rest of D1-D6 and `reshare` are not built.
 
 "Drift" means OpenZFS disagrees with *itself* (sharenfs against etab), or with policy (grammar, floor, parent). It never means OpenZFS disagrees with a stored desire, because none is stored. A static volume an admin switched to `off` is not drift (§9.1).
 

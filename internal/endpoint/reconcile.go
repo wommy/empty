@@ -87,6 +87,14 @@ const (
 	// does not pin it itself: `zfs set mountpoint` unmounts and remounts
 	// the volume (and its export) under whoever is using it, so the
 	// operator chooses the moment.
+	// SkipNFSBelowFloor prefixes the networks of a volume's sharenfs, in
+	// the endpoint's grammar, that are broader than -nfs-min-prefix: an
+	// admin's edit, or a value written before the floor was raised. The
+	// floor bounds new writes only (ADR 0004 implementation notes), so
+	// the value stays the endpoint's and is served as it is; rewriting it
+	// would revoke clients. Narrow it with zfs set sharenfs, or Unpublish
+	// the network.
+	SkipNFSBelowFloor       = "sharenfs exports a network broader than -nfs-min-prefix (served as is, never rewritten)"
 	SkipMountpointNotPinned = "mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; " +
 		"pin it with zfs set mountpoint=<its current path> (zfs remounts it)"
 )
@@ -384,6 +392,9 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		if r.Committed && r.NFSServer != "" && !slices.Contains(p.NFSServers, r.NFSServer) {
 			skip(r.ID, SkipNFSServerUnadvertised)
 		}
+		if below := p.belowFloor(r); len(below) > 0 {
+			skip(r.ID, SkipNFSBelowFloor+": "+strings.Join(below, ", "))
+		}
 		// none and legacy are no path a parent's move could change
 		if r.Committed && r.Kind() == Filesystem && !r.MountLocal && strings.HasPrefix(r.Mount, "/") {
 			skip(r.ID, SkipMountpointNotPinned)
@@ -402,6 +413,19 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		}
 	}
 	return out, nil
+}
+
+// belowFloor lists the networks of row's own sharenfs (local, in the
+// grammar) broader than the floor, each with its mode.
+func (p Planner) belowFloor(row Row) []string {
+	floor := cmp.Or(p.NFSMinPrefix, DefaultNFSMinPrefix)
+	var out []string
+	for _, c := range clientsOf(row) {
+		if checkFloor(c, floor) != nil {
+			out = append(out, c.Host+" "+c.mode())
+		}
+	}
+	return out
 }
 
 // applyReconcile applies plan group by group. A group that fails is
