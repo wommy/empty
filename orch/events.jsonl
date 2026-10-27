@@ -56,3 +56,7 @@
 {"ts": "2026-10-27T06:56:33Z", "id": "aa8e15be0fa34fc1a", "from": "reported", "to": "triaged", "note": "All 4 (D1,D4,D8,D12) DECISIVE+REVERSIBLE with pinned upstream evidence; zero owner questions. D8 keeps ADR 0004 static-first + pod-egress deny as F6 control. -> record in ADR 0001 v2 via b-security."}
 {"ts": "2026-10-27T06:56:33Z", "id": "aa8e15be0fa34fc1a", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T06:56:40Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T06:58:56Z", "id": "a1f29cbd90f96571f", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T06:58:57Z", "id": "a1f29cbd90f96571f", "from": "reported", "to": "triaged", "note": "Verified: SecureDir refuses 0777 (zfs-csi /csi emptyDir), socket default endpoint.sock vs unit %i.sock. NFS server/share already in b-nfs-csi (S11). Owner questions: none asked; topology/NFS/OS already decided by code+ADR 0004; metrics decided journald-first (reversible), recorded in b-deploy ADR note."}
+{"ts": "2026-10-27T06:58:57Z", "id": "a1f29cbd90f96571f", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T06:58:57Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
