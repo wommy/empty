@@ -19,7 +19,7 @@
 # note: ADR 0010 (rollback of a failed fresh create): its sim-only and pure tests are set by hand to 0.00 (TestCreateRollbackAmbiguousFirstOp, TestCreateRollbackConcurrentSameName, TestCreateRollbackFailureIsJoined, TestCreateRollbackFreesTheName, TestCreateRollbackLeavesNothing, TestCreateRollbackReleasesCutSource, TestCreateNoRollbackOnResume, TestPlanRollbackCreate), TestCreateNoRollbackOnCallerDeadline to 0.10 (two 50 ms deadlines), and TestDestroyNeverHitsAReplacedDataset +0.10 (measured 0.86 -> 0.96) for its rollback-create case's destroy0 on a real pool (a create, a clone, a failed commit, a swap: ~0.4 test-s / nproc 4).
 # note: TestDestroyNeverHitsAReplacedDataset's ADR 0010 +0.10 (the note above; its rollback-create case postdates the source runs) re-derived on these normalized weights: measured 1.42 -> 1.52 (its raw cost/nproc averages 1.37 s over the four runs, so normalization scales it by 1.04 and the ~0.4 test-s / nproc 4 = 0.10 s stays 0.10).
 # note: Wave 25's guard-kill tests (pure planner, or their own simulator, no real-pool work) are set by hand to 0.00 like the other sim-only tests: TestPlanReconcileOrphanCloneSourceHonoursLocks, TestPlanReconcileZeroCreationIsNeverOld, TestPublishFileExportLocksTheVolume, TestSnapshotDeleteAndCloneTakeTheSourceLocks.
-# note: TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable (ADR 0010 R4, own simulator) is set by hand to 0.00 like the other sim-only tests.
+# note: TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable and TestCreateRollbackFailureIsAlwaysRetryable (ADR 0010 R4, own simulator) are set by hand to 0.00 like the other sim-only tests.
 #
 # <test> <seconds>
 TestPropertyRoundTrip 14.95
@@ -279,3 +279,4 @@ TestPlanReconcileZeroCreationIsNeverOld 0.00
 TestPublishFileExportLocksTheVolume 0.00
 TestSnapshotDeleteAndCloneTakeTheSourceLocks 0.00
 TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable 0.00
+TestCreateRollbackFailureIsAlwaysRetryable 0.00

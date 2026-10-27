@@ -747,6 +747,11 @@ func (e *Endpoint) rollbackCreate(ctx context.Context, r CreateVolumeRequest, id
 		// something may be left, so the code must be retryable (R4), also
 		// when err came from an ambiguous first op and is still pre-change
 		err = afterChange(err, " (the create may have run and rolling it back failed; a retry converges)")
+		if c := CodeOf(err); c != Aborted && c != Unavailable {
+			// a deliberate refusal is final for the provisioner: with the
+			// row left, nothing would call again
+			err = &Error{Code: Aborted, Msg: "create volume " + id + " left uncommitted, rolling it back failed (a retry converges)", Err: err}
+		}
 		joined := errors.Join(err, fmt.Errorf("rolling the create back: %w", rerr))
 		if !errors.As(err, new(*Error)) {
 			// the code is err's, never the rollback's

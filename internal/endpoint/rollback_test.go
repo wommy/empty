@@ -524,3 +524,45 @@ func TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable(t *testing.T) {
 		t.Fatalf("row left uncommitted with code %v (%v): want Aborted, a final code strands it", c, err)
 	}
 }
+
+// R4 for every fault, deliberate refusals included: when the rollback
+// fails (every destroy busy) and leaves something, the code is one the
+// provisioner retries, never the fault's own final code.
+func TestCreateRollbackFailureIsAlwaysRetryable(t *testing.T) {
+	ctx := context.Background()
+	busy := &zfs.ExitError{Code: 1, Stderr: "cannot destroy: dataset is busy\n"}
+	for _, s := range rbShapes {
+		for _, f := range rbFaults {
+			if f.shapes != nil && !slices.Contains(f.shapes, s.name) {
+				continue
+			}
+			t.Run(s.name+"/"+f.name, func(t *testing.T) {
+				h, sim, ep, rootErr := rbRun(t, s)
+				fired := false
+				f.arm(t, h, sim, rootErr, &fired)
+				armed := sim.Fail
+				sim.Fail = func(a []string) error {
+					if a[0] == "destroy" {
+						return busy
+					}
+					if armed != nil {
+						return armed(a)
+					}
+					return nil
+				}
+				before := fingerprint(t, h)
+				_, err := ep.CreateVolume(ctx, s.req)
+				f.disarm(t, h, sim, rootErr)
+				sim.Fail = nil
+				if !fired {
+					t.Fatalf("the fault never fired (%v)", err)
+				}
+				// Aborted and Unavailable are the codes external-provisioner
+				// retries; any other code with something left strands it
+				if c := endpoint.CodeOf(err); fingerprint(t, h) != before && c != endpoint.Aborted && c != endpoint.Unavailable {
+					t.Fatalf("left something with final code %v: %v", c, err)
+				}
+			})
+		}
+	}
+}
