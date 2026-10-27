@@ -99,6 +99,12 @@ func TestValidatePropertyValues(t *testing.T) {
 		{Block, "copies", "3", "3"},
 		{Block, "copies", "4", ""},
 		{Block, "copies", "0", ""},
+		{Filesystem, "compression", "gzip-9", "gzip-9"},
+		{Filesystem, "recordsize", "512B", "512"},
+		{Filesystem, "logbias", "throughput", "throughput"}, // logbias, dedup: both kinds
+		{Filesystem, "dedup", "off", "off"},
+		{Block, "atime", "on", ""}, // filesystem-only properties
+		{Block, "recordsize", "128K", ""},
 	} {
 		got, err := ValidateProperties(c.kind, map[string]string{c.k: c.v})
 		switch {
@@ -106,6 +112,28 @@ func TestValidatePropertyValues(t *testing.T) {
 			t.Errorf("%s %s=%q: want InvalidArgument, got %v %v", c.kind, c.k, c.v, got, err)
 		case c.canon != "" && (err != nil || got[c.k] != c.canon):
 			t.Errorf("%s %s=%q: want %q, got %v %v", c.kind, c.k, c.v, c.canon, got, err)
+		}
+	}
+}
+
+// parseSize reads at most 9 digits (so no overflow before the shift).
+func TestParseSize(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		in   string
+		want uint64
+		ok   bool
+	}{
+		{"999999999", 999999999, true},
+		{"1000000000", 0, false},
+		{"512B", 512, true},
+		{"512b", 512, true},
+		{"1K", 1 << 10, true},
+		{"1M", 1 << 20, true},
+		{"K", 0, false},
+	} {
+		if got, ok := parseSize(tc.in); ok != tc.ok || ok && got != tc.want {
+			t.Errorf("parseSize(%q) = %d %v, want %d %v", tc.in, got, ok, tc.want, tc.ok)
 		}
 	}
 }

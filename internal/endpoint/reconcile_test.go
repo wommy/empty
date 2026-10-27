@@ -275,9 +275,36 @@ func TestPlanReconcile(t *testing.T) {
 			want:  desired("a"),
 			skips: []string{"a@volume-source-for-volume-x y:" + SkipUnaddressable},
 		},
+		{
+			name:  "a desired id naming a snapshot names no volume",
+			rows:  []Row{vol("a", nil), snap("a@s", nil)},
+			want:  desired("a", "a@s"),
+			skips: []string{"a@s:" + SkipDesiredMissing},
+		},
+		{
+			// committed_at counts only for a committed volume
+			name: "an uncommitted row ages from its creation",
+			rows: []Row{vol("a", nil), vol("b", func(r *Row) { r.Committed, r.CommittedAt = false, recNow-60 })},
+			want: desired("a"),
+			acts: []string{"b:" + ReasonUncommitted},
+		},
+		{
+			// "less than MinAge before Now is untouched": the boundary
+			name: "exactly MinAge old is collected",
+			rows: []Row{vol("a", nil), vol("b", func(r *Row) { r.Creation = recNow - 3600 })},
+			want: desired("a"),
+			acts: []string{"b:" + ReasonUndesired},
+		},
+		{
+			name:  "one second under MinAge is not",
+			rows:  []Row{vol("a", nil), vol("b", func(r *Row) { r.Creation = recNow - 3599 })},
+			want:  desired("a"),
+			skips: []string{"b:" + SkipTooYoung},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			tab := table(c.rows...)
 			plan, err := pl.PlanReconcile(tab, c.want)
 			if err != nil {
@@ -334,6 +361,16 @@ func TestPlanReconcileHeldLimitsActions(t *testing.T) {
 	if len(acts) != 0 || !slices.Equal(skips, []string{"c:" + SkipChangedSinceScan, "b:volume b has dependent clone c"}) {
 		t.Fatalf("actions %q skipped %q", acts, skips)
 	}
+	// the locked re-plan keeps an action only for the reason the unlocked
+	// plan had: an uncommitted row committed in between is judged afresh
+	d = desired("a")
+	d.planned = map[string]string{"b": ReasonUncommitted}
+	if plan, err = pl.PlanReconcile(table(vol("a", nil), vol("b", nil)), d); err != nil {
+		t.Fatal(err)
+	}
+	if acts, skips = summary(plan); len(acts) != 0 || !slices.Equal(skips, []string{"b:" + SkipChangedSinceScan}) {
+		t.Fatalf("reason changed: actions %q skipped %q", acts, skips)
+	}
 }
 
 func TestSimulateDestroyReapsDeferredOrigins(t *testing.T) {
@@ -351,5 +388,91 @@ func TestSimulateDestroyReapsDeferredOrigins(t *testing.T) {
 	rows = simulateDestroyAll(rows, []Plan{{{Kind: OpDestroy, Target: "tank/v/d"}}})
 	if len(rows) != 1 || rows[0].ID != "b" {
 		t.Fatalf("last clone gone: %+v", rows)
+	}
+}
+
+// The fixpoint's simulation, case by case: what a round of destroys leaves
+// is what the next round plans against, so reaping too much would let a
+// volume whose snapshot another clone still pins be judged deletable.
+func TestSimulateDestroyAllCases(t *testing.T) {
+	t.Parallel()
+	snapRow := func(name string, deferred bool) Row {
+		return Row{Name: name, ID: strings.TrimPrefix(name, "tank/v/"), Type: zfs.TypeSnapshot, Deferred: deferred}
+	}
+	dsRow := func(name, origin string) Row {
+		return Row{Name: name, ID: strings.TrimPrefix(name, "tank/v/"), Origin: origin}
+	}
+	for _, tc := range []struct {
+		name     string
+		rows     []Row
+		plans    []Plan
+		want     string // remaining ids
+		deferred string // remaining ids marked deferred
+	}{
+		{
+			name: "only the destroyed clone's deferred origin is reaped",
+			rows: []Row{
+				dsRow("tank/v/b", ""), snapRow("tank/v/b@s1", true), snapRow("tank/v/b@s2", true),
+				dsRow("tank/v/c", "tank/v/b@s1"), dsRow("tank/v/e", "tank/v/b@s2"),
+			},
+			plans:    []Plan{{{Kind: OpDestroy, Target: "tank/v/c"}}},
+			want:     "b,b@s2,e",
+			deferred: "b@s2",
+		},
+		{
+			name:  "an undeferred origin outlives its last clone",
+			rows:  []Row{dsRow("tank/v/b", ""), snapRow("tank/v/b@s", false), dsRow("tank/v/c", "tank/v/b@s")},
+			plans: []Plan{{{Kind: OpDestroy, Target: "tank/v/c"}}},
+			want:  "b,b@s",
+		},
+		{
+			name:  "a plain destroy takes the dataset alone",
+			rows:  []Row{dsRow("tank/v/b", ""), snapRow("tank/v/b@s", false)},
+			plans: []Plan{{{Kind: OpDestroy, Target: "tank/v/b"}}},
+			want:  "b@s",
+		},
+		{
+			name:  "-r takes the dataset, its snapshots and children, not a name sharing its prefix",
+			rows:  []Row{dsRow("tank/v/b", ""), snapRow("tank/v/b@s", false), dsRow("tank/v/b/x", ""), dsRow("tank/v/bb", "")},
+			plans: []Plan{{{Kind: OpDestroy, Target: "tank/v/b", Recursive: true}}},
+			want:  "bb",
+		},
+		{
+			name:     "a deferred destroy of a used first row marks it",
+			rows:     []Row{snapRow("tank/v/a@s", false), dsRow("tank/v/c", "tank/v/a@s")},
+			plans:    []Plan{{{Kind: OpDestroy, Target: "tank/v/a@s", Defer: true}}},
+			want:     "a@s,c",
+			deferred: "a@s",
+		},
+		{
+			name:  "a deferred destroy of an unused snapshot removes it",
+			rows:  []Row{dsRow("tank/v/a", ""), snapRow("tank/v/a@s", false)},
+			plans: []Plan{{{Kind: OpDestroy, Target: "tank/v/a@s", Defer: true}}},
+			want:  "a",
+		},
+		{
+			name: "release then clone in one round reaps the origin",
+			rows: []Row{dsRow("tank/v/b", ""), snapRow("tank/v/b@o", false), dsRow("tank/v/c", "tank/v/b@o")},
+			plans: []Plan{{
+				{Kind: OpDestroy, Target: "tank/v/b@o", Defer: true},
+				{Kind: OpDestroy, Target: "tank/v/c"},
+			}},
+			want: "b",
+		},
+	} {
+		rows := simulateDestroyAll(slices.Clone(tc.rows), tc.plans)
+		var ids, deferred []string
+		for _, r := range rows {
+			ids = append(ids, r.ID)
+			if r.Deferred {
+				deferred = append(deferred, r.ID)
+			}
+		}
+		if got := strings.Join(ids, ","); got != tc.want {
+			t.Errorf("%s: rows %s, want %s", tc.name, got, tc.want)
+		}
+		if got := strings.Join(deferred, ","); got != tc.deferred {
+			t.Errorf("%s: deferred %s, want %s", tc.name, got, tc.deferred)
+		}
 	}
 }

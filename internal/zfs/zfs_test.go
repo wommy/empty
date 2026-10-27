@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,11 +39,73 @@ func TestClassify(t *testing.T) {
 		{"cannot create 'tank/a': 'recordsize' must be power of 2 from 512B to 128K\n", zfs.ErrInvalidProperty},
 		{"cannot create 'tank/a': pool must be upgraded to set this property or value\n", zfs.ErrPrecondition},
 		{"cannot create 'tank/a': the loaded zfs module does not support this operation. A reboot may be required to enable this operation.\n", zfs.ErrUnavailable},
+		// every other phrase of errors.go's table, written out here and not
+		// ranged over from it, so dropping or re-kinding an alias fails
+		{"cannot destroy 'tank/a@s': snapshot is cloned\n", zfs.ErrHasClones},
+		{"cannot create 'tank/a/b': no such parent 'tank/a'\n", zfs.ErrParentNotFound},
+		{"cannot create 'tank/a': pool or dataset exists\n", zfs.ErrExists},
+		{"cannot open 'tank/a': no such pool or dataset\n", zfs.ErrNotFound},
+		{"could not find any snapshots to destroy; check snapshot names.\n", zfs.ErrNotFound},
+		{"cannot destroy 'tank/a': pool or dataset is busy\n", zfs.ErrBusy},
+		{"cannot set property for 'tank/a': invalid property value\n", zfs.ErrInvalidProperty},
+		{"cannot create 'tank/a': bad property list\n", zfs.ErrInvalidProperty},
+		{"cannot set property for 'tank/a': invalid property 'x'\n", zfs.ErrInvalidProperty},
+		{"cannot set property for 'tank/a': property is read-only\n", zfs.ErrInvalidProperty},
+		{"cannot create 'tank/a': permission denied\n", zfs.ErrPermission},
+		// a missing or stuck pool is never a missing dataset
+		{"cannot open 'gone': no such pool\n", zfs.ErrUnavailable},
+		{"cannot create 'tank/a': pool I/O is currently suspended\n", zfs.ErrUnavailable},
+		{"cannot open 'tank/a': pool is unavailable\n", zfs.ErrUnavailable},
+		{"CANNOT OPEN 'TANK/A': DATASET DOES NOT EXIST\n", zfs.ErrNotFound}, // case-insensitive
 	} {
 		c := zfs.New(failRunner(tc.stderr))
 		err := c.Destroy(ctx, "tank/a", zfs.DestroyOptions{})
 		if !errors.Is(err, tc.want) {
 			t.Errorf("%q: got %v, want %v", tc.stderr, err, tc.want)
+		}
+	}
+	c := zfs.New(failRunner("something else entirely\n"))
+	var ze *zfs.Error
+	if err := c.Destroy(ctx, "tank/a", zfs.DestroyOptions{}); !errors.As(err, &ze) || ze.Kind != zfs.KindUnknown {
+		t.Errorf("unmatched text: %v, want KindUnknown", err)
+	}
+}
+
+// errors.Is matches a kind only against a bare sentinel: a target naming an
+// op or dataset is a specific failure, not a kind.
+func TestErrorIsMatchesBareSentinelsOnly(t *testing.T) {
+	t.Parallel()
+	e := &zfs.Error{Kind: zfs.KindNotFound, Op: "destroy", Dataset: "tank/a", Stderr: "dataset does not exist"}
+	for _, tc := range []struct {
+		target error
+		want   bool
+	}{
+		{zfs.ErrNotFound, true},
+		{zfs.ErrExists, false},
+		{&zfs.Error{Kind: zfs.KindNotFound, Op: "destroy"}, false},
+		{&zfs.Error{Kind: zfs.KindNotFound, Dataset: "tank/a"}, false},
+		{errors.New("dataset does not exist"), false},
+	} {
+		if got := errors.Is(e, tc.target); got != tc.want {
+			t.Errorf("errors.Is(e, %#v) = %v, want %v", tc.target, got, tc.want)
+		}
+	}
+}
+
+// The message is zfs's own stderr, else the exec error.
+func TestErrorTextPrefersStderrThenCause(t *testing.T) {
+	t.Parallel()
+	cause := errors.New("exit status 1")
+	for _, tc := range []struct {
+		e        *zfs.Error
+		has, not string
+	}{
+		{&zfs.Error{Kind: zfs.KindNotFound, Op: "get", Dataset: "d", Stderr: "boom\n", Err: cause}, "boom", "exit status"},
+		{&zfs.Error{Kind: zfs.KindNotFound, Op: "get", Dataset: "d", Err: cause}, "exit status 1", "\x00"},
+		{&zfs.Error{Kind: zfs.KindNotFound, Op: "get", Dataset: "d"}, "zfs get d", "\x00"}, // neither: no panic
+	} {
+		if s := tc.e.Error(); !strings.Contains(s, tc.has) || strings.Contains(s, tc.not) {
+			t.Errorf("Error() = %q, want %q and not %q", s, tc.has, tc.not)
 		}
 	}
 }
