@@ -264,3 +264,94 @@ func TestManifests(t *testing.T) {
 		t.Errorf("containers %v, want %v", names, want)
 	}
 }
+
+// directives returns the settings of a unit file or drop-in that are in
+// effect, and the names of the settings that are commented out.
+func directives(t *testing.T, path string) (active map[string][]string, commented []string) {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	active = map[string][]string{}
+	cont := false
+	for line := range strings.Lines(string(b)) {
+		line = strings.TrimSpace(line)
+		wasCont := cont
+		cont = strings.HasSuffix(line, `\`)
+		if wasCont {
+			continue // an ExecStart argument line
+		}
+		if c, ok := strings.CutPrefix(line, "#"); ok {
+			if k, _, ok := strings.Cut(c, "="); ok && k != "" && !strings.ContainsAny(k, " \t") {
+				commented = append(commented, k)
+			}
+			continue
+		}
+		if k, v, ok := strings.Cut(line, "="); ok {
+			active[k] = append(active[k], v)
+		}
+	}
+	return active, commented
+}
+
+// noNamespace are settings that create a private mount namespace (zfs
+// mounts and exportfs would never reach the host or nfsd) or cut the
+// network (exportfs resolves every export's hosts). None may appear in
+// the unit or a drop-in, not even commented out as a suggestion.
+var noNamespace = []string{
+	"ProtectSystem", "ProtectHome", "PrivateTmp", "PrivateDevices",
+	"ReadOnlyPaths", "ReadWritePaths", "InaccessiblePaths", "TemporaryFileSystem",
+	"BindPaths", "BindReadOnlyPaths", "ProtectKernelTunables", "ProtectKernelModules",
+	"ProtectKernelLogs", "ProtectControlGroups", "ProtectProc", "ProcSubset",
+	"PrivateMounts", "MountFlags", "PrivateNetwork", "IPAddressDeny", "PrivateUsers",
+}
+
+// The unit and its hardening drop-in: audit lines are never rate-limited
+// (F8), the hardening keeps mounts on the host (H-16), and what needs the
+// real-ZFS VM leg to verify (capabilities, device and syscall filters)
+// ships commented out.
+func TestUnitLint(t *testing.T) {
+	t.Parallel()
+	unit, _ := directives(t, filepath.Join("systemd", "zfs-endpoint@.service"))
+	for k, want := range map[string]string{
+		"LogRateLimitIntervalSec":  "0", // F8
+		"RuntimeDirectory":         "zfs-endpoint",
+		"RuntimeDirectoryMode":     "0700",
+		"UMask":                    "0077",
+		"NoNewPrivileges":          "yes",
+		"RestartPreventExitStatus": "78",
+	} {
+		if got := unit[k]; !slices.Equal(got, []string{want}) {
+			t.Errorf("unit %s=%q, want %q", k, got, want)
+		}
+	}
+	dropIn, commented := directives(t, filepath.Join("systemd", "zfs-endpoint@.service.d", "hardening.conf"))
+	for _, k := range []string{"RestrictNamespaces", "KeyringMode", "LimitCORE"} {
+		if len(dropIn[k]) != 1 {
+			t.Errorf("drop-in %s=%q, want one setting in effect", k, dropIn[k])
+		}
+	}
+	// not verified against real zfs and exportfs yet: TODO in the drop-in
+	for _, k := range []string{"CapabilityBoundingSet", "AmbientCapabilities", "ProtectClock", "DevicePolicy", "DeviceAllow", "SystemCallFilter", "ProtectHostname"} {
+		if dropIn[k] != nil || unit[k] != nil {
+			t.Errorf("%s is in effect, but is not verified on the VM leg", k)
+		}
+		if !slices.Contains(commented, k) {
+			t.Errorf("the drop-in does not carry %s (commented out, with a TODO)", k)
+		}
+	}
+	files, _ := filepath.Glob(filepath.Join("systemd", "*"))
+	more, _ := filepath.Glob(filepath.Join("systemd", "*.d", "*"))
+	for _, f := range append(files, more...) {
+		if fi, err := os.Stat(f); err != nil || fi.IsDir() {
+			continue
+		}
+		active, commented := directives(t, f)
+		for _, k := range noNamespace {
+			if active[k] != nil || slices.Contains(commented, k) {
+				t.Errorf("%s sets %s: it creates a mount namespace or cuts the network", f, k)
+			}
+		}
+	}
+}

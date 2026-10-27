@@ -88,6 +88,13 @@ RestartMaxDelaySec=60s
 # is not a filesystem): restarting cannot fix it
 RestartPreventExitStatus=78
 
+# Audit: each call and each zfs command is a log line. journald's per-unit
+# rate limit (by default 10000 lines per 30s) would drop them under a flood
+# of cheap calls, losing the destroys that follow, so it is off for this
+# unit (ADR 0001 v2, F8). journald's SystemMaxUse bounds the disk, by
+# rotating, not by dropping lines as they come.
+LogRateLimitIntervalSec=0
+
 # resource caps (defense in depth beside -max-zfs and MaxConcurrentStreams)
 TasksMax=512
 LimitNOFILE=65536
