@@ -140,10 +140,18 @@ cleanup() {
 # boot <disk> [<dir with vmlinuz, initrd, cmdline>]; $noinitrd: no initrd
 masks="systemd.mask=zfs-import-cache.service systemd.mask=zfs-import-scan.service systemd.mask=systemd-udev-settle.service"
 masks+=" systemd.mask=systemd-modules-load.service systemd.mask=zfs-load-module.service systemd.mask=zfs-mount.service"
+# the endpoint shards are fork/exec- and syscall-bound (sys+irq ~57 of ~83
+# CPU-s, run 40513522394): no CPU-vulnerability mitigations (syscall and
+# context-switch entry/exit work, costlier under nested KVM) and no
+# zeroing of every allocated page (Ubuntu's init_on_alloc=1) in this
+# throwaway, single-tenant guest. ZFS code paths are unchanged. Direct
+# boots only, like the masks; the summary prints the vulnerabilities
+# files so the effect is visible
+guestcpu="mitigations=off init_on_alloc=0"
 boot() {
   local direct=() append
   if [ -n "${2:-}" ]; then
-    append="$(cat "$2/cmdline") $masks"
+    append="$(cat "$2/cmdline") $masks $guestcpu"
     # no initrd. panic=1 with -no-reboot: a kernel that cannot mount the
     # root exits qemu, and wait_ssh boots again through GRUB
     append=$(sed -E 's#(^| )root=LABEL=cloudimg-rootfs( |$)#\1root=/dev/vda1 rootfstype=ext4 rootwait\2#' <<<"$append")
@@ -372,6 +380,12 @@ echo "$ver"
   echo "- kernel: \`$running\` ($([ -n "$noinitrd" ] && echo "direct kernel boot, no initrd" || echo "BIOS, GRUB and the disk's initrd"))"
   echo "- zfs version: \`$(echo "$ver" | tr '\n' ' ')\`"
 } >>"$summary"
+# the guest's mitigations and cmdline ($guestcpu on a direct boot), once
+vuln=$(vm 'cat /proc/cmdline; grep . /sys/devices/system/cpu/vulnerabilities/*' || true)
+vulnsum="$(awk '/:Vulnerable/ { n++ } END { print n + 0 }' <<<"$vuln") of $(awk '/vulnerabilities\// { n++ } END { print n + 0 }' <<<"$vuln") vulnerable"
+echo "guest CPU mitigations: $vulnsum"
+{ echo "<details><summary>guest CPU mitigations: $vulnsum</summary>"
+  echo; echo '```'; echo "$vuln"; echo '```'; echo "</details>"; echo; } >>"$summary"
 grep -Eq "^zfs-${want//./\\.}\." <<<"$ver" && grep -Eq "^zfs-kmod-${want//./\\.}\." <<<"$ver" \
   || { echo "expected OpenZFS $want.x userland and kmod, got:" >&2; echo "$ver" >&2; exit 1; }
 [ "$(sed -n 's/^zfs-kmod-//p' <<<"$ver")" = "$(sed -n 's/^zfs-\([0-9]\)/\1/p' <<<"$ver")" ] \

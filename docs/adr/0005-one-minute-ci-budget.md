@@ -189,6 +189,11 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - the `modules-load.d` line lists only `zfs`, or nothing a test needs;
   - no failed units, and both suites and the unit check pass.
   - If modules-load turns out not to gate the path unit, local-fs.target and nfs-server do not move, and the masks gain only csi's 1.05s on the poll's ready time.
+- **Guest kernel: `mitigations=off init_on_alloc=0`** (direct boots, appended after the masks; a separate commit so it can be reverted alone). The endpoint test phase is fork/exec- and syscall-bound: about 57 of 83 CPU-s are sys+irq, with about 28k context switches/s (run 40513522394). Mitigations add work to every syscall and context switch, and nested KVM makes that work more expensive. `init_on_alloc=1` (Ubuntu's default) zeroes every page allocated on fork/exec and by ZFS.
+  - The guest is throwaway and single-tenant, and the ZFS code paths do not change.
+  - Predicted saving: 1.5–3s on the endpoint phase. This is unmeasured.
+  - The summary prints the guest's `/proc/cmdline` and `/sys/devices/system/cpu/vulnerabilities/*` once (`guest CPU mitigations: N of M vulnerable`).
+  - Adopt it if the endpoint phase drops by at least 1s. Otherwise revert it.
 
 ## Consequences
 
