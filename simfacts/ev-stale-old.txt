@@ -1,0 +1,5 @@
+--- FAIL: TestFileExportStaleShareOnlySharenfsHeals (0.00s)
+    export_stale_test.go:42: set and inherit of other properties: 10.0.0.1 not served
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.008s
+FAIL

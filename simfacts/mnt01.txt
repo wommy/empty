@@ -1,0 +1,26 @@
+	// zfs_prop_set_list_flags gathers canmount=off on a mounted
+	// filesystem as a mountpoint changelist, so its prefix unmounts and
+	// can fail busy like a mountpoint change
+	{row: "MNT-01", what: "canmount=off on a mounted filesystem with a pinned child mounted inside it fails busy and changes nothing",
+		check: func(f *factEnv) error {
+			p := f.p + "/p"
+			if err := f.zfs("create", p); err != nil {
+				return err
+			}
+			mp, err := f.get(p, "mountpoint")
+			if err != nil {
+				return err
+			}
+			if err := f.zfs("create", "-o", "mountpoint="+mp+"/b", p+"/b"); err != nil {
+				return err
+			}
+			if err := f.z.Set(context.Background(), p, map[string]string{"canmount": "off"}); !errors.Is(err, zfs.ErrBusy) {
+				return fmt.Errorf("set canmount=off: %v, want busy", err)
+			}
+			for _, w := range []struct{ ds, prop, want string }{{p, "mounted", "yes"}, {p, "canmount", "on"}, {p + "/b", "mounted", "yes"}} {
+				if v, _ := f.get(w.ds, w.prop); v != w.want {
+					return fmt.Errorf("%s %s=%q after the refused set, want %q", w.ds, w.prop, v, w.want)
+				}
+			}
+			return nil
+		}},

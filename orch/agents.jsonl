@@ -71,4 +71,4 @@
 {"id": "ad93611adda6052c2", "name": "sim-facts", "lane": "writer", "wave": 18, "status": "running", "branch": "sim-facts", "report": null, "anomaly": false, "queue": "q-sim-facts"}
 {"id": "aa647cb4002c0887c", "name": "headroom-parent", "lane": "writer", "wave": 21, "status": "running", "branch": "headroom-parent", "report": "wave18/simfacts-spec.md (out-of-scope finding)", "anomaly": false, "queue": "q-headroom-parent"}
 {"id": "a3cabf7e2841ab2bc", "name": "test-forks", "lane": "writer", "wave": 21, "status": "running", "branch": "test-forks", "report": null, "anomaly": false, "queue": "q-test-forks"}
-{"id": "a87ea2bda358892a6", "name": "r-docs-drift", "lane": "reader", "wave": 21, "status": "running", "branch": null, "report": "wave21/docs-drift.md", "anomaly": false, "queue": "q-r-docs"}
+{"id": "a87ea2bda358892a6", "name": "r-docs-drift", "lane": "reader", "wave": 21, "status": "done", "branch": null, "report": "wave21/docs-drift.md", "anomaly": false, "queue": "q-r-docs"}

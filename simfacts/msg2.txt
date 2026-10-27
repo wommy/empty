@@ -1,0 +1,27 @@
+zfstest: reshare only through a non-empty changelist
+
+zfs set and zfs inherit run changelist_gather for every property, but
+only mountpoint, sharenfs and sharesmb gather nodes; any other list is
+empty, and changelist_postfix returns at uu_avl_last == NULL without
+zfs_commit_shares. The Sim instead ran reshare after every set and
+inherit, so a set of atime or of a user property healed a stale
+zfs.exports line as a side effect, which could hide a missing reshare in
+the endpoint.
+
+prefix and postfix now work on a gathered list (clist: cn_mounted,
+cn_shared, cn_needpost). prefix unshares and commits each node it
+unmounts, as zfs_unmount does; postfix walks parents first, mounts as
+before, then shares a mounted node with sharenfs on or unshares one that
+was shared, and runs exportfs only if a node took either branch. The
+share list holds every node whose sharenfs or sharesmb is inherited, so
+a child with a local sharenfs but default sharesmb is reshared with its
+own value (the old reshare skipped it). create, clone, recv and rename
+keep reshare: those are zfs_mount_and_share and changelist_rename paths.
+
+TestFileExportStaleShareOnlySharenfsHeals (NFS shard group, real-pool
+capable) makes a stale line with set -u sharenfs, and checks that set
+and inherit of other properties leave it while a sharenfs set heals it.
+It fails on the Sim before this commit (healed by the atime set).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

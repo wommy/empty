@@ -1,0 +1,25 @@
+zfstest, zfsdiff: available and the space checks as dsl_dir computes them
+
+dd_used_bytes charges each child dir the larger of its used and its
+reservation, not their sum, so a refreservation inside a reservation is
+counted once (dsl_dir_diduse_transfer_space). available is
+dsl_dir_space_available (the parent's space plus the dir's own unused
+reservation, capped by its quota) plus the head's unused refreservation,
+capped by refquota (dsl_dataset_space). The refreservation check now
+measures growth against the dir's space (no add-back, no refquota cap),
+and the reservation check the MAX(used, new) - MAX(used, old) delta
+against the parent's space. Referenced and unique stay 0.
+
+The zfsdiff model had the same sum and changes with the Sim, or
+TestCorpusModelVsSim splits on the two new corpus sequences
+(resv-grow-into-parent-resv, quota-over-child-resv-and-refresv; full
+corpus only, not PRSample). TestRealFacts SPC-01 pins available on a
+real pool: at the parent of this commit the Sim reports 192 MiB where a
+reservation should leave 256 MiB, and 1 TiB under a 16 MiB refquota.
+
+The endpoint is unchanged. Its headroom guard reads available on the
+parent, which on a real pool includes the parent's own unused
+refreservation and is capped by its refquota; the Sim now shows both.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

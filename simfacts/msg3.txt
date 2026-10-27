@@ -1,0 +1,15 @@
+zfstest: a mountpoint change refused busy remounts and reshares
+
+changelist_prefix walks the list deepest mountpoint first. When
+zfs_unmount fails on a node (a pinned child is mounted below it), it
+shares that node again and commits, every later node loses its
+needpost, and changelist_postfix runs over the nodes before it, which
+remounts and reshares the inherited children it had unmounted. The Sim
+returned busy and left them unmounted and out of zfs.exports.
+
+TestRealFacts MNT-02 moves a parent over a pinned child and checks that
+the move fails busy and the inherited child is mounted again; it fails on
+the Sim before this commit (mounted=no).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
