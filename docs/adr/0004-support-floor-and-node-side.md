@@ -21,13 +21,19 @@ Status: accepted · Date: 2026-10-27 · Related: ADR 0003 (OpenZFS is the source
   - Behaviour, error strings and value spellings are those of 2.4.x.
   - CI's real-ZFS gate is the 2.4 VM, which asserts that both userland and kmod are `zfs-2.4.*`. The 24.04 host job is dropped.
 - **Export state lives in OpenZFS, in the dataset's `sharenfs` property, and nowhere else.**
-  - There is no client list, database or `/etc/exports` file of our own.
+  - There is no client list, database or `/etc/exports` file of our own. The `<prefix>:nfs_clients` user property shipped with file export is exactly such a list: `sharenfs` is computed from it. It is removed in a follow-up, and reconcile reports a leftover one.
   - Whatever clients a volume is exported to is what `sharenfs` says and what the kernel's etab shows. Both are re-read on every call.
-  - Static export at create and per-node publish are therefore one mechanism.
-    - Static: set the configured clients when the volume is created.
-    - Per node: add or remove one host in `sharenfs`.
-    - Unpublish-all: remove every host we added.
-  - Static export at create comes first, because it needs no attacher sidecar. Per-node publish can follow behind a flag without new state.
+  - **Ownership of the value, not of entries.**
+    - A local `sharenfs` that parses strictly as our grammar is ours to rewrite as a whole, whoever typed it. The grammar is `rw=`/`ro=` lists of masked IPv4 CIDRs, each written with an explicit `/N`, at or above the configured floor (default /16), with no overlaps.
+    - Any other local value is someone else's: served untouched, reported, never written.
+    - An inherited value is the parent's.
+    - Writing every client as `/N` makes nfs-utils treat it as a subnet: no DNS lookup, no merging with hostname clients.
+  - **Static export and per-node publish are one mechanism.**
+    - Static: CreateVolume sets the StorageClass's CIDR list with `zfs create -o sharenfs=...`, then verifies nfsd and etab before committing.
+    - Per node (later, behind a flag): add or remove one `<node>/32` in the value.
+    - Static export at create comes first, because it needs no attacher sidecar.
+  - **Root squash stays on.** The endpoint sets the new dataset root's owner and mode from StorageClass parameters before committing the volume.
+  - The full design and its attack are in the research notes (`csi-nfs-design.md`).
 - **The node side is delegated to csi-driver-nfs**, run with our driver name. CreateVolume returns `server` and `share` in `volume_context`, and this repo writes no node plugin for NFS.
 - **License: Apache-2.0.**
 
