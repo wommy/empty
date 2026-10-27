@@ -11,9 +11,14 @@
 // real pool.
 //
 // NFS: a filesystem is mounted unless canmount is off/noauto, its
-// mountpoint is none/legacy, or Unmount unmounted it. Setting sharenfs on a
-// mounted filesystem exports it, and ReadEtab renders those exports as
-// /var/lib/nfs/etab (under the mountpoint's real path, like nfs-utils).
+// mountpoint is none/legacy, or Unmount unmounted it. Sharing a mounted
+// filesystem rewrites /etc/exports.d/zfs.exports like libzfs and runs
+// `exportfs -ra`; both are the reference models in internal/nfsref
+// (OpenZFS libshare and nfs-utils, derived from their sources), so etab
+// shows what a real host shows: "*" for an empty host, '@' dropped,
+// crossmnt for "on", first-wins duplicates, client classes in mountd
+// order, a malformed line ending the file, realpath. An invalid sharenfs
+// is refused like `zfs set` refuses it.
 // A plain `zfs set sharenfs` on an unmounted canmount=on filesystem mounts
 // and shares it (changelist_postfix); `zfs set -u` does neither. Failure
 // modes, each with zfs still exiting 0:
@@ -36,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wommy/empty/internal/nfsref"
 	"github.com/wommy/empty/internal/zfs"
 )
 
@@ -63,7 +69,9 @@ type Sim struct {
 	// (unix seconds). Nil is the wall clock.
 	Clock func() int64
 
-	live      map[string]string // dataset -> sharenfs value the "kernel" serves
+	exports   string            // /etc/exports.d/zfs.exports
+	shared    map[string]string // dataset -> mountpoint it has lines under
+	etab      string            // /var/lib/nfs/etab
 	nfsDown   bool
 	nfsdOff   bool            // nfs-server stopped: no nfsd threads
 	dropHosts map[string]bool // clients exportfs leaves out of etab
@@ -78,7 +86,7 @@ func (s *Sim) now() int64 {
 
 // New returns a Sim with the given pools.
 func New(pools ...string) *Sim {
-	s := &Sim{ds: map[string]*node{}, PoolSize: 1 << 40, live: map[string]string{}}
+	s := &Sim{ds: map[string]*node{}, PoolSize: 1 << 40, shared: map[string]string{}}
 	for _, p := range pools {
 		s.ds[p] = &node{typ: zfs.TypeFilesystem, props: map[string]string{}}
 	}
@@ -244,6 +252,9 @@ func (s *Sim) create(args []string) error {
 	if msg, ok := s.canonProps(props); !ok {
 		return exit("cannot create '%s': %s", name, msg)
 	}
+	if v, ok := props["sharenfs"]; ok && nfsref.ValidateSharenfs(v) != nil {
+		return exit("cannot create '%s': 'sharenfs' cannot be set to invalid options", name)
+	}
 	n := &node{typ: zfs.TypeFilesystem, props: props, birth: s.now()}
 	if volsize != "" {
 		v, err := strconv.ParseUint(volsize, 10, 64)
@@ -315,6 +326,9 @@ func (s *Sim) clone(args []string) error {
 	}
 	if msg, ok := s.canonProps(props); !ok {
 		return exit("cannot create '%s': %s", name, msg)
+	}
+	if v, ok := props["sharenfs"]; ok && nfsref.ValidateSharenfs(v) != nil {
+		return exit("cannot create '%s': 'sharenfs' cannot be set to invalid options", name)
 	}
 	n := &node{typ: typ, props: props, origin: snap, birth: s.now()}
 	if typ == zfs.TypeVolume {
@@ -410,8 +424,8 @@ func (s *Sim) destroy(args []string) error {
 func (s *Sim) remove(name string) {
 	origin := s.ds[name].origin
 	delete(s.ds, name)
-	if !s.nfsDown {
-		delete(s.live, name) // destroy unmounts, and unmount unshares
+	if s.unshare(name) { // destroy unmounts, and unmount unshares
+		s.exportfs()
 	}
 	if origin == "" {
 		return
@@ -473,6 +487,9 @@ func (s *Sim) set(args []string) error {
 			return exit("cannot set property for '%s': %s", name, msg)
 		}
 		p[1] = c
+		if p[0] == "sharenfs" && nfsref.ValidateSharenfs(p[1]) != nil {
+			return exit("cannot set property for '%s': 'sharenfs' cannot be set to invalid options", name)
+		}
 		if p[0] == "volblocksize" {
 			return exit("cannot set property for '%s': 'volblocksize' is readonly", name)
 		}
@@ -783,28 +800,77 @@ func (s *Sim) mounted(name string) bool {
 	return mp != "none" && mp != "legacy"
 }
 
-// reshare brings the served exports of name and its descendants in line
-// with their sharenfs (inherited) and mount state, unless NFS is down.
+// reshare shares or unshares name and the filesystems below it that
+// inherit sharenfs (libzfs changelist_postfix), then runs exportfs.
 func (s *Sim) reshare(name string) {
 	if s.nfsDown {
 		return
 	}
+	changed := false
 	for _, k := range append([]string{name}, s.children(name)...) {
 		if s.ds[k].typ != zfs.TypeFilesystem {
 			continue
 		}
-		v, _, _ := s.value(k, "sharenfs")
-		if s.mounted(k) && v != "off" {
-			s.live[k] = v
-		} else {
-			delete(s.live, k)
+		v, src, _ := s.value(k, "sharenfs")
+		if k != name && src == "local" {
+			continue
 		}
+		mp, _, _ := s.value(k, "mountpoint")
+		if s.mounted(k) && v != "off" {
+			if f, err := nfsref.ShareFile(s.exports, mp, v); err == nil {
+				s.exports, s.shared[k], changed = f, mp, true
+			}
+		} else {
+			changed = s.unshare(k) || changed
+		}
+	}
+	if changed {
+		s.exportfs()
 	}
 }
 
+// unshare removes name's lines from zfs.exports (nfs_disable_share).
+func (s *Sim) unshare(name string) bool {
+	mp, ok := s.shared[name]
+	if !ok || s.nfsDown {
+		return false
+	}
+	s.exports, _ = nfsref.ShareFile(s.exports, mp, "off")
+	delete(s.shared, name)
+	return true
+}
+
+// exportfs is `exportfs -ra` on zfs.exports, leaving out DropHost
+// clients.
+func (s *Sim) exportfs() {
+	etab, _ := nfsref.ExportfsRA(nfsref.ExportsFiles{Dir: map[string][]byte{"zfs.exports": []byte(s.exports)}}, nil, realpath)
+	var b strings.Builder
+	for _, line := range strings.SplitAfter(etab, "\n") {
+		if _, rest, ok := strings.Cut(line, "\t"); ok {
+			if host, _, _ := strings.Cut(rest, "("); s.dropHosts[host] {
+				continue
+			}
+		}
+		b.WriteString(line)
+	}
+	s.etab = b.String()
+}
+
+// realpath is nfsd_realpath: the path itself when it does not resolve.
+func realpath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
+}
+
 // SetNFSDown makes later sharenfs changes not reach the NFS server, as when
-// exportfs fails: zfs set still succeeds. Turning it off again does not
-// replay missed changes; the next share of a dataset does.
+// exportfs is unavailable (libshare nfs_available is false): libzfs then
+// leaves zfs.exports alone and exports nothing, and zfs set still
+// succeeds. Turning it off again does not replay missed changes; the next
+// share of a dataset does (exportfs -ra reads the whole file). A sharenfs
+// re-set to "off" on a dataset zfs.exports has no line for does not run
+// exportfs (changelist_postfix unshares only cn_shared datasets).
 func (s *Sim) SetNFSDown(down bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -817,8 +883,8 @@ func (s *Sim) Unmount(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ds[name].unmounted = true
-	if !s.nfsDown {
-		delete(s.live, name)
+	if s.unshare(name) {
+		s.exportfs()
 	}
 }
 
@@ -832,17 +898,10 @@ func (s *Sim) SetNFSDRunning(running bool) {
 	defer s.mu.Unlock()
 	s.nfsdOff = !running
 	if !running {
-		clear(s.live)
+		s.etab = "" // exportfs -au
 		return
 	}
-	for k, n := range s.ds {
-		if n.typ != zfs.TypeFilesystem {
-			continue
-		}
-		if v, _, _ := s.value(k, "sharenfs"); s.mounted(k) && v != "off" {
-			s.live[k] = v
-		}
-	}
+	s.exportfs() // exportfs -r
 }
 
 // DropHost makes exportfs leave client host out of the table while it
@@ -868,55 +927,17 @@ func (s *Sim) NFSDThreads(context.Context) (int, error) {
 	return 8, nil
 }
 
-// ReadEtab renders the served exports as nfs-utils writes /var/lib/nfs/etab:
-// one "path<TAB>host(rw|ro,...)" line per client, the path resolved like
-// nfsd_realpath. It implements the endpoint's EtabReader.
+// ReadEtab returns /var/lib/nfs/etab as the last successful exportfs
+// wrote it. It implements the endpoint's EtabReader.
 func (s *Sim) ReadEtab(context.Context) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	names := make([]string, 0, len(s.live))
-	for k := range s.live {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	var b strings.Builder
-	for _, k := range names {
-		mp := "/" + k // destroyed while NFS was down: the old default path
-		if _, ok := s.ds[k]; ok {
-			mp, _, _ = s.value(k, "mountpoint")
-		}
-		if real, err := filepath.EvalSymlinks(mp); err == nil {
-			mp = real
-		}
-		for _, h := range shareHosts(s.live[k]) {
-			if s.dropHosts[h[0]] {
-				continue
-			}
-			fmt.Fprintf(&b, "%s\t%s(%s,sync,wdelay,hide,nocrossmnt,secure,root_squash,no_all_squash,no_subtree_check,secure_locks,acl,no_pnfs,anonuid=65534,anongid=65534,sec=sys,%s,secure,root_squash,no_all_squash)\n",
-				mp, h[0], h[1], h[1])
-		}
-	}
-	return []byte(b.String()), nil
+	return []byte(s.etab), nil
 }
 
-// shareHosts reads the rw=/ro= host lists of a sharenfs value like libzfs:
-// "on" and a bare rw/ro mean every host.
-func shareHosts(v string) [][2]string {
-	if v == "on" {
-		return [][2]string{{"*", "rw"}}
-	}
-	var out [][2]string
-	for _, opt := range strings.Split(v, ",") {
-		k, hosts, ok := strings.Cut(opt, "=")
-		if k != "rw" && k != "ro" {
-			continue
-		}
-		if !ok {
-			hosts = "*"
-		}
-		for _, h := range strings.Split(hosts, ":") {
-			out = append(out, [2]string{h, k})
-		}
-	}
-	return out
+// Exports returns /etc/exports.d/zfs.exports as libzfs last wrote it.
+func (s *Sim) Exports() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.exports
 }
