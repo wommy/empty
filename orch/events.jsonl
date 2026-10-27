@@ -60,3 +60,8 @@
 {"ts": "2026-10-27T06:58:57Z", "id": "a1f29cbd90f96571f", "from": "reported", "to": "triaged", "note": "Verified: SecureDir refuses 0777 (zfs-csi /csi emptyDir), socket default endpoint.sock vs unit %i.sock. NFS server/share already in b-nfs-csi (S11). Owner questions: none asked; topology/NFS/OS already decided by code+ADR 0004; metrics decided journald-first (reversible), recorded in b-deploy ADR note."}
 {"ts": "2026-10-27T06:58:57Z", "id": "a1f29cbd90f96571f", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T06:58:57Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T07:01:26Z", "id": "a9d51a288d407fe53", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T07:01:26Z", "id": "a9d51a288d407fe53", "from": "reported", "to": "triaged", "note": "Gate clean on merged tree (gofmt, vet, race 52s, tidy, bash -n, actionlint). Revert evidence per fix. First real nfsd replay is CI's job."}
+{"ts": "2026-10-27T07:01:26Z", "id": "a9d51a288d407fe53", "from": "triaged", "to": "merged", "note": "088e69b"}
+{"ts": "2026-10-27T07:01:26Z", "id": "a682e26295247bdb6", "from": "queued", "to": "running", "note": "b-seam-plan"}
+{"ts": "2026-10-27T07:01:33Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

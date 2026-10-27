@@ -1,0 +1,388 @@
+diff -ruN hardening-copy/cmd/zfs-endpoint/lockparent.go hardening-fixed/cmd/zfs-endpoint/lockparent.go
+--- hardening-copy/cmd/zfs-endpoint/lockparent.go	2026-10-27 05:36:10.000000000 +0000
++++ hardening-fixed/cmd/zfs-endpoint/lockparent.go	2026-10-27 06:57:26.295695046 +0000
+@@ -44,7 +44,7 @@
+ 			how = syscall.LOCK_EX
+ 		}
+ 		path := filepath.Join(dir, strings.ReplaceAll(name, "/", "%")+".lock")
+-		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
++		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW, 0o600)
+ 		if err != nil {
+ 			unlock()
+ 			return nil, err
+diff -ruN hardening-copy/cmd/zfs-endpoint/main.go hardening-fixed/cmd/zfs-endpoint/main.go
+--- hardening-copy/cmd/zfs-endpoint/main.go	2026-10-27 05:37:41.000000000 +0000
++++ hardening-fixed/cmd/zfs-endpoint/main.go	2026-10-27 06:57:26.295547413 +0000
+@@ -118,6 +118,9 @@
+ 	}
+ 	// refuse to start against a parent that is not there: never create it
+ 	if err := waitParent(ctx, z, *parent, *parentWait); err != nil {
++		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
++			return nil // stopped while waiting: a clean stop
++		}
+ 		return err
+ 	}
+ 	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix})
+@@ -198,5 +201,8 @@
+ 	if err := unixsock.CheckPath(path); err != nil {
+ 		return "", configErr("-listen: %v", err)
+ 	}
++	if len(path) > 107 { // sockaddr_un.sun_path is 108 bytes with its NUL
++		return "", configErr("-listen: socket path is %d bytes, the limit is 107", len(path))
++	}
+ 	return path, nil
+ }
+diff -ruN hardening-copy/cmd/zfs-endpoint/startup.go hardening-fixed/cmd/zfs-endpoint/startup.go
+--- hardening-copy/cmd/zfs-endpoint/startup.go	2026-10-27 05:36:10.000000000 +0000
++++ hardening-fixed/cmd/zfs-endpoint/startup.go	2026-10-27 06:58:40.741613465 +0000
+@@ -83,14 +83,14 @@
+ // components: "tank/../x" passes the name pattern but is not a dataset,
+ // and would name the lock file of another.
+ func validParent(p string) error {
+-	if !zfs.ValidDataset(p) {
+-		return configErr("invalid parent dataset %q", p)
+-	}
+ 	for _, c := range strings.Split(p, "/") {
+ 		if c == "." || c == ".." {
+ 			return configErr("invalid parent dataset %q: %q component", p, c)
+ 		}
+ 	}
++	if !zfs.ValidDataset(p) {
++		return configErr("invalid parent dataset %q", p)
++	}
+ 	return nil
+ }
+ 
+diff -ruN hardening-copy/internal/endpoint/endpoint.go hardening-fixed/internal/endpoint/endpoint.go
+--- hardening-copy/internal/endpoint/endpoint.go	2026-10-27 05:35:16.000000000 +0000
++++ hardening-fixed/internal/endpoint/endpoint.go	2026-10-27 06:57:26.259016948 +0000
+@@ -153,6 +153,9 @@
+ 	names props
+ 	plan  Planner
+ 	locks lock.Keyed
++	// scans bounds whole-parent scans in flight: each holds the raw zfs
++	// output and its parsed copy, O(volumes)
++	scans chan struct{}
+ }
+ 
+ // New returns an Endpoint.
+@@ -195,6 +198,7 @@
+ 		zfs:   z,
+ 		cfg:   cfg,
+ 		names: names,
++		scans: make(chan struct{}, 2),
+ 		plan:  Planner{Parent: cfg.Parent, Names: names, VolBlockSize: cfg.VolBlockSize, DestroyForeignSnapshots: cfg.DestroyForeignSnapshots},
+ 	}, nil
+ }
+@@ -295,6 +299,13 @@
+ 			wait = max(left, 0)
+ 		}
+ 	}
++	if wait <= 0 {
++		// no time left to wait: still take a free lock
++		if release, ok := e.locks.TryAcquire(keys...); ok {
++			return release, nil
++		}
++		return nil, errorf(Aborted, "operation pending on %v", keys)
++	}
+ 	ctx, cancel := context.WithTimeout(ctx, wait)
+ 	defer cancel()
+ 	release, err := e.locks.Acquire(ctx, keys...)
+diff -ruN hardening-copy/internal/endpoint/errors.go hardening-fixed/internal/endpoint/errors.go
+--- hardening-copy/internal/endpoint/errors.go	2026-10-27 05:14:51.000000000 +0000
++++ hardening-fixed/internal/endpoint/errors.go	2026-10-27 06:57:26.255114886 +0000
+@@ -40,8 +40,15 @@
+ 
+ func (e *Error) Unwrap() error { return e.Err }
+ 
++// maxMsg bounds an error message: several echo a caller's input with %q.
++const maxMsg = 512
++
+ func errorf(code Code, format string, a ...any) *Error {
+-	return &Error{Code: code, Msg: fmt.Sprintf(format, a...)}
++	msg := fmt.Sprintf(format, a...)
++	if len(msg) > maxMsg {
++		msg = msg[:maxMsg] + "..."
++	}
++	return &Error{Code: code, Msg: msg}
+ }
+ 
+ // CodeOf returns the Code of err (Internal for foreign errors, OK for nil).
+diff -ruN hardening-copy/internal/endpoint/export.go hardening-fixed/internal/endpoint/export.go
+--- hardening-copy/internal/endpoint/export.go	2026-10-27 05:20:11.000000000 +0000
++++ hardening-fixed/internal/endpoint/export.go	2026-10-27 06:57:26.259324372 +0000
+@@ -271,7 +271,7 @@
+ func ParseEtab(b []byte) Etab {
+ 	t := Etab{}
+ 	sc := bufio.NewScanner(bytes.NewReader(b))
+-	sc.Buffer(nil, 1<<20)
++	sc.Buffer(make([]byte, 0, 64<<10), 64<<20)
+ 	for sc.Scan() {
+ 		line := sc.Text()
+ 		path, rest, ok := strings.Cut(line, "\t")
+diff -ruN hardening-copy/internal/endpoint/plan.go hardening-fixed/internal/endpoint/plan.go
+--- hardening-copy/internal/endpoint/plan.go	2026-10-27 05:35:06.000000000 +0000
++++ hardening-fixed/internal/endpoint/plan.go	2026-10-27 06:57:26.255244783 +0000
+@@ -186,10 +186,10 @@
+ 	}
+ 
+ 	if row, ok := t.Get(id); ok {
+-		if !row.Managed {
++		if !row.Managed || row.VolumeName == "" {
+ 			return nil, errorf(AlreadyExists, "dataset %s exists and is not managed", row.Name)
+ 		}
+-		if row.VolumeName != "" && row.VolumeName != r.Name {
++		if row.VolumeName != r.Name {
+ 			return nil, errorf(AlreadyExists, "dataset %s belongs to volume %q", row.Name, row.VolumeName)
+ 		}
+ 		if row.Kind() != r.Kind || row.SourceType != srcType || row.SourceID != srcID {
+diff -ruN hardening-copy/internal/endpoint/reconcile.go hardening-fixed/internal/endpoint/reconcile.go
+--- hardening-copy/internal/endpoint/reconcile.go	2026-10-27 05:35:06.000000000 +0000
++++ hardening-fixed/internal/endpoint/reconcile.go	2026-10-27 06:57:26.275538841 +0000
+@@ -192,10 +192,14 @@
+ 	// a page of another list, another cluster's or another parent's set.
+ 	// Like the empty set, it collects no committed volume (adv4 F2).
+ 	stated := false
++	missing := 0
+ 	for _, id := range slices.Sorted(maps.Keys(want)) {
+ 		r, ok := t.Get(id)
+ 		if !ok || r.Type == zfs.TypeSnapshot {
+-			skip(id, SkipDesiredMissing)
++			// bounded: the answer must fit the message limit
++			if missing++; missing <= 1000 {
++				skip(id, SkipDesiredMissing)
++			}
+ 		}
+ 		stated = stated || ok && r.OwnedVolume()
+ 	}
+@@ -275,6 +279,9 @@
+ 		cur = NewTable(slices.Clone(rows))
+ 		pending = blocked
+ 	}
++	if missing > 1000 {
++		skip(fmt.Sprintf("(%d more)", missing-1000), SkipDesiredMissing)
++	}
+ 	for _, c := range pending {
+ 		if _, err := p.planDelete(cur, c.id, false); err != nil {
+ 			skip(c.id, err.Error())
+@@ -485,6 +492,9 @@
+ 	PlanDigest string
+ }
+ 
++// MaxDesiredVolumeIDs bounds a Reconcile desired set.
++const MaxDesiredVolumeIDs = 250_000
++
+ // DefaultMaxDeletions is the cap on undesired volumes one Reconcile
+ // collects when the caller names none: enough for routine churn, small
+ // enough that a truncated desired set (one page of a paginated list)
+@@ -533,6 +543,9 @@
+ // locks: only actions covered by the held locks run, so a CreateVolume that
+ // finished in between is seen, and anything new waits for the next run.
+ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (ReconcilePlan, error) {
++	if len(r.DesiredVolumeIDs) > MaxDesiredVolumeIDs {
++		return ReconcilePlan{}, errorf(InvalidArgument, "%d desired volume ids, more than %d", len(r.DesiredVolumeIDs), MaxDesiredVolumeIDs)
++	}
+ 	for _, id := range r.DesiredVolumeIDs {
+ 		if _, err := volumeID(id); err != nil {
+ 			return ReconcilePlan{}, err
+diff -ruN hardening-copy/internal/endpoint/table.go hardening-fixed/internal/endpoint/table.go
+--- hardening-copy/internal/endpoint/table.go	2026-10-27 05:35:16.000000000 +0000
++++ hardening-fixed/internal/endpoint/table.go	2026-10-27 06:57:26.259190509 +0000
+@@ -327,6 +327,14 @@
+ // deeper than a volume are dropped.
+ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
+ 	root, depth := e.cfg.Parent, 1 // parent/vol and parent/vol@snap
++	if only == "" {
++		select {
++		case e.scans <- struct{}{}:
++			defer func() { <-e.scans }()
++		case <-ctx.Done():
++			return Table{}, errorf(Aborted, "waiting for a scan slot: %v", ctx.Err())
++		}
++	}
+ 	if only != "" {
+ 		root, depth = e.dataset(only), 0 // vol and vol@snap
+ 	}
+diff -ruN hardening-copy/internal/server/daemon.go hardening-fixed/internal/server/daemon.go
+--- hardening-copy/internal/server/daemon.go	2026-10-27 05:36:10.000000000 +0000
++++ hardening-fixed/internal/server/daemon.go	2026-10-27 06:57:45.895936079 +0000
+@@ -4,7 +4,9 @@
+ 	"context"
+ 	"crypto/rand"
+ 	"encoding/hex"
++	"fmt"
+ 	"log/slog"
++	"runtime/debug"
+ 	"strings"
+ 	"sync"
+ 	"time"
+@@ -30,6 +32,9 @@
+ // front of them.
+ const MaxConcurrentStreams = 64
+ 
++// DefaultCallTimeout bounds a call whose client set no deadline.
++const DefaultCallTimeout = 10 * time.Minute
++
+ // ServiceName is the health service name front ends watch.
+ var ServiceName = pb.EndpointService_ServiceDesc.ServiceName
+ 
+@@ -146,7 +151,12 @@
+ 
+ // unary assigns the request id, refuses calls once draining, counts calls
+ // in flight, and logs one line per call.
+-func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
++func (d *Daemon) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
++	if _, ok := ctx.Deadline(); !ok {
++		var cancel context.CancelFunc
++		ctx, cancel = context.WithTimeout(ctx, DefaultCallTimeout)
++		defer cancel()
++	}
+ 	id := incomingRequestID(ctx)
+ 	ctx = WithRequestID(ctx, id)
+ 	_ = grpc.SetHeader(ctx, metadata.Pairs(requestIDKey, id))
+@@ -155,7 +165,15 @@
+ 	}
+ 	defer d.calls.end()
+ 	start := time.Now()
+-	resp, err := handler(ctx, req)
++	func() {
++		defer func() {
++			if r := recover(); r != nil {
++				d.log.ErrorContext(ctx, "handler panic", "method", info.FullMethod, "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
++				resp, err = nil, status.Error(codes.Internal, "internal error")
++			}
++		}()
++		resp, err = handler(ctx, req)
++	}()
+ 	if !strings.HasPrefix(info.FullMethod, "/grpc.health.") {
+ 		attrs := []any{"method", info.FullMethod, "code", status.Code(err).String(), "duration", time.Since(start)}
+ 		if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+diff -ruN hardening-copy/internal/zfs/runner.go hardening-fixed/internal/zfs/runner.go
+--- hardening-copy/internal/zfs/runner.go	2026-10-27 06:38:56.000000000 +0000
++++ hardening-fixed/internal/zfs/runner.go	2026-10-27 06:57:26.254942473 +0000
+@@ -108,9 +108,20 @@
+ 		return stdout.Bytes(), &ExitError{
+ 			Args:     append([]string{name}, args...),
+ 			Code:     code,
+-			Stderr:   stderr.String(),
++			Stderr:   clip(stderr.String()),
+ 			Underlay: err,
+ 		}
+ 	}
+ 	return stdout.Bytes(), nil
+ }
++
++// maxStderr bounds the stderr kept in an ExitError: it is returned to
++// callers and logged.
++const maxStderr = 8 << 10
++
++func clip(s string) string {
++	if len(s) > maxStderr {
++		return s[:maxStderr] + "...[truncated]"
++	}
++	return s
++}
+diff -ruN hardening-copy/internal/zfs/zfs.go hardening-fixed/internal/zfs/zfs.go
+--- hardening-copy/internal/zfs/zfs.go	2026-10-27 05:20:11.000000000 +0000
++++ hardening-fixed/internal/zfs/zfs.go	2026-10-27 06:57:26.251725489 +0000
+@@ -10,6 +10,7 @@
+ 	"errors"
+ 	"fmt"
+ 	"regexp"
++	"slices"
+ 	"sort"
+ 	"strconv"
+ 	"strings"
+@@ -69,14 +70,28 @@
+ 	// space and leading '-' so nothing can be read as a flag.
+ 	datasetRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:\-]*(/[A-Za-z0-9_.:\-]+)*$`)
+ 	snapRE    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:\-]*(/[A-Za-z0-9_.:\-]+)*@[A-Za-z0-9_.:\-]+$`)
+-	propRE    = regexp.MustCompile(`^[a-z0-9_.:\-]+$`)
++	propRE    = regexp.MustCompile(`^[a-z0-9][a-z0-9_.:\-]*$`)
+ )
+ 
+ // ValidDataset reports whether name is a filesystem/volume name we accept.
+-func ValidDataset(name string) bool { return len(name) < 256 && datasetRE.MatchString(name) }
++func ValidDataset(name string) bool {
++	return len(name) < 256 && datasetRE.MatchString(name) && !dotComponent(name)
++}
++
++// dotComponent: zfs refuses "." and ".." as a component (entity_namecheck).
++func dotComponent(name string) bool {
++	for _, c := range strings.FieldsFunc(name, func(r rune) bool { return r == '/' || r == '@' }) {
++		if c == "." || c == ".." {
++			return true
++		}
++	}
++	return false
++}
+ 
+ // ValidSnapshot reports whether name is a snapshot name we accept.
+-func ValidSnapshot(name string) bool { return len(name) < 256 && snapRE.MatchString(name) }
++func ValidSnapshot(name string) bool {
++	return len(name) < 256 && snapRE.MatchString(name) && !dotComponent(name)
++}
+ 
+ func checkProps(props map[string]string) error {
+ 	for k, v := range props {
+@@ -90,6 +105,15 @@
+ 	return nil
+ }
+ 
++func checkPropNames(props []string) error {
++	for _, p := range props {
++		if p != "all" && !propRE.MatchString(p) {
++			return &Error{Kind: KindInvalidProperty, Op: "get", Stderr: "invalid property name " + strconv.Quote(p)}
++		}
++	}
++	return nil
++}
++
+ func propArgs(props map[string]string) []string {
+ 	keys := make([]string, 0, len(props))
+ 	for k := range props {
+@@ -139,6 +163,9 @@
+ 	if len(props) == 0 {
+ 		props = []string{"all"}
+ 	}
++	if err := checkPropNames(props); err != nil {
++		return Dataset{}, err
++	}
+ 	out, err := c.run(ctx, "get", name, "get", "-Hp", "-o", "name,property,value,source", strings.Join(props, ","), name)
+ 	if err != nil {
+ 		return Dataset{}, err
+@@ -423,6 +450,9 @@
+ 	for i, t := range types {
+ 		ts[i] = string(t)
+ 	}
++	if err := checkPropNames(o.Props); err != nil {
++		return nil, err
++	}
+ 	args := []string{"get", "-Hp", "-o", "name,property,value,source", "-t", strings.Join(ts, ",")}
+ 	if o.Depth < 0 {
+ 		args = append(args, "-r")
+@@ -438,6 +468,24 @@
+ 	if err != nil {
+ 		return nil, &Error{Op: "list", Dataset: root, Err: err}
+ 	}
++	// a user property value can carry newlines and so forge lines for a
++	// name zfs never listed; `type` cannot, so names come from there too
++	targs := append(slices.Clone(args[:len(args)-2]), "type", root)
++	tout, err := c.run(ctx, "list", root, targs...)
++	if err != nil {
++		return nil, err
++	}
++	real := map[string]bool{}
++	for _, line := range strings.Split(string(tout), "\n") {
++		if name, _, ok := strings.Cut(line, "\t"); ok {
++			real[name] = true
++		}
++	}
++	for _, n := range cols.Names {
++		if !real[n] {
++			return nil, &Error{Op: "list", Dataset: root, Err: fmt.Errorf("%s is in the property output but not in zfs's list: a property value contains a newline", n)}
++		}
++	}
+ 	return cols, nil
+ }
+ 
