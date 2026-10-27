@@ -220,7 +220,8 @@ jobs:
         # every run: TestZFSDiffReplay reports real pool vs simulator vs
         # reference model divergences without failing the job (the job
         # summary has the verdicts; the full replay is in nightly.yml).
-        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh
+        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh;
+        # load.txt + vmstat.txt: the guest's CPU and pressure in the tests
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -229,6 +230,8 @@ jobs:
             ${{ runner.temp }}/zfsvm/out/zfsdiff.log
             ${{ runner.temp }}/zfsvm/out/test-times.tsv
             ${{ runner.temp }}/zfsvm/out/endpoint.list
+            ${{ runner.temp }}/zfsvm/out/load.txt
+            ${{ runner.temp }}/zfsvm/out/vmstat.txt
           if-no-files-found: warn
           retention-days: 30
       - name: check for a stored guest

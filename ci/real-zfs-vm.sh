@@ -292,6 +292,16 @@ for f in "$o"/*.log; do
   cat "$f"
   echo "::endgroup::"
 done
+# the guest's CPU and pressure over the test phase (ci/real-zfs-guest.sh):
+# what decides whether splitting the job across two runners would pay
+if [ -s "$o/load.txt" ]; then
+  echo "::group::guest load (test phase): $(awk 'NR == 2' "$o/load.txt")"
+  cat "$o/load.txt"
+  cat "$o/vmstat.txt" 2>/dev/null || true
+  echo "::endgroup::"
+  { echo '<details><summary>guest load over the test phase (out/load.txt)</summary>'
+    echo; echo '```'; cat "$o/load.txt"; echo '```'; echo "</details>"; echo; } >>"$summary"
+fi
 echo "::group::systemd-analyze"
 wait "$analyze" || true
 cat "$work/systemd-analyze.txt" 2>/dev/null || true
