@@ -2,7 +2,7 @@
 
 HEAD 0c884df, read-only. Governing decision: ADR 0004. Export state lives only in `sharenfs`, and OpenZFS is the source of truth. Static export at create comes first. Per-node publish may follow behind a flag. The node side is csi-driver-nfs. OpenZFS 2.4 only.
 
-**Built (wave13).** Static export at create, §1's removal of `nfs_clients`, and the CSI NFS mode are implemented. Where the build differs from the text below, a note marked "As built" says how and why. §13 Q1 (root ownership) is built as option (a) (wave14). Not built yet: §4's local mountpoint pin, §10's `reshare` action and the D1-D6 reports, and §12.
+**Built (wave13).** Static export at create, §1's removal of `nfs_clients`, and the CSI NFS mode are implemented. Where the build differs from the text below, a note marked "As built" says how and why. §13 Q1 (root ownership) is built as option (a), and §4's local mountpoint pin (wave14). Not built yet: §10's `reshare` action and the D1-D6 reports, and §12.
 
 Sources checked (upstream repositories, by repo-relative path):
 - openzfs `cmd/zfs/zfs_main.c:763-810,1340-1365` (create, then mount and share)
@@ -93,7 +93,7 @@ The raw value, the state enum and `nfs_min_prefix` wait until a front end needs 
 `props.go` keeps refusing `sharenfs` in the generic `properties` map. The value comes only from `nfs_export`, in canonical form.
 
 Plan for a new filesystem:
-1. `zfs create -o sharenfs=<canonical> -o <prefix>:nfs_server=<server> -o mountpoint=<parentMP>/<id> -o <prefix>:managed=true … <ds>`. (As built: the mountpoint is not pinned yet.) A clone uses `zfs clone -o …` the same way. Setting it at create only replaces today's `sharenfs=off`. Pinning `mountpoint` locally keeps volume_context `share` valid if the parent moves (csi-node-seam §5.3). It is a native property, so it is not state of our own.
+1. `zfs create -o sharenfs=<canonical> -o <prefix>:nfs_server=<server> -o mountpoint=<parentMP>/<id> -o <prefix>:managed=true … <ds>`. (As built, wave14: every filesystem volume is pinned, NFS or not, in the same `-o` block as F12's `setuid`/`exec`/`devices=off`; the parent's mountpoint is read once per create. A parent whose mountpoint is `none` or `legacy` pins nothing. A volume made before the pin is never pinned by the endpoint, since `zfs set mountpoint` remounts it under its users: Reconcile reports it in `skipped`.) A clone uses `zfs clone -o …` the same way. Setting it at create only replaces today's `sharenfs=off`. Pinning `mountpoint` locally keeps volume_context `share` valid if the parent moves (csi-node-seam §5.3). It is a native property, so it is not state of our own.
 2. Verify the export:
    - `/proc/fs/nfsd/threads` > 0;
    - etab at `EvalSymlinks(mountpoint)` lists exactly the canonical clients with their modes, compared as strings.

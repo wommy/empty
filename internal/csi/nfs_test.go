@@ -227,8 +227,8 @@ func TestNFS_N4_VolumeContext(t *testing.T) {
 }
 
 // N5 (§2, §3, §4): sharenfs is canonical (sorted, rw= unless every mode
-// is *_READER_ONLY) and served before OK. (§4's local mountpoint pin is
-// not built: see the wave13 report.)
+// is *_READER_ONLY) and served before OK; share is the mountpoint pinned
+// locally at create, so it survives a move of the parent's.
 func TestNFS_N5_ShareNFSCanonicalAndServed(t *testing.T) {
 	t.Parallel()
 	f := nfsFixture(t, srv1)
@@ -243,6 +243,20 @@ func TestNFS_N5_ShareNFSCanonicalAndServed(t *testing.T) {
 		if got, ok := etab.Lookup(v.GetVolumeContext()[zcsi.CtxShare], c); !ok || got.ReadOnly {
 			t.Errorf("etab does not serve %s rw at %q", c, v.GetVolumeContext()[zcsi.CtxShare])
 		}
+	}
+	mp, err := f.z.Get(context.Background(), ds, "mountpoint")
+	if err != nil {
+		t.Fatal(err)
+	}
+	share := v.GetVolumeContext()[zcsi.CtxShare]
+	if p := mp.Props["mountpoint"]; p.Value != share || !p.Local() {
+		t.Errorf("mountpoint %q (%s), share %q: want the share pinned locally", p.Value, p.Source, share)
+	}
+	if err := f.z.Set(context.Background(), nfsParent, map[string]string{"mountpoint": "/elsewhere"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.list(t)[v.GetVolumeId()].GetVolumeContext()[zcsi.CtxShare]; got != share {
+		t.Errorf("share after the parent moved: %q, want %q", got, share)
 	}
 	ro := f.create(t, nfsReq("n5ro", map[string]string{nfsClients: "10.20.0.0/24"}, mountCap(mnro, ""), mountCap(snro, "")))
 	if got, want := f.sim.Prop(ro.GetVolumeContext()[zcsi.CtxDataset], "sharenfs"), "ro=10.20.0.0/24"; got != want {

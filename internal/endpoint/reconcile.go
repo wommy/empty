@@ -80,6 +80,15 @@ const (
 	// mount it and can never be changed (a PV's attributes are
 	// immutable); re-create the PVs, or advertise the address again.
 	SkipNFSServerUnadvertised = "recorded NFS server is no longer advertised (-nfs-server): its PVs still mount it"
+	// SkipMountpointNotPinned: a committed filesystem volume whose
+	// mountpoint is inherited (made before the pin, adopted, or an
+	// operator's `zfs inherit`). Its share and mountpoint follow the
+	// parent's mountpoint, while the PVs keep the old path. The endpoint
+	// does not pin it itself: `zfs set mountpoint` unmounts and remounts
+	// the volume (and its export) under whoever is using it, so the
+	// operator chooses the moment.
+	SkipMountpointNotPinned = "mountpoint is inherited, not pinned on the volume: it moves with the parent's while PVs hold the old path; " +
+		"pin it with zfs set mountpoint=<its current path> (zfs remounts it)"
 )
 
 // Desired is the caller's statement of what to keep.
@@ -374,6 +383,10 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		}
 		if r.Committed && r.NFSServer != "" && !slices.Contains(p.NFSServers, r.NFSServer) {
 			skip(r.ID, SkipNFSServerUnadvertised)
+		}
+		// none and legacy are no path a parent's move could change
+		if r.Committed && r.Kind() == Filesystem && !r.MountLocal && strings.HasPrefix(r.Mount, "/") {
+			skip(r.ID, SkipMountpointNotPinned)
 		}
 	}
 

@@ -56,6 +56,11 @@ type Row struct {
 	ShareNFSRecv bool   // sharenfs came from `zfs recv` (source "received")
 	CanMount     string // on, off, noauto; "-" for zvols and snapshots
 
+	// MountLocal: mountpoint is set on the dataset itself (pinned at
+	// create), so Mount does not follow the parent's (Reconcile reports
+	// an owned filesystem without it).
+	MountLocal bool
+
 	// ownership, from user properties
 	Managed        bool
 	Committed      bool // provision_success
@@ -320,6 +325,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 		}
 		r.NFSServer = own(cNFSServer)
 		r.NFSServerElsewhere = !cell(cNFSServer).Local() && userValue(cell(cNFSServer)) != ""
+		r.MountLocal = cell(cMount).Local() // the mountpoint pin (no new column)
 		for k, col := range cLocal {
 			// only local values: an inherited compression is the parent's
 			// choice, not this volume's, and must not satisfy a request

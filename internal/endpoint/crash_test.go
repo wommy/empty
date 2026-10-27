@@ -226,6 +226,8 @@ func fingerprint(t *testing.T, h *harness) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// a mountpoint names the parent's, which differs per run on a pool
+	parentMP := h.Prop(h.Parent, "mountpoint")
 	var lines []string
 	for _, d := range ds {
 		var kv []string
@@ -239,9 +241,13 @@ func fingerprint(t *testing.T, h *harness) string {
 				// a source names the parent, which differs per run
 				s += "(" + strings.ReplaceAll(v.Source, h.Parent+"/", "") + ")"
 			}
+			if k == "mountpoint" {
+				// pinned (local) or following the parent's
+				s = k + "=" + strings.Replace(v.Value, parentMP, "$PARENT", 1) + "(" + map[bool]string{true: "local", false: "inherited"}[v.Local()] + ")"
+			}
 			kv = append(kv, s)
 		}
-		if d.Props["mounted"].Value == "yes" && d.Name != h.Parent {
+		if d.Props["mounted"].Value == "yes" {
 			// the root directory's owner and mode (N11)
 			r := h.rootOf(t, d.Name, d.Props["mountpoint"].Value)
 			kv = append(kv, fmt.Sprintf("root=%d:%d:%04o", r.UID, r.GID, r.Mode))

@@ -597,6 +597,13 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		}
 		p := e.plan
 		p.now = e.cfg.Now().Unix()
+		if _, exists := t.Get(id); !exists && r.Kind == Filesystem {
+			// a new filesystem's mountpoint is pinned where the parent's
+			// puts it now: one read, on a create only
+			if p.parentMount, err = e.parentMountpoint(ctx); err != nil {
+				return Volume{}, err
+			}
+		}
 		plan, err := p.PlanCreateVolume(t, r)
 		if err != nil {
 			return Volume{}, err
@@ -625,6 +632,19 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		}
 	}
 	return e.readVolume(ctx, id)
+}
+
+// parentMountpoint reads the parent's effective mountpoint: a path, or
+// none or legacy.
+func (e *Endpoint) parentMountpoint(ctx context.Context) (string, error) {
+	d, err := e.zfs.Get(ctx, e.cfg.Parent, "mountpoint")
+	if err != nil {
+		if zfs.IsNotFound(err) {
+			return "", parentUnavailable(e.cfg.Parent, err)
+		}
+		return "", zfsErr(err, "read the mountpoint of "+e.cfg.Parent)
+	}
+	return d.Props["mountpoint"].Value, nil
 }
 
 // verifyExport holds an NFS volume's commit until the NFS server serves

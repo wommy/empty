@@ -76,6 +76,9 @@ These notes record how the decision was built. They do not change it.
   - It runs in CreateVolume's resume, on every pass, before the NFS verification and the commit. Nothing records that it ran: it is idempotent, so a crash on either side of it converges by running it again.
   - **Defaults: unset leaves an attribute as the create made it**, root:root 0755 for a new volume and the source's for a clone or restore. The endpoint never widens a root on its own; the StorageClass author chooses.
   - They are file metadata, not volume state: never reported, and a repeat of a committed create is not compared on them (a tenant who owns the root may chmod it).
+- **The mountpoint pin (wave14).**
+  - Every new filesystem volume is created with `mountpoint=<parent's mountpoint>/<id>` set locally, in the same `zfs create`/`clone -o` as F12's mount options. `share` and `mountpoint` in volume_context then stay put if the parent's mountpoint moves.
+  - A parent with mountpoint `none` or `legacy` pins nothing.
+  - **Volumes made before the pin are reported, not rewritten.** Reconcile lists a committed filesystem with an inherited path mountpoint in `skipped`. `zfs set mountpoint` unmounts and remounts the volume, and its export, under whoever uses it, so the operator picks the moment.
 - **Not built yet:**
-  - the local mountpoint pin;
   - the reconcile drift reports other than the leftover list and the server.
