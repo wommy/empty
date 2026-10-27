@@ -1382,7 +1382,7 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 		}
 		return n.origin, "-", true
 	case "available":
-		return strconv.FormatUint(s.PoolSize, 10), "-", true
+		return strconv.FormatUint(s.available(name), 10), "-", true
 	case "mountpoint":
 		if n.typ == zfs.TypeFilesystem {
 			if v, ok := n.props[prop]; ok {

@@ -90,6 +90,8 @@ func run(ctx context.Context, args []string, d deps) error {
 	maxZFS := fs.Int("max-zfs", 8, "max zfs commands running at once")
 	allowNonRoot := fs.Bool("allow-non-root", false, "run without root (delegated zfs allow); filesystem volumes cannot be mounted and NFS export is off")
 	nfsMinPrefix := fs.Int("nfs-min-prefix", endpoint.DefaultNFSMinPrefix, "broadest IPv4 client network PublishFileExport accepts (prefix length, 1-32; 0, every IPv4 client, is refused)")
+	minFree := fs.Uint64("min-free-bytes", 0, "headroom floor: CreateVolume and ExpandVolume are RESOURCE_EXHAUSTED when the parent's available space after what they make or reserve would fall below this many bytes. "+
+		"Advisory, not a reservation: concurrent creates and other writers can each pass it and together cross it. Default 0: off")
 	destroyForeign := fs.Bool("destroy-foreign-snapshots", false, "let DeleteVolume destroy snapshots the endpoint did not make along with their volume")
 	var nfsServers []string
 	fs.Func("nfs-server", "an NFS server address (IPv4 or DNS name) clients mount volumes from; repeat for more, the first is the default. "+
@@ -200,7 +202,7 @@ func run(ctx context.Context, args []string, d deps) error {
 		return startupErr(ctx, err)
 	}
 	warnTraversable(slog.Default(), *parent, mount)
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, NFSServers: nfsServers, Settle: d.settle, Etab: etab})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, MinFreeBytes: *minFree, NFSServers: nfsServers, Settle: d.settle, Etab: etab})
 	if err != nil {
 		return configErr("%v", err)
 	}

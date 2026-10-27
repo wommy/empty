@@ -185,6 +185,12 @@ type Config struct {
 	// (zfs_ioctl.c zfs_ioc_create). Nil: no settle and no retry (the
 	// simulator, which has no devices).
 	Settle func(context.Context) error
+	// MinFreeBytes is the headroom floor: CreateVolume and ExpandVolume
+	// refuse, ResourceExhausted, a plan that makes a volume or reserves
+	// space when the parent's available space after it would fall below
+	// this many bytes (headroom.go). Advisory, not a reservation: racing
+	// creates can each pass and together cross it. 0: off (the default).
+	MinFreeBytes uint64
 	// Root sets a mounted filesystem volume's root directory owner and
 	// mode (NFSExport.UID, GID, Mode). Default: Etab when it also
 	// implements RootSetter (the simulator), else LocalRoot, which works
@@ -568,6 +574,9 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		if err != nil {
 			return Volume{}, err
 		}
+		if err := e.headroom(ctx, t, plan, "create volume "+id); err != nil {
+			return Volume{}, err
+		}
 		commit := Plan(nil)
 		if r.NFS != nil && p.commits(plan) {
 			// an NFS volume commits only once it is served (verifyExport)
@@ -843,6 +852,9 @@ func (e *Endpoint) ExpandVolume(ctx context.Context, volID string, capacity, lim
 	}
 	plan, before, err := e.plan.PlanExpandVolume(t, volID, capacity, limit)
 	if err != nil {
+		return Volume{}, err
+	}
+	if err := e.headroom(ctx, t, plan, "expand volume "+volID); err != nil {
 		return Volume{}, err
 	}
 	if err := e.apply(ctx, plan); err != nil {

@@ -42,6 +42,7 @@ Errors use the CSI/gRPC codes directly:
 - `ABORTED` for a lock that is busy. It is also returned for an unclassified zfs failure after an earlier op of the plan applied, because a retry re-scans and converges. Before any change, that failure stays `INTERNAL`.
 - `UNAVAILABLE` for zfs "busy" outside a destroy, a read-only or missing pool, or a missing parent.
 - `DEADLINE_EXCEEDED` or `ABORTED` for a zfs command killed by the caller's deadline or cancellation. The outcome is unknown and a retry converges.
+- `RESOURCE_EXHAUSTED` when zfs is out of space, and, with `-min-free-bytes` set (default 0, off), for a CreateVolume or ExpandVolume whose plan makes a volume or reserves space when the parent's `available` less what the plan reserves (a thick zvol's volsize, a filesystem's `reserve`, a grow's delta) would fall below the floor (`headroom.go`). It is checked before anything is applied, never on a retry whose plan is empty or only commits. It is advisory, not a reservation: `available` is read once under the volume's lock, so concurrent creates of different volumes, or other writers to the pool, can each pass and together cross the floor. Snapshots are not guarded.
 
 ## Decisions and their evidence
 
