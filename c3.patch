@@ -1,0 +1,173 @@
+diff --git a/internal/endpoint/endpoint.go b/internal/endpoint/endpoint.go
+index 9e3c7c4..8ef6ad4 100644
+--- a/internal/endpoint/endpoint.go
++++ b/internal/endpoint/endpoint.go
+@@ -553,25 +592,43 @@ func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error)
+ 	return volumeView(row), nil
+ }
+ 
+-// page returns items after startingToken (an item id), at most max (0 = all),
+-// and the next token. An unknown token is Aborted (CSI).
+-func page[T any](items []T, id func(T) string, max int, startingToken string) ([]T, string, error) {
++// tokenPrefix starts every page token: "after/<last id served>". "/" is in
++// no volume or snapshot id, so a token is never mistaken for an id, and a
++// string the endpoint never issued (csi-sanity's "invalid-token", a bare
++// id from a build before this format) is Aborted rather than read as a
++// position. A walk across that upgrade restarts once.
++const tokenPrefix = "after/"
++
++// volumeToken and snapshotToken report whether a token's id could be one
++// the list serves; the ids need not exist any more.
++func volumeToken(id string) bool { return id != "" && !strings.ContainsAny(id, "/@") }
++
++func snapshotToken(id string) bool {
++	vol, snap, ok := strings.Cut(id, "@")
++	return ok && volumeToken(vol) && snap != "" && !strings.ContainsAny(snap, "/@")
++}
++
++// page returns items (sorted by id) after startingToken, at most max (0 =
++// all), and the next token. A token resumes at the first id after the one
++// it names, whether or not that item still exists: a volume deleted
++// between pages (normal churn while a CO lists) must not end the walk. A
++// token the endpoint could not have issued is Aborted (CSI).
++func page[T any](items []T, id func(T) string, valid func(string) bool, max int, startingToken string) ([]T, string, error) {
+ 	start := 0
+ 	if startingToken != "" {
+-		start = -1
+-		for i, it := range items {
+-			if id(it) == startingToken {
+-				start = i + 1
+-				break
+-			}
+-		}
+-		if start < 0 {
++		after, ok := strings.CutPrefix(startingToken, tokenPrefix)
++		if !ok || !valid(after) {
+ 			return nil, "", errorf(Aborted, "invalid starting token %q", startingToken)
+ 		}
++		i, found := slices.BinarySearchFunc(items, after, func(it T, after string) int { return strings.Compare(id(it), after) })
++		if found {
++			i++
++		}
++		start = i
+ 	}
+ 	items = items[start:]
+ 	if max > 0 && len(items) > max {
+-		return items[:max], id(items[max-1]), nil
++		return items[:max], tokenPrefix + id(items[max-1]), nil
+ 	}
+ 	return items, "", nil
+ }
+@@ -588,7 +645,7 @@ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToke
+ 			vols = append(vols, volumeView(r))
+ 		}
+ 	}
+-	return page(vols, func(v Volume) string { return v.ID }, maxEntries, startingToken)
++	return page(vols, func(v Volume) string { return v.ID }, volumeToken, maxEntries, startingToken)
+ }
+ 
+ // CreateSnapshot cuts "<volume>@<name>". The same name on the same volume is
+@@ -642,7 +699,7 @@ func (e *Endpoint) ListSnapshots(ctx context.Context, snapshotID, sourceVolumeID
+ 		}
+ 		snaps = append(snaps, s)
+ 	}
+-	return page(snaps, func(s Snapshot) string { return s.ID }, maxEntries, startingToken)
++	return page(snaps, func(s Snapshot) string { return s.ID }, snapshotToken, maxEntries, startingToken)
+ }
+ 
+ // DeleteSnapshot removes a snapshot. Missing or never-issued ids succeed. A
+diff --git a/internal/endpoint/endpoint_test.go b/internal/endpoint/endpoint_test.go
+index 750e236..89b90de 100644
+--- a/internal/endpoint/endpoint_test.go
++++ b/internal/endpoint/endpoint_test.go
+@@ -366,6 +366,18 @@ func TestPagination(t *testing.T) {
+ 	}
+ 	_, _, err := ep.ListVolumes(ctx, 2, "nope")
+ 	wantCode(t, err, endpoint.Aborted)
++	// S4: the token's volume deleted between pages; the walk goes on
++	first, tok, err := ep.ListVolumes(ctx, 2, "")
++	if err != nil || len(first) != 2 {
++		t.Fatal(first, err)
++	}
++	if err := ep.DeleteVolume(ctx, first[1].ID); err != nil {
++		t.Fatal(err)
++	}
++	rest, next, err := ep.ListVolumes(ctx, 2, tok)
++	if err != nil || len(rest) != 1 || rest[0].ID != "v3" || next != "" {
++		t.Fatalf("after deleting %s: %+v %q %v", first[1].ID, rest, next, err)
++	}
+ }
+ 
+ // review H2: user properties inherit, so a snapshot an administrator took
+diff --git a/internal/endpoint/reconcile.go b/internal/endpoint/reconcile.go
+index 2422c9b..cecdc02 100644
+--- a/internal/endpoint/reconcile.go
++++ b/internal/endpoint/reconcile.go
+@@ -466,6 +466,10 @@ func simulateDestroyAll(rows []Row, plans []Plan) []Row {
+ 
+ // ReconcileRequest is what a caller asks a reconcile to keep.
+ type ReconcileRequest struct {
++	// DesiredVolumeIDs is the complete set to keep (Desired.VolumeIDs).
++	// An id that names nothing, including one the endpoint could never
++	// issue, is reported as SkipDesiredMissing; an empty id is
++	// InvalidArgument.
+ 	DesiredVolumeIDs []string
+ 	// MinAge; 0 means DefaultReconcileMinAge, below MinReconcileMinAge is
+ 	// refused.
+@@ -533,9 +537,14 @@ const MinReconcileMinAge = 10 * time.Minute
+ // locks: only actions covered by the held locks run, so a CreateVolume that
+ // finished in between is seen, and anything new waits for the next run.
+ func (e *Endpoint) Reconcile(ctx context.Context, r ReconcileRequest) (ReconcilePlan, error) {
++	// A non-empty id the endpoint could never issue names no volume, as
++	// everywhere else (issuedVolumeID: NotFound): the planner skips it as
++	// SkipDesiredMissing and the run goes on. One foreign-format id in a
++	// set (another driver's "ns/pv") must not stop the collection, nor can
++	// it protect or doom a volume. An empty id is a malformed request.
+ 	for _, id := range r.DesiredVolumeIDs {
+-		if _, err := volumeID(id); err != nil {
+-			return ReconcilePlan{}, err
++		if id == "" {
++			return ReconcilePlan{}, errorf(InvalidArgument, "empty desired volume id")
+ 		}
+ 	}
+ 	if r.MaxDeletions < 0 || r.MaxDeletions > 0 && r.UnlimitedDeletions {
+diff --git a/internal/endpoint/reconcile_contract_test.go b/internal/endpoint/reconcile_contract_test.go
+index 5715d73..bc05f9a 100644
+--- a/internal/endpoint/reconcile_contract_test.go
++++ b/internal/endpoint/reconcile_contract_test.go
+@@ -165,7 +165,14 @@ func TestReconcileAgainstDesiredSet(t *testing.T) {
+ 		t.Fatalf("second reconcile: %+v %v", again, err)
+ 	}
+ 
+-	_, err = old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"bad/id"}})
++	// an id the endpoint could never issue names nothing (S8): skipped,
++	// not a failed run; an empty id is malformed
++	plan, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: append([]string{"bad/id"}, want...)})
++	if err != nil || len(plan.Actions) != 0 ||
++		!slices.Contains(plan.Skipped, endpoint.ReconcileSkip{Target: "bad/id", Reason: endpoint.SkipDesiredMissing}) {
++		t.Fatalf("non-issuable desired id: %+v %v", plan, err)
++	}
++	_, err = old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{""}})
+ 	wantCode(t, err, endpoint.InvalidArgument)
+ }
+ 
+diff --git a/internal/server/server_test.go b/internal/server/server_test.go
+index 9d25522..75a48bb 100644
+--- a/internal/server/server_test.go
++++ b/internal/server/server_test.go
+@@ -136,8 +136,13 @@ func TestReconcile(t *testing.T) {
+ 	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{MinAgeSeconds: 60}); status.Code(err) != codes.InvalidArgument {
+ 		t.Fatalf("min age below the floor: %v", err)
+ 	}
+-	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"a/b"}}); status.Code(err) != codes.InvalidArgument {
+-		t.Fatalf("invalid id: %v", err)
++	// an id the endpoint never issues names nothing and is skipped; an
++	// empty one is malformed
++	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"a/b"}, DryRun: true}); err != nil {
++		t.Fatalf("never-issued id: %v", err)
++	}
++	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{""}}); status.Code(err) != codes.InvalidArgument {
++		t.Fatalf("empty id: %v", err)
+ 	}
+ 	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{MinAgeSeconds: 1 << 62}); status.Code(err) != codes.InvalidArgument {
+ 		t.Fatalf("huge age: %v", err)

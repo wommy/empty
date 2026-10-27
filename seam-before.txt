@@ -32,3 +32,10 @@ FAIL
 FAIL
 FAIL	github.com/wommy/empty/internal/endpoint	0.006s
 FAIL
+--- FAIL: TestShortDeadlineStillTakesAFreeLock (0.00s)
+    lockwait_test.go:18: free lock with 500ms left: operation pending on [vol:a]
+--- FAIL: TestPlanCreateDoesNotAdoptUnnamedManaged (0.00s)
+    lockwait_test.go:37: plan [{Kind:set Target:tank/v/adopt Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[refquota:67108864] OkExists:false OkMissing:false} {Kind:set Target:tank/v/adopt Source: Size:0 Sparse:false Recursive:false Defer:false Props:map[democratic-csi:provision_success:true] OkExists:false OkMissing:false}] <nil>
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.023s
+FAIL

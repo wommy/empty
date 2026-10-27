@@ -1,0 +1,52 @@
+diff --git a/internal/endpoint/endpoint.go b/internal/endpoint/endpoint.go
+index 9e3c7c4..8ef6ad4 100644
+--- a/internal/endpoint/endpoint.go
++++ b/internal/endpoint/endpoint.go
+@@ -295,6 +301,15 @@ func (e *Endpoint) lock(ctx context.Context, keys ...string) (func(), error) {
+ 			wait = max(left, 0)
+ 		}
+ 	}
++	if wait <= 0 && ctx.Err() == nil {
++		// no time left to wait (the deadline is inside lockMargin, or
++		// LockWait is not positive), but a free lock is still taken: a
++		// WithTimeout(0) would refuse even an uncontended one
++		if release, ok := e.locks.TryAcquire(keys...); ok {
++			return release, nil
++		}
++		return nil, errorf(Aborted, "operation pending on %v", keys)
++	}
+ 	ctx, cancel := context.WithTimeout(ctx, wait)
+ 	defer cancel()
+ 	release, err := e.locks.Acquire(ctx, keys...)
+diff --git a/internal/endpoint/reach_helpers_test.go b/internal/endpoint/reach_helpers_test.go
+index 850af1a..48a4a7d 100644
+--- a/internal/endpoint/reach_helpers_test.go
++++ b/internal/endpoint/reach_helpers_test.go
+@@ -13,6 +13,7 @@ import (
+ 	"time"
+ 
+ 	"github.com/wommy/empty/internal/zfs"
++	"github.com/wommy/empty/internal/zfs/zfstest"
+ )
+ 
+ const rParent = "tank/v"
+@@ -131,3 +132,19 @@ func tableFromRaw(t testing.TB, raw []byte) (Table, *Endpoint) {
+ 	}
+ 	return tbl, ep
+ }
++
++// simEndpoint is an endpoint on a fresh simulator, parent rParent.
++func simEndpoint(t *testing.T, cfg Config) (*Endpoint, *zfstest.Sim) {
++	t.Helper()
++	sim := zfstest.New("tank")
++	z := zfs.New(sim)
++	if err := z.CreateFilesystem(context.Background(), rParent, nil, true); err != nil {
++		t.Fatal(err)
++	}
++	cfg.Parent = rParent
++	ep, err := New(z, cfg)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return ep, sim
++}

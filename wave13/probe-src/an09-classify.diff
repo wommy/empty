@@ -1,0 +1,23 @@
+--- /tmp/fsm_before.go	2026-10-27 07:12:33.322062131 +0000
++++ internal/endpoint/fsm_explore_test.go	2026-10-27 07:12:33.347692324 +0000
+@@ -310,7 +310,19 @@
+ 		return "Foreign-snap"
+ 	}
+ 	if internal {
+-		return "IMPOSSIBLE(managed internal snapshot)"
++		// the endpoint's own clone source: stamped managed + clone_source_for
++		// at creation (Row.OwnedCloneSource), the normal state of a clone
++		if _, ours := r.OwnedCloneSource(); ours {
++			switch {
++			case r.Deferred:
++				return "OwnCloneSrc-deferred"
++			case clones:
++				return "OwnCloneSrc-live"
++			default:
++				return "OwnCloneSrc-orphan"
++			}
++		}
++		return "IMPOSSIBLE(managed internal snapshot without our stamp)"
+ 	}
+ 	if r.SnapshotName == "" {
+ 		return "IMPOSSIBLE(managed snapshot without CSI name)"
