@@ -1,0 +1,4 @@
+{"id": 108, "bucket": "plan.go", "file": "internal/endpoint/plan.go", "line": 178, "op": "DROP_OPERAND", "desc": "operand `r.Kind == Filesystem` replaced by true", "status": "SURVIVED", "info": ""}
+{"id": 987, "bucket": "props.go", "file": "internal/endpoint/props.go", "line": 172, "op": "BOOL_FLIP", "desc": "return 0, false  =>  return true", "status": "SURVIVED", "info": ""}
+{"id": 267, "bucket": "plan.go", "file": "internal/endpoint/plan.go", "line": 361, "op": "DROP_OPERAND", "desc": "operand `src.Type != zfs.TypeVolume` replaced by false", "status": "SURVIVED", "info": ""}
+{"id": 261, "bucket": "plan.go", "file": "internal/endpoint/plan.go", "line": 349, "op": "BOOL_FLIP", "desc": "return 0, false  =>  return true", "status": "SURVIVED", "info": ""}
