@@ -89,16 +89,47 @@ func TestRealGetJSONMatchesSim(t *testing.T) {
 		t.Fatalf("decoding the Sim's JSON: %v\n%s", err, simOut)
 	}
 	norm := func(b []byte) []byte { return createtxgRE.ReplaceAll(b, []byte(`"createtxg":"0"`)) }
-	if a, b := norm(zfsOut), norm(simOut); !bytes.Equal(a, b) {
-		i := 0
-		for i < min(len(a), len(b)) && a[i] == b[i] {
-			i++
+	same := func(what string, zfsOut, simOut []byte) {
+		t.Helper()
+		if a, b := norm(zfsOut), norm(simOut); !bytes.Equal(a, b) {
+			i := 0
+			for i < min(len(a), len(b)) && a[i] == b[i] {
+				i++
+			}
+			from := max(0, i-120)
+			t.Fatalf("%s: zfs and the Sim print different JSON from byte %d:\n zfs %q\n sim %q\nfull zfs output:\n%s",
+				what, i, a[from:min(len(a), i+120)], b[from:min(len(b), i+120)], zfsOut)
 		}
-		from := max(0, i-120)
-		t.Fatalf("zfs and the Sim print different JSON from byte %d:\n zfs %q\n sim %q\nfull zfs output:\n%s",
-			i, a[from:min(len(a), i+120)], b[from:min(len(b), i+120)], zfsOut)
 	}
+	same("scan", zfsOut, simOut)
 	t.Logf("zfs get -j -p output (%d bytes) matches the Sim byte for byte", len(zfsOut))
+	// Get and List issue shapes of their own: one dataset or snapshot
+	// with neither -t nor -d, and List's default types at depth 1
+	for _, name := range []string{p + "/fs", p + "/vol", p + "/fs@s", p + "/clone"} {
+		var outs [2][]byte
+		for i, r := range []zfs.Runner{h.Z.Runner, sim} {
+			c := &captureRunner{r: r}
+			d, err := zfs.New(c).Get(ctx, name, props...)
+			if err != nil {
+				t.Fatalf("Get %s: %v\n%s", name, err, c.last)
+			}
+			if d.Name != name || len(d.Props) != len(props) {
+				t.Fatalf("Get %s = %+v", name, d)
+			}
+			outs[i] = c.last
+		}
+		same("get "+name, outs[0], outs[1])
+	}
+	var lists [2][]byte
+	for i, r := range []zfs.Runner{h.Z.Runner, sim} {
+		c := &captureRunner{r: r}
+		ds, err := zfs.New(c).List(ctx, p, zfs.ListOptions{Props: props})
+		if err != nil || len(ds) != 3 {
+			t.Fatalf("List %s = %+v, %v\n%s", p, ds, err, c.last)
+		}
+		lists[i] = c.last
+	}
+	same("list "+p, lists[0], lists[1])
 	want := []string{p, p + "/clone", p + "/fs", p + "/fs/child", p + "/fs@s", p + "/vol", p + "/vol@s"}
 	got := map[string]bool{}
 	for _, n := range cols.Names {

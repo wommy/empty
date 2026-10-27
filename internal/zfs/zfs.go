@@ -1,10 +1,9 @@
 // Package zfs is a typed client for the zfs(8) command line.
 //
 // It is deliberately strict where the Go ZFS libraries surveyed are loose:
-// the scan (ListColumns) is decoded from `zfs get -j -p` by a strict JSON
-// decoder, single-dataset reads from `-Hp` (tab separated, exact numbers),
-// every failure is classified into a Kind, and only KindNotFound ever means
-// "absent".
+// every read (Get, List, ListColumns) is decoded from `zfs get -j -p` by a
+// strict JSON decoder streaming from zfs's stdout, every failure is
+// classified into a Kind, and only KindNotFound ever means "absent".
 package zfs
 
 import (
@@ -12,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"sort"
 	"strconv"
@@ -28,7 +28,8 @@ const (
 	TypeBookmark   Type = "bookmark"
 )
 
-// Prop is one property value as reported by `zfs get -Hp`.
+// Prop is one property value as reported by `zfs get -j -p`, with the
+// source spelled as `zfs get -Hp` prints it.
 type Prop struct {
 	Value  string
 	Source string // local, default, inherited from <ds>, received, -, ...
@@ -100,10 +101,14 @@ func dotComponent(name string) bool {
 
 // checkPropNames refuses a property name that could be read as an option
 // or split into two ("a,b"): Get, List and ListColumns join the names into
-// one argv word. "all" is zfs get's own.
+// one argv word. "all" is refused too: the JSON decoder requires exactly
+// the properties asked for.
 func checkPropNames(op string, props []string) error {
+	if len(props) == 0 {
+		return &Error{Kind: KindInvalidProperty, Op: op, Stderr: "no properties requested"}
+	}
 	for _, p := range props {
-		if p != "all" && !propRE.MatchString(p) {
+		if p == "all" || !propRE.MatchString(p) {
 			return &Error{Kind: KindInvalidProperty, Op: op, Stderr: "invalid property name " + strconv.Quote(p)}
 		}
 	}
@@ -116,7 +121,8 @@ func checkPropNames(op string, props []string) error {
 // printer drops code points above U+FFFF, and in the C locale it stops at
 // the first byte >= 0x80, which fails the whole scan of every dataset
 // under the parent (exit 0, truncated JSON). Control characters, newline
-// and tab among them, would make `-Hp` text ambiguous (Get).
+// and tab among them, would make `-Hp` text ambiguous to anything else
+// that reads it.
 func checkProps(props map[string]string) error {
 	for k, v := range props {
 		if !propRE.MatchString(k) {
@@ -155,9 +161,38 @@ func (c *Client) bin() string {
 // run executes zfs and converts failures into *Error.
 func (c *Client) run(ctx context.Context, op, dataset string, args ...string) ([]byte, error) {
 	out, err := c.Runner.Run(ctx, c.bin(), args...)
-	if err == nil {
-		return out, nil
+	if err != nil {
+		return nil, c.fail(ctx, op, dataset, err)
 	}
+	return out, nil
+}
+
+// getJSON runs `zfs get -j -p ...` and decodes its stdout as it arrives
+// (see Streamer) with the strict decoder, into Columns of props. A
+// non-zero exit is classified like any other; a document the decoder
+// refuses is an unclassified failure.
+func (c *Client) getJSON(ctx context.Context, op, dataset string, props []string, args ...string) (*Columns, error) {
+	var cols *Columns
+	err := stream(ctx, c.Runner, func(r io.Reader) error {
+		rows := 0
+		if b, ok := r.(*bytes.Buffer); ok {
+			// every dataset object has exactly one "properties" member,
+			// and the sequence cannot occur inside a string, where '"'
+			// is escaped
+			rows = bytes.Count(b.Bytes(), []byte(`"properties":{`))
+		}
+		var err error
+		cols, err = decodeGetJSON(r, props, rows)
+		return err
+	}, c.bin(), args...)
+	if err != nil {
+		return nil, c.fail(ctx, op, dataset, err)
+	}
+	return cols, nil
+}
+
+// fail converts a command's failure into *Error.
+func (c *Client) fail(ctx context.Context, op, dataset string, err error) error {
 	e := &Error{Op: op, Dataset: dataset, Err: err}
 	var ee *ExitError
 	if errors.As(err, &ee) {
@@ -170,34 +205,30 @@ func (c *Client) run(ctx context.Context, op, dataset string, args ...string) ([
 		// why (deadline or cancel)
 		e.Kind, e.Err = KindInterrupted, fmt.Errorf("%w (%w)", err, cerr)
 	}
-	return nil, e
+	return e
 }
 
-// Get returns the requested properties of one dataset or snapshot.
+// Get returns the requested properties of one dataset or snapshot, read
+// from `zfs get -j -p`. At least one property must be named, each by its
+// canonical name (no aliases, no "all"): the decoder requires exactly the
+// requested set, and exactly the one dataset asked for.
 func (c *Client) Get(ctx context.Context, name string, props ...string) (Dataset, error) {
 	if !ValidDataset(name) && !ValidSnapshot(name) {
 		return Dataset{}, &Error{Kind: KindInvalidProperty, Op: "get", Dataset: name, Stderr: "invalid name"}
 	}
-	if len(props) == 0 {
-		props = []string{"all"}
-	}
 	if err := checkPropNames("get", props); err != nil {
 		return Dataset{}, err
 	}
-	out, err := c.run(ctx, "get", name, "get", "-Hp", "-o", "name,property,value,source", strings.Join(props, ","), name)
+	cols, err := c.getJSON(ctx, "get", name, props, "get", "-j", "-p", strings.Join(props, ","), name)
 	if err != nil {
 		return Dataset{}, err
 	}
-	ds, err := parseGet(out)
-	if err != nil {
-		return Dataset{}, &Error{Op: "get", Dataset: name, Err: err}
+	if len(cols.Names) != 1 || cols.Names[0] != name {
+		// zfs printed nothing (or something else) for the dataset; this
+		// is not "absent"
+		return Dataset{}, &Error{Op: "get", Dataset: name, Err: fmt.Errorf("zfs printed %q, want only %q", cols.Names, name)}
 	}
-	d, ok := ds[name]
-	if !ok {
-		// zfs printed nothing for the dataset; this is not "absent"
-		return Dataset{}, &Error{Op: "get", Dataset: name, Err: errors.New("no output for dataset")}
-	}
-	return d, nil
+	return cols.Dataset(0), nil
 }
 
 // Exists reports whether name exists. Only a classified not-found is false;
@@ -211,40 +242,6 @@ func (c *Client) Exists(ctx context.Context, name string) (bool, error) {
 		return false, nil
 	}
 	return false, err
-}
-
-// parseGet parses `zfs get -Hp -o name,property,value,source` output.
-//
-// zfs prints user property values raw, so a value with a newline can print
-// as lines for any (dataset, property), including a dataset zfs never
-// listed: no real line has to be there to collide with, and nothing here
-// can tell a forged line from a real one. Get reads only the queried name
-// and the health check one native property, so a forged line can at worst
-// overwrite a value of that same dataset; List serves only the daemon's
-// startup prefix check. The scan that ownership and planning rest on is ListColumns, which
-// reads JSON and is immune.
-func parseGet(out []byte) (map[string]Dataset, error) {
-	res := map[string]Dataset{}
-	for i, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-		// name and property never contain tabs; a user property value can,
-		// so anchor on the first two fields and the last (source)
-		f := strings.SplitN(line, "\t", 3)
-		last := strings.LastIndexByte(line, '\t')
-		if len(f) != 3 || last <= len(f[0])+len(f[1])+1 {
-			return nil, fmt.Errorf("line %d: want 4 fields: %q", i+1, line)
-		}
-		f = []string{f[0], f[1], line[len(f[0])+len(f[1])+2 : last], line[last+1:]}
-		d, ok := res[f[0]]
-		if !ok {
-			d = Dataset{Name: f[0], Props: map[string]Prop{}}
-		}
-		d.Props[f[1]] = Prop{Value: f[2], Source: f[3]}
-		res[f[0]] = d
-	}
-	return res, nil
 }
 
 // CreateFilesystem runs `zfs create [-p] -o k=v... name`.
@@ -410,46 +407,22 @@ type ListOptions struct {
 	Props []string
 }
 
-// List returns datasets under parent (excluding parent itself) with props.
+// List returns datasets under parent (excluding parent itself) with props,
+// sorted by name. It reads `zfs get -j -p` like ListColumns, so a property
+// value cannot forge a dataset or another property's value.
 func (c *Client) List(ctx context.Context, parent string, o ListOptions) ([]Dataset, error) {
-	if !ValidDataset(parent) {
-		return nil, &Error{Kind: KindInvalidProperty, Op: "list", Dataset: parent, Stderr: "invalid name"}
+	if len(o.Props) == 0 {
+		o.Props = []string{"type"}
 	}
-	types := o.Types
-	if len(types) == 0 {
-		types = []Type{TypeFilesystem, TypeVolume}
-	}
-	ts := make([]string, len(types))
-	for i, t := range types {
-		ts[i] = string(t)
-	}
-	props := o.Props
-	if len(props) == 0 {
-		props = []string{"type"}
-	}
-	if err := checkPropNames("list", props); err != nil {
-		return nil, err
-	}
-	args := []string{"get", "-Hp", "-o", "name,property,value,source", "-t", strings.Join(ts, ",")}
-	switch {
-	case o.Depth < 0:
-		args = append(args, "-r")
-	default:
-		args = append(args, "-d", strconv.Itoa(o.Depth+1))
-	}
-	args = append(args, strings.Join(props, ","), parent)
-	out, err := c.run(ctx, "list", parent, args...)
+	cols, err := c.ListColumns(ctx, parent, o)
 	if err != nil {
 		return nil, err
 	}
-	m, err := parseGet(out)
-	if err != nil {
-		return nil, &Error{Op: "list", Dataset: parent, Err: err}
-	}
-	delete(m, parent)
-	res := make([]Dataset, 0, len(m))
-	for _, d := range m {
-		res = append(res, d)
+	res := make([]Dataset, 0, len(cols.Names))
+	for i, n := range cols.Names {
+		if n != parent {
+			res = append(res, cols.Dataset(i))
+		}
 	}
 	sort.Slice(res, func(i, j int) bool { return res[i].Name < res[j].Name })
 	return res, nil
@@ -457,7 +430,7 @@ func (c *Client) List(ctx context.Context, parent string, o ListOptions) ([]Data
 
 // Columns is a scan result in flat, columnar form: one Prop per (dataset,
 // property) in a single slice, instead of a map per dataset. Cell(i, j) is
-// dataset i's value for Props[j]; properties zfs did not print read as "-".
+// dataset i's value for Props[j]; the decoder requires every one printed.
 type Columns struct {
 	Props []string
 	Names []string
@@ -466,6 +439,15 @@ type Columns struct {
 
 // Cell returns dataset i's value for property j.
 func (c *Columns) Cell(i, j int) Prop { return c.Cells[i*len(c.Props)+j] }
+
+// Dataset returns dataset i with its properties as a map.
+func (c *Columns) Dataset(i int) Dataset {
+	d := Dataset{Name: c.Names[i], Props: make(map[string]Prop, len(c.Props))}
+	for j, p := range c.Props {
+		d.Props[p] = c.Cell(i, j)
+	}
+	return d
+}
 
 // Col returns the index of prop in Props, or -1.
 func (c *Columns) Col(prop string) int {
@@ -510,17 +492,5 @@ func (c *Client) ListColumns(ctx context.Context, root string, o ListOptions) (*
 		args = append(args, "-d", strconv.Itoa(o.Depth+1))
 	}
 	args = append(args, strings.Join(o.Props, ","), root)
-	out, err := c.run(ctx, "list", root, args...)
-	if err != nil {
-		return nil, err
-	}
-	// every dataset object has exactly one "properties" member, and the
-	// sequence cannot occur inside a string, where '"' is escaped
-	rows := bytes.Count(out, []byte(`"properties":{`))
-	// a *bytes.Buffer is parsed in place: jsontext copies any other reader
-	cols, err := decodeGetJSON(bytes.NewBuffer(out), o.Props, rows)
-	if err != nil {
-		return nil, &Error{Op: "list", Dataset: root, Err: err}
-	}
-	return cols, nil
+	return c.getJSON(ctx, "list", root, o.Props, args...)
 }

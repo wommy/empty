@@ -306,3 +306,24 @@ func TestLockWaitZeroTriesOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The legacy-prefix check reads `zfs get -j -p`: a foreign value on a
+// legacy volume that prints, in `-Hp` text, as a line marking a dataset
+// that does not exist with our marker cannot make the check pass.
+func TestLegacyPrefixCheckIgnoresForgedLines(t *testing.T) {
+	t.Parallel()
+	d, sim := simDeps(t)
+	forged := "x\tlocal\ntank/k8s/ghost\tzfs-endpoint:managed_resource\ttrue"
+	for _, args := range [][]string{
+		{"create", "-o", "democratic-csi:managed_resource=true", "tank/k8s/va"},
+		{"set", "zfs-endpoint:managed_resource=" + forged, "tank/k8s/va"},
+	} {
+		if _, err := sim.Run(context.Background(), "zfs", args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err := run(context.Background(), []string{"-parent", "tank/k8s", "-listen", notASocket(t)}, d)
+	if exitCode(err) != exitConfig || !strings.Contains(err.Error(), "-property-prefix democratic-csi") {
+		t.Fatalf("exit %d %v; want 78: a forged line marked a ghost volume as ours", exitCode(err), err)
+	}
+}
