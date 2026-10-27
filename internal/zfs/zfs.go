@@ -285,6 +285,18 @@ func (c *Client) Destroy(ctx context.Context, name string, o DestroyOptions) err
 
 // Set runs `zfs set k=v... name`.
 func (c *Client) Set(ctx context.Context, name string, props map[string]string) error {
+	return c.set(ctx, name, props, false)
+}
+
+// SetNoMount runs `zfs set -u k=v... name`: the property changes without
+// the changelist postfix, so zfs neither mounts nor (re)shares the dataset
+// (zfs-set(8); libzfs_dataset.c zfs_prop_set_list_flags). A plain set of
+// sharenfs on an unmounted canmount=on filesystem mounts and shares it.
+func (c *Client) SetNoMount(ctx context.Context, name string, props map[string]string) error {
+	return c.set(ctx, name, props, true)
+}
+
+func (c *Client) set(ctx context.Context, name string, props map[string]string, noMount bool) error {
 	if len(props) == 0 {
 		return nil
 	}
@@ -295,6 +307,9 @@ func (c *Client) Set(ctx context.Context, name string, props map[string]string) 
 		return err
 	}
 	args := []string{"set"}
+	if noMount {
+		args = append(args, "-u")
+	}
 	for _, kv := range propArgs(props) {
 		if kv != "-o" {
 			args = append(args, kv)

@@ -1625,8 +1625,11 @@ func (x *ReconcileResponse) GetSkipped() []*ReconcileSkip {
 type PublishFileExportRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	VolumeId string                 `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
-	// a hostname, IPv4 address or IPv4 CIDR ("10.0.0.0/24"); no wildcards,
-	// netgroups or IPv6
+	// an IPv4 address or IPv4 CIDR ("10.0.0.0/24", host bits zero); no
+	// hostnames (nfs-utils drops a name it cannot resolve on any later
+	// exportfs), wildcards, netgroups or IPv6. Publish also refuses networks
+	// broader than the endpoint's -nfs-min-prefix (default /16), and one that
+	// overlaps a network the volume is already exported to.
 	Client        string `protobuf:"bytes,2,opt,name=client,proto3" json:"client,omitempty"`
 	ReadOnly      bool   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
 	unknownFields protoimpl.UnknownFields

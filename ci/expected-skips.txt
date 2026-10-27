@@ -25,6 +25,11 @@ vm    endpoint TestCloneResizeFailureConverges         # Sim: fault injection
 vm    endpoint TestMissingParentIsUnavailableNotAbsent # Sim: missing pool
 vm    endpoint TestReconcileLocksTargets               # Sim: parked runner
 vm    endpoint TestFileExportVerifiesKernelTable       # Sim: SetNFSDown
+vm    endpoint TestFileExportRequiresNFSD              # Sim: stops nfs-server
+vm    endpoint TestFileExportDroppedHost               # Sim: exportfs drops one client
+vm    endpoint TestFileExportResolvesSymlinks          # Sim: mountpoint through a temp-dir symlink
+vm    endpoint TestFileExportUnmountedVolume           # Sim: canmount=on but unmounted
+vm    endpoint TestFileExportReceivedShareNFS          # Sim: received property source
 vm    endpoint TestCloneFailureAfterCloneConvergesToSameState # Sim: fault injection (subtests)
 vm    endpoint TestDeleteVolumeSparesForeignSnapshots     # Sim: raw foreign snapshot
 vm    endpoint TestBusyIsMappedByOperation                # Sim: injected stderr

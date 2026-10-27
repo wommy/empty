@@ -10,16 +10,25 @@
 // space accounting is approximate. CI runs the same contract tests on a
 // real pool.
 //
-// NFS: a filesystem is mounted unless canmount is off/noauto or its
-// mountpoint is none/legacy. Setting sharenfs on a mounted filesystem
-// exports it, and ReadEtab renders those exports as /var/lib/nfs/etab.
-// SetNFSDown makes exports silently stop changing, like libzfs when
-// exportfs fails: zfs still exits 0.
+// NFS: a filesystem is mounted unless canmount is off/noauto, its
+// mountpoint is none/legacy, or Unmount unmounted it. Setting sharenfs on a
+// mounted filesystem exports it, and ReadEtab renders those exports as
+// /var/lib/nfs/etab (under the mountpoint's real path, like nfs-utils).
+// A plain `zfs set sharenfs` on an unmounted canmount=on filesystem mounts
+// and shares it (changelist_postfix); `zfs set -u` does neither. Failure
+// modes, each with zfs still exiting 0:
+//   - SetNFSDown: exportfs fails, so the table stops changing;
+//   - SetNFSDRunning(false): `systemctl stop nfs-server` (exportfs -au)
+//     empties the table and NFSDThreads reports 0, but later sharenfs
+//     changes still repopulate it (exportfs -ra writes etab without nfsd);
+//     starting again re-exports every shared dataset (exportfs -r);
+//   - DropHost: exportfs leaves one client out and applies the rest.
 package zfstest
 
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -37,6 +46,8 @@ type node struct {
 	origin string            // clone origin snapshot
 	defer_ bool              // deferred destroy pending
 	birth  int64             // creation, unix seconds
+	// unmounted by Unmount: canmount=on, but not mounted
+	unmounted bool
 }
 
 // Sim is an in-memory zfs. Safe for concurrent use.
@@ -52,8 +63,10 @@ type Sim struct {
 	// (unix seconds). Nil is the wall clock.
 	Clock func() int64
 
-	live    map[string]string // dataset -> sharenfs value the "kernel" serves
-	nfsDown bool
+	live      map[string]string // dataset -> sharenfs value the "kernel" serves
+	nfsDown   bool
+	nfsdOff   bool            // nfs-server stopped: no nfsd threads
+	dropHosts map[string]bool // clients exportfs leaves out of etab
 }
 
 func (s *Sim) now() int64 {
@@ -434,11 +447,19 @@ func (s *Sim) promote(args []string) error {
 }
 
 func (s *Sim) set(args []string) error {
+	noMount := len(args) > 0 && args[0] == "-u"
+	if noMount {
+		args = args[1:]
+	}
+	if len(args) < 2 {
+		return exit("missing arguments")
+	}
 	name := args[len(args)-1]
 	n, ok := s.ds[name]
 	if !ok {
 		return exit("cannot open '%s': dataset does not exist", name)
 	}
+	share := false
 	for _, kv := range args[:len(args)-1] {
 		p := strings.SplitN(kv, "=", 2)
 		if len(p) != 2 {
@@ -476,6 +497,13 @@ func (s *Sim) set(args []string) error {
 			p[1] = autoResv(n.props["volsize"])
 		}
 		n.props[p[0]] = p[1]
+		share = share || p[0] == "sharenfs"
+	}
+	if noMount {
+		return nil // -u: no changelist postfix, so no mount and no (re)share
+	}
+	if c := n.props["canmount"]; share && n.unmounted && c != "off" && c != "noauto" {
+		n.unmounted = false // changelist_postfix mounts a canmount=on filesystem
 	}
 	s.reshare(name)
 	return nil
@@ -748,7 +776,7 @@ func (s *Sim) mounted(name string) bool {
 	if n == nil || n.typ != zfs.TypeFilesystem {
 		return false
 	}
-	if c := n.props["canmount"]; c == "off" || c == "noauto" {
+	if c := n.props["canmount"]; c == "off" || c == "noauto" || n.unmounted {
 		return false
 	}
 	mp, _, _ := s.value(name, "mountpoint")
@@ -783,9 +811,66 @@ func (s *Sim) SetNFSDown(down bool) {
 	s.nfsDown = down
 }
 
+// Unmount unmounts a filesystem the way `zfs unmount` does: unshare, then
+// unmount; canmount stays on (test helper).
+func (s *Sim) Unmount(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ds[name].unmounted = true
+	if !s.nfsDown {
+		delete(s.live, name)
+	}
+}
+
+// SetNFSDRunning stops or starts the NFS server. Stopping does what
+// nfs-server.service's ExecStopPost does (exportfs -au: the table is
+// emptied) and leaves no nfsd threads. A sharenfs change while stopped still
+// rewrites the table, because exportfs -ra does not check for nfsd.
+// Starting re-exports every shared, mounted dataset (exportfs -r).
+func (s *Sim) SetNFSDRunning(running bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nfsdOff = !running
+	if !running {
+		clear(s.live)
+		return
+	}
+	for k, n := range s.ds {
+		if n.typ != zfs.TypeFilesystem {
+			continue
+		}
+		if v, _, _ := s.value(k, "sharenfs"); s.mounted(k) && v != "off" {
+			s.live[k] = v
+		}
+	}
+}
+
+// DropHost makes exportfs leave client host out of the table while it
+// applies the rest, as nfs-utils does with a client it cannot use (an
+// unresolvable name, a duplicate line).
+func (s *Sim) DropHost(host string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.dropHosts == nil {
+		s.dropHosts = map[string]bool{}
+	}
+	s.dropHosts[host] = true
+}
+
+// NFSDThreads reports the nfsd thread count (/proc/fs/nfsd/threads). It
+// implements the endpoint's NFSDReader.
+func (s *Sim) NFSDThreads(context.Context) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.nfsdOff {
+		return 0, nil
+	}
+	return 8, nil
+}
+
 // ReadEtab renders the served exports as nfs-utils writes /var/lib/nfs/etab:
-// one "path<TAB>host(rw|ro,...)" line per client. It implements the
-// endpoint's EtabReader.
+// one "path<TAB>host(rw|ro,...)" line per client, the path resolved like
+// nfsd_realpath. It implements the endpoint's EtabReader.
 func (s *Sim) ReadEtab(context.Context) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -800,7 +885,13 @@ func (s *Sim) ReadEtab(context.Context) ([]byte, error) {
 		if _, ok := s.ds[k]; ok {
 			mp, _, _ = s.value(k, "mountpoint")
 		}
+		if real, err := filepath.EvalSymlinks(mp); err == nil {
+			mp = real
+		}
 		for _, h := range shareHosts(s.live[k]) {
+			if s.dropHosts[h[0]] {
+				continue
+			}
 			fmt.Fprintf(&b, "%s\t%s(%s,sync,wdelay,hide,nocrossmnt,secure,root_squash,no_all_squash,no_subtree_check,secure_locks,acl,no_pnfs,anonuid=65534,anongid=65534,sec=sys,%s,secure,root_squash,no_all_squash)\n",
 				mp, h[0], h[1], h[1])
 		}

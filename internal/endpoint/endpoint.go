@@ -114,6 +114,15 @@ type Config struct {
 	// Etab reads the kernel export table to verify exports. Default
 	// /var/lib/nfs/etab.
 	Etab EtabReader
+	// NFSD reports the nfsd thread count; Publish succeeds only while
+	// nfsd runs. Default: Etab when it also implements NFSDReader (the
+	// simulator), else /proc/fs/nfsd/threads.
+	NFSD NFSDReader
+	// NFSMinPrefix is the broadest client network PublishFileExport
+	// accepts: an IPv4 prefix length, 1-32. Default DefaultNFSMinPrefix
+	// (/16). Unpublish takes any network, so raising it never strands an
+	// export.
+	NFSMinPrefix int
 	// DestroyForeignSnapshots lets DeleteVolume (and reconcile) destroy a
 	// volume together with snapshots the endpoint did not cut (no locally
 	// set csi_snapshot_name: an administrator's, a backup tool's, a
@@ -154,6 +163,18 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	}
 	if cfg.Etab == nil {
 		cfg.Etab = DefaultEtab
+	}
+	if cfg.NFSD == nil {
+		cfg.NFSD = DefaultNFSD
+		if r, ok := cfg.Etab.(NFSDReader); ok {
+			cfg.NFSD = r
+		}
+	}
+	if cfg.NFSMinPrefix == 0 {
+		cfg.NFSMinPrefix = DefaultNFSMinPrefix
+	}
+	if cfg.NFSMinPrefix < 1 || cfg.NFSMinPrefix > 32 {
+		return nil, fmt.Errorf("NFS minimum prefix /%d: want 1-32", cfg.NFSMinPrefix)
 	}
 	names := props{cfg.PropertyPrefix}
 	return &Endpoint{
@@ -652,22 +673,46 @@ func (e *Endpoint) readEtab(ctx context.Context) (Etab, error) {
 	return ParseEtab(b), nil
 }
 
-// PublishFileExport exports a filesystem volume over NFS to one client
-// (hostname, IPv4 address or IPv4 CIDR), read-write or read-only, and
-// returns the export path on the storage host. Repeating it is a no-op; the
-// same client in the other mode is AlreadyExists. Unmounted volumes and
-// zvols are FailedPrecondition. Success means the kernel serves the export:
-// `zfs set sharenfs` cannot report a failed exportfs, so the export table is
-// read back and a mismatch is Unavailable (the retry re-shares).
+// exportTable reads the export table with volume volID's entries keyed by
+// its mountpoint property. exportfs stores every export under its real
+// path (nfs-utils nfsd_realpath), so a mountpoint that crosses a symlink
+// would otherwise never match: Publish Unavailable forever, and Unpublish
+// blind to an export that is still served.
+func (e *Endpoint) exportTable(ctx context.Context, t Table, volID string) (Etab, error) {
+	live, err := e.readEtab(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if row, ok := t.Get(volID); ok && row.Mount != "" {
+		live = live.at(row.Mount, realPath(row.Mount))
+	}
+	return live, nil
+}
+
+// PublishFileExport exports a filesystem volume over NFS to one client (an
+// IPv4 address or IPv4 CIDR no broader than Config.NFSMinPrefix; no
+// hostnames, see NFSClient), read-write or read-only, and returns the
+// export path on the storage host. Repeating it is a no-op; the same client
+// in the other mode is AlreadyExists, an overlapping network is
+// FailedPrecondition. A missing volume or an id this endpoint never issues
+// is NotFound. Zvols, volumes zfs would not mount (canmount off/noauto,
+// mountpoint none/legacy) and a sharenfs the endpoint did not write (set
+// locally by someone else, or received) are FailedPrecondition. Success
+// means the kernel serves the export and nfsd runs: `zfs set sharenfs`
+// cannot report a failed exportfs, so the export table is read back and a
+// mismatch is Unavailable (the retry re-shares).
 func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, readOnly bool) (string, error) {
 	if !e.cfg.FileExport {
 		return "", errorf(Unimplemented, "file export needs the endpoint to run as root")
 	}
-	if _, err := volumeID(volID); err != nil {
+	if _, err := issuedVolumeID(volID); err != nil {
 		return "", err
 	}
 	c, err := ParseClient(host, readOnly)
 	if err != nil {
+		return "", err
+	}
+	if err := checkFloor(c, e.cfg.NFSMinPrefix); err != nil {
 		return "", err
 	}
 	release, err := e.lock(ctx, "vol:"+volID)
@@ -679,7 +724,7 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 	if err != nil {
 		return "", err
 	}
-	live, err := e.readEtab(ctx)
+	live, err := e.exportTable(ctx, t, volID)
 	if err != nil {
 		return "", err
 	}
@@ -687,36 +732,58 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 	if err != nil {
 		return "", err
 	}
-	if len(plan) == 0 {
-		return row.Mount, nil
+	if len(plan) > 0 {
+		if err := e.apply(ctx, plan); err != nil {
+			return "", err
+		}
+		if live, err = e.exportTable(ctx, t, volID); err != nil {
+			return "", err
+		}
+		if !live.serves(row.Mount, c) {
+			return "", errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s %s: "+
+				"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, c.Host, c.mode())
+		}
 	}
-	if err := e.apply(ctx, plan); err != nil {
+	// etab is no proof of a server: exportfs -ra rewrites it with nfsd
+	// stopped
+	if err := e.nfsdRunning(ctx); err != nil {
 		return "", err
-	}
-	if live, err = e.readEtab(ctx); err != nil {
-		return "", err
-	}
-	if got, ok := live.Lookup(row.Mount, c.Host); !ok || got.ReadOnly != c.ReadOnly {
-		return "", errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s %s: "+
-			"zfs does not report exportfs failures; check that the NFS server is running", row.Name, row.Mount, c.Host, c.mode())
 	}
 	return row.Mount, nil
 }
 
+// nfsdRunning is Unavailable unless nfsd threads run.
+func (e *Endpoint) nfsdRunning(ctx context.Context) error {
+	n, err := e.cfg.NFSD.NFSDThreads(ctx)
+	if err != nil {
+		return &Error{Code: Unavailable, Msg: "read the nfsd thread count", Err: err}
+	}
+	if n <= 0 {
+		return errorf(Unavailable, "the NFS server is not running on the storage host (no nfsd threads); the export is stored and is served once it starts")
+	}
+	return nil
+}
+
 // UnpublishFileExport revokes one client's NFS access to a volume. A
-// missing volume or a client that is not exported is OK. Success means the
-// kernel no longer serves the export to that client.
+// missing volume, an id this endpoint never issues or a client that is not
+// exported is OK. Any IPv4 address or CIDR is taken, whatever the floor.
+// An unmounted volume stays unmounted. Success means the kernel no longer
+// serves the export to that client.
 func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) error {
 	if !e.cfg.FileExport {
 		return errorf(Unimplemented, "file export needs the endpoint to run as root")
 	}
-	if _, err := volumeID(volID); err != nil {
-		return err
-	}
-	h, err := normalizeHost(host)
+	c, err := ParseClient(host, false)
 	if err != nil {
 		return err
 	}
+	if _, err := issuedVolumeID(volID); err != nil {
+		if CodeOf(err) == NotFound {
+			return nil // never issued, so never exported
+		}
+		return err
+	}
+	h := c.Host
 	release, err := e.lock(ctx, "vol:"+volID)
 	if err != nil {
 		return err
@@ -726,7 +793,7 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	if err != nil {
 		return err
 	}
-	live, err := e.readEtab(ctx)
+	live, err := e.exportTable(ctx, t, volID)
 	if err != nil {
 		return err
 	}
@@ -734,15 +801,39 @@ func (e *Endpoint) UnpublishFileExport(ctx context.Context, volID, host string) 
 	if err != nil || len(plan) == 0 {
 		return err
 	}
-	if err := e.apply(ctx, plan); err != nil {
+	apply := e.apply
+	if !row.Mounted {
+		apply = e.applyNoMount
+	}
+	if err := apply(ctx, plan); err != nil {
 		return err
 	}
-	if live, err = e.readEtab(ctx); err != nil {
+	if live, err = e.exportTable(ctx, t, volID); err != nil {
 		return err
 	}
 	if _, ok := live.Lookup(row.Mount, h); ok {
 		return errorf(Unavailable, "sharenfs on %s is updated, but the NFS export table still serves %s to %s: "+
-			"zfs does not report exportfs failures; check that the NFS server is running", row.Name, row.Mount, h)
+			"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, h)
+	}
+	return nil
+}
+
+// applyNoMount applies an export plan to an unmounted filesystem with
+// `zfs set -u`. A plain set of sharenfs runs the changelist postfix, which
+// mounts a canmount=on filesystem and shares it: an Unpublish would undo
+// an operator's deliberate unmount and start serving the volume. -u still
+// changes the property, so a later `zfs mount` shares the revoked list,
+// never the old one. (Refusing instead would block every detach for as
+// long as the volume stays unmounted; skipping the sharenfs change would
+// re-grant the revoked client on the next mount.)
+func (e *Endpoint) applyNoMount(ctx context.Context, plan Plan) error {
+	for i, op := range plan {
+		if op.Kind != OpSet {
+			return &Error{Code: Internal, Msg: fmt.Sprintf("op %d/%d: %v on %s is not a property change", i+1, len(plan), op.Kind, op.Target)}
+		}
+		if err := e.zfs.SetNoMount(ctx, op.Target, op.Props); err != nil {
+			return opErr(err, i, plan)
+		}
 	}
 	return nil
 }

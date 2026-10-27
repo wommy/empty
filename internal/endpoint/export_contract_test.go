@@ -3,6 +3,7 @@ package endpoint_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -39,7 +40,28 @@ func (h *harness) served(t *testing.T, path, host string) (endpoint.NFSClient, b
 	if err != nil {
 		t.Fatal(err)
 	}
+	// exportfs stores the real path
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
 	return endpoint.ParseEtab(b).Lookup(path, host)
+}
+
+// servedHosts lists every etab client of path as written (names, "*").
+func (h *harness) servedHosts(t *testing.T, path string) []string {
+	t.Helper()
+	b, err := h.etab().ReadEtab(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	}
+	var hosts []string
+	for _, c := range endpoint.ParseEtab(b)[path] {
+		hosts = append(hosts, c.Host)
+	}
+	return hosts
 }
 
 func (h *harness) propSource(t *testing.T, name, prop string) (string, string) {
@@ -78,7 +100,7 @@ func TestFileExportLifecycle(t *testing.T) {
 	if err != nil || path != v.Mountpoint {
 		t.Fatalf("publish: %q %v (mountpoint %q)", path, err, v.Mountpoint)
 	}
-	if val, src := h.propSource(t, ds, "sharenfs"); val != "rw=10.0.0.1" || src != "local" {
+	if val, src := h.propSource(t, ds, "sharenfs"); val != "rw=10.0.0.1/32" || src != "local" {
 		t.Fatalf("sharenfs %q (%s)", val, src)
 	}
 	if c, ok := h.served(t, path, "10.0.0.1"); !ok || c.ReadOnly {
@@ -97,10 +119,10 @@ func TestFileExportLifecycle(t *testing.T) {
 		t.Fatalf("repeat publish ran %d zfs set", n)
 	}
 
-	if _, err := ep.PublishFileExport(ctx, "pvc-nfs", "10.9.1.2/16", true); err != nil {
+	if _, err := ep.PublishFileExport(ctx, "pvc-nfs", "10.9.0.0/16", true); err != nil {
 		t.Fatal(err)
 	}
-	if val := h.Prop(ds, "sharenfs"); val != "rw=10.0.0.1,ro=10.9.0.0/16" {
+	if val := h.Prop(ds, "sharenfs"); val != "rw=10.0.0.1/32,ro=10.9.0.0/16" {
 		t.Fatalf("sharenfs %q", val)
 	}
 	_, err = ep.PublishFileExport(ctx, "pvc-nfs", "10.0.0.1", true)
@@ -162,12 +184,37 @@ func TestFileExportPreconditions(t *testing.T) {
 	if err := ep.UnpublishFileExport(ctx, "missing", "10.0.0.1"); err != nil {
 		t.Fatalf("unpublish missing: %v", err)
 	}
-	for _, host := range []string{"", "*", "10.0.0.1,rw", "a:b", "no_root_squash", "-o", "x(rw)", "fe80::1", "a b"} {
+	for _, host := range []string{"", "*", "10.0.0.1,rw", "a:b", "no_root_squash", "-o", "x(rw)", "fe80::1", "a b", "node-a", "0.0.0.0/0", "10.0.0.1/8"} {
 		_, err = ep.PublishFileExport(ctx, "fs", host, false)
 		wantCode(t, err, endpoint.InvalidArgument)
 		wantCode(t, ep.UnpublishFileExport(ctx, "fs", host), endpoint.InvalidArgument)
 	}
-	_, err = ep.PublishFileExport(ctx, "a/b", "10.0.0.1", false)
+	// an id this endpoint never issues names no volume, as for the other
+	// volume calls: Publish NotFound, Unpublish OK; a missing one is invalid
+	for _, id := range []string{"a/b", "a@b", strings.Repeat("x", 129)} {
+		_, err = ep.PublishFileExport(ctx, id, "10.0.0.1", false)
+		wantCode(t, err, endpoint.NotFound)
+		if err := ep.UnpublishFileExport(ctx, id, "10.0.0.1"); err != nil {
+			t.Fatalf("unpublish %q: %v", id, err)
+		}
+	}
+	_, err = ep.PublishFileExport(ctx, "", "10.0.0.1", false)
+	wantCode(t, err, endpoint.InvalidArgument)
+	wantCode(t, ep.UnpublishFileExport(ctx, "", "10.0.0.1"), endpoint.InvalidArgument)
+
+	// the floor is configurable; /16 by default
+	for _, bad := range []int{-1, 33} {
+		if _, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, NFSMinPrefix: bad}); err == nil {
+			t.Fatalf("NFSMinPrefix %d accepted", bad)
+		}
+	}
+	_, err = ep.PublishFileExport(ctx, "fs", "10.0.0.0/15", false)
+	wantCode(t, err, endpoint.InvalidArgument)
+	wide, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true, NFSMinPrefix: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = wide.PublishFileExport(ctx, "fs", "10.0.0.0/7", false)
 	wantCode(t, err, endpoint.InvalidArgument)
 
 	off, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second})
@@ -221,6 +268,197 @@ func TestFileExportVerifiesKernelTable(t *testing.T) {
 	}
 }
 
+// `systemctl stop nfs-server` empties etab (exportfs -au), and the next
+// sharenfs change repopulates it although no nfsd runs (exportfs -ra does
+// not check). etab alone would report that as served (adv4 F4).
+func TestFileExportRequiresNFSD(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim.SetNFSDRunning(false)
+	for range 2 { // the second is the empty-plan path
+		_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)
+		wantCode(t, err, endpoint.Unavailable)
+		if !strings.Contains(err.Error(), "not running") {
+			t.Fatalf("unclear error: %v", err)
+		}
+		if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); !ok {
+			t.Fatal("test setup: etab not repopulated without nfsd")
+		}
+	}
+	sim.SetNFSDRunning(true)
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatalf("after start: %v", err)
+	}
+	// revoking needs no server: nothing serves the client either way
+	sim.SetNFSDRunning(false)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"); err != nil {
+		t.Fatalf("unpublish with nfsd stopped: %v", err)
+	}
+	sim.SetNFSDRunning(true)
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); ok {
+		t.Fatal("served again after restart")
+	}
+}
+
+// exportfs can drop one client and apply the rest, still exiting 0 (adv4
+// F4): only that client's publish fails, every retry re-shares, and the
+// other client is untouched.
+func TestFileExportDroppedHost(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatal(err)
+	}
+	sim.DropHost("10.0.0.2/32")
+	for range 2 {
+		from := len(sim.Calls)
+		_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.2", true)
+		wantCode(t, err, endpoint.Unavailable)
+		if sets(h, from) != 1 {
+			t.Fatalf("publish ran %d zfs set, want 1", sets(h, from))
+		}
+	}
+	if c, ok := h.served(t, v.Mountpoint, "10.0.0.1"); !ok || c.ReadOnly {
+		t.Fatalf("other client: %v %v", c, ok)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.2"); err != nil {
+		t.Fatalf("unpublish the dropped client: %v", err)
+	}
+	if val := h.Prop(v.Dataset, "sharenfs"); val != "rw=10.0.0.1/32" {
+		t.Fatalf("sharenfs %q", val)
+	}
+}
+
+// exportfs stores an export under its real path (nfsd_realpath); the
+// mountpoint property may cross a symlink (adv4 F6).
+func TestFileExportResolvesSymlinks(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.Sim(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "real", "pvc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "real"), filepath.Join(dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mp := filepath.Join(dir, "link", "pvc")
+	if err := h.Z.Set(ctx, v.Dataset, map[string]string{"mountpoint": mp}); err != nil {
+		t.Fatal(err)
+	}
+	path, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)
+	if err != nil || path != mp {
+		t.Fatalf("publish: %q %v", path, err)
+	}
+	b, _ := h.etab().ReadEtab(ctx)
+	if strings.Contains(string(b), mp) {
+		t.Fatalf("test setup: etab names the symlink path:\n%s", b)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"); err != nil {
+		t.Fatalf("unpublish: %v", err)
+	}
+	if b, _ = h.etab().ReadEtab(ctx); len(b) != 0 {
+		t.Fatalf("still served:\n%s", b)
+	}
+}
+
+// An operator unmounted the volume (canmount stays on). A plain
+// `zfs set sharenfs` would mount and serve it again (adv4 F8); Unpublish
+// uses `zfs set -u`, so it stays unmounted, and the next mount shares the
+// revoked list. Publish asks for the volume to be served, so it lets zfs
+// mount it.
+func TestFileExportUnmountedVolume(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []string{"10.0.0.1", "10.0.0.2"} {
+		if _, err := ep.PublishFileExport(ctx, "pvc", c, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sim.Unmount(v.Dataset)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if m := h.Prop(v.Dataset, "mounted"); m != "no" {
+		t.Fatalf("unpublish mounted the volume: mounted=%s", m)
+	}
+	if val := h.Prop(v.Dataset, "sharenfs"); val != "rw=10.0.0.2/32" {
+		t.Fatalf("sharenfs %q", val)
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.2"); ok {
+		t.Fatal("unmounted volume is served")
+	}
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.3", true); err != nil {
+		t.Fatalf("publish of an unmounted canmount=on volume: %v", err)
+	}
+	if m := h.Prop(v.Dataset, "mounted"); m != "yes" {
+		t.Fatalf("publish did not mount: mounted=%s", m)
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); ok {
+		t.Fatal("revoked client served after the mount")
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.2"); !ok {
+		t.Fatal("remaining client not served after the mount")
+	}
+}
+
+// A sharenfs received with a replication stream (`zfs recv`) on an owned
+// volume is the sending side's export decision: a local value would
+// silently shadow it, so it is refused, not overridden or adopted. A
+// received "off" exports nothing and is pinned like an inherited one.
+func TestFileExportReceivedShareNFS(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim.Receive(v.Dataset, "sharenfs", "rw=10.0.0.0/8")
+	if err := h.Z.Inherit(ctx, v.Dataset, "sharenfs"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if !strings.Contains(err.Error(), "received") {
+		t.Fatalf("unclear error: %v", err)
+	}
+	if val, src := h.propSource(t, v.Dataset, "sharenfs"); val != "rw=10.0.0.0/8" || src != "received" {
+		t.Fatalf("received sharenfs overridden: %q (%s)", val, src)
+	}
+	wantCode(t, ep.UnpublishFileExport(ctx, "pvc", "10.0.0.0/8"), endpoint.FailedPrecondition)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.9.0.0/16"); err != nil {
+		t.Fatalf("unpublish of a client nothing serves: %v", err)
+	}
+
+	sim.Receive(v.Dataset, "sharenfs", "off")
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatalf("received off: %v", err)
+	}
+	if val, src := h.propSource(t, v.Dataset, "sharenfs"); val != "rw=10.0.0.1/32" || src != "local" {
+		t.Fatalf("sharenfs %q (%s)", val, src)
+	}
+}
+
 // A volume adopted from democratic-csi (adoption mode) inherits sharenfs;
 // a parent shared to everyone exports it to "*". The first publish pins a
 // local value, and a sharenfs someone else set locally is refused, not
@@ -240,11 +478,12 @@ func TestFileExportAdoptedVolumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if val, src := h.propSource(t, h.Parent+"/old", "sharenfs"); val != "rw=10.0.0.1" || src != "local" {
+	if val, src := h.propSource(t, h.Parent+"/old", "sharenfs"); val != "rw=10.0.0.1/32" || src != "local" {
 		t.Fatalf("sharenfs %q (%s)", val, src)
 	}
-	if _, ok := h.served(t, path, "*"); ok {
-		t.Fatal("still served to everyone")
+	// Lookup takes only addresses and networks: read the "*" line directly
+	if hosts := h.servedHosts(t, path); len(hosts) != 1 || hosts[0] != "10.0.0.1/32" {
+		t.Fatalf("served to %v, want only 10.0.0.1/32", hosts)
 	}
 
 	own["sharenfs"] = "rw=10.0.0.0/8"
