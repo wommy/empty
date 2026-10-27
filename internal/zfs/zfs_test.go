@@ -476,3 +476,45 @@ func TestSimUsedByRefreservation(t *testing.T) {
 		t.Errorf("set usedbyrefreservation: %v, want readonly", err)
 	}
 }
+
+// A received space property is in force like a local one (the kernel's
+// checks read the effective value, dsl_prop_get_int_ds): a thick volume
+// received under a quota'd parent charges its refreservation to the
+// parent's dd_used, so the quota cannot be set below it and a second
+// thick volume of the same size does not fit.
+func TestSimReceivedRefreservationIsCharged(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	sim.PoolSize = 10 << 30
+	c := zfs.New(sim)
+	run := func(args ...string) error {
+		_, err := sim.Run(ctx, "zfs", args...)
+		return err
+	}
+	for _, args := range [][]string{
+		{"create", "-o", "quota=104857600", "tank/g"},
+		{"create", "-V", "67108864", "tank/v"},
+		{"snapshot", "tank/v@s"},
+	} {
+		if err := run(args...); err != nil {
+			t.Fatal(args, err)
+		}
+	}
+	if err := sim.SendRecv("tank/v@s", "tank/g/r"); err != nil {
+		t.Fatal(err)
+	}
+	d, err := c.Get(ctx, "tank/g/r", "refreservation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := d.Props["refreservation"]; p.Source != "received" || p.Value == "0" {
+		t.Fatalf("received refreservation %+v", p)
+	}
+	if err := run("create", "-V", "67108864", "tank/g/w"); err == nil || !strings.Contains(err.Error(), "out of space") {
+		t.Errorf("second thick volume under the quota: %v", err)
+	}
+	if err := run("set", "quota=10485760", "tank/g"); err == nil || !strings.Contains(err.Error(), "less than current used") {
+		t.Errorf("quota below the received refreservation: %v", err)
+	}
+}
