@@ -404,6 +404,44 @@ func TestFileExportUnmountedVolume(t *testing.T) {
 	}
 }
 
+// A sharenfs received with a replication stream (`zfs recv`) on an owned
+// volume is the sending side's export decision: a local value would
+// silently shadow it, so it is refused, not overridden or adopted. A
+// received "off" exports nothing and is pinned like an inherited one.
+func TestFileExportReceivedShareNFS(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim.Receive(v.Dataset, "sharenfs", "rw=10.0.0.0/8")
+	if err := h.Z.Inherit(ctx, v.Dataset, "sharenfs"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if !strings.Contains(err.Error(), "received") {
+		t.Fatalf("unclear error: %v", err)
+	}
+	if val, src := h.propSource(t, v.Dataset, "sharenfs"); val != "rw=10.0.0.0/8" || src != "received" {
+		t.Fatalf("received sharenfs overridden: %q (%s)", val, src)
+	}
+	wantCode(t, ep.UnpublishFileExport(ctx, "pvc", "10.0.0.0/8"), endpoint.FailedPrecondition)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.9.0.0/16"); err != nil {
+		t.Fatalf("unpublish of a client nothing serves: %v", err)
+	}
+
+	sim.Receive(v.Dataset, "sharenfs", "off")
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatalf("received off: %v", err)
+	}
+	if val, src := h.propSource(t, v.Dataset, "sharenfs"); val != "rw=10.0.0.1/32" || src != "local" {
+		t.Fatalf("sharenfs %q (%s)", val, src)
+	}
+}
+
 // A volume adopted from democratic-csi (adoption mode) inherits sharenfs;
 // a parent shared to everyone exports it to "*". The first publish pins a
 // local value, and a sharenfs someone else set locally is refused, not
