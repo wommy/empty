@@ -50,7 +50,7 @@ type props struct{ p string }
 
 func (n props) all() []string {
 	return []string{n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients()}
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor()}
 }
 
 // validPrefix reports why prefix cannot name OpenZFS user properties:
@@ -82,6 +82,13 @@ func (n props) sourceType() string     { return n.p + ":csi_volume_content_sourc
 func (n props) sourceID() string       { return n.p + ":csi_volume_content_source_id" }
 func (n props) snapshotName() string   { return n.p + ":csi_snapshot_name" }
 func (n props) snapshotSource() string { return n.p + ":csi_snapshot_source_volume_id" }
+
+// cloneSourceFor is the endpoint's own property (not the baseline's): set
+// locally on the internal snapshot a volume-to-volume clone hangs off, at
+// its creation (`zfs snapshot -o`), naming the clone it was cut for. With
+// managed_resource it is what makes such a snapshot the endpoint's; the
+// reserved name alone is not ownership (anyone can `zfs snapshot` it).
+func (n props) cloneSourceFor() string { return n.p + ":clone_source_for" }
 
 // nfsClients is the endpoint's own property (not the baseline's): the
 // desired NFS client list that sharenfs is computed from.

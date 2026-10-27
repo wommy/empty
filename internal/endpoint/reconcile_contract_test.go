@@ -78,18 +78,34 @@ func TestReconcileCollectsLeakedCloneSource(t *testing.T) {
 	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "clone", CapacityBytes: 1 << 30, SourceVolumeID: "src"}); err != nil {
 		t.Fatal(err)
 	}
+	// the endpoint stamps the snapshot it cuts, at creation
+	cut := h.Parent + "/src@volume-source-for-volume-clone"
+	if h.Prop(cut, "zfs-endpoint:managed_resource") != "true" || h.Prop(cut, "zfs-endpoint:clone_source_for") != "clone" {
+		t.Fatal("clone source not stamped")
+	}
 	// review H3: a clone that failed after its source snapshot was cut
 	leaked := h.Parent + "/src@volume-source-for-volume-failed"
-	if err := h.Z.Snapshot(ctx, leaked, nil); err != nil {
+	if err := h.Z.Snapshot(ctx, leaked, map[string]string{
+		"zfs-endpoint:managed_resource": "true", "zfs-endpoint:clone_source_for": "failed",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// the reserved name alone is not ownership
+	manual := h.Parent + "/src@volume-source-for-volume-manual"
+	if err := h.Z.Snapshot(ctx, manual, nil); err != nil {
 		t.Fatal(err)
 	}
 	old := later(t, ep, h)
 	p, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"src", "clone"}})
-	if acts, _ := targets(p); err != nil || !slices.Equal(acts, []string{"src@volume-source-for-volume-failed"}) {
+	if acts, skips := targets(p); err != nil || !slices.Equal(acts, []string{"src@volume-source-for-volume-failed"}) ||
+		!slices.Equal(skips, []string{"src@volume-source-for-volume-manual"}) {
 		t.Fatalf("plan %+v %v", p, err)
 	}
 	if h.Has(leaked) {
 		t.Fatal("leaked clone source not collected")
+	}
+	if !h.Has(manual) {
+		t.Fatal("unstamped snapshot with the reserved name collected")
 	}
 	if !h.Has(h.Parent+"/src@volume-source-for-volume-clone") || !h.Has(h.Parent+"/clone") {
 		t.Fatal("clone source in use was collected")

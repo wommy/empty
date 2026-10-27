@@ -44,6 +44,7 @@ type Row struct {
 	SourceID       string
 	SnapshotName   string
 	SnapshotSource string
+	CloneSourceFor string // internal clone-source snapshots: the clone's id
 }
 
 // Capacity is the volume's size: volsize for zvols (and their snapshots),
@@ -86,6 +87,19 @@ func (r Row) OwnedSnapshot() bool {
 	vol, _, _ := strings.Cut(r.ID, "@")
 	return r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != "" &&
 		(r.SnapshotSource == "" || r.SnapshotSource == vol)
+}
+
+// OwnedCloneSource reports whether r is an internal clone-source snapshot
+// the endpoint cut, and for which clone: named
+// "<vol>@volume-source-for-volume-<clone>" and stamped at creation with
+// managed_resource and clone_source_for=<clone>, both set locally. A
+// snapshot that only carries the reserved name is someone else's (an
+// administrator's, another tool's, or one democratic-csi cut unstamped).
+func (r Row) OwnedCloneSource() (string, bool) {
+	_, name, isSnap := strings.Cut(r.ID, "@")
+	clone, ok := strings.CutPrefix(name, cloneSourceSnapshotPrefix)
+	return clone, isSnap && ok && clone != "" && r.Type == zfs.TypeSnapshot &&
+		r.Managed && r.SnapshotName == "" && r.CloneSourceFor == clone
 }
 
 // Table is an immutable, ID-sorted set of rows with secondary indexes built
@@ -211,7 +225,7 @@ func (n props) columns() []string {
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
 		"defer_destroy", "mountpoint", "sharenfs", "mounted",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(), n.nfsClients(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(), n.cloneSourceFor(),
 	}, propNames[:]...)
 }
 
@@ -228,6 +242,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 		cLocal[k] = j(name)
 	}
 	cShare, cMounted, cClients := j("sharenfs"), j("mounted"), j(n.nfsClients())
+	cCloneFor := j(n.cloneSourceFor())
 
 	rows := make([]Row, 0, len(c.Names))
 	for i, name := range c.Names {
@@ -259,6 +274,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 			SourceID:       own(cSrcID),
 			SnapshotName:   own(cSnapName),
 			SnapshotSource: own(cSnapSrc),
+			CloneSourceFor: own(cCloneFor),
 			ShareNFS:       userValue(cell(cShare)),
 			ShareNFSLocal:  cell(cShare).Local(),
 			Mounted:        cell(cMounted).Value == "yes",
