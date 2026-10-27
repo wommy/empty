@@ -39,7 +39,6 @@ func run() error {
 	lockWait := flag.Duration("lock-wait", 30*time.Second, "max wait for a busy resource")
 	drain := flag.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
 	destroyForeign := flag.Bool("destroy-foreign-snapshots", false, "let DeleteVolume destroy snapshots the endpoint did not make along with their volume")
-	lockDir := flag.String("lock-dir", "/run/zfs-endpoint", "directory for the per-parent writer lock")
 	flag.Parse()
 	if *parent == "" {
 		return fmt.Errorf("-parent is required")
@@ -49,7 +48,7 @@ func run() error {
 	// listens on: two would each hold their own resource locks. Across
 	// hosts, exclusivity is the HA layer's job (zpool multihost + fencing;
 	// docs/research/gaps/adv-fencing.md).
-	unlock, err := lockParent(*lockDir, *parent)
+	unlock, err := lockParent(lockDir, *parent)
 	if err != nil {
 		return err
 	}
@@ -120,23 +119,55 @@ func listener(addr string) (net.Listener, error) {
 	return unixsock.Listen(path)
 }
 
-// lockParent takes an exclusive, non-blocking flock on a file named after
-// the parent dataset. The kernel releases it if the process dies.
+// lockDir holds the per-parent locks. It is fixed, so two endpoints can
+// never miss each other by being given different directories, and local
+// (tmpfs), so flock means this host only.
+const lockDir = "/run/zfs-endpoint"
+
+// lockParent claims parent's subtree for this process with non-blocking
+// flocks on files named after datasets: shared on every proper ancestor,
+// exclusive on parent itself. A second endpoint for the same parent, for
+// an ancestor (whose subtree contains ours) or for a descendant (inside
+// ours) conflicts; siblings only share their ancestors' locks and do not.
+// The kernel releases the locks if the process dies.
+//
+// dir must be local: flock on NFS turns into cluster-wide byte-range
+// locks, lost with the lease. The daemon uses the fixed lockDir under
+// /run (tmpfs).
 func lockParent(dir, parent string) (func(), error) {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := unixsock.SecureDir(dir); err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dir, strings.ReplaceAll(parent, "/", "%")+".lock")
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		f.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, fmt.Errorf("another endpoint already manages %s (lock %s)", parent, path)
+	var files []*os.File
+	unlock := func() {
+		for _, f := range files {
+			f.Close()
 		}
-		return nil, fmt.Errorf("lock %s: %w", path, err)
 	}
-	return func() { f.Close() }, nil
+	parts := strings.Split(parent, "/")
+	for i := range parts {
+		name := strings.Join(parts[:i+1], "/")
+		how := syscall.LOCK_SH
+		if name == parent {
+			how = syscall.LOCK_EX
+		}
+		path := filepath.Join(dir, strings.ReplaceAll(name, "/", "%")+".lock")
+		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+		if err != nil {
+			unlock()
+			return nil, err
+		}
+		files = append(files, f)
+		if err := syscall.Flock(int(f.Fd()), how|syscall.LOCK_NB); err != nil {
+			unlock()
+			if errors.Is(err, syscall.EWOULDBLOCK) {
+				if name != parent {
+					return nil, fmt.Errorf("another endpoint already manages %s, which contains %s (lock %s)", name, parent, path)
+				}
+				return nil, fmt.Errorf("another endpoint already manages %s or a dataset inside it (lock %s)", parent, path)
+			}
+			return nil, fmt.Errorf("lock %s: %w", path, err)
+		}
+	}
+	return unlock, nil
 }
