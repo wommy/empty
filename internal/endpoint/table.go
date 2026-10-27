@@ -26,6 +26,13 @@ type Row struct {
 	Deferred bool // snapshot marked for deferred destroy
 	Mount    string
 
+	// NFS export state (filesystems)
+	ShareNFS      string // sharenfs value, local or inherited
+	ShareNFSLocal bool   // sharenfs is set on the dataset itself
+	Mounted       bool
+	NFSClients    string // locally set desired client list (export.go)
+	NFSClientsSet bool
+
 	// ownership, from user properties
 	Managed        bool
 	Committed      bool // provision_success
@@ -122,9 +129,9 @@ func (t Table) ClonesOf(snap string) iter.Seq[Row] { return t.pick(t.clonesOfSrc
 func (n props) columns() []string {
 	return []string{
 		"type", "volsize", "volblocksize", "refquota", "refreservation", "origin", "creation",
-		"defer_destroy", "mountpoint",
+		"defer_destroy", "mountpoint", "sharenfs", "mounted",
 		n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
-		n.snapshotName(), n.snapshotSource(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients(),
 	}
 }
 
@@ -136,6 +143,7 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 	cOrigin, cCreation, cDefer, cMount := j("origin"), j("creation"), j("defer_destroy"), j("mountpoint")
 	cManaged, cSuccess, cVolName := j(n.managed()), j(n.success()), j(n.volumeName())
 	cSrcType, cSrcID, cSnapName, cSnapSrc := j(n.sourceType()), j(n.sourceID()), j(n.snapshotName()), j(n.snapshotSource())
+	cShare, cMounted, cClients := j("sharenfs"), j("mounted"), j(n.nfsClients())
 
 	rows := make([]Row, 0, len(c.Names))
 	for i, name := range c.Names {
@@ -167,6 +175,11 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) []Row {
 			SourceID:       own(cSrcID),
 			SnapshotName:   own(cSnapName),
 			SnapshotSource: own(cSnapSrc),
+			ShareNFS:       userValue(cell(cShare)),
+			ShareNFSLocal:  cell(cShare).Local(),
+			Mounted:        cell(cMounted).Value == "yes",
+			NFSClients:     own(cClients),
+			NFSClientsSet:  cell(cClients).Local(),
 		}
 		if v, err := strconv.ParseInt(cell(cCreation).Value, 10, 64); err == nil {
 			r.Creation = v

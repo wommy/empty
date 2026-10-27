@@ -1,0 +1,264 @@
+package endpoint_test
+
+import (
+	"context"
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/wommy/empty/internal/endpoint"
+	"github.com/wommy/empty/internal/zfs"
+)
+
+// NFS skips a test that needs exports to really happen, unless it runs on
+// the simulator or an NFS server is running on this host.
+func (h *harness) NFS(t *testing.T) {
+	t.Helper()
+	if h.sim != nil {
+		return
+	}
+	b, err := os.ReadFile("/proc/fs/nfsd/threads")
+	if n, _ := strconv.Atoi(strings.TrimSpace(string(b))); err != nil || n == 0 {
+		t.Skip("needs a running NFS server (nfsd threads > 0)")
+	}
+}
+
+func (h *harness) etab() endpoint.EtabReader {
+	if h.sim != nil {
+		return h.sim
+	}
+	return endpoint.DefaultEtab
+}
+
+// served reports how the kernel exports path to host.
+func (h *harness) served(t *testing.T, path, host string) (endpoint.NFSClient, bool) {
+	t.Helper()
+	b, err := h.etab().ReadEtab(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return endpoint.ParseEtab(b).Lookup(path, host)
+}
+
+func (h *harness) propSource(t *testing.T, name, prop string) (string, string) {
+	t.Helper()
+	d, err := h.Z.Get(context.Background(), name, prop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d.Props[prop].Value, d.Props[prop].Source
+}
+
+func sets(h *harness, from int) int {
+	if h.sim == nil {
+		return 0
+	}
+	n := 0
+	for _, c := range h.sim.Calls[from:] {
+		if c[1] == "set" {
+			n++
+		}
+	}
+	return n
+}
+
+func TestFileExportLifecycle(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.NFS(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc-nfs", CapacityBytes: 1 << 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ds := v.Dataset
+
+	path, err := ep.PublishFileExport(ctx, "pvc-nfs", "10.0.0.1", false)
+	if err != nil || path != v.Mountpoint {
+		t.Fatalf("publish: %q %v (mountpoint %q)", path, err, v.Mountpoint)
+	}
+	if val, src := h.propSource(t, ds, "sharenfs"); val != "rw=10.0.0.1" || src != "local" {
+		t.Fatalf("sharenfs %q (%s)", val, src)
+	}
+	if c, ok := h.served(t, path, "10.0.0.1"); !ok || c.ReadOnly {
+		t.Fatalf("not served rw: %v %v", c, ok)
+	}
+
+	// idempotent: nothing is set again
+	var calls int
+	if h.sim != nil {
+		calls = len(h.sim.Calls)
+	}
+	if p2, err := ep.PublishFileExport(ctx, "pvc-nfs", "10.0.0.1", false); err != nil || p2 != path {
+		t.Fatalf("repeat publish: %q %v", p2, err)
+	}
+	if n := sets(h, calls); n != 0 {
+		t.Fatalf("repeat publish ran %d zfs set", n)
+	}
+
+	if _, err := ep.PublishFileExport(ctx, "pvc-nfs", "10.9.1.2/16", true); err != nil {
+		t.Fatal(err)
+	}
+	if val := h.Prop(ds, "sharenfs"); val != "rw=10.0.0.1,ro=10.9.0.0/16" {
+		t.Fatalf("sharenfs %q", val)
+	}
+	_, err = ep.PublishFileExport(ctx, "pvc-nfs", "10.0.0.1", true)
+	wantCode(t, err, endpoint.AlreadyExists)
+
+	if err := ep.UnpublishFileExport(ctx, "pvc-nfs", "10.0.0.1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := h.served(t, path, "10.0.0.1"); ok {
+		t.Fatal("still served after unpublish")
+	}
+	if c, ok := h.served(t, path, "10.9.0.0/16"); !ok || !c.ReadOnly {
+		t.Fatalf("other client lost: %v %v", c, ok)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc-nfs", "10.0.0.1"); err != nil {
+		t.Fatalf("repeat unpublish: %v", err)
+	}
+	// the last client leaves sharenfs=off set locally, never inherited
+	if err := ep.UnpublishFileExport(ctx, "pvc-nfs", "10.9.0.0/16"); err != nil {
+		t.Fatal(err)
+	}
+	if val, src := h.propSource(t, ds, "sharenfs"); val != "off" || src != "local" {
+		t.Fatalf("sharenfs %q (%s)", val, src)
+	}
+	if err := ep.DeleteVolume(ctx, "pvc-nfs"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ep.UnpublishFileExport(ctx, "pvc-nfs", "10.0.0.1"); err != nil {
+		t.Fatalf("unpublish of a deleted volume: %v", err)
+	}
+}
+
+func TestFileExportPreconditions(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "blk", Kind: endpoint.Block, CapacityBytes: 1 << 20, Sparse: true}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ep.PublishFileExport(ctx, "blk", "10.0.0.1", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if err := ep.UnpublishFileExport(ctx, "blk", "10.0.0.1"); err != nil {
+		t.Fatalf("unpublish zvol: %v", err)
+	}
+
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "fs"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.Set(ctx, h.Parent+"/fs", map[string]string{"mountpoint": "none"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ep.PublishFileExport(ctx, "fs", "10.0.0.1", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if h.Prop(h.Parent+"/fs", "sharenfs") != "off" {
+		t.Fatal("refused publish changed sharenfs")
+	}
+
+	_, err = ep.PublishFileExport(ctx, "missing", "10.0.0.1", false)
+	wantCode(t, err, endpoint.NotFound)
+	if err := ep.UnpublishFileExport(ctx, "missing", "10.0.0.1"); err != nil {
+		t.Fatalf("unpublish missing: %v", err)
+	}
+	for _, host := range []string{"", "*", "10.0.0.1,rw", "a:b", "no_root_squash", "-o", "x(rw)", "fe80::1", "a b"} {
+		_, err = ep.PublishFileExport(ctx, "fs", host, false)
+		wantCode(t, err, endpoint.InvalidArgument)
+		wantCode(t, ep.UnpublishFileExport(ctx, "fs", host), endpoint.InvalidArgument)
+	}
+	_, err = ep.PublishFileExport(ctx, "a/b", "10.0.0.1", false)
+	wantCode(t, err, endpoint.InvalidArgument)
+
+	off, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if off.FileExportEnabled() {
+		t.Fatal("file export enabled by default")
+	}
+	_, err = off.PublishFileExport(ctx, "fs", "10.0.0.1", false)
+	wantCode(t, err, endpoint.Unimplemented)
+	wantCode(t, off.UnpublishFileExport(ctx, "fs", "10.0.0.1"), endpoint.Unimplemented)
+}
+
+// `zfs set sharenfs` exits 0 when exportfs fails. Publish must not report
+// success then, and the retry must re-share although the properties are
+// already right; likewise Unpublish must not report a revoke that did not
+// happen (review: "Unexport reports OK while the volume is still exported").
+func TestFileExportVerifiesKernelTable(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sim.SetNFSDown(true)
+	_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false)
+	wantCode(t, err, endpoint.Unavailable)
+	if !strings.Contains(err.Error(), "NFS server") {
+		t.Fatalf("unclear error: %v", err)
+	}
+	sim.SetNFSDown(false)
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); !ok {
+		t.Fatal("retry did not re-share")
+	}
+
+	sim.SetNFSDown(true)
+	wantCode(t, ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"), endpoint.Unavailable)
+	wantCode(t, ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"), endpoint.Unavailable)
+	sim.SetNFSDown(false)
+	if err := ep.UnpublishFileExport(ctx, "pvc", "10.0.0.1"); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); ok {
+		t.Fatal("still served")
+	}
+}
+
+// A volume adopted from the baseline inherits sharenfs; a parent shared to
+// everyone exports it to "*". The first publish pins a local value, and a
+// sharenfs someone else set locally is refused, not overwritten.
+func TestFileExportAdoptedVolumes(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	h.NFS(t)
+	own := map[string]string{"democratic-csi:managed_resource": "true", "democratic-csi:provision_success": "true"}
+	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "on"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/old", own, false); err != nil {
+		t.Fatal(err)
+	}
+	path, err := ep.PublishFileExport(ctx, "old", "10.0.0.1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if val, src := h.propSource(t, h.Parent+"/old", "sharenfs"); val != "rw=10.0.0.1" || src != "local" {
+		t.Fatalf("sharenfs %q (%s)", val, src)
+	}
+	if _, ok := h.served(t, path, "*"); ok {
+		t.Fatal("still served to everyone")
+	}
+
+	own["sharenfs"] = "rw=10.0.0.0/8"
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/static", own, false); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ep.PublishFileExport(ctx, "static", "10.0.0.1", false)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if h.Prop(h.Parent+"/static", "sharenfs") != "rw=10.0.0.0/8" {
+		t.Fatal("foreign sharenfs overwritten")
+	}
+	if err := h.Z.Set(ctx, h.Parent, map[string]string{"sharenfs": "off"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.Destroy(ctx, h.Parent+"/static", zfs.DestroyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+}

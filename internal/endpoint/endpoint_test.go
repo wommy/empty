@@ -72,7 +72,11 @@ func setup(t *testing.T) (*endpoint.Endpoint, *harness) {
 	if err := h.Z.CreateFilesystem(ctx, h.Parent, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second})
+	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true}
+	if h.sim != nil {
+		cfg.Etab = h.sim
+	}
+	ep, err := endpoint.New(h.Z, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
