@@ -155,7 +155,9 @@ func TestNFSReplay(t *testing.T) {
 	}
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
+	// cleanups run after the test returns, last registered first: cancel
+	// only once the destroy below has used ctx
+	t.Cleanup(cancel)
 	run := func(args ...string) error {
 		_, err := zfs.LocalRunner{}.Run(ctx, "zfs", args...)
 		return err
