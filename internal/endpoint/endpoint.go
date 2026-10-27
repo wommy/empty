@@ -96,8 +96,10 @@ func (n props) cloneSourceFor() string { return n.p + ":clone_source_for" }
 // provision retried long after its first attempt is new to the caller.
 func (n props) committedAt() string { return n.p + ":committed_at" }
 
-// nfsClients is the endpoint's own property (not the baseline's): the
-// desired NFS client list that sharenfs is computed from.
+// nfsClients is the client list earlier versions stored and computed
+// sharenfs from. Export state now lives in sharenfs alone (ADR 0004): the
+// property is never written or decided on, only read so Reconcile can
+// report a leftover one.
 func (n props) nfsClients() string { return n.p + ":nfs_clients" }
 
 // baseline's name for the internal snapshot a volume-to-volume clone hangs off
@@ -870,8 +872,8 @@ func (e *Endpoint) exportTable(ctx context.Context, t Table, volID string) (Etab
 // in the other mode is AlreadyExists, an overlapping network is
 // FailedPrecondition. A missing volume or an id this endpoint never issues
 // is NotFound. Zvols, volumes zfs would not mount (canmount off/noauto,
-// mountpoint none/legacy) and a sharenfs the endpoint did not write (set
-// locally by someone else, or received) are FailedPrecondition. Success
+// mountpoint none/legacy) and a sharenfs that is not the endpoint's (set
+// locally outside its grammar, or received) are FailedPrecondition. Success
 // means the kernel serves the export and nfsd runs: `zfs set sharenfs`
 // cannot report a failed exportfs, so the export table is read back and a
 // mismatch is Unavailable (the retry re-shares).

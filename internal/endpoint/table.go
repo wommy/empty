@@ -41,7 +41,9 @@ type Row struct {
 	ShareNFS      string // sharenfs value, local or inherited
 	ShareNFSLocal bool   // sharenfs is set on the dataset itself
 	Mounted       bool
-	NFSClients    string // locally set desired client list (export.go)
+	// NFSClientsSet: a leftover <prefix>:nfs_clients is set locally. Export
+	// state is sharenfs alone (ADR 0004); nothing decides on it, Reconcile
+	// reports it.
 	NFSClientsSet bool
 
 	ShareNFSRecv bool   // sharenfs came from `zfs recv` (source "received")
@@ -305,7 +307,6 @@ func (n props) decodeColumns(parent string, c *zfs.Columns) ([]Row, error) {
 			ShareNFS:       userValue(cell(cShare)),
 			ShareNFSLocal:  cell(cShare).Local(),
 			Mounted:        cell(cMounted).Value == "yes",
-			NFSClients:     own(cClients),
 			NFSClientsSet:  cell(cClients).Local(),
 			ShareNFSRecv:   cell(cShare).Source == "received",
 			CanMount:       cell(cCanMount).Value,

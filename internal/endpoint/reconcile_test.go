@@ -113,6 +113,25 @@ func TestPlanReconcile(t *testing.T) {
 			want:  desired(),
 			skips: []string{"a:" + SkipNoCreation},
 		},
+		// ADR 0004: export state is sharenfs alone; a leftover stored
+		// client list is reported on the volumes that stay, never acted on
+		{
+			name:  "leftover nfs_clients is reported",
+			rows:  []Row{vol("a", func(r *Row) { r.NFSClientsSet = true }), vol("b", nil)},
+			want:  desired("a", "b"),
+			skips: []string{"a:" + SkipLegacyNFSClients},
+		},
+		{
+			name: "leftover nfs_clients on a collected volume goes with it",
+			rows: []Row{vol("a", nil), vol("b", func(r *Row) { r.NFSClientsSet = true })},
+			want: desired("a"),
+			acts: []string{"b:" + ReasonUndesired},
+		},
+		{
+			name: "leftover nfs_clients on an unowned dataset is not ours to report",
+			rows: []Row{vol("x", func(r *Row) { r.Managed, r.NFSClientsSet = false, true }), vol("a", nil)},
+			want: desired("a"),
+		},
 		{
 			name: "unowned datasets are invisible",
 			rows: []Row{vol("x", func(r *Row) { r.Managed, r.Committed = false, false }), vol("a", nil)},

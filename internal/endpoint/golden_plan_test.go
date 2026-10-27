@@ -156,9 +156,9 @@ var goldenRows = []goldenRow{
 	{"delete-snapshot/foreign", []Row{vol("a", nil), snap("a@admin", internal)}, delSnap("a@admin")},
 	// file export
 	{"publish/first", []Row{fsv("a", nil)}, publish("a", "", NFSClient{Host: "10.0.0.1/32"})},
-	{"publish/second-ro", []Row{exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32")}, publish("a", "/tank/v/a\t10.0.0.1/32(rw,sync)\n", NFSClient{Host: "10.9.0.0/16", ReadOnly: true})},
+	{"publish/second-ro", []Row{exported("a", "rw=10.0.0.1/32")}, publish("a", "/tank/v/a\t10.0.0.1/32(rw,sync)\n", NFSClient{Host: "10.9.0.0/16", ReadOnly: true})},
 	{"publish/zvol", []Row{vol("z", zvol(1<<20))}, publish("z", "", NFSClient{Host: "10.0.0.1/32"})},
-	{"unpublish/last", []Row{exported("a", "10.0.0.1/32=rw", "rw=10.0.0.1/32")}, unpublish("a", "/tank/v/a\t10.0.0.1/32(rw,sync)\n", "10.0.0.1/32")},
+	{"unpublish/last", []Row{exported("a", "rw=10.0.0.1/32")}, unpublish("a", "/tank/v/a\t10.0.0.1/32(rw,sync)\n", "10.0.0.1/32")},
 	// reconcile (destroys only, in dependency order)
 	{"reconcile/undesired-and-chain", []Row{
 		aged(vol("keep", nil)), aged(vol("drop", nil)), aged(vol("b", nil)),

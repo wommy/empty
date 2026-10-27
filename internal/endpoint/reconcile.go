@@ -62,6 +62,17 @@ const (
 	SkipChangedSinceScan = "changed since the scan, or not locked; next reconcile"
 )
 
+// Drift Reconcile reports and never acts on: the volume is left alone, and
+// the reason says what an operator may want to clear.
+const (
+	// SkipLegacyNFSClients: <prefix>:nfs_clients, the client list earlier
+	// versions computed sharenfs from, is still set. Export state is
+	// sharenfs alone (ADR 0004); the property is ignored, and `zfs inherit`
+	// clears it. The endpoint does not remove it itself: an earlier
+	// version rolled back to still reads it, and only sharenfs is served.
+	SkipLegacyNFSClients = "leftover nfs_clients property: ignored, sharenfs alone is the export state (ADR 0004); zfs inherit it to clear"
+)
+
 // Desired is the caller's statement of what to keep.
 type Desired struct {
 	// VolumeIDs is the complete set of volumes the caller wants. Every owned
@@ -325,6 +336,13 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		}
 		out.Actions = append(out.Actions, a)
 		out.groups = append(out.groups, reconcileGroup{target: r.ID, n: 1})
+	}
+
+	// report-only drift on the volumes that stay
+	for r := range cur.Volumes() {
+		if r.OwnedVolume() && r.NFSClientsSet {
+			skip(r.ID, SkipLegacyNFSClients)
+		}
 	}
 
 	// a volume planned in a later round waited for its clones: if one of
