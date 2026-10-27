@@ -165,7 +165,7 @@ A replacement needs its own decision. The options: drop D9 and rely on D3, `max_
 - It exits 78 when a crossmnt line covers the mountpoint or any ancestor, and the message names the lines.
 - Typical causes are `zfs set sharenfs=on` on the pool (libshare writes that as `rw,crossmnt` to `*`) or a crossmnt line in `/etc/exports`.
 - A warning would leave every volume exported.
-- Health does not re-check it yet.
+- After startup, the health probe re-checks it every 30s. A crossmnt line that comes to cover the parent is logged as a WARN when it appears or changes, and an INFO when it is gone. Health stays SERVING: NOT_SERVING would refuse every CSI call, deletes included, for an export only an administrator can remove (`TestHealthWarnsOfALaterCrossmntAncestor`).
 
 ### D11. Audit
 
