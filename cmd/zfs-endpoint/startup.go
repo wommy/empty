@@ -14,10 +14,14 @@ import (
 )
 
 // Exit codes (sysexits.h), for the unit's restart policy:
-//   - exitConfig: bad flags, wrong OpenZFS, a parent that is not a
-//     filesystem. Restarting cannot help; RestartPreventExitStatus=78.
+//   - exitConfig: bad flags, a socket path bind cannot take, another
+//     endpoint holding the parent (or a symlinked lock), wrong OpenZFS, a
+//     parent that is not a filesystem, only democratic-csi volumes under
+//     the default prefix. Restarting cannot help;
+//     RestartPreventExitStatus=78.
 //   - exitTempFail: the parent is not there yet (pool not imported, key
 //     not loaded). Restart=on-failure retries it with backoff.
+//   - 0: also a stop (SIGTERM) during startup, which is not a failure.
 //   - 1: anything else.
 const (
 	exitTempFail = 75 // EX_TEMPFAIL
