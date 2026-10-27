@@ -82,3 +82,4 @@
 {"lane":"writer","id":"docs-fix","tokens":141871,"tools":71,"ms":306373,"items_fixed":10,"skipped":3,"outcome":"merged"}
 {"t": "2026-10-27T16:32:43Z", "lane": "reader", "id": "csi-recheck", "agent": "ac1787ce6d014e384", "items_fixed_already": 1, "surviving": 8, "outcome": "requeued as 4 writers; C2 anomaly"}
 {"t": "2026-10-27T16:35:13Z", "lane": "writer", "id": "ci-harden", "tokens": 188863, "tools": 80, "ms": 678098, "items": 12, "rejected": 0, "outcome": "merged 48f431d; first VM run pending"}
+{"t": "2026-10-27T16:36:13Z", "lane": "reader", "id": "scan-reduction", "agent": "a4d747b6e8fa52105", "tokens": 198158, "tools": 43, "ms": 697269, "proposals": 8, "proto_saving_pct": 16, "outcome": "queued q-scan-cut"}

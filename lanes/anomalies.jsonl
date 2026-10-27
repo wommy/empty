@@ -23,3 +23,5 @@
 {"t": "2026-10-27T16:23:41Z", "id": "A-maxdel-gate-untested", "sev": "med", "state": "open", "note": "max-deletions check deletable without test failure; cov-tests"}
 {"t": "2026-10-27T16:32:43Z", "id": "A-expand-refused-infeasible", "sev": "high", "state": "open", "note": "now that resizer works, capSupported in ControllerExpandVolume permanently fails expands -> PVC infeasible; q-csi-quick"}
 {"t": "2026-10-27T16:35:13Z", "id": "A-zfs-version-revision-gate", "state": "fixed-pending-ci", "fix": "ad9913f"}
+{"id":"A-zfs-version-revision-gate","state":"closed","verified":"run 40542324581"}
+{"t": "2026-10-27T16:36:13Z", "id": "A-replaced-before-commit-unguarded", "sev": "med", "state": "open", "note": "no test catches a dataset replaced between create and commit; P4 blocked on it"}

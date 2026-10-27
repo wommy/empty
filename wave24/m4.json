@@ -1,0 +1,14 @@
+[
+{"label": "4a: verifyExport ignores exposure beyond the export", "file": "internal/endpoint/endpoint.go",
+ "old": "\t\tif x := live.exposure(realPath(row.Mount), want); len(x) > 0 && len(missing) == 0 {",
+ "new": "\t\tif x := live.exposure(realPath(row.Mount), want); false && len(x) > 0 && len(missing) == 0 {",
+ "pkg": "./internal/endpoint", "run": "TestFileExportCreateServedBeyondByAncestor"},
+{"label": "4b: verifyExport does not check the row is still ours", "file": "internal/endpoint/endpoint.go",
+ "old": "\t\tif !ok || !row.OwnedVolume() {\n\t\t\treturn errorf(Aborted, \"volume %s vanished or changed owner during provisioning\", id)",
+ "new": "\t\tif false && (!ok || !row.OwnedVolume()) {\n\t\t\treturn errorf(Aborted, \"volume %s vanished or changed owner during provisioning\", id)",
+ "pkg": "./internal/endpoint", "run": "TestFileExportCreateChangedBeforeCommit"},
+{"label": "4c: verifyExport commits a volume whose sharenfs changed", "file": "internal/endpoint/endpoint.go",
+ "old": "\t\tif len(want) == 0 {\n\t\t\t// the resume set the requested export just before this scan",
+ "new": "\t\tif false && len(want) == 0 {\n\t\t\t// the resume set the requested export just before this scan",
+ "pkg": "./internal/endpoint", "run": "TestFileExportCreateChangedBeforeCommit"}
+]

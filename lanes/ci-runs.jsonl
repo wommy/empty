@@ -27,3 +27,4 @@
 {"run":40539209599,"sha":"d232d63","result":"green","s":47}
 {"run":40540322181,"sha":"286cf47","result":"green","s":43}
 {"run":40541347739,"sha":"26975dd","result":"green","s":45}
+{"run":40542324581,"sha":"48f431d","result":"green","s":45,"jobs":{"csi_test_step":16,"ep1_test_step":23,"ep0_test_step":21},"note":"first run of ci-harden VM changes; no 60s fallback hit"}
