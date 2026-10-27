@@ -492,8 +492,14 @@ func newRigOn(tb testing.TB, worker, pool string) *rig {
 	if g.sim == nil {
 		tb.Cleanup(g.destroyReal)
 	}
-	ep, err := endpoint.New(g.z, endpoint.Config{Parent: g.parent, LockWait: time.Second,
-		Now: func() time.Time { return time.Now().Add(time.Duration(g.clock.Load()) * 2 * time.Hour) }})
+	cfg := endpoint.Config{Parent: g.parent, LockWait: time.Second,
+		Now: func() time.Time { return time.Now().Add(time.Duration(g.clock.Load()) * 2 * time.Hour) }}
+	if g.sim == nil {
+		// as zfs-endpoint runs: udev's blkid may still hold a new zvol when
+		// it is destroyed, and the endpoint settles and retries once
+		cfg.Settle = endpoint.UdevSettle
+	}
+	ep, err := endpoint.New(g.z, cfg)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -509,7 +515,12 @@ func (g *rig) destroyReal() {
 			g.raw(ctx, "release", "keep", g.parent+"/"+name)
 		}
 	}
-	if err := g.admin.Destroy(ctx, g.parent, zfs.DestroyOptions{Recursive: true}); err != nil {
+	o := zfs.DestroyOptions{Recursive: true}
+	err := g.admin.Destroy(ctx, g.parent, o)
+	if errors.Is(err, zfs.ErrBusy) && endpoint.UdevSettle(ctx) == nil {
+		err = g.admin.Destroy(ctx, g.parent, o)
+	}
+	if err != nil {
 		g.tb.Errorf("cleanup %s: %v", g.parent, err)
 	}
 }
@@ -1126,7 +1137,13 @@ func shrink(tb testing.TB, trace []Step, kind string, newG func() *rig, budget i
 		}
 		return nil
 	}
-	best := runTrace(tb, newG(), trace)
+	// a replay that fails another way is not this failure; none at all means
+	// the failure did not reproduce, and the caller prints the trace as found
+	best := fails(trace)
+	if best == nil {
+		tb.Logf("shrink: the failure (%s) did not reproduce on replay", kind)
+		return trace, nil
+	}
 	for chunk := len(trace) / 2; chunk >= 1 && runs < budget; {
 		progress := false
 		for i := 0; i+chunk <= len(trace) && runs < budget; {
@@ -1242,10 +1259,16 @@ func modelSweep(t *testing.T, seqs, n int, seed0 uint64) {
 	if first == nil {
 		return
 	}
+	// the divergence as first seen, before shrinking replays anything
+	t.Logf("first divergence: seed %d step %d: %v", firstSeed, first.step, first)
 	trace := genTrace(rngSource{rand.New(rand.NewPCG(firstSeed, 0x5eed))}, n)
+	budget := envInt("MODEL_SHRINK", 400)
+	if os.Getenv("ZFS_TEST_POOL") != "" {
+		budget = envInt("MODEL_SHRINK", 30) // each replay is real zfs work
+	}
 	k := 0
 	newG := func() *rig { k++; return newRig(t, fmt.Sprintf("shrink%d", k)) }
-	small, f := shrink(t, trace[:min(first.step+1, len(trace))], first.kind, newG, envInt("MODEL_SHRINK", 400))
+	small, f := shrink(t, trace[:min(first.step+1, len(trace))], first.kind, newG, budget)
 	if f == nil {
 		f = first
 		small = trace
