@@ -235,6 +235,14 @@ func zfsErr(err error, what string) error {
 	return &Error{Code: code, Msg: what, Err: err}
 }
 
+// parentUnavailable reports a parent zfs cannot open. zfs prints the same
+// "dataset does not exist" for an exported pool as for a missing dataset,
+// and the parent is configuration, so it is never "absent": Unavailable is
+// retried, NotFound is final for the CSI sidecars.
+func parentUnavailable(parent string, err error) error {
+	return &Error{Code: Unavailable, Msg: "parent dataset " + parent + " is unavailable", Err: err}
+}
+
 // userValue reads a user property; "-" means unset.
 func userValue(p zfs.Prop) string {
 	if p.Value == "-" {
@@ -533,6 +541,9 @@ func (e *Endpoint) DeleteSnapshot(ctx context.Context, snapshotID string) error 
 // GetCapacity reports space available to new volumes under the parent.
 func (e *Endpoint) GetCapacity(ctx context.Context) (uint64, error) {
 	d, err := e.zfs.Get(ctx, e.cfg.Parent, "available")
+	if zfs.IsNotFound(err) {
+		return 0, parentUnavailable(e.cfg.Parent, err)
+	}
 	if err != nil {
 		return 0, zfsErr(err, "inspect parent")
 	}

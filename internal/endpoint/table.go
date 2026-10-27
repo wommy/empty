@@ -233,6 +233,10 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 		Props: e.names.columns(),
 	})
 	if err != nil {
+		if only == "" && zfs.IsNotFound(err) {
+			// the root is the parent itself: missing or its pool exported
+			return Table{}, parentUnavailable(e.cfg.Parent, err)
+		}
 		if only != "" && zfs.IsNotFound(err) {
 			// zfs says "dataset does not exist" for an exported pool too:
 			// only an existing parent makes a missing volume truly absent
@@ -240,7 +244,7 @@ func (e *Endpoint) scan(ctx context.Context, only string) (Table, error) {
 			if perr == nil && ok {
 				return NewTable(nil), nil
 			}
-			return Table{}, &Error{Code: Unavailable, Msg: "parent dataset " + e.cfg.Parent + " is unavailable", Err: err}
+			return Table{}, parentUnavailable(e.cfg.Parent, err)
 		}
 		return Table{}, zfsErr(err, "scan "+root)
 	}
