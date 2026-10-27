@@ -47,6 +47,9 @@ var indexTables = func() map[string][]indexName {
 		"snapdir":  {{"hidden", 0}, {"visible", 1}, {"disabled", 2}},
 		"copies":   {{"1", 1}, {"2", 2}, {"3", 3}},
 		"canmount": {{"off", 0}, {"on", 1}, {"noauto", 2}},
+		"exec":     onOff,
+		"setuid":   onOff,
+		"devices":  onOff,
 	}
 }()
 

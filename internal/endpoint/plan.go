@@ -263,6 +263,11 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		// every new volume (restores included) to everyone. Exports are
 		// opt-in, set locally at creation.
 		own["sharenfs"], own["sharesmb"] = "off", "off"
+		// F12: a client of an export can plant a setuid binary or a device
+		// node; on the storage host the volume is mounted with neither
+		// honoured, nor exec. Server-side mount options: NFS clients and
+		// their own mounts are unaffected.
+		own["setuid"], own["exec"], own["devices"] = "off", "off", "off"
 	}
 	var plan Plan
 	switch {
