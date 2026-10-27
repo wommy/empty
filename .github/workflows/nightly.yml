@@ -226,6 +226,6 @@ jobs:
         run: |
           {
             echo "Nightly scale/explorer run failed: $RUN_URL"
-            echo; echo '```'; grep -E '^(--- FAIL|FAIL|panic)' -A5 "$RUNNER_TEMP/explore.log" | head -80; echo '```'
+            echo; echo '```'; grep -E '^(--- FAIL|FAIL|panic)' -A5 "$RUNNER_TEMP/explore.log" | awk 'NR <= 80'; echo '```'
           } > "$RUNNER_TEMP/issue.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "nightly explorer failure" --body-file "$RUNNER_TEMP/issue.md" --label needs-triage

@@ -324,8 +324,10 @@ if [ -s "$o/test-times.tsv" ]; then
     echo
     echo "| shard | test | status | parallel | own s | with parallel subtests s | wall s | subtests |"
     echo "|---|---|---|---|---|---|---|---|"
-    grep -v '^#' "$o/test-times.tsv" | sort -t "$(printf '\t')" -k6,6gr | head -n 25 |
-      awk -F '\t' '{ printf "| %s | %s | %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6, $7, $8 }'
+    # awk reads all of sort's output: head would close the pipe early, and
+    # under pipefail sort's SIGPIPE failed the job (run 40496789015)
+    grep -v '^#' "$o/test-times.tsv" | sort -t "$(printf '\t')" -k6,6gr |
+      awk -F '\t' 'NR <= 25 { printf "| %s | %s | %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6, $7, $8 }'
     echo
     echo "</details>"
     echo
