@@ -2,6 +2,7 @@ package endpoint_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -109,7 +110,13 @@ func setupConfig(t *testing.T, prefix string, mod func(*endpoint.Config)) (*endp
 		name = name[:min(len(name), 64)]
 		h.Parent = fmt.Sprintf("%s/ep-%s-%d", pool, name, time.Now().UnixNano())
 		t.Cleanup(func() {
-			if err := h.Z.Destroy(ctx, h.Parent, zfs.DestroyOptions{Recursive: true}); err != nil {
+			// a zvol the test just created may still be open by udev
+			o := zfs.DestroyOptions{Recursive: true}
+			err := h.Z.Destroy(ctx, h.Parent, o)
+			if errors.Is(err, zfs.ErrBusy) && endpoint.UdevSettle(ctx) == nil {
+				err = h.Z.Destroy(ctx, h.Parent, o)
+			}
+			if err != nil {
 				t.Errorf("cleanup %s: %v", h.Parent, err)
 			}
 		})

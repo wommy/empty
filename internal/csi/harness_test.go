@@ -2,6 +2,7 @@ package csi_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -44,7 +45,12 @@ func endpointConn(t *testing.T) *grpc.ClientConn {
 		// creating it, while udev may still be probing the new device
 		settle = endpoint.UdevSettle
 		t.Cleanup(func() {
-			if err := z.Destroy(ctx, parent, zfs.DestroyOptions{Recursive: true}); err != nil {
+			o := zfs.DestroyOptions{Recursive: true}
+			err := z.Destroy(ctx, parent, o)
+			if errors.Is(err, zfs.ErrBusy) && settle(ctx) == nil {
+				err = z.Destroy(ctx, parent, o)
+			}
+			if err != nil {
 				t.Errorf("cleanup %s: %v", parent, err)
 			}
 		})

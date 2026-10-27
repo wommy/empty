@@ -108,7 +108,16 @@ func CleanupReal(ctx context.Context, root string) error {
 			}
 		}
 	}
+	// a zvol a sequence just created may still be open by udev probing its
+	// new device node: settle the device events once and retry, as the
+	// endpoint's destroy does (Config.Settle)
 	_, err = r.Run(ctx, "zfs", "destroy", "-r", root)
+	if err != nil && strings.Contains(err.Error(), "dataset is busy") {
+		if serr := exec.CommandContext(ctx, "udevadm", "settle", "--timeout=10").Run(); serr != nil && !errors.Is(serr, exec.ErrNotFound) {
+			return fmt.Errorf("%w (udevadm settle: %v)", err, serr)
+		}
+		_, err = r.Run(ctx, "zfs", "destroy", "-r", root)
+	}
 	return err
 }
 
