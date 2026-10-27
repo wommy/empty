@@ -29,3 +29,7 @@ Gate addition (A-umask-race, 2026-10-27): the local gate runs as root, which
 ignores mode bits. After `go test -race ./...`, also run the packages that
 create files or sockets as nobody:
   for p in ./cmd/zfs-endpoint ./internal/unixsock; do go test -c -race -o $S/x.test $p && (cd $S && setpriv --reuid=65534 --regid=65534 --clear-groups env TMPDIR=/tmp HOME=/tmp ./x.test -test.count=3 -test.timeout=120s); done
+Gate fix (2026-10-27): non-root runs put the test binary in /dev/shm (scratchpad
+not traversable by nobody) and run it from the package directory (tests read
+relative paths, e.g. deploy/systemd). gofmt also covers untracked files:
+gofmt -l $(git ls-files -co --exclude-standard '*.go' | grep -v '^.claude/').
