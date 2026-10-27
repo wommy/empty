@@ -73,13 +73,13 @@ func run(ctx context.Context, args []string, d deps) error {
 	listen := fs.String("listen", "", "unix:///absolute/path to serve on (TCP is refused until transport auth, ADR 0001); default "+unixsock.EndpointAddr("<parent>")+", systemd-escaped, as zfs-endpoint@.service serves it")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	prefix := fs.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
-	lockWait := fs.Duration("lock-wait", 30*time.Second, "max wait for a busy resource")
+	lockWait := fs.Duration("lock-wait", 30*time.Second, "max wait for a busy resource; 0: try once and never wait (negative is refused)")
 	drain := fs.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
 	stopWait := fs.Duration("stop-wait", 10*time.Second, "after the drain, max wait for cancelled calls (and their zfs) to end")
 	parentWait := fs.Duration("parent-wait", 60*time.Second, "at startup, how long to wait for the parent dataset (pool import) before exiting 75")
 	maxZFS := fs.Int("max-zfs", 8, "max zfs commands running at once")
 	allowNonRoot := fs.Bool("allow-non-root", false, "run without root (delegated zfs allow); filesystem volumes cannot be mounted and NFS export is off")
-	nfsMinPrefix := fs.Int("nfs-min-prefix", endpoint.DefaultNFSMinPrefix, "broadest IPv4 client network PublishFileExport accepts (prefix length, 1-32)")
+	nfsMinPrefix := fs.Int("nfs-min-prefix", endpoint.DefaultNFSMinPrefix, "broadest IPv4 client network PublishFileExport accepts (prefix length, 1-32; 0, every IPv4 client, is refused)")
 	destroyForeign := fs.Bool("destroy-foreign-snapshots", false, "let DeleteVolume destroy snapshots the endpoint did not make along with their volume")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -110,6 +110,15 @@ func run(ctx context.Context, args []string, d deps) error {
 	}
 	if *maxZFS < 1 {
 		return configErr("-max-zfs must be at least 1")
+	}
+	if *lockWait < 0 {
+		return configErr("-lock-wait %v: want 0 (try once, never wait) or a positive wait", *lockWait)
+	}
+	// endpoint.Config reads 0 as "default /16"; a /0 floor would let
+	// PublishFileExport export to every IPv4 client, so 0 is refused
+	// rather than given either meaning
+	if *nfsMinPrefix < 1 || *nfsMinPrefix > 32 {
+		return configErr("-nfs-min-prefix %d: want a prefix length of 1-32", *nfsMinPrefix)
 	}
 	// zfs create mounts filesystems and NFS export runs exportfs and
 	// writes /etc/exports.d: both need root. Delegated (zfs allow) use is
@@ -144,7 +153,7 @@ func run(ctx context.Context, args []string, d deps) error {
 	if err := waitParent(ctx, z, *parent, *parentWait, after); err != nil {
 		return err
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: configLockWait(*lockWait), FileExport: root, DestroyForeignSnapshots: *destroyForeign, NFSMinPrefix: *nfsMinPrefix, Settle: d.settle})
 	if err != nil {
 		return configErr("%v", err)
 	}
@@ -195,6 +204,21 @@ func run(ctx context.Context, args []string, d deps) error {
 	slog.Info("stopped")
 	return nil
 }
+
+// configLockWait maps -lock-wait (validated: not negative) to
+// endpoint.Config.LockWait. Config's zero value means its 30s default, so
+// -lock-wait 0 is passed as tryOnce: a lock wait that is not positive
+// takes a free lock and refuses a held one at once (Endpoint.lock's
+// TryAcquire path).
+func configLockWait(w time.Duration) time.Duration {
+	if w == 0 {
+		return tryOnce
+	}
+	return w
+}
+
+// tryOnce is a non-positive Config.LockWait: try the lock, never wait.
+const tryOnce = -time.Nanosecond
 
 func notify(state string) {
 	if err := sdNotify(state); err != nil {
