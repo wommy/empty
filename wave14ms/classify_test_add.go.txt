@@ -1,0 +1,76 @@
+
+// TestClassify pins the classifier on single rows (AN-09 among them: the
+// clone source the endpoint stamps at CreateVolume-from-volume is a legal
+// state, which the explorer once reported as IMPOSSIBLE at depth 2).
+func TestClassify(t *testing.T) {
+	v := func(id string, mut func(*Row)) Row {
+		r := Row{Name: fsmParent + "/" + id, ID: id, Type: zfs.TypeFilesystem, Managed: true, Committed: true, VolumeName: id}
+		if mut != nil {
+			mut(&r)
+		}
+		return r
+	}
+	sn := func(id string, mut func(*Row)) Row {
+		_, name, _ := strings.Cut(id, "@")
+		r := Row{Name: fsmParent + "/" + id, ID: id, Type: zfs.TypeSnapshot, Managed: true, SnapshotName: name}
+		if mut != nil {
+			mut(&r)
+		}
+		return r
+	}
+	src := "a@" + cloneSourceSnapshotPrefix + "b"
+	stamped := func(r *Row) { r.SnapshotName, r.CloneSourceFor = "", "b" }
+	cloneOfA := v("b", func(r *Row) { r.SourceType, r.SourceID, r.Origin = "volume", "a", fsmParent+"/"+src })
+	cases := []struct {
+		name   string
+		row    Row
+		others []Row
+		prov   string
+		prefix string
+		want   string
+	}{
+		{name: "owned committed volume", row: v("a", nil), want: "Committed"},
+		{name: "uncommitted volume", row: v("a", func(r *Row) { r.Committed = false }), want: "Created-uncommitted"},
+		{name: "committed clone", row: cloneOfA, others: []Row{v("a", nil), sn(src, stamped)}, want: "Committed-clone"},
+		{name: "markers naming another volume", row: v("a", func(r *Row) { r.VolumeName = "z" }), want: "Alias"},
+		{name: "managed without a name", row: v("a", func(r *Row) { r.VolumeName = "" }), want: "IMPOSSIBLE(managed without name)"},
+		{name: "unmanaged plain dataset", row: v("a", func(r *Row) { r.Managed, r.Committed, r.VolumeName = false, false, "" }), want: "Foreign"},
+		{name: "received copy", row: v("b", func(r *Row) { r.Managed, r.Committed, r.VolumeName = false, false, "" }), prov: "recv", want: "Foreign(recv)"},
+		{name: "democratic-csi volume, adoption mode", row: v("a", nil), prov: "dc", prefix: dcPrefix, want: "Adopted-dcsi"},
+		{name: "democratic-csi volume, own prefix", row: v("a", func(r *Row) { r.Managed, r.Committed, r.VolumeName = false, false, "" }),
+			prov: "dc", want: "Foreign(dcsi)"},
+
+		// AN-09: the endpoint's own, stamped clone source
+		{name: "stamped clone source with its clone", row: sn(src, stamped), others: []Row{v("a", nil), cloneOfA}, want: "OwnCloneSrc-live"},
+		{name: "stamped clone source, clone gone", row: sn(src, stamped), others: []Row{v("a", nil)}, want: "OwnCloneSrc-orphan"},
+		{name: "stamped clone source marked deferred", row: sn(src, func(r *Row) { stamped(r); r.Deferred = true }),
+			others: []Row{v("a", nil), cloneOfA}, want: "OwnCloneSrc-deferred"},
+		{name: "managed reserved name stamped for another clone", row: sn(src, func(r *Row) { stamped(r); r.CloneSourceFor = "c" }),
+			others: []Row{v("a", nil)}, want: "IMPOSSIBLE(managed internal snapshot without our stamp)"},
+
+		{name: "unstamped reserved name on an owned volume", row: sn(src, func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+			others: []Row{v("a", nil)}, want: "CloneSrc-orphan"},
+		{name: "unstamped reserved name on a foreign volume", row: sn(src, func(r *Row) { r.Managed, r.SnapshotName = false, "" }),
+			others: []Row{v("a", func(r *Row) { r.Managed, r.Committed, r.VolumeName = false, false, "" })}, want: "Foreign-snap"},
+		{name: "CSI snapshot", row: sn("a@s", nil), others: []Row{v("a", nil)}, want: "CSI-snap"},
+		{name: "CSI snapshot of another volume", row: sn("a@s", func(r *Row) { r.SnapshotSource = "z" }), others: []Row{v("a", nil)}, want: "Alias-snap"},
+		{name: "managed snapshot without a CSI name", row: sn("a@s", func(r *Row) { r.SnapshotName = "" }), others: []Row{v("a", nil)},
+			want: "IMPOSSIBLE(managed snapshot without CSI name)"},
+		{name: "deleted CSI snapshot kept by a hold", row: sn("a@s", func(r *Row) { r.Deferred, r.Holds = true, 1 }), others: []Row{v("a", nil)},
+			want: "CSI-snap-deferred"},
+		{name: "deferred CSI snapshot with nothing pinning it", row: sn("a@s", func(r *Row) { r.Deferred = true }), others: []Row{v("a", nil)},
+			want: "IMPOSSIBLE(deferred without clones or holds)"},
+		{name: "unmanaged deferred snapshot kept by a hold", row: sn("a@x", func(r *Row) { r.Managed, r.SnapshotName, r.Deferred, r.Holds = false, "", true, 2 }),
+			others: []Row{v("a", nil)}, want: "Foreign-snap"},
+	}
+	for _, c := range cases {
+		prefix := cmp.Or(c.prefix, DefaultPropertyPrefix)
+		prov := map[string]string{}
+		if c.prov != "" {
+			prov[c.row.Name] = c.prov
+		}
+		if got := classify(c.row, NewTable(append([]Row{c.row}, c.others...)), prov, prefix); got != c.want {
+			t.Errorf("%s: %s, want %s", c.name, got, c.want)
+		}
+	}
+}

@@ -1,0 +1,20 @@
+# FSM explore: kind=block prefix=zfs-endpoint depth=4
+distinct worlds=151 edges=1001 crash/retry runs=2984 combos=112 time=2.903s
+
+## row states observed
+  CSI-snap                                                     1840
+  CSI-snap-deferred                                            29
+  Clone-uncommitted                                            416
+  Committed                                                    5389
+  Committed-clone                                              844
+  Created-uncommitted                                          1033
+  Foreign                                                      671
+  Foreign(dcsi)                                                597
+  Foreign(recv)                                                734
+  Foreign-snap                                                 1805
+  Foreign-snap(recv)                                           95
+  OwnCloneSrc-deferred                                         153
+  OwnCloneSrc-live                                             824
+  OwnCloneSrc-orphan                                           556
+
+## findings (minimal depth first)

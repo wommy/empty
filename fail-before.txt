@@ -1,0 +1,34 @@
+2026/10/27 07:57:41 INFO serving listen=unix:///tmp/TestLockWaitZeroTriesOnce2394987214/002/s.sock parent=tank/k8s max_zfs=8 version=dev
+2026/10/27 07:57:42 INFO zfs exec argv="[zfs create -o refquota=1048576 -o sharenfs=off -o sharesmb=off -o zfs-endpoint:csi_volume_name=pvc-a -o zfs-endpoint:managed_resource=true tank/k8s/pvc-a]"
+2026/10/27 07:57:47 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateVolume code=Aborted duration=5.003942481s peer=@ error="operation pending on [vol:pvc-a]"
+2026/10/27 07:57:47 INFO zfs done argv="[zfs create -o refquota=1048576 -o sharenfs=off -o sharesmb=off -o zfs-endpoint:csi_volume_name=pvc-a -o zfs-endpoint:managed_resource=true tank/k8s/pvc-a]" duration=5.005150136s
+2026/10/27 07:57:47 INFO rpc method=/zfsendpoint.v1.EndpointService/CreateVolume code=Aborted duration=5.005469624s peer=@ error="scan tank/k8s/pvc-a: zfs list tank/k8s/pvc-a: interrupted, outcome unknown: run zfs: context canceled (context canceled)"
+2026/10/27 07:57:47 INFO shutting down drain=30s
+--- FAIL: TestLockWaitZeroTriesOnce (6.01s)
+    startup_seams_test.go:280: the second call waited for the lock: rpc error: code = Canceled desc = context canceled
+2026/10/27 07:57:47 WARN waiting for the parent dataset parent=tank/late retry_in=1s error="zfs get tank/late: not found: cannot open 'tank/late': dataset does not exist"
+2026/10/27 07:57:47 INFO stopped
+--- FAIL: TestStopDuringStartupIsClean (0.00s)
+    --- FAIL: TestStopDuringStartupIsClean/parent_wait (0.01s)
+        startup_seams_test.go:153: exit 1 context canceled; want a clean stop
+    --- FAIL: TestStopDuringStartupIsClean/version_probe (0.00s)
+        startup_seams_test.go:167: exit 75 cannot read the OpenZFS version: context canceled; want a clean stop
+--- FAIL: TestDefaultSocketLimit (0.00s)
+    startup_seams_test.go:104: 85-byte parent: exit 1 <nil>
+    startup_seams_test.go:109: "tank/vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv-v": exit 1 <nil>
+--- FAIL: TestLockParentDoesNotFollowSymlinks (0.00s)
+    startup_seams_test.go:129: tank.lock: opened a symlink at a lock path
+    startup_seams_test.go:124: symlink /tmp/TestLockParentDoesNotFollowSymlinks3249011304/002/victim /tmp/TestLockParentDoesNotFollowSymlinks3249011304/001/tank%k8s.lock: file exists
+--- FAIL: TestLegacyPrefixRefusal (0.01s)
+    startup_seams_test.go:209: legacy only: exit 1 /tmp/TestLegacyPrefixRefusal984389438/002/file exists and is not a socket (----------): refusing to replace it; want 78 naming -property-prefix democratic-csi
+--- FAIL: TestStartupConfigRefusals (0.01s)
+    startup_seams_test.go:86: negative lock-wait: exit 1 /tmp/TestStartupConfigRefusals2635994191/003/file exists and is not a socket (----------): refusing to replace it; want 78 with "-lock-wait"
+    startup_seams_test.go:86: nfs-min-prefix 0: exit 1 /tmp/TestStartupConfigRefusals2635994191/005/file exists and is not a socket (----------): refusing to replace it; want 78 with "-nfs-min-prefix"
+    startup_seams_test.go:86: nfs-min-prefix 33: exit 78 NFS minimum prefix /33: want 1-32; want 78 with "-nfs-min-prefix"
+    startup_seams_test.go:86: long socket path: exit 1 listen unix /tmp/TestStartupConfigRefusals2635994191/001/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.sock: bind: invalid argument; want 78 with "108"
+    startup_seams_test.go:86: long default socket: exit 75 parent dataset tank/a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a- is not available after 0s: zfs get tank/a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-: not found: cannot open 'tank/a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-a-': dataset does not exist; want 78 with "108"
+    startup_seams_test.go:86: lock conflict: exit 1 another endpoint already manages tank/k8s or a dataset inside it (lock /tmp/TestStartupConfigRefusals2635994191/012/tank%k8s.lock); want 78 with "already manages"
+    startup_seams_test.go:86: symlinked lock: exit 1 /tmp/TestStartupConfigRefusals2635994191/016/file exists and is not a socket (----------): refusing to replace it; want 78 with "symlink"
+FAIL
+FAIL	github.com/wommy/empty/cmd/zfs-endpoint	6.034s
+FAIL
