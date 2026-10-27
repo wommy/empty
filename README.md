@@ -106,7 +106,7 @@ go test -run '^$' -fuzz FuzzReconcileSafe ./internal/endpoint
 go test -run '^$' -fuzz FuzzDecodeGetJSON ./internal/zfs
 ```
 
-The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter in an Ubuntu VM running OpenZFS 2.4 (`ci/real-zfs-vm.sh`): six concurrent shards, each on its own pool backed by a sparse file on a guest tmpfs (`ci/real-zfs-guest.sh`). Planner tests build `Table`s directly from rows, with no I/O.
+The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter in Ubuntu VMs running OpenZFS 2.4 (`ci/real-zfs-vm.sh`), one job and VM per suite (`ci/real-zfs-suites.txt`: endpoint, csi), each running three concurrent shards, each shard on its own pool backed by a sparse file on a guest tmpfs (`ci/real-zfs-guest.sh`). Planner tests build `Table`s directly from rows, with no I/O.
 
 `FuzzCreateConverges` asserts the core invariant: for any accepted request, a second identical CreateVolume succeeds and changes nothing.
 
