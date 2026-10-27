@@ -29,6 +29,13 @@ service EndpointService {
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
 
   rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+
+  // Garbage collection, off the request path: uncommitted volumes left by
+  // abandoned creates, clone-source snapshots whose clone is gone, and owned
+  // volumes outside the caller's desired set. Never touches unowned
+  // datasets, desired volumes, CSI snapshots, or volumes with snapshots or
+  // dependent clones (those are reported in skipped).
+  rpc Reconcile(ReconcileRequest) returns (ReconcileResponse);
 }
 
 enum Capability {
@@ -40,6 +47,7 @@ enum Capability {
   CAPABILITY_EXPAND = 5;
   CAPABILITY_LIST = 6;
   CAPABILITY_CAPACITY = 7;
+  CAPABILITY_RECONCILE = 10;
   // reserved for upcoming edges: exports, metadata (CBT), modify
 }
 
@@ -140,3 +148,32 @@ message ExpandVolumeResponse { Volume volume = 1; }
 message GetVolumeResponse { Volume volume = 1; }
 
 message CreateSnapshotResponse { Snapshot snapshot = 1; }
+
+message ReconcileRequest {
+  // The complete set of volume ids the caller wants kept. Every other owned,
+  // committed volume is collected. Empty collects no committed volume: it
+  // cannot be told apart from a caller that sent nothing.
+  repeated string desired_volume_ids = 1;
+  // Nothing created less than this long ago is touched (in-flight creates,
+  // volumes newer than the caller's desired set). 0 means one hour.
+  uint64 min_age_seconds = 2;
+  // Return the plan without locking or applying it.
+  bool dry_run = 3;
+}
+
+message ReconcileAction {
+  string op = 1;     // "destroy" or "destroy-deferred"
+  string target = 2; // "<volume id>" or "<volume id>@<snapshot>"
+  string reason = 3;
+}
+
+message ReconcileSkip {
+  string target = 1;
+  string reason = 2;
+}
+
+message ReconcileResponse {
+  // done (or, for a dry run, planned), in order
+  repeated ReconcileAction actions = 1;
+  repeated ReconcileSkip skipped = 2;
+}

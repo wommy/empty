@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"net"
+	"slices"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -81,5 +82,30 @@ func TestRoundTripAndCodes(t *testing.T) {
 	}
 	if _, err := c.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "nope"}); status.Code(err) != codes.NotFound {
 		t.Fatalf("get missing: %v", err)
+	}
+}
+
+func TestReconcile(t *testing.T) {
+	ctx := context.Background()
+	c := client(t)
+	caps, err := c.GetCapabilities(ctx, &pb.GetCapabilitiesRequest{})
+	if err != nil || !slices.Contains(caps.Capabilities, pb.Capability_CAPABILITY_RECONCILE) {
+		t.Fatalf("caps %v %v", caps, err)
+	}
+	if _, err := c.CreateVolume(ctx, &pb.CreateVolumeRequest{Name: "pvc-a", CapacityBytes: 1 << 30}); err != nil {
+		t.Fatal(err)
+	}
+	// just created: too young under the default minimum age
+	r, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"pvc-b"}, DryRun: true})
+	if err != nil || len(r.Actions) != 0 || len(r.Skipped) != 2 ||
+		r.Skipped[0].Target != "pvc-b" || r.Skipped[0].Reason != endpoint.SkipDesiredMissing ||
+		r.Skipped[1].Target != "pvc-a" || r.Skipped[1].Reason != endpoint.SkipTooYoung {
+		t.Fatalf("reconcile %v %v", r, err)
+	}
+	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{DesiredVolumeIds: []string{"a/b"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("invalid id: %v", err)
+	}
+	if _, err := c.Reconcile(ctx, &pb.ReconcileRequest{MinAgeSeconds: 1 << 62}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("huge age: %v", err)
 	}
 }

@@ -40,6 +40,7 @@ const (
 	EndpointService_DeleteSnapshot_FullMethodName  = "/zfsendpoint.v1.EndpointService/DeleteSnapshot"
 	EndpointService_ListSnapshots_FullMethodName   = "/zfsendpoint.v1.EndpointService/ListSnapshots"
 	EndpointService_GetCapacity_FullMethodName     = "/zfsendpoint.v1.EndpointService/GetCapacity"
+	EndpointService_Reconcile_FullMethodName       = "/zfsendpoint.v1.EndpointService/Reconcile"
 )
 
 // EndpointServiceClient is the client API for EndpointService service.
@@ -57,6 +58,12 @@ type EndpointServiceClient interface {
 	DeleteSnapshot(ctx context.Context, in *DeleteSnapshotRequest, opts ...grpc.CallOption) (*DeleteSnapshotResponse, error)
 	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest, opts ...grpc.CallOption) (*ListSnapshotsResponse, error)
 	GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error)
+	// Garbage collection, off the request path: uncommitted volumes left by
+	// abandoned creates, clone-source snapshots whose clone is gone, and owned
+	// volumes outside the caller's desired set. Never touches unowned
+	// datasets, desired volumes, CSI snapshots, or volumes with snapshots or
+	// dependent clones (those are reported in skipped).
+	Reconcile(ctx context.Context, in *ReconcileRequest, opts ...grpc.CallOption) (*ReconcileResponse, error)
 }
 
 type endpointServiceClient struct {
@@ -167,6 +174,16 @@ func (c *endpointServiceClient) GetCapacity(ctx context.Context, in *GetCapacity
 	return out, nil
 }
 
+func (c *endpointServiceClient) Reconcile(ctx context.Context, in *ReconcileRequest, opts ...grpc.CallOption) (*ReconcileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReconcileResponse)
+	err := c.cc.Invoke(ctx, EndpointService_Reconcile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EndpointServiceServer is the server API for EndpointService service.
 // All implementations must embed UnimplementedEndpointServiceServer
 // for forward compatibility.
@@ -182,6 +199,12 @@ type EndpointServiceServer interface {
 	DeleteSnapshot(context.Context, *DeleteSnapshotRequest) (*DeleteSnapshotResponse, error)
 	ListSnapshots(context.Context, *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
 	GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error)
+	// Garbage collection, off the request path: uncommitted volumes left by
+	// abandoned creates, clone-source snapshots whose clone is gone, and owned
+	// volumes outside the caller's desired set. Never touches unowned
+	// datasets, desired volumes, CSI snapshots, or volumes with snapshots or
+	// dependent clones (those are reported in skipped).
+	Reconcile(context.Context, *ReconcileRequest) (*ReconcileResponse, error)
 	mustEmbedUnimplementedEndpointServiceServer()
 }
 
@@ -221,6 +244,9 @@ func (UnimplementedEndpointServiceServer) ListSnapshots(context.Context, *ListSn
 }
 func (UnimplementedEndpointServiceServer) GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCapacity not implemented")
+}
+func (UnimplementedEndpointServiceServer) Reconcile(context.Context, *ReconcileRequest) (*ReconcileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Reconcile not implemented")
 }
 func (UnimplementedEndpointServiceServer) mustEmbedUnimplementedEndpointServiceServer() {}
 func (UnimplementedEndpointServiceServer) testEmbeddedByValue()                         {}
@@ -423,6 +449,24 @@ func _EndpointService_GetCapacity_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EndpointService_Reconcile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReconcileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EndpointServiceServer).Reconcile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EndpointService_Reconcile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EndpointServiceServer).Reconcile(ctx, req.(*ReconcileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EndpointService_ServiceDesc is the grpc.ServiceDesc for EndpointService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -469,6 +513,10 @@ var EndpointService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCapacity",
 			Handler:    _EndpointService_GetCapacity_Handler,
+		},
+		{
+			MethodName: "Reconcile",
+			Handler:    _EndpointService_Reconcile_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

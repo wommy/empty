@@ -51,6 +51,7 @@ All research is in `docs/research/`. Delegates produced it from pinned clones an
 | Snapshot delete uses `destroy -d` | pyzfs: `lzc_destroy_snaps` with EEXIST means *SnapshotIsCloned*. truenas-csi #69 leaked snapshots because of this |
 | Never use `zfs create -p` for volumes | it exits 0 on an existing dataset, which would stamp ownership onto someone else's |
 | Request-scoped plans, not a reconcile queue | CSI CreateVolume is synchronous and the external-provisioner times out after 10s |
+| GC only on demand, against a caller-supplied desired set | ZFS properties record what was made, not what is still wanted (`docs/research/edges2/reconcile-gc.md`) |
 | Keep the `provision_success` marker | ZFS channel programs can't create datasets or set refquota/volsize, so a plan can't run as one atomic transaction |
 | Fat-struct `Op`, not a sealed interface | a homogeneous `[]Op` is printable, diffable data for golden tests |
 | No struct-of-arrays layout | measured: about 12 µs per 10k rows against about 1.5 ms per `zfs` exec. The real cost was a map per dataset, now one flat buffer |
@@ -70,17 +71,20 @@ These claims were made during the work and then disproved. They're kept here so 
 go test -race ./...                                       # simulator
 ZFS_TEST_POOL=testpool go test ./internal/endpoint/...    # real pool, as root
 go test -run '^$' -fuzz FuzzCreateConverges ./internal/endpoint
+go test -run '^$' -fuzz FuzzReconcileSafe ./internal/endpoint
 ```
 
 The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter on a file-backed pool. Planner tests build `Table`s directly from rows, with no I/O.
 
 `FuzzCreateConverges` asserts the core invariant: for any accepted request, a second identical CreateVolume succeeds and changes nothing.
 
+`FuzzReconcileSafe` builds arbitrary parents on the simulator and asserts that reconcile never targets a desired, unowned, snapshotted or young volume or a CSI snapshot, and that a second reconcile plans nothing.
+
 ## Open gaps
 
 The research found these, and nothing ships for them yet:
 - **Exports** and node attach. For per-LUN detach, see Trident's `RemoveLUNFromSessions` and gobrick.
-- **Reconcile/GC.** It should run off the request path and delete only against a desired set the caller supplies.
+- **Reconcile/GC.** The on-demand half ships: the `Reconcile` RPC (`reconcile.go`) runs off the request path and collects uncommitted rows from abandoned creates, clone-source snapshots whose clone is gone, and owned volumes outside a desired set the caller supplies. It never touches unowned datasets, desired volumes, CSI snapshots, snapshotted or cloned volumes (reported as skipped), or anything younger than `min_age_seconds` (default one hour). An empty desired set collects no committed volume. `dry_run` returns the plan as data. Still open: a startup report-only pass, keying clone-source snapshots on a property rather than their reserved name prefix, and reporting unrecorded exports once exports exist.
 - **HA exclusivity.** A channel-program fencing epoch was designed and then **dropped** after adversarial review: the epoch can go backwards, and creates, resizes and clones can't be fenced (`docs/research/gaps/adv-fencing.md`). Exclusivity is per host, with a `flock` per parent dataset, and across hosts it belongs to the HA layer (`zpool multihost` plus pacemaker/STONITH).
 - **Changed-block tracking** (the CSI SnapshotMetadata service). No ZFS implementation exists anywhere, and the zfs send stream is the only exact source.
 - **ControllerModifyVolume.** No ZFS driver implements it.

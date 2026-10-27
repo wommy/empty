@@ -42,20 +42,22 @@ const (
 	Capability_CAPABILITY_CLONE_FROM_VOLUME   Capability = 4
 	Capability_CAPABILITY_EXPAND              Capability = 5
 	Capability_CAPABILITY_LIST                Capability = 6
-	Capability_CAPABILITY_CAPACITY            Capability = 7 // reserved for upcoming edges: exports, metadata (CBT), modify
+	Capability_CAPABILITY_CAPACITY            Capability = 7
+	Capability_CAPABILITY_RECONCILE           Capability = 10 // reserved for upcoming edges: exports, metadata (CBT), modify
 )
 
 // Enum value maps for Capability.
 var (
 	Capability_name = map[int32]string{
-		0: "CAPABILITY_UNSPECIFIED",
-		1: "CAPABILITY_VOLUMES",
-		2: "CAPABILITY_SNAPSHOTS",
-		3: "CAPABILITY_CLONE_FROM_SNAPSHOT",
-		4: "CAPABILITY_CLONE_FROM_VOLUME",
-		5: "CAPABILITY_EXPAND",
-		6: "CAPABILITY_LIST",
-		7: "CAPABILITY_CAPACITY",
+		0:  "CAPABILITY_UNSPECIFIED",
+		1:  "CAPABILITY_VOLUMES",
+		2:  "CAPABILITY_SNAPSHOTS",
+		3:  "CAPABILITY_CLONE_FROM_SNAPSHOT",
+		4:  "CAPABILITY_CLONE_FROM_VOLUME",
+		5:  "CAPABILITY_EXPAND",
+		6:  "CAPABILITY_LIST",
+		7:  "CAPABILITY_CAPACITY",
+		10: "CAPABILITY_RECONCILE",
 	}
 	Capability_value = map[string]int32{
 		"CAPABILITY_UNSPECIFIED":         0,
@@ -66,6 +68,7 @@ var (
 		"CAPABILITY_EXPAND":              5,
 		"CAPABILITY_LIST":                6,
 		"CAPABILITY_CAPACITY":            7,
+		"CAPABILITY_RECONCILE":           10,
 	}
 )
 
@@ -1361,6 +1364,237 @@ func (x *CreateSnapshotResponse) GetSnapshot() *Snapshot {
 	return nil
 }
 
+type ReconcileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The complete set of volume ids the caller wants kept. Every other owned,
+	// committed volume is collected. Empty collects no committed volume: it
+	// cannot be told apart from a caller that sent nothing.
+	DesiredVolumeIds []string `protobuf:"bytes,1,rep,name=desired_volume_ids,json=desiredVolumeIds,proto3" json:"desired_volume_ids,omitempty"`
+	// Nothing created less than this long ago is touched (in-flight creates,
+	// volumes newer than the caller's desired set). 0 means one hour.
+	MinAgeSeconds uint64 `protobuf:"varint,2,opt,name=min_age_seconds,json=minAgeSeconds,proto3" json:"min_age_seconds,omitempty"`
+	// Return the plan without locking or applying it.
+	DryRun        bool `protobuf:"varint,3,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReconcileRequest) Reset() {
+	*x = ReconcileRequest{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReconcileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReconcileRequest) ProtoMessage() {}
+
+func (x *ReconcileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReconcileRequest.ProtoReflect.Descriptor instead.
+func (*ReconcileRequest) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ReconcileRequest) GetDesiredVolumeIds() []string {
+	if x != nil {
+		return x.DesiredVolumeIds
+	}
+	return nil
+}
+
+func (x *ReconcileRequest) GetMinAgeSeconds() uint64 {
+	if x != nil {
+		return x.MinAgeSeconds
+	}
+	return 0
+}
+
+func (x *ReconcileRequest) GetDryRun() bool {
+	if x != nil {
+		return x.DryRun
+	}
+	return false
+}
+
+type ReconcileAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Op            string                 `protobuf:"bytes,1,opt,name=op,proto3" json:"op,omitempty"`         // "destroy" or "destroy-deferred"
+	Target        string                 `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"` // "<volume id>" or "<volume id>@<snapshot>"
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReconcileAction) Reset() {
+	*x = ReconcileAction{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReconcileAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReconcileAction) ProtoMessage() {}
+
+func (x *ReconcileAction) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReconcileAction.ProtoReflect.Descriptor instead.
+func (*ReconcileAction) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ReconcileAction) GetOp() string {
+	if x != nil {
+		return x.Op
+	}
+	return ""
+}
+
+func (x *ReconcileAction) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *ReconcileAction) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type ReconcileSkip struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Target        string                 `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReconcileSkip) Reset() {
+	*x = ReconcileSkip{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReconcileSkip) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReconcileSkip) ProtoMessage() {}
+
+func (x *ReconcileSkip) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReconcileSkip.ProtoReflect.Descriptor instead.
+func (*ReconcileSkip) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ReconcileSkip) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *ReconcileSkip) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type ReconcileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// done (or, for a dry run, planned), in order
+	Actions       []*ReconcileAction `protobuf:"bytes,1,rep,name=actions,proto3" json:"actions,omitempty"`
+	Skipped       []*ReconcileSkip   `protobuf:"bytes,2,rep,name=skipped,proto3" json:"skipped,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReconcileResponse) Reset() {
+	*x = ReconcileResponse{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReconcileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReconcileResponse) ProtoMessage() {}
+
+func (x *ReconcileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReconcileResponse.ProtoReflect.Descriptor instead.
+func (*ReconcileResponse) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ReconcileResponse) GetActions() []*ReconcileAction {
+	if x != nil {
+		return x.Actions
+	}
+	return nil
+}
+
+func (x *ReconcileResponse) GetSkipped() []*ReconcileSkip {
+	if x != nil {
+		return x.Skipped
+	}
+	return nil
+}
+
 var File_zfsendpoint_v1_endpoint_proto protoreflect.FileDescriptor
 
 const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
@@ -1451,7 +1685,21 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x11GetVolumeResponse\x12.\n" +
 	"\x06volume\x18\x01 \x01(\v2\x16.zfsendpoint.v1.VolumeR\x06volume\"N\n" +
 	"\x16CreateSnapshotResponse\x124\n" +
-	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot*\xe5\x01\n" +
+	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot\"\x81\x01\n" +
+	"\x10ReconcileRequest\x12,\n" +
+	"\x12desired_volume_ids\x18\x01 \x03(\tR\x10desiredVolumeIds\x12&\n" +
+	"\x0fmin_age_seconds\x18\x02 \x01(\x04R\rminAgeSeconds\x12\x17\n" +
+	"\adry_run\x18\x03 \x01(\bR\x06dryRun\"Q\n" +
+	"\x0fReconcileAction\x12\x0e\n" +
+	"\x02op\x18\x01 \x01(\tR\x02op\x12\x16\n" +
+	"\x06target\x18\x02 \x01(\tR\x06target\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"?\n" +
+	"\rReconcileSkip\x12\x16\n" +
+	"\x06target\x18\x01 \x01(\tR\x06target\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x87\x01\n" +
+	"\x11ReconcileResponse\x129\n" +
+	"\aactions\x18\x01 \x03(\v2\x1f.zfsendpoint.v1.ReconcileActionR\aactions\x127\n" +
+	"\askipped\x18\x02 \x03(\v2\x1d.zfsendpoint.v1.ReconcileSkipR\askipped*\xff\x01\n" +
 	"\n" +
 	"Capability\x12\x1a\n" +
 	"\x16CAPABILITY_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -1461,12 +1709,14 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x1cCAPABILITY_CLONE_FROM_VOLUME\x10\x04\x12\x15\n" +
 	"\x11CAPABILITY_EXPAND\x10\x05\x12\x13\n" +
 	"\x0fCAPABILITY_LIST\x10\x06\x12\x17\n" +
-	"\x13CAPABILITY_CAPACITY\x10\a*\\\n" +
+	"\x13CAPABILITY_CAPACITY\x10\a\x12\x18\n" +
+	"\x14CAPABILITY_RECONCILE\x10\n" +
+	"*\\\n" +
 	"\n" +
 	"VolumeKind\x12\x1b\n" +
 	"\x17VOLUME_KIND_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16VOLUME_KIND_FILESYSTEM\x10\x01\x12\x15\n" +
-	"\x11VOLUME_KIND_BLOCK\x10\x022\xa8\a\n" +
+	"\x11VOLUME_KIND_BLOCK\x10\x022\xfa\a\n" +
 	"\x0fEndpointService\x12b\n" +
 	"\x0fGetCapabilities\x12&.zfsendpoint.v1.GetCapabilitiesRequest\x1a'.zfsendpoint.v1.GetCapabilitiesResponse\x12Y\n" +
 	"\fCreateVolume\x12#.zfsendpoint.v1.CreateVolumeRequest\x1a$.zfsendpoint.v1.CreateVolumeResponse\x12Y\n" +
@@ -1477,7 +1727,8 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x0eCreateSnapshot\x12%.zfsendpoint.v1.CreateSnapshotRequest\x1a&.zfsendpoint.v1.CreateSnapshotResponse\x12_\n" +
 	"\x0eDeleteSnapshot\x12%.zfsendpoint.v1.DeleteSnapshotRequest\x1a&.zfsendpoint.v1.DeleteSnapshotResponse\x12\\\n" +
 	"\rListSnapshots\x12$.zfsendpoint.v1.ListSnapshotsRequest\x1a%.zfsendpoint.v1.ListSnapshotsResponse\x12V\n" +
-	"\vGetCapacity\x12\".zfsendpoint.v1.GetCapacityRequest\x1a#.zfsendpoint.v1.GetCapacityResponseB9Z7github.com/wommy/empty/gen/zfsendpoint/v1;zfsendpointv1b\x06proto3"
+	"\vGetCapacity\x12\".zfsendpoint.v1.GetCapacityRequest\x1a#.zfsendpoint.v1.GetCapacityResponse\x12P\n" +
+	"\tReconcile\x12 .zfsendpoint.v1.ReconcileRequest\x1a!.zfsendpoint.v1.ReconcileResponseB9Z7github.com/wommy/empty/gen/zfsendpoint/v1;zfsendpointv1b\x06proto3"
 
 var (
 	file_zfsendpoint_v1_endpoint_proto_rawDescOnce sync.Once
@@ -1492,7 +1743,7 @@ func file_zfsendpoint_v1_endpoint_proto_rawDescGZIP() []byte {
 }
 
 var file_zfsendpoint_v1_endpoint_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_zfsendpoint_v1_endpoint_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_zfsendpoint_v1_endpoint_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_zfsendpoint_v1_endpoint_proto_goTypes = []any{
 	(Capability)(0),                 // 0: zfsendpoint.v1.Capability
 	(VolumeKind)(0),                 // 1: zfsendpoint.v1.VolumeKind
@@ -1518,6 +1769,10 @@ var file_zfsendpoint_v1_endpoint_proto_goTypes = []any{
 	(*ExpandVolumeResponse)(nil),    // 21: zfsendpoint.v1.ExpandVolumeResponse
 	(*GetVolumeResponse)(nil),       // 22: zfsendpoint.v1.GetVolumeResponse
 	(*CreateSnapshotResponse)(nil),  // 23: zfsendpoint.v1.CreateSnapshotResponse
+	(*ReconcileRequest)(nil),        // 24: zfsendpoint.v1.ReconcileRequest
+	(*ReconcileAction)(nil),         // 25: zfsendpoint.v1.ReconcileAction
+	(*ReconcileSkip)(nil),           // 26: zfsendpoint.v1.ReconcileSkip
+	(*ReconcileResponse)(nil),       // 27: zfsendpoint.v1.ReconcileResponse
 }
 var file_zfsendpoint_v1_endpoint_proto_depIdxs = []int32{
 	0,  // 0: zfsendpoint.v1.GetCapabilitiesResponse.capabilities:type_name -> zfsendpoint.v1.Capability
@@ -1529,31 +1784,35 @@ var file_zfsendpoint_v1_endpoint_proto_depIdxs = []int32{
 	4,  // 6: zfsendpoint.v1.ExpandVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
 	4,  // 7: zfsendpoint.v1.GetVolumeResponse.volume:type_name -> zfsendpoint.v1.Volume
 	5,  // 8: zfsendpoint.v1.CreateSnapshotResponse.snapshot:type_name -> zfsendpoint.v1.Snapshot
-	2,  // 9: zfsendpoint.v1.EndpointService.GetCapabilities:input_type -> zfsendpoint.v1.GetCapabilitiesRequest
-	6,  // 10: zfsendpoint.v1.EndpointService.CreateVolume:input_type -> zfsendpoint.v1.CreateVolumeRequest
-	7,  // 11: zfsendpoint.v1.EndpointService.DeleteVolume:input_type -> zfsendpoint.v1.DeleteVolumeRequest
-	9,  // 12: zfsendpoint.v1.EndpointService.ExpandVolume:input_type -> zfsendpoint.v1.ExpandVolumeRequest
-	10, // 13: zfsendpoint.v1.EndpointService.GetVolume:input_type -> zfsendpoint.v1.GetVolumeRequest
-	11, // 14: zfsendpoint.v1.EndpointService.ListVolumes:input_type -> zfsendpoint.v1.ListVolumesRequest
-	13, // 15: zfsendpoint.v1.EndpointService.CreateSnapshot:input_type -> zfsendpoint.v1.CreateSnapshotRequest
-	14, // 16: zfsendpoint.v1.EndpointService.DeleteSnapshot:input_type -> zfsendpoint.v1.DeleteSnapshotRequest
-	16, // 17: zfsendpoint.v1.EndpointService.ListSnapshots:input_type -> zfsendpoint.v1.ListSnapshotsRequest
-	18, // 18: zfsendpoint.v1.EndpointService.GetCapacity:input_type -> zfsendpoint.v1.GetCapacityRequest
-	3,  // 19: zfsendpoint.v1.EndpointService.GetCapabilities:output_type -> zfsendpoint.v1.GetCapabilitiesResponse
-	20, // 20: zfsendpoint.v1.EndpointService.CreateVolume:output_type -> zfsendpoint.v1.CreateVolumeResponse
-	8,  // 21: zfsendpoint.v1.EndpointService.DeleteVolume:output_type -> zfsendpoint.v1.DeleteVolumeResponse
-	21, // 22: zfsendpoint.v1.EndpointService.ExpandVolume:output_type -> zfsendpoint.v1.ExpandVolumeResponse
-	22, // 23: zfsendpoint.v1.EndpointService.GetVolume:output_type -> zfsendpoint.v1.GetVolumeResponse
-	12, // 24: zfsendpoint.v1.EndpointService.ListVolumes:output_type -> zfsendpoint.v1.ListVolumesResponse
-	23, // 25: zfsendpoint.v1.EndpointService.CreateSnapshot:output_type -> zfsendpoint.v1.CreateSnapshotResponse
-	15, // 26: zfsendpoint.v1.EndpointService.DeleteSnapshot:output_type -> zfsendpoint.v1.DeleteSnapshotResponse
-	17, // 27: zfsendpoint.v1.EndpointService.ListSnapshots:output_type -> zfsendpoint.v1.ListSnapshotsResponse
-	19, // 28: zfsendpoint.v1.EndpointService.GetCapacity:output_type -> zfsendpoint.v1.GetCapacityResponse
-	19, // [19:29] is the sub-list for method output_type
-	9,  // [9:19] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	25, // 9: zfsendpoint.v1.ReconcileResponse.actions:type_name -> zfsendpoint.v1.ReconcileAction
+	26, // 10: zfsendpoint.v1.ReconcileResponse.skipped:type_name -> zfsendpoint.v1.ReconcileSkip
+	2,  // 11: zfsendpoint.v1.EndpointService.GetCapabilities:input_type -> zfsendpoint.v1.GetCapabilitiesRequest
+	6,  // 12: zfsendpoint.v1.EndpointService.CreateVolume:input_type -> zfsendpoint.v1.CreateVolumeRequest
+	7,  // 13: zfsendpoint.v1.EndpointService.DeleteVolume:input_type -> zfsendpoint.v1.DeleteVolumeRequest
+	9,  // 14: zfsendpoint.v1.EndpointService.ExpandVolume:input_type -> zfsendpoint.v1.ExpandVolumeRequest
+	10, // 15: zfsendpoint.v1.EndpointService.GetVolume:input_type -> zfsendpoint.v1.GetVolumeRequest
+	11, // 16: zfsendpoint.v1.EndpointService.ListVolumes:input_type -> zfsendpoint.v1.ListVolumesRequest
+	13, // 17: zfsendpoint.v1.EndpointService.CreateSnapshot:input_type -> zfsendpoint.v1.CreateSnapshotRequest
+	14, // 18: zfsendpoint.v1.EndpointService.DeleteSnapshot:input_type -> zfsendpoint.v1.DeleteSnapshotRequest
+	16, // 19: zfsendpoint.v1.EndpointService.ListSnapshots:input_type -> zfsendpoint.v1.ListSnapshotsRequest
+	18, // 20: zfsendpoint.v1.EndpointService.GetCapacity:input_type -> zfsendpoint.v1.GetCapacityRequest
+	24, // 21: zfsendpoint.v1.EndpointService.Reconcile:input_type -> zfsendpoint.v1.ReconcileRequest
+	3,  // 22: zfsendpoint.v1.EndpointService.GetCapabilities:output_type -> zfsendpoint.v1.GetCapabilitiesResponse
+	20, // 23: zfsendpoint.v1.EndpointService.CreateVolume:output_type -> zfsendpoint.v1.CreateVolumeResponse
+	8,  // 24: zfsendpoint.v1.EndpointService.DeleteVolume:output_type -> zfsendpoint.v1.DeleteVolumeResponse
+	21, // 25: zfsendpoint.v1.EndpointService.ExpandVolume:output_type -> zfsendpoint.v1.ExpandVolumeResponse
+	22, // 26: zfsendpoint.v1.EndpointService.GetVolume:output_type -> zfsendpoint.v1.GetVolumeResponse
+	12, // 27: zfsendpoint.v1.EndpointService.ListVolumes:output_type -> zfsendpoint.v1.ListVolumesResponse
+	23, // 28: zfsendpoint.v1.EndpointService.CreateSnapshot:output_type -> zfsendpoint.v1.CreateSnapshotResponse
+	15, // 29: zfsendpoint.v1.EndpointService.DeleteSnapshot:output_type -> zfsendpoint.v1.DeleteSnapshotResponse
+	17, // 30: zfsendpoint.v1.EndpointService.ListSnapshots:output_type -> zfsendpoint.v1.ListSnapshotsResponse
+	19, // 31: zfsendpoint.v1.EndpointService.GetCapacity:output_type -> zfsendpoint.v1.GetCapacityResponse
+	27, // 32: zfsendpoint.v1.EndpointService.Reconcile:output_type -> zfsendpoint.v1.ReconcileResponse
+	22, // [22:33] is the sub-list for method output_type
+	11, // [11:22] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_zfsendpoint_v1_endpoint_proto_init() }
@@ -1571,7 +1830,7 @@ func file_zfsendpoint_v1_endpoint_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_zfsendpoint_v1_endpoint_proto_rawDesc), len(file_zfsendpoint_v1_endpoint_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   22,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

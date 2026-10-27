@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wommy/empty/internal/zfs"
 )
@@ -27,6 +28,7 @@ type node struct {
 	props  map[string]string // local props
 	origin string            // clone origin snapshot
 	defer_ bool              // deferred destroy pending
+	birth  int64             // creation, unix seconds
 }
 
 // Sim is an in-memory zfs. Safe for concurrent use.
@@ -38,6 +40,16 @@ type Sim struct {
 	Fail func(args []string) error
 	// PoolSize is reported as available space at the pool root.
 	PoolSize uint64
+	// Clock stamps the creation property of new datasets and snapshots
+	// (unix seconds). Nil is the wall clock.
+	Clock func() int64
+}
+
+func (s *Sim) now() int64 {
+	if s.Clock != nil {
+		return s.Clock()
+	}
+	return time.Now().Unix()
 }
 
 // New returns a Sim with the given pools.
@@ -186,7 +198,7 @@ func (s *Sim) create(args []string) error {
 			s.ds[q] = &node{typ: zfs.TypeFilesystem, props: map[string]string{}}
 		}
 	}
-	n := &node{typ: zfs.TypeFilesystem, props: props}
+	n := &node{typ: zfs.TypeFilesystem, props: props, birth: s.now()}
 	if volsize != "" {
 		v, err := strconv.ParseUint(volsize, 10, 64)
 		if err != nil || v == 0 {
@@ -226,7 +238,7 @@ func (s *Sim) snapshot(args []string) error {
 	if _, ok := s.ds[name]; ok {
 		return exit("cannot create snapshot '%s': dataset already exists", name)
 	}
-	s.ds[name] = &node{typ: zfs.TypeSnapshot, props: props}
+	s.ds[name] = &node{typ: zfs.TypeSnapshot, props: props, birth: s.now()}
 	return nil
 }
 
@@ -247,7 +259,7 @@ func (s *Sim) clone(args []string) error {
 		return exit("cannot create '%s': parent does not exist", name)
 	}
 	typ := s.ds[parent(snap)].typ
-	n := &node{typ: typ, props: props, origin: snap}
+	n := &node{typ: typ, props: props, origin: snap, birth: s.now()}
 	if typ == zfs.TypeVolume {
 		n.props["volsize"] = s.ds[parent(snap)].props["volsize"]
 		if bs, ok := s.ds[parent(snap)].props["volblocksize"]; ok {
@@ -516,7 +528,10 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 		}
 		return "off", "-", true
 	case "creation":
-		return "1700000000", "-", true
+		if n.birth == 0 {
+			return "1700000000", "-", true // pools and intermediates
+		}
+		return strconv.FormatInt(n.birth, 10), "-", true
 	}
 	if v, ok := n.props[prop]; ok {
 		return v, "local", true

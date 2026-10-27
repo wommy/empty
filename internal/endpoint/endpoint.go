@@ -65,6 +65,8 @@ type Config struct {
 	// before returning Aborted. Default 30s, and always inside the caller's
 	// deadline.
 	LockWait time.Duration
+	// Now is the clock reconcile ages rows against. Default time.Now.
+	Now func() time.Time
 }
 
 // Endpoint is the volume service.
@@ -89,6 +91,9 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 	}
 	if cfg.LockWait == 0 {
 		cfg.LockWait = 30 * time.Second
+	}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
 	}
 	names := props{cfg.PropertyPrefix}
 	return &Endpoint{
