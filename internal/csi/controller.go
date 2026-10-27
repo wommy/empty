@@ -283,9 +283,18 @@ func (c *Controller) CreateVolume(ctx context.Context, r *csi.CreateVolumeReques
 	src := r.GetVolumeContentSource()
 	switch {
 	case src == nil:
+	// an empty id would reach the endpoint as "no source" (proto3 reads an
+	// empty oneof string back as unset): a restore or clone would silently
+	// provision an empty volume
 	case src.GetSnapshot() != nil:
+		if src.GetSnapshot().GetSnapshotId() == "" {
+			return nil, invalid("volume_content_source.snapshot.snapshot_id is required")
+		}
 		req.Source = &pb.CreateVolumeRequest_SourceSnapshotId{SourceSnapshotId: src.GetSnapshot().GetSnapshotId()}
 	case src.GetVolume() != nil:
+		if src.GetVolume().GetVolumeId() == "" {
+			return nil, invalid("volume_content_source.volume.volume_id is required")
+		}
 		req.Source = &pb.CreateVolumeRequest_SourceVolumeId{SourceVolumeId: src.GetVolume().GetVolumeId()}
 	default:
 		return nil, invalid("unsupported volume_content_source")

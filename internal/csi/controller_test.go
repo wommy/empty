@@ -244,3 +244,28 @@ func TestExpandUnlimitedFilesystem(t *testing.T) {
 		t.Fatalf("%+v %v", res, err)
 	}
 }
+
+// A content source with an empty id is InvalidArgument, and nothing is
+// provisioned: the endpoint reads an empty oneof id back as "no source", so
+// a restore or clone would create an empty volume and report success.
+func TestCreateEmptyContentSourceID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep := endpointClient(t)
+	c := &zcsi.Controller{EP: ep}
+	for name, src := range map[string]*csi.VolumeContentSource{
+		"snapshot": {Type: &csi.VolumeContentSource_Snapshot{Snapshot: &csi.VolumeContentSource_SnapshotSource{}}},
+		"volume":   {Type: &csi.VolumeContentSource_Volume{Volume: &csi.VolumeContentSource_VolumeSource{}}},
+	} {
+		_, err := c.CreateVolume(ctx, &csi.CreateVolumeRequest{
+			Name: "empty-" + name, VolumeCapabilities: []*csi.VolumeCapability{capability(false)},
+			CapacityRange: &csi.CapacityRange{RequiredBytes: 1 << 20}, VolumeContentSource: src,
+		})
+		if status.Code(err) != codes.InvalidArgument {
+			t.Errorf("%s: %v, want InvalidArgument", name, err)
+		}
+		if _, err := ep.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "empty-" + name}); status.Code(err) != codes.NotFound {
+			t.Errorf("%s: a volume was provisioned: %v", name, err)
+		}
+	}
+}
