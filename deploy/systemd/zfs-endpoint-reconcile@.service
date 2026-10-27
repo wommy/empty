@@ -12,7 +12,14 @@
 # (`zfs-endpoint reconcile -apply -digest <d>`, README "Runbook: Reconcile";
 # ADR 0001 D3). The desired set is empty, which collects no committed
 # volume. A failed call (endpoint down, admin socket missing) fails the
-# unit.
+# unit with exit 1.
+#
+# -fail-on-findings: a report whose "summary:" line counts a finding (an
+# abandoned create, an orphan clone source, an uncommitted create still
+# exported, drift; not young or busy volumes) exits 3, so the unit shows
+# as failed in `systemctl --failed` and can drive OnFailure=. The
+# endpoint's own journal carries the same counts as one JSON
+# "reconcile result" line.
 #
 # It talks to the admin socket, /run/zfs-endpoint/admin/%i/endpoint.sock,
 # served to root (or the daemon's uid) only, so it runs as root. A daemon
@@ -22,7 +29,7 @@
 #
 #   [Service]
 #   ExecStart=
-#   ExecStart=/usr/local/sbin/zfs-endpoint reconcile -admin-socket unix:///run/zfs-endpoint/admin/vols/endpoint.sock -timeout 5m
+#   ExecStart=/usr/local/sbin/zfs-endpoint reconcile -admin-socket unix:///run/zfs-endpoint/admin/vols/endpoint.sock -timeout 5m -fail-on-findings
 #
 # Unlike the daemon it mounts nothing, so it takes a mount namespace and
 # no capability: root owns the socket and its directories, so connect(2)
@@ -37,7 +44,7 @@ After=zfs-endpoint@%i.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/zfs-endpoint reconcile -parent %I -timeout 5m
+ExecStart=/usr/local/sbin/zfs-endpoint reconcile -parent %I -timeout 5m -fail-on-findings
 # > -timeout
 TimeoutStartSec=6min
 UMask=0077

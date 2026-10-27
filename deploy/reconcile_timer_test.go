@@ -27,6 +27,10 @@ func TestReconcileTimerIsReportOnly(t *testing.T) {
 	if v, ok := flagValue(args, "-parent"); !ok || v != "%I" {
 		t.Errorf("-parent %q, want %%I (the endpoint unit's instance)", v)
 	}
+	// a report with findings fails the unit (exit 3), so it is seen
+	if !slices.Contains(args, "-fail-on-findings") {
+		t.Errorf("ExecStart=%q lacks -fail-on-findings: a report with findings would exit 0 unseen", args)
+	}
 	for _, a := range timerForbidden(args) {
 		t.Errorf("ExecStart passes %s: the timer only reports, against the unit's own admin socket", a)
 	}
@@ -36,7 +40,7 @@ func TestReconcileTimerIsReportOnly(t *testing.T) {
 			t.Errorf("timerForbidden misses %s", a)
 		}
 	}
-	if got := timerForbidden([]string{"zfs-endpoint", "reconcile", "-parent", "%I", "-timeout", "5m"}); got != nil {
+	if got := timerForbidden([]string{"zfs-endpoint", "reconcile", "-parent", "%I", "-timeout", "5m", "-fail-on-findings"}); got != nil {
 		t.Errorf("timerForbidden(the report flags) = %q", got)
 	}
 	// a client of one unix socket, mounting nothing: unlike the daemon it

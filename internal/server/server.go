@@ -259,6 +259,7 @@ func (s *Server) Reconcile(ctx context.Context, r *pb.ReconcileRequest) (*pb.Rec
 	if err != nil {
 		return nil, grpcErr(err)
 	}
+	logReconcileResult(ctx, plan, r.GetDryRun())
 	if !r.GetDryRun() {
 		// what was destroyed and why; each destroy's argv and outcome is
 		// also logged as it ran (zfs.Audit)
@@ -278,4 +279,20 @@ func (s *Server) Reconcile(ctx context.Context, r *pb.ReconcileRequest) (*pb.Rec
 		out.Skipped = append(out.Skipped, &pb.ReconcileSkip{Target: sk.Target, Reason: sk.Reason})
 	}
 	return out, nil
+}
+
+// logReconcileResult logs one "reconcile result" line with the answer's
+// counts (endpoint.ReconcileSummary): the journald metric ADR 0006 names,
+// for a dry run as for an applied one.
+func logReconcileResult(ctx context.Context, plan endpoint.ReconcilePlan, dryRun bool) {
+	acts := make([]string, len(plan.Actions))
+	for i, a := range plan.Actions {
+		acts[i] = a.Reason
+	}
+	skips := make([]string, len(plan.Skipped))
+	for i, s := range plan.Skipped {
+		skips[i] = s.Reason
+	}
+	sum := endpoint.SummarizeReconcile(acts, skips, dryRun)
+	slog.InfoContext(ctx, "reconcile result", append([]any{"dry_run", dryRun, "actions", len(plan.Actions)}, sum.LogAttrs()...)...)
 }
