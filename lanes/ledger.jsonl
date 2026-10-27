@@ -99,3 +99,4 @@
 {"t": "2026-10-27T17:28:13Z", "lane": "writer", "id": "ci-guards", "tokens": 126113, "tools": 62, "ms": 461406, "outcome": "merged 240ee30; skiplint static ~0.2s warm"}
 {"t": "2026-10-27T17:34:08Z", "lane": "writer", "id": "retry-fix", "tokens": 190218, "tools": 114, "ms": 973448, "claims_held": 5, "outcome": "merged 040e38b"}
 {"t": "2026-10-27T17:34:08Z", "lane": "writer", "id": "csi-local", "tokens": 228137, "tools": 99, "ms": 834039, "commits": 4, "outcome": "merged; ADR 0009"}
+{"t": "2026-10-27T17:38:16Z", "lane": "writer", "id": "ci-rebalance", "tokens": 187373, "tools": 81, "ms": 563844, "outcome": "merged f389474; nice on probation: keep if median endpoint login prompt <= +11.15s over next 3 green runs"}

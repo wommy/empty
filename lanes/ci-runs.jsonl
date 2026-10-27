@@ -36,3 +36,5 @@
 {"run":40548715833,"sha":"17877d2","result":"green","s":61,"note":"updated_at-based; at/over 60s budget - watch"}
 {"run":40549402887,"sha":"2f72064","result":"green","s":43,"note":"first VM exact csi-sanity name compare passed"}
 {"run":40550837228,"sha":"240ee30","result":"green","s":46}
+{"run":40551637783,"sha":"040e38b","result":"green","s":39}
+{"run":40551837712,"sha":"6475fea","result":"green","s":49}

@@ -40,3 +40,4 @@
 {"t": "2026-10-27T17:28:13Z", "id": "A-weights-header-conflicts", "state": "closed-structural", "fix": "4f7625d one note per line"}
 {"t": "2026-10-27T17:34:08Z", "id": "A-final-code-after-change", "state": "closed", "fix": "040e38b"}
 {"t": "2026-10-27T17:34:08Z", "id": "A-root-owner-internal-strands", "state": "closed", "fix": "9849c08"}
+{"t": "2026-10-27T17:38:16Z", "id": "A-hand-weights-unbalance-parts", "state": "fixed-pending-ci", "fix": "118a958"}
