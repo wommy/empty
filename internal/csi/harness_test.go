@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -46,6 +48,58 @@ const sanityNFSServer = "nfs.example.com"
 // the simulator's export table, or the kernel's (/var/lib/nfs/etab) on a
 // real pool, which then needs root and a running nfs-server.
 func endpointConnMode(t *testing.T, nfs bool) *grpc.ClientConn {
+	t.Helper()
+	ep, parent := newEndpoint(t, nfs)
+	lis := bufconn.Listen(1 << 20)
+	srv := grpc.NewServer()
+	pb.RegisterEndpointServiceServer(srv, &server.Server{EP: ep, Parent: parent})
+	hs := health.NewServer()
+	hs.SetServingStatus(server.ServiceName, healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(srv, hs)
+	go srv.Serve(lis)
+	t.Cleanup(srv.Stop)
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return conn
+}
+
+// daemonConn is endpointConn served as zfs-endpoint serves it: by
+// server.Daemon (request ids, one "rpc" audit line per call on log) on a
+// unix socket with the CSI role.
+func daemonConn(t *testing.T, log *slog.Logger) *grpc.ClientConn {
+	t.Helper()
+	ep, parent := newEndpoint(t, false)
+	d := server.NewDaemon(&server.Server{EP: ep, Parent: parent}, log)
+	d.SetServing(true)
+	// unix socket paths are limited to ~108 bytes; t.TempDir can exceed that
+	dir, err := os.MkdirTemp("", "csi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "e.sock")
+	lis, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go d.Serve(lis, server.RoleCSI)
+	t.Cleanup(d.GRPC.Stop)
+	conn, err := grpc.NewClient("unix://"+sock, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return conn
+}
+
+// newEndpoint is the endpoint behind endpointConnMode, on the simulator
+// or a fresh parent of ZFS_TEST_POOL, and its parent dataset.
+func newEndpoint(t *testing.T, nfs bool) (*endpoint.Endpoint, string) {
 	t.Helper()
 	ctx := context.Background()
 	var cfg endpoint.Config
@@ -90,20 +144,5 @@ func endpointConnMode(t *testing.T, nfs bool) *grpc.ClientConn {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lis := bufconn.Listen(1 << 20)
-	srv := grpc.NewServer()
-	pb.RegisterEndpointServiceServer(srv, &server.Server{EP: ep, Parent: parent})
-	hs := health.NewServer()
-	hs.SetServingStatus(server.ServiceName, healthpb.HealthCheckResponse_SERVING)
-	healthpb.RegisterHealthServer(srv, hs)
-	go srv.Serve(lis)
-	t.Cleanup(srv.Stop)
-	conn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	return conn
+	return ep, parent
 }

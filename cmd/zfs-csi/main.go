@@ -30,8 +30,11 @@ import (
 )
 
 func main() {
+	// JSON, as zfs-endpoint logs (ADR 0006): kubectl logs, and whatever
+	// collects it, gets one object per line, the fatal one included
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "zfs-csi:", err)
+		slog.Error("exit", "error", err.Error())
 		os.Exit(1)
 	}
 }
@@ -104,7 +107,9 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	srv := grpc.NewServer()
+	// a request id per call, forwarded to the endpoint, and a line per
+	// failed call (zcsi.UnaryInterceptor)
+	srv := grpc.NewServer(grpc.UnaryInterceptor(zcsi.UnaryInterceptor(slog.Default())))
 	csi.RegisterIdentityServer(srv, &zcsi.Identity{Health: healthpb.NewHealthClient(conn), Name: o.name})
 	csi.RegisterControllerServer(srv, o.controller(ep))
 
