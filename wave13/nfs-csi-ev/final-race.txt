@@ -1,0 +1,15 @@
+ok  	github.com/wommy/empty/cmd/zfs-csi	1.292s
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	2.154s
+ok  	github.com/wommy/empty/deploy	1.069s
+?   	github.com/wommy/empty/gen/zfsendpoint/v1	[no test files]
+ok  	github.com/wommy/empty/internal/csi	2.964s
+ok  	github.com/wommy/empty/internal/endpoint	17.908s
+?   	github.com/wommy/empty/internal/leakcheck	[no test files]
+ok  	github.com/wommy/empty/internal/lock	1.145s
+ok  	github.com/wommy/empty/internal/nfsref	1.134s
+ok  	github.com/wommy/empty/internal/server	10.392s
+ok  	github.com/wommy/empty/internal/unixsock	1.476s
+?   	github.com/wommy/empty/internal/version	[no test files]
+ok  	github.com/wommy/empty/internal/zfs	1.548s
+ok  	github.com/wommy/empty/internal/zfs/zfsdiff	11.515s
+?   	github.com/wommy/empty/internal/zfs/zfstest	[no test files]

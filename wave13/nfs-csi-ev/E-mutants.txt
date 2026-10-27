@@ -1,0 +1,48 @@
+### E1 no unadvertised Message (exit 1)
+--- FAIL: TestNFS_N10_Validate (0.02s)
+    nfs_test.go:382: recorded server no longer advertised: confirmed=true (""), want false
+FAIL
+FAIL	github.com/wommy/empty/internal/csi	0.071s
+FAIL
+
+### E2 export always rw (exit 1)
+--- FAIL: TestNFS_N9_Idempotency (0.02s)
+    nfs_test.go:310: same clients read-only: got <nil>, want AlreadyExists (mode is part of the value)
+--- FAIL: TestNFS_N5_ShareNFSCanonicalAndServed (0.00s)
+    nfs_test.go:249: reader-only modes: sharenfs "rw=10.20.0.0/24", want "ro=10.20.0.0/24"
+--- FAIL: TestNFS_N10_Validate (0.02s)
+    nfs_test.go:377: writer on ro export: confirmed=true (""), want false
+FAIL
+FAIL	github.com/wommy/empty/internal/csi	0.063s
+FAIL
+
+### E3 writer on ro export confirmed (exit 1)
+--- FAIL: TestNFS_N10_Validate (0.02s)
+    nfs_test.go:377: writer on ro export: confirmed=true (""), want false
+FAIL
+FAIL	github.com/wommy/empty/internal/csi	0.057s
+FAIL
+
+### E4 clients not required (exit 1)
+--- FAIL: TestNFS_N15_ClientsRequired (0.01s)
+    nfs_test.go:469: none: rpc error: code = InvalidArgument desc = an NFS export needs at least one client network does not name nfs.clients
+    nfs_test.go:469: server: rpc error: code = InvalidArgument desc = an NFS export needs at least one client network does not name nfs.clients
+    nfs_test.go:467: uid: refused as an unknown key ("unsupported parameter \"nfs.uid\""), not for its value
+    nfs_test.go:469: uid: rpc error: code = InvalidArgument desc = unsupported parameter "nfs.uid" does not name nfs.clients
+    nfs_test.go:469: sparse: rpc error: code = InvalidArgument desc = an NFS export needs at least one client network does not name nfs.clients
+    nfs_test.go:469: clone: rpc error: code = InvalidArgument desc = an NFS export needs at least one client network does not name nfs.clients
+FAIL
+FAIL	github.com/wommy/empty/internal/csi	0.201s
+FAIL
+
+### E5 server/share for every filesystem (exit 1)
+--- FAIL: TestNFS_N16_InheritedServerIgnored (0.05s)
+    nfs_test.go:507: inherited server "" in volume_context
+--- FAIL: TestNFS_OffWithoutServers (0.37s)
+    nfs_test.go:494: context map[dataset:tank/vols/v kind:filesystem mountpoint:/tank/vols/v server: share:/tank/vols/v]
+--- FAIL: TestNFS_N14_ListVolumesSameContext (0.32s)
+    nfs_test.go:447: pre-NFS volume has a server: map[dataset:tank/vols/plain kind:filesystem mountpoint:/tank/vols/plain server: share:/tank/vols/plain]
+FAIL
+FAIL	github.com/wommy/empty/internal/csi	0.917s
+FAIL
+

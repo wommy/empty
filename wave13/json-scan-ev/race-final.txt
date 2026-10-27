@@ -1,0 +1,11 @@
+ok  	github.com/wommy/empty/cmd/zfs-csi	0.055s
+ok  	github.com/wommy/empty/cmd/zfs-endpoint	0.218s
+ok  	github.com/wommy/empty/deploy	0.096s
+ok  	github.com/wommy/empty/internal/csi	1.581s
+ok  	github.com/wommy/empty/internal/endpoint	9.929s
+ok  	github.com/wommy/empty/internal/lock	0.082s
+ok  	github.com/wommy/empty/internal/nfsref	0.024s
+ok  	github.com/wommy/empty/internal/server	4.950s
+ok  	github.com/wommy/empty/internal/unixsock	0.039s
+ok  	github.com/wommy/empty/internal/zfs	1.197s
+ok  	github.com/wommy/empty/internal/zfs/zfsdiff	5.389s

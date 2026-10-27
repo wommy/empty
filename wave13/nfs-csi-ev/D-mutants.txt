@@ -1,0 +1,45 @@
+### M1 commit without verifyExport (exit 1)
+--- FAIL: TestFileExportCreateNotServed (0.01s)
+    --- FAIL: TestFileExportCreateNotServed/exportfs_fails (0.00s)
+        export_create_contract_test.go:111: code = 0 (<nil>), want 14
+    --- FAIL: TestFileExportCreateNotServed/nfsd_stopped (0.00s)
+        export_create_contract_test.go:111: code = 0 (<nil>), want 14
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.059s
+FAIL
+
+### M2 server ignored by idempotency (exit 1)
+--- FAIL: TestFileExportCreate (0.00s)
+    export_create_contract_test.go:76: code = 0 (<nil>), want 6
+--- FAIL: TestPlanCreateVolumeNFS (0.01s)
+    --- FAIL: TestPlanCreateVolumeNFS/committed,_another_server_named (0.00s)
+        nfs_create_test.go:167: err <nil>, want code 6
+    --- FAIL: TestPlanCreateVolumeNFS/committed_legacy_export,_server_named (0.00s)
+        nfs_create_test.go:167: err <nil>, want code 6
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.057s
+FAIL
+
+### M3 server recomputed from the advertised list (exit 1)
+--- FAIL: TestVolumeViewNFS (0.00s)
+    nfs_create_test.go:232: read-only: &{Clients:[10.20.0.0/24] ReadOnly:true Server:192.0.2.10}, want &{Clients:[10.20.0.0/24] ReadOnly:true Server:nfs.example.com}
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.045s
+FAIL
+
+### M4 no unadvertised report (exit 1)
+--- FAIL: TestFileExportCreateServerSurvivesRestart (0.00s)
+    export_create_contract_test.go:156: reported []
+--- FAIL: TestPlanReconcileNFSServer (0.00s)
+    nfs_create_test.go:264: no longer advertised: skipped [], want ["a:recorded NFS server is no longer advertised (-nfs-server): its PVs still mount it"]
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.066s
+FAIL
+
+### M5 inherited server read as the volume's (exit 1)
+--- FAIL: TestFileExportCreateServerElsewhere (0.00s)
+    export_create_contract_test.go:174: inherited server reported: &{Clients:[] ReadOnly:false Server:198.51.100.1}
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.048s
+FAIL
+

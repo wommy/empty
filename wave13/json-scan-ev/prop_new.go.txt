@@ -1,0 +1,123 @@
+// prop reads one property, which zfs prints in exactly one form (the
+// nvlist printer writes no whitespace, members in insertion order):
+//
+//	{"value":"<v>","source":{"type":"<T>","data":"<D>"}}
+//
+// jsontext reads it as one value, which checks its syntax and UTF-8; the
+// form is then matched byte for byte, so anything else, from whitespace to
+// a repeated or extra member, is refused. One ReadValue instead of eleven
+// tokens: properties are nearly all of a scan. The source is spelled the
+// way zprop_print_one_property does in text mode.
+func (s *jsonScan) prop() (Prop, error) {
+	raw, err := s.dec.ReadValue()
+	if err != nil {
+		return Prop{}, err
+	}
+	val, typ, data, ok := propForm(raw)
+	if !ok {
+		return Prop{}, fmt.Errorf("%w: property is not {\"value\":string,\"source\":{\"type\":string,\"data\":string}}: %.80s", errSchema, raw)
+	}
+	var p Prop
+	if p.Source, err = s.source(typ, data); err != nil {
+		return p, err
+	}
+	// the value last: unquote reuses s.buf
+	v, err := s.unquote(val)
+	if err != nil {
+		return p, err
+	}
+	p.Value = s.keep(v)
+	return p, nil
+}
+
+var (
+	formValue  = []byte(`{"value":`)
+	formSource = []byte(`,"source":{"type":`)
+	formData   = []byte(`,"data":`)
+	formEnd    = []byte(`}}`)
+)
+
+// propForm splits a property object, already valid JSON, into its three
+// quoted strings, or reports that it is not in zfs's form.
+func propForm(raw []byte) (val, typ, data []byte, ok bool) {
+	rest, ok := bytes.CutPrefix(raw, formValue)
+	if ok {
+		val, rest, ok = cutString(rest)
+	}
+	if ok {
+		rest, ok = bytes.CutPrefix(rest, formSource)
+	}
+	if ok {
+		typ, rest, ok = cutString(rest)
+	}
+	if ok {
+		rest, ok = bytes.CutPrefix(rest, formData)
+	}
+	if ok {
+		data, rest, ok = cutString(rest)
+	}
+	return val, typ, data, ok && bytes.Equal(rest, formEnd)
+}
+
+// cutString cuts the quoted JSON string b starts with. b comes from a
+// value jsontext has validated, so every escape is complete: a backslash
+// always has a character after it.
+func cutString(b []byte) (str, rest []byte, ok bool) {
+	if len(b) == 0 || b[0] != '"' {
+		return nil, b, false
+	}
+	for i := 1; i < len(b); i++ {
+		switch b[i] {
+		case '\\':
+			i++
+		case '"':
+			return b[:i+1], b[i+1:], true
+		}
+	}
+	return nil, b, false
+}
+
+// unquote returns the contents of the quoted string q, valid until the
+// next read or unquote.
+func (s *jsonScan) unquote(q []byte) ([]byte, error) {
+	if bytes.IndexByte(q, '\\') < 0 {
+		return q[1 : len(q)-1], nil
+	}
+	var err error
+	s.buf, err = jsontext.AppendUnquote(s.buf[:0], q)
+	return s.buf, err
+}
+
+// source spells a property source (quoted type and data) the way -Hp does.
+func (s *jsonScan) source(typ, data []byte) (string, error) {
+	var t string
+	switch string(typ) {
+	case `"NONE"`:
+		t = "-"
+	case `"DEFAULT"`:
+		t = "default"
+	case `"LOCAL"`:
+		t = "local"
+	case `"TEMPORARY"`:
+		t = "temporary"
+	case `"RECEIVED"`:
+		t = "received"
+	case `"INHERITED"`:
+		d, err := s.unquote(data)
+		if err != nil {
+			return "", err
+		}
+		if len(d) == 0 || string(d) == "-" {
+			return "", errors.New("inherited source without a dataset")
+		}
+		return s.keepPrefixed("inherited from ", d), nil
+	default:
+		return "", fmt.Errorf("unknown source type %s", typ)
+	}
+	// data is "-" for everything but INHERITED (RECEIVED carries the
+	// received value only when -o received is asked for, which we never do)
+	if string(data) != `"-"` {
+		return "", fmt.Errorf("source %s carries data %s", typ, data)
+	}
+	return t, nil
+}

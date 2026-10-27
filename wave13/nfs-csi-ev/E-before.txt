@@ -1,0 +1,58 @@
+--- FAIL: TestNFS_N9_UncommittedConverges (0.00s)
+    nfs_test.go:331: nfsd down: rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N1_ParamsAccepted (0.00s)
+    nfs_test.go:154: CreateVolume(n1, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N9_Idempotency (0.00s)
+    nfs_test.go:298: CreateVolume(n9, map[nfs.clients:10.20.0.0/24,10.20.1.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N7_BlockRefused (0.00s)
+    nfs_test.go:277: block access with nfs.clients: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+--- FAIL: TestNFS_N8_MultiNodeModes (0.00s)
+    nfs_test.go:286: MULTI_NODE_READER_ONLY: rpc error: code = InvalidArgument desc = access mode MULTI_NODE_READER_ONLY is not supported
+    nfs_test.go:286: MULTI_NODE_SINGLE_WRITER: rpc error: code = InvalidArgument desc = access mode MULTI_NODE_SINGLE_WRITER is not supported
+    nfs_test.go:286: MULTI_NODE_MULTI_WRITER: rpc error: code = InvalidArgument desc = access mode MULTI_NODE_MULTI_WRITER is not supported
+--- FAIL: TestNFS_N13_CloneTakesRequestExport (0.00s)
+    nfs_test.go:405: CreateVolume(n13src, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N12_DeleteUnexports (0.00s)
+    nfs_test.go:389: CreateVolume(n12, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N10_Validate (0.00s)
+    nfs_test.go:348: CreateVolume(n10rw, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = access mode MULTI_NODE_MULTI_WRITER is not supported
+--- FAIL: TestNFS_N4_VolumeContext (0.00s)
+    nfs_test.go:216: CreateVolume(n4, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N5_ShareNFSCanonicalAndServed (0.00s)
+    nfs_test.go:235: CreateVolume(n5, map[nfs.clients:10.20.1.0/24,10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N3_ServerSelection (0.00s)
+    nfs_test.go:195: CreateVolume(n3a, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N6_NFSDDownNotCommitted (0.01s)
+    nfs_test.go:262: nfsd down: got rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients", want Unavailable
+    nfs_test.go:268: CreateVolume(n6, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N14_ListVolumesSameContext (0.01s)
+    nfs_test.go:437: CreateVolume(n14, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_OffWithoutServers (0.00s)
+    nfs_test.go:481: NFS parameter without NFS mode: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:483: unclear: rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+    nfs_test.go:481: NFS parameter without NFS mode: refused as an unknown key ("unsupported parameter \"nfs.server\""), not for its value
+    nfs_test.go:483: unclear: rpc error: code = InvalidArgument desc = unsupported parameter "nfs.server"
+--- FAIL: TestNFS_N15_ClientsRequired (0.00s)
+    nfs_test.go:456: CreateVolume(src, map[nfs.clients:10.20.0.0/24]): rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+--- FAIL: TestNFS_N2_ClientsValidated (0.00s)
+    nfs_test.go:164: nfs.clients="10.20.0.0/24": rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+    nfs_test.go:164: nfs.clients="10.20.0.0/24,10.20.1.0/24": rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+    nfs_test.go:164: nfs.clients="10.20.0.5/32": rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+    nfs_test.go:164: nfs.clients="10.20.0.0/16": rpc error: code = InvalidArgument desc = unsupported parameter "nfs.clients"
+    nfs_test.go:183: nfs.clients=: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=10.20.0.5: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=10.20.0.5/24: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=10.0.0.0/8: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=0.0.0.0/0: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=10.20.0.0/24,10.20.0.128/25: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=host.example.com/32: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=*: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=2001:db8::/64: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=10.20.0.0/24:10.20.1.0/24: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=10.20.0.0/24,no_root_squash: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=10.20.0.0/24,: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:183: nfs.clients=010.020.000.000/24: refused as an unknown key ("unsupported parameter \"nfs.clients\""), not for its value
+    nfs_test.go:186: a refused create left a volume: 0 listed
+FAIL
+FAIL	github.com/wommy/empty/internal/csi	0.028s
+FAIL

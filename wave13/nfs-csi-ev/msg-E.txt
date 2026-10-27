@@ -1,0 +1,29 @@
+csi: NFS mode, with server and share in volume_context
+
+The controller serves volumes over NFS iff the endpoint advertises NFS
+servers (asked per call, so no flag can disagree with it; wave13 Q2). In
+NFS mode:
+
+- nfs.clients (comma-separated IPv4 networks with /N) is required for
+  every mount CreateVolume, clones and restores included, and the
+  refusal names it; nfs.server picks an advertised server. The endpoint
+  validates both and never masks a value.
+- The export is ro= iff every requested mode is reader-only.
+- A filesystem takes all five access modes, with fs_type "" or "nfs";
+  block is refused (csi-driver-nfs cannot publish a zvol).
+- volume_context carries server (the address recorded at create) and
+  share (the mountpoint), only for a volume created with an export, so a
+  pre-NFS volume keeps the context it was created with (S11).
+- ValidateVolumeCapabilities refuses, with a Message, a volume without an
+  export, a writer mode on a read-only export, a context key that is not
+  the volume's (key by key; Kubernetes' own keys are tolerated), and a
+  recorded server the endpoint no longer advertises.
+
+Outside NFS mode the nfs.* keys are refused for the mode, not as unknown
+parameters, and nothing else changes.
+
+The tests are the wave9 acceptance list (N1-N10, N12-N15) with the
+wave13 decisions applied, plus N16; N11 (root ownership) is not built.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

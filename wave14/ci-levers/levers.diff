@@ -1,0 +1,562 @@
+diff --git a/.github/actions/real-zfs-keys/action.yml b/.github/actions/real-zfs-keys/action.yml
+index 4788603..8b96aca 100644
+--- a/.github/actions/real-zfs-keys/action.yml
++++ b/.github/actions/real-zfs-keys/action.yml
+@@ -15,6 +15,10 @@ outputs:
+-  guest:
+-    description: provisioned-guest cache key
+-    value: ${{ steps.keys.outputs.guest }}
+-  qemu:
+-    description: qemu-tree cache key
+-    value: ${{ steps.keys.outputs.qemu }}
++  vm:
++    description: >-
++      key of the one cache entry holding the provisioned guest
++      (<runner.temp>/zfsvm-cache) and the qemu tree (<runner.temp>/qemu)
++    value: ${{ steps.keys.outputs.vm }}
++  vm-fallback:
++    description: >-
++      restore-keys prefix: the same guest with another runner image's qemu
++      tree, which ci/qemu-tree.sh verifies (and rebuilds if it does not run)
++    value: ${{ steps.keys.outputs.vm-fallback }}
+@@ -47,7 +51,13 @@ runs:
+-        # provisioning inputs only: editing how the tests run must not
+-        # reprovision. v3: the cache also holds the kernel, initrd and
+-        # cmdline for a direct kernel boot. The ISO week bounds how far the
+-        # guest can lag zfsutils updates published after the image
+-        echo "guest=zfsvm-v3-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)" >>"$GITHUB_OUTPUT"
+-        # the qemu tree is unpacked from this runner image's apt view
+-        echo "qemu=qemu-tree-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"
++        # the guest part: provisioning inputs only, so editing how the
++        # tests run must not reprovision. The ISO week bounds how far the
++        # guest can lag zfsutils updates published after the image. v3: the
++        # cache also holds the kernel, initrd and cmdline for a direct
++        # kernel boot. v4: one entry holds the guest and the qemu tree, so
++        # the job pays one cache restore, not two (~2s of per-restore
++        # overhead for 23 MB, run 40494213342)
++        guest=zfsvm-v4-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)
++        # the qemu part: the tree is unpacked from this runner image's apt
++        # view. A runner image release misses the full key but restores the
++        # guest through the fallback prefix, with the old tree
++        echo "vm=$guest-qemu-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"
++        echo "vm-fallback=$guest-qemu-" >>"$GITHUB_OUTPUT"
+diff --git a/.github/workflows/cache-warm.yml b/.github/workflows/cache-warm.yml
+index bd1ea3e..d3c9e48 100644
+--- a/.github/workflows/cache-warm.yml
++++ b/.github/workflows/cache-warm.yml
+@@ -7 +7,2 @@ name: cache-warm
+-# (~13s) and a stale Go build cache. ADR 0005's 60s budget is for warm
++# (~13s) and a stale Go build cache. The guest and the qemu tree share one
++# cache entry, which ci.yml restores in one step. ADR 0005's 60s budget is for warm
+@@ -125,2 +126,7 @@ jobs:
+-      - name: look up the provisioned guest
+-        id: guestprobe
++      # one entry holds the guest and the qemu tree (ci.yml restores it in
++      # one step). Three cases: the full key exists (nothing to do); only
++      # the guest part matches (a runner image release: restore it, build a
++      # fresh qemu tree, save under the new key, no reprovisioning); nothing
++      # matches (provision)
++      - name: look up the provisioned guest and qemu
++        id: probe
+@@ -129,2 +135,5 @@ jobs:
+-          path: ${{ runner.temp }}/zfsvm-cache
+-          key: ${{ steps.keys.outputs.guest }}
++          path: |
++            ${{ runner.temp }}/zfsvm-cache
++            ${{ runner.temp }}/qemu
++          key: ${{ steps.keys.outputs.vm }}
++          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
+@@ -132,2 +141,2 @@ jobs:
+-      - name: restore qemu
+-        id: qemu
++      - name: restore the provisioned guest (another runner image's qemu)
++        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key != ''
+@@ -136,2 +145,5 @@ jobs:
+-          path: ${{ runner.temp }}/qemu
+-          key: ${{ steps.keys.outputs.qemu }}
++          path: |
++            ${{ runner.temp }}/zfsvm-cache
++            ${{ runner.temp }}/qemu
++          key: ${{ steps.keys.outputs.vm }}
++          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
+@@ -140 +152 @@ jobs:
+-        if: steps.qemu.outputs.cache-hit != 'true' || steps.guestprobe.outputs.cache-hit != 'true'
++        if: steps.probe.outputs.cache-hit != 'true'
+@@ -141,0 +154,3 @@ jobs:
++          # always a fresh tree for this runner image: a restored one came
++          # from another image (ci.yml only verifies it, for speed)
++          rm -rf "$RUNNER_TEMP/qemu"
+@@ -147 +162,2 @@ jobs:
+-            rm -rf "$RUNNER_TEMP/qemu"
++            # empty, so the guest is still saved; runs fall back to apt
++            rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"
+@@ -152,6 +167,0 @@ jobs:
+-      - name: save qemu
+-        if: steps.qemu.outputs.cache-hit != 'true' && steps.qemutree.outputs.ok == '1'
+-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+-        with:
+-          path: ${{ runner.temp }}/qemu
+-          key: ${{ steps.keys.outputs.qemu }}
+@@ -159 +169 @@ jobs:
+-        if: steps.guestprobe.outputs.cache-hit != 'true'
++        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key == ''
+@@ -168 +178 @@ jobs:
+-        if: steps.guestprobe.outputs.cache-hit != 'true'
++        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key == ''
+@@ -176 +186 @@ jobs:
+-        if: steps.guestprobe.outputs.cache-hit != 'true'
++        if: steps.probe.outputs.cache-hit != 'true'
+@@ -178 +188 @@ jobs:
+-      - name: save the provisioned guest
++      - name: save the provisioned guest and qemu
+@@ -183,2 +193,4 @@ jobs:
+-          path: ${{ runner.temp }}/zfsvm-cache
+-          key: ${{ steps.keys.outputs.guest }}
++          path: |
++            ${{ runner.temp }}/zfsvm-cache
++            ${{ runner.temp }}/qemu
++          key: ${{ steps.keys.outputs.vm }}
+@@ -186 +198,3 @@ jobs:
+-        # each is ~0.8 GB of the repository's 10 GB cache budget
++        # each is ~0.9 GB of the repository's 10 GB cache budget; this also
++        # removes the v3 guest entries. The v3-era qemu-tree-* entries
++        # (23 MB) age out unused after 7 days
+@@ -190 +204 @@ jobs:
+-          KEEP: ${{ steps.keys.outputs.guest }}
++          KEEP: ${{ steps.keys.outputs.vm }}
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 12e6f07..177e3f8 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -142,4 +142,5 @@ jobs:
+-    # Step order is the critical path: the guest and qemu restore first,
+-    # the guest boots in the background, and setup-go and the test build
+-    # run while it boots. The caches are kept warm on the default branch by
+-    # cache-warm.yml, which PRs read (a PR's own saves are PR-scoped).
++    # Step order is the critical path: the guest and qemu restore first
++    # (one cache entry), the guest boots in the background, and setup-go
++    # and the test build run while it boots. The caches are kept warm on
++    # the default branch by cache-warm.yml, which PRs read (a PR's own
++    # saves are PR-scoped).
+@@ -163,2 +164,7 @@ jobs:
+-      - name: restore the provisioned guest
+-        id: guest
++      # one entry, two trees: the provisioned guest, and qemu without apt
++      # (the packages apt would add, unpacked once per runner image version,
++      # ~90 MB; 14s of apt-get becomes ~1s). After a runner image release
++      # the fallback key restores the guest with the old qemu tree, which
++      # the next step verifies or rebuilds
++      - name: restore the provisioned guest and qemu
++        id: vm
+@@ -167,10 +173,5 @@ jobs:
+-          path: ${{ runner.temp }}/zfsvm-cache
+-          key: ${{ steps.keys.outputs.guest }}
+-      # qemu without apt: the packages apt would add, unpacked once per
+-      # runner image version and cached (~90 MB); 14s of apt-get becomes ~1s
+-      - name: restore qemu
+-        id: qemu
+-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+-        with:
+-          path: ${{ runner.temp }}/qemu
+-          key: ${{ steps.keys.outputs.qemu }}
++          path: |
++            ${{ runner.temp }}/zfsvm-cache
++            ${{ runner.temp }}/qemu
++          key: ${{ steps.keys.outputs.vm }}
++          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
+@@ -186 +187,3 @@ jobs:
+-            rm -rf "$RUNNER_TEMP/qemu"
++            # empty, so the guest can still be saved; the next run falls
++            # back to apt again, as it did with no qemu entry
++            rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"
+@@ -193 +196 @@ jobs:
+-        if: steps.guest.outputs.cache-hit != 'true'
++        if: steps.vm.outputs.cache-matched-key == ''
+@@ -220 +223,2 @@ jobs:
+-        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh
++        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh;
++        # load.txt + vmstat.txt: the guest's CPU and pressure in the tests
+@@ -228,0 +233,2 @@ jobs:
++            ${{ runner.temp }}/zfsvm/out/load.txt
++            ${{ runner.temp }}/zfsvm/out/vmstat.txt
+@@ -233 +239 @@ jobs:
+-        if: always() && steps.guest.outputs.cache-hit != 'true'
++        if: always() && steps.vm.outputs.cache-hit != 'true'
+@@ -235,2 +241,4 @@ jobs:
+-      - name: save the provisioned guest
+-        # also after a test failure: provisioning succeeded, and the version
++      - name: save the provisioned guest and qemu
++        # a cold guest, or a guest restored with another runner image's qemu
++        # tree; after the tests, so a miss does not delay the boot. Also
++        # after a test failure: provisioning succeeded, and the version
+@@ -241,9 +249,4 @@ jobs:
+-          path: ${{ runner.temp }}/zfsvm-cache
+-          key: ${{ steps.keys.outputs.guest }}
+-      - name: save qemu
+-        # after the tests: a miss (new runner image) does not delay the boot
+-        if: always() && steps.qemu.outputs.cache-hit != 'true' && steps.qemutree.outputs.ok == '1'
+-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+-        with:
+-          path: ${{ runner.temp }}/qemu
+-          key: ${{ steps.keys.outputs.qemu }}
++          path: |
++            ${{ runner.temp }}/zfsvm-cache
++            ${{ runner.temp }}/qemu
++          key: ${{ steps.keys.outputs.vm }}
+diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
+index 7ee085f..e01d2fa 100644
+--- a/.github/workflows/nightly.yml
++++ b/.github/workflows/nightly.yml
+@@ -132,2 +132,3 @@ jobs:
+-      - name: restore the provisioned guest
+-        id: guest
++      - name: restore the provisioned guest and qemu
++        # one entry, the same paths and keys as ci.yml
++        id: vm
+@@ -136,7 +137,5 @@ jobs:
+-          path: ${{ runner.temp }}/zfsvm-cache
+-          key: ${{ steps.keys.outputs.guest }}
+-      - name: restore qemu
+-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+-        with:
+-          path: ${{ runner.temp }}/qemu
+-          key: ${{ steps.keys.outputs.qemu }}
++          path: |
++            ${{ runner.temp }}/zfsvm-cache
++            ${{ runner.temp }}/qemu
++          key: ${{ steps.keys.outputs.vm }}
++          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
+@@ -154 +153 @@ jobs:
+-        if: steps.guest.outputs.cache-hit != 'true'
++        if: steps.vm.outputs.cache-matched-key == ''
+diff --git a/ci/check-split.sh b/ci/check-split.sh
+new file mode 100755
+index 0000000..32cfe3b
+--- /dev/null
++++ b/ci/check-split.sh
+@@ -0,0 +1,68 @@
++#!/usr/bin/env bash
++# Check that a test split across shards (ci/real-zfs-guest.sh: split=) ran
++# every one of its subtests in exactly one shard. ci/check-skips.sh already
++# checks that the test itself passed; this checks that the parts add up.
++#
++# usage: ci/check-split.sh <test> <test list> <shard log>...
++#   ci/check-split.sh TestPropertyRoundTrip "$o/endpoint.list" "$o"/endpoint.[0-9].log
++#
++# Each shard's log carries the test's partition line
++#   <file>:<line>: PROPRT_SHARD <i>/<n>: <k> of <total> rows
++# and fails here unless
++# - there is exactly one such line per shard i = 0..n-1, with one n and one
++#   total across them, and the k sum to the total;
++# - the subtests reporting a result (PASS, FAIL or SKIP) number the total,
++#   and none reports in two shards (or twice in one).
++# A test missing from the list is not checked (it was renamed or removed;
++# check-skips covers the list).
++set -euo pipefail
++
++test=${1:?test, e.g. TestPropertyRoundTrip}
++list=${2:?test list}
++shift 2
++[ $# -gt 0 ] || { echo "::error::check-split: no shard logs" >&2; exit 1; }
++
++listed=$(awk -v t="$test" '$1 == t { n++ } END { print n + 0 }' "$list")
++if [ "$listed" = 0 ]; then
++  echo "check-split: $test is not in $list; nothing to check"
++  exit 0
++fi
++
++# awk reads every line of every log: no early-closing reader in a pipe
++awk -v t="$test" '
++  # the partition line, wherever t.Logf put it on the line
++  match($0, /PROPRT_SHARD [0-9]+\/[0-9]+: [0-9]+ of [0-9]+ rows/) {
++    split(substr($0, RSTART, RLENGTH), f, /[ \/:]+/)
++    i = f[2]; n = f[3]; k = f[4]; tot = f[6]
++    parts++
++    if (i in seen) { bad = bad sprintf("shard %d reported twice (%s)\n", i, FILENAME) }
++    seen[i] = 1
++    if (n0 == "") { n0 = n; tot0 = tot } else if (n != n0 || tot != tot0) {
++      bad = bad sprintf("%s says %d/%d of %d rows, another shard %s of %s\n", FILENAME, i, n, tot, n0, tot0)
++    }
++    sum += k
++    next
++  }
++  # a subtest result, anchored nowhere: it can be glued to output
++  match($0, /--- (PASS|FAIL|SKIP): [^ ]+ \(/) {
++    name = substr($0, RSTART, RLENGTH)
++    sub(/^--- [A-Z]+: /, "", name)
++    sub(/ \($/, "", name)
++    if (index(name, t "/") != 1) next
++    if (name in where) dup = dup sprintf("%s in %s and %s\n", name, where[name], FILENAME)
++    else { where[name] = FILENAME; subs++ }
++  }
++  END {
++    rc = 0
++    if (parts == 0) { printf "::error::check-split: no PROPRT_SHARD line for %s in any shard log\n", t; exit 1 }
++    for (i = 0; i < n0; i++) if (!(i in seen)) { bad = bad sprintf("shard %d/%d never ran %s\n", i, n0, t) }
++    if (parts != n0) bad = bad sprintf("%d partition lines for %d shards\n", parts, n0)
++    if (sum != tot0) bad = bad sprintf("the shards ran %d rows, the table has %d\n", sum, tot0)
++    if (subs != tot0) bad = bad sprintf("%d subtests reported a result, the table has %d\n", subs, tot0)
++    if (bad != "" || dup != "") {
++      printf "::error::check-split: %s was not split into exactly one run per subtest\n%s", t, bad
++      if (dup != "") printf "ran twice:\n%s", dup
++      exit 1
++    }
++    printf "check-split: %s: %d subtests over %d shards, each exactly once\n", t, subs, n0
++  }' "$@"
+diff --git a/ci/real-zfs-cloud-config.yaml b/ci/real-zfs-cloud-config.yaml
+index 451a769..da43232 100644
+--- a/ci/real-zfs-cloud-config.yaml
++++ b/ci/real-zfs-cloud-config.yaml
+@@ -21,0 +22,8 @@ runcmd:
++  # /boot and /boot/efi off the boot path: a warm boot loads the kernel
++  # and initrd stored with the disk (-kernel, -initrd) or through GRUB,
++  # which reads the partitions itself, and nothing installs a kernel after
++  # provisioning. Mounting them waited for vda13 and vda15 to appear (4.2
++  # and 4.8s into the boot, runs 40497090324 and 40494213342). Takes effect
++  # from the next boot: this boot still copies the kernel out of /boot
++  - |
++    awk '$1 !~ /^#/ && ($2 == "/boot" || $2 == "/boot/efi") && $4 !~ /(^|,)noauto(,|$)/ { $4 = $4 ",noauto" } { print }' /etc/fstab >/etc/fstab.new && cat /etc/fstab.new >/etc/fstab && rm /etc/fstab.new
+diff --git a/ci/real-zfs-guest.sh b/ci/real-zfs-guest.sh
+index 91775e8..e5c761c 100755
+--- a/ci/real-zfs-guest.sh
++++ b/ci/real-zfs-guest.sh
+@@ -13 +13,3 @@
+-# Shards: the endpoint binary split three ways by ci/real-zfs-weights.txt
++# Shards: the endpoint binary split three ways by ci/real-zfs-weights.txt,
++# with TestPropertyRoundTrip in all three, each running a third of its rows
++# (PROPRT_SHARD; ci/check-split.sh checks that every row ran exactly once)
+@@ -45 +47,4 @@ mkpool() { truncate -s 10G "$vd/$1.vdev" && zpool create -f -O compression=lz4 "
+-# first onto the lightest shard
++# first onto the lightest shard. A split test (split=) runs in every shard,
++# each on its own part of its subtests (TestPropertyRoundTrip reads
++# PROPRT_SHARD=<i>/<n>, set below), so its weight goes 1/n to each shard
++# before the rest are placed
+@@ -47,0 +53 @@ nfs='^(TestFileExport|TestNFSReplay$)'
++split='^TestPropertyRoundTrip$'
+@@ -49,3 +55,5 @@ shard() {
+-  awk -v nfs="$nfs" 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
+-       /^(Test|Fuzz|Example)/ { g = ($1 ~ nfs) ? "nfs" : $1
+-                 wt[g] += ($1 in w) ? w[$1] : 0.1; m[g] = m[g] " " $1 }
++  awk -v nfs="$nfs" -v sp="$split" 'FNR == NR { if ($1 !~ /^#/ && NF == 2) w[$1] = $2; next }
++       /^(Test|Fuzz|Example)/ { x = ($1 in w) ? w[$1] : 0.1
++                 if ($1 ~ sp) { printf "S %.3f %s\n", x, $1; next }
++                 g = ($1 ~ nfs) ? "nfs" : $1
++                 wt[g] += x; m[g] = m[g] " " $1 }
+@@ -54,2 +62,6 @@ shard() {
+-    awk -v n="$3" '{ b = 0; for (i = 1; i < n; i++) if (load[i] + 0 < load[b] + 0) b = i
+-                     load[b] += $1; for (j = 2; j <= NF; j++) print b, $j }'
++    awk -v n="$3" '$1 == "S" { for (i = 0; i < n; i++) { load[i] += $2 / n; print i, $3 }; next }
++                   { g[++k] = $0 }
++                   END { for (x = 1; x <= k; x++) {
++                           c = split(g[x], f, " "); b = 0
++                           for (i = 1; i < n; i++) if (load[i] + 0 < load[b] + 0) b = i
++                           load[b] += f[1]; for (j = 2; j <= c; j++) print b, f[j] } }'
+@@ -81,0 +94,18 @@ marks='=== (RUN|PAUSE|CONT) |--- (PASS|FAIL|SKIP): '
++# guest load over the test phase, for deciding whether the VM job should
++# be split across two runners (ADR 0005): the CPU counters of /proc/stat and
++# the pressure (PSI) totals of /proc/pressure/{cpu,io,memory} before and
++# after, summarised in out/load.txt, and vmstat 1 across the phase in
++# out/vmstat.txt. Diagnostics only: nothing here can fail the run
++snap() {
++  echo "uptime $(up)"
++  awk '$1 == "cpu"' /proc/stat
++  for r in cpu io memory; do
++    [ -r "/proc/pressure/$r" ] && awk -v r="$r" '{ print "psi", r, $0 }' "/proc/pressure/$r"
++  done
++}
++snap >"$out/load.before" 2>/dev/null || true
++vmstat_pid=
++if command -v vmstat >/dev/null; then
++  vmstat -n -t 1 >"$out/vmstat.txt" 2>&1 &
++  vmstat_pid=$!
++fi
+@@ -97,0 +128,3 @@ run() {
++# -test.parallel=8 for the endpoint shards: their parallel tests wait on
++# zfs(8) and the kernel more than on CPU, and a shard's solo tail ran 4 at a
++# time on 4 vCPUs (run 40494213342); the csi shards are mostly sequential
+@@ -101 +134,2 @@ for i in $(seq 0 $((ep_shards - 1))); do
+-  run "endpoint.$i" "zep$i" ./endpoint.test "${t[@]}" -test.run "^($re)\$"
++  run "endpoint.$i" "zep$i" env PROPRT_SHARD="$i/$ep_shards" \
++    ./endpoint.test "${t[@]}" -test.parallel=8 -test.run "^($re)\$"
+@@ -111,0 +146,29 @@ done
++snap >"$out/load.after" 2>/dev/null || true
++[ -z "$vmstat_pid" ] || { kill "$vmstat_pid" 2>/dev/null; wait "$vmstat_pid" 2>/dev/null; } || true
++# busy = all but idle and iowait; steal = a vCPU runnable while the host ran
++# something else. PSI "some" = share of the phase in which at least one
++# task stalled on that resource, "full" = all non-idle tasks stalled
++awk -v nproc="$(nproc)" '
++  FNR == 1 { k++ }
++  $1 == "uptime" { t[k] = $2 }
++  $1 == "cpu" { tot = 0; for (i = 2; i <= NF; i++) tot += $i
++                c[k, "tot"] = tot; c[k, "user"] = $2 + $3; c[k, "sys"] = $4 + $7 + $8
++                c[k, "idle"] = $5; c[k, "iowait"] = $6; c[k, "steal"] = $9 + 0 }
++  $1 == "psi" { for (i = 4; i <= NF; i++) if ($i ~ /^total=/) { v = $i; sub(/^total=/, "", v); ps[k, $2 " " $3] = v; have[$2 " " $3] = 1 } }
++  END {
++    wall = t[2] - t[1]
++    d = c[2, "tot"] - c[1, "tot"]
++    if (k < 2 || wall <= 0 || d <= 0) { print "guest load: no before/after snapshot"; exit }
++    printf "guest load over the test phase: %.1fs on %d vCPUs\n", wall, nproc
++    printf "cpu: busy %.0f%% (user %.0f%%, sys+irq %.0f%%, steal %.0f%%), idle %.0f%%, iowait %.0f%%\n",
++      100 * (d - (c[2, "idle"] - c[1, "idle"]) - (c[2, "iowait"] - c[1, "iowait"])) / d,
++      100 * (c[2, "user"] - c[1, "user"]) / d, 100 * (c[2, "sys"] - c[1, "sys"]) / d,
++      100 * (c[2, "steal"] - c[1, "steal"]) / d,
++      100 * (c[2, "idle"] - c[1, "idle"]) / d, 100 * (c[2, "iowait"] - c[1, "iowait"]) / d
++    n = split("cpu some|cpu full|io some|io full|memory some|memory full", ks, "|")
++    line = ""
++    for (i = 1; i <= n; i++) if (ks[i] in have)
++      line = line sprintf("%s%s %.0f%%", line == "" ? "" : ", ", ks[i], 100 * (ps[2, ks[i]] - ps[1, ks[i]]) / (wall * 1e6))
++    print "pressure (stalled share of the phase): " (line == "" ? "PSI unavailable" : line)
++  }' "$out/load.before" "$out/load.after" >"$out/load.txt" 2>&1 || true
++cat "$out/load.txt" 2>/dev/null || true
+diff --git a/ci/real-zfs-vm.sh b/ci/real-zfs-vm.sh
+index 4750c9b..2d46048 100755
+--- a/ci/real-zfs-vm.sh
++++ b/ci/real-zfs-vm.sh
+@@ -106 +106 @@ overlay() {
+-    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline")"
++    echo "direct kernel boot: $kernel, cmdline: $(cat "$cache/cmdline"), initrd $(du -k "$cache/initrd" | cut -f1) KiB"
+@@ -265,0 +266,12 @@ fi
++# where the guest's boot went (kernel, initrd, userspace), for the boot
++# timeline. In the background over the ssh master, so it runs beside the
++# tests instead of after them (1.7s on the path in run 40494213342), and
++# printed after the logs. It waits for the boot to settle first: it fails
++# while units are still starting. Best effort, never a gate
++# critical-chain: what ssh and nfsd, the two the job waits for, waited for;
++# findmnt: /boot and /boot/efi stay unmounted (noauto, cloud-config)
++vm 'timeout 60 systemctl is-system-running --wait >/dev/null 2>&1; systemd-analyze; systemd-analyze blame | awk "NR <= 15"
++  systemd-analyze critical-chain ssh.service nfs-server.service 2>&1 | awk "NR <= 40"
++  echo "mounted under /boot: $(findmnt -rn -o TARGET | awk "/^\/boot/" | tr "\n" " ")"' \
++  >"$work/systemd-analyze.txt" 2>&1 &
++analyze=$!
+@@ -283,2 +295,10 @@ done
+-# where the guest's boot went (kernel, initrd, userspace), for the boot
+-# timeline; best effort, it fails while units are still starting
++# the guest's CPU and pressure over the test phase (ci/real-zfs-guest.sh):
++# what decides whether splitting the job across two runners would pay
++if [ -s "$o/load.txt" ]; then
++  echo "::group::guest load (test phase): $(awk 'NR == 2' "$o/load.txt")"
++  cat "$o/load.txt"
++  cat "$o/vmstat.txt" 2>/dev/null || true
++  echo "::endgroup::"
++  { echo '<details><summary>guest load over the test phase (out/load.txt)</summary>'
++    echo; echo '```'; cat "$o/load.txt"; echo '```'; echo "</details>"; echo; } >>"$summary"
++fi
+@@ -286 +306,2 @@ echo "::group::systemd-analyze"
+-vm 'systemd-analyze; systemd-analyze blame | head -n 15' 2>&1 || true
++wait "$analyze" || true
++cat "$work/systemd-analyze.txt" 2>/dev/null || true
+@@ -344,0 +366,3 @@ ci/check-skips.sh vm endpoint "$work/endpoint.log" "$work/endpoint.list" || rc=1
++# TestPropertyRoundTrip runs in every endpoint shard, a part of its rows
++# each (PROPRT_SHARD): every row must have run in exactly one of them
++ci/check-split.sh TestPropertyRoundTrip "$work/endpoint.list" "$o"/endpoint.[0-9].log || rc=1
+diff --git a/ci/real-zfs-weights.sh b/ci/real-zfs-weights.sh
+index 4a81098..117813d 100755
+--- a/ci/real-zfs-weights.sh
++++ b/ci/real-zfs-weights.sh
+@@ -18 +18,2 @@
+-# Several files average. Rows from a nightly run (mode=full: the whole
++# A test split across shards (TestPropertyRoundTrip) sums its rows within
++# a file, and the guest gives each shard 1/n of it. Several files average. Rows from a nightly run (mode=full: the whole
+@@ -68 +69,4 @@ awk -v src="$src" '
+-    sum[t] += w; cnt[t]++
++    # a split test (ci/real-zfs-guest.sh split=) has a row per shard in one
++    # file: its parts add up within a run, runs average
++    sum[t] += w
++    if (!((FILENAME, t) in run)) { run[FILENAME, t] = 1; cnt[t]++ }
+@@ -76,2 +80,2 @@ awk -v src="$src" '
+-    print "# exactly one shard, and ci/check-skips.sh fails a test that neither"
+-    print "# passed nor skipped."
++    print "# exactly one shard (a split test, every subtest: ci/check-split.sh), and"
++    print "# ci/check-skips.sh fails a test that neither passed nor skipped."
+diff --git a/ci/real-zfs-weights.txt b/ci/real-zfs-weights.txt
+index e178e76..8dccae4 100644
+--- a/ci/real-zfs-weights.txt
++++ b/ci/real-zfs-weights.txt
+@@ -6,2 +6,2 @@
+-# exactly one shard, and ci/check-skips.sh fails a test that neither
+-# passed nor skipped.
++# exactly one shard (a split test, every subtest: ci/check-split.sh), and
++# ci/check-skips.sh fails a test that neither passed nor skipped.
+@@ -13 +13 @@
+-# Source: runs 40469622947 (3ab03d5, job 122073313593) and 40471254688 (c1205e9, job 122078634875), averaged; their -test.v logs through ci/test-times.awk, without timestamps.
++# Source: runs 40469622947 (3ab03d5, job 122073313593) and 40471254688 (c1205e9, job 122078634875), averaged; their -test.v logs through ci/test-times.awk, without timestamps. TestModel and TestRealFacts (5.00 and 1.50 before, not measured): run 40497090324 (18cbaea, job 122165163972, passing), their own time in its -test.v log; both are sequential, and TestModel's parallel workers run inside its sequential subtest seqs, so its own time is its wall.
+@@ -18,0 +19 @@ TestZFSDiffReplay 9.47
++TestRealFacts 6.41
+@@ -19,0 +21 @@ TestNFSReplay 3.94
++TestModel 3.05
+@@ -158,2 +159,0 @@ TestZfsErrCodes 0.00
+-TestModel 5.00
+-TestRealFacts 1.50
+diff --git a/ci/test-times.awk b/ci/test-times.awk
+index 69ed075..e65c660 100644
+--- a/ci/test-times.awk
++++ b/ci/test-times.awk
+@@ -5,2 +5,5 @@
+-# cost_s   own_s plus every parallel (PAUSEd) descendant's own time: the
+-#          test-seconds it puts on the shard, parallel subtests summed.
++# cost_s   own_s plus the own time of every parallel (PAUSEd) descendant
++#          that own_s leaves out: the test-seconds it puts on the shard,
++#          parallel subtests summed. A parallel subtest under a sequential
++#          subtest (TestModel/seqs/w0) is already inside own_s, since t.Run
++#          of the sequential one waits for it, and is not added again.
+@@ -49,0 +53,14 @@ $1 == "---" && $2 ~ /^(PASS|FAIL|SKIP):$/ {
++# the nearest enclosing test that reported a result: a subtest name can
++# itself contain "/" (TestPropertyRoundTrip/filesystem/atime=on)
++function parent(n,  p) {
++  p = n
++  while (sub(/\/[^\/]*$/, "", p)) if (p in dur) return p
++  return p
++}
++# a parallel test's time is outside its parent's result line; it is
++# outside the top-level test's only if every test between them is parallel
++function outside(n,  p) {
++  if (!(n in paused)) return 0
++  p = parent(n)
++  return index(p, "/") == 0 || outside(p)
++}
+@@ -56,2 +73 @@ END {
+-    # a parallel subtest's time is not inside its parent's result line
+-    if (n in paused) extra[t] += dur[n]
++    if (outside(n)) extra[t] += dur[n]
+diff --git a/internal/endpoint/props_roundtrip_test.go b/internal/endpoint/props_roundtrip_test.go
+index 4a17b42..8989b0c 100644
+--- a/internal/endpoint/props_roundtrip_test.go
++++ b/internal/endpoint/props_roundtrip_test.go
+@@ -5,0 +6 @@ import (
++	"os"
+@@ -7,0 +9 @@ import (
++	"strings"
+@@ -67,0 +70,19 @@ func allowlistRows() []propRow {
++// propRTShard reads PROPRT_SHARD=<i>/<n>: this process runs the rows whose
++// index is i mod n. The real-ZFS VM (ci/real-zfs-guest.sh) runs the test in
++// each of its n endpoint shards, so its ~200 real-pool round trips spread
++// over n processes instead of one; ci/check-split.sh checks that every row
++// ran in exactly one shard. Unset, it runs every row (0/1).
++func propRTShard(t *testing.T) (shard, n int) {
++	v := os.Getenv("PROPRT_SHARD")
++	if v == "" {
++		return 0, 1
++	}
++	a, b, ok := strings.Cut(v, "/")
++	shard, err1 := strconv.Atoi(a)
++	n, err2 := strconv.Atoi(b)
++	if !ok || err1 != nil || err2 != nil || n < 1 || shard < 0 || shard >= n {
++		t.Fatalf("PROPRT_SHARD=%q: want <i>/<n> with 0 <= i < n", v)
++	}
++	return shard, n
++}
++
+@@ -73,0 +95,9 @@ func TestPropertyRoundTrip(t *testing.T) {
++	shard, n := propRTShard(t)
++	mine := 0
++	for i := range rows {
++		if i%n == shard {
++			mine++
++		}
++	}
++	// ci/check-split.sh reads this line from every shard's log
++	t.Logf("PROPRT_SHARD %d/%d: %d of %d rows", shard, n, mine, len(rows))
+@@ -75,0 +106,3 @@ func TestPropertyRoundTrip(t *testing.T) {
++		if i%n != shard {
++			continue
++		}

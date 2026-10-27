@@ -1,0 +1,29 @@
+endpoint: static NFS export at create, with a recorded server
+
+CreateVolume takes an NFS export (clients, read-only, server) for a
+filesystem, when the endpoint advertises NFS servers (-nfs-server,
+repeatable; the first is the default). The export and the server are set
+in the create or clone itself; the server is recorded locally as
+<prefix>:nfs_server and never recomputed (wave13 Q1). The volume is
+committed only once the NFS server serves every client and nfsd runs:
+zfs create -o sharenfs exits 0 when exportfs fails, so a miss re-shares
+once, then is UNAVAILABLE, uncommitted and unlisted, and a retry
+converges.
+
+Idempotency: a committed volume matches the same clients and mode in any
+order; an omitted server takes the recorded one, a different explicit one
+is ALREADY_EXISTS. An uncommitted volume converges to the request. Client
+networks need an explicit /N, host bits zero, the floor, no overlap.
+
+Reconcile reports a recorded server no longer advertised, and an
+nfs_server that is inherited or received (ignored, never reported as the
+volume's). -nfs-server accepts an IPv4 address in canonical form or a DNS
+name whose last label starts with a letter: mount.nfs reads 192.0.2.010
+as octal and 0xc0000210 as hex.
+
+Proto: GetCapabilitiesResponse.nfs_servers, Volume.nfs and
+CreateVolumeRequest.nfs_export (one new NFSExport message), additive;
+buf breaking against the base is clean.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

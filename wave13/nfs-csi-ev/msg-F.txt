@@ -1,0 +1,25 @@
+docs: record the NFS build against ADR 0004 and the design
+
+ADR 0004 gains implementation notes. They say:
+- nfs_clients is gone from the export path, and a rollback goes only as
+  far as the bridge commit;
+- the floor bounds new writes but is not part of the ownership grammar,
+  so raising it never strands an export;
+- a foreign value is never written;
+- the recorded NFS server is addressing metadata, not export state;
+- NFS mode is on iff -nfs-server is advertised;
+- some parts are not built yet, and the notes list them.
+
+csi-nfs-design:
+- §9.1's last row was stale: Publish and Unpublish now refuse an export
+  beyond the volume's list with FAILED_PRECONDITION, and a refused
+  Publish changes nothing. A new row covers an admin's rw=*.
+- §6's "nfs.server is not volume state" is retracted.
+- §5 and §7 now use the recorded server.
+- §10 reports D7-D9 through skipped.
+- "As built" notes mark the smaller proto and the parts not built.
+
+The README status rows now match.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
