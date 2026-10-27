@@ -1,0 +1,7 @@
+--- FAIL: TestPlanDeletePresentVolumeReleasesItsCloneSource (0.00s)
+    plan_test.go:412: stamped for c: plan [tank/v/c] err <nil>, want [tank/v/src@volume-source-for-volume-c tank/v/c]
+    plan_test.go:412: stamped for c on two sources: plan [tank/v/c] err <nil>, want [tank/v/a@volume-source-for-volume-c tank/v/b@volume-source-for-volume-c tank/v/c]
+    plan_test.go:412: its own origin and an orphan: plan [tank/v/a@volume-source-for-volume-c tank/v/c] err <nil>, want [tank/v/b@volume-source-for-volume-c tank/v/a@volume-source-for-volume-c tank/v/c]
+FAIL
+FAIL	github.com/wommy/empty/internal/endpoint	0.004s
+FAIL

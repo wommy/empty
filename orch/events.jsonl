@@ -209,3 +209,8 @@
 {"ts": "2026-10-27T12:55:52Z", "id": "addbb299d1cba5653", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-27T12:55:52Z", "id": "addbb299d1cba5653", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T12:55:52Z", "id": "addbb299d1cba5653", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T12:56:08Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}
+{"ts": "2026-10-27T12:58:52Z", "id": "a6be5a13a601fd70e", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T12:58:52Z", "id": "a6be5a13a601fd70e", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T12:58:52Z", "id": "a6be5a13a601fd70e", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T12:59:19Z", "id": "ac69b366eb3570f76", "from": "queued", "to": "running", "note": "b-readme"}
