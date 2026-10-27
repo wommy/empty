@@ -61,7 +61,7 @@ These notes record how the decision was built. They do not change it.
 - **The floor is not in the ownership grammar**, a deviation from "at or above the configured floor" above.
   - The floor bounds new writes: Publish and CreateVolume.
   - Ownership accepts any `/N` from 1 to 32. Otherwise, raising `-nfs-min-prefix` would turn existing exports foreign, and they could never be rewritten or unpublished.
-  - Reconcile is the place to report below-floor values.
+  - Reconcile reports a below-floor network in a value of ours in `skipped` (`SkipNFSBelowFloor`, naming each network and mode) and never rewrites it (wave14).
 - **A foreign value is never written, even when it still serves the client.**
   - An admin's `rw=*` over our list is not rewritten.
   - Unpublish is FAILED_PRECONDITION while a foreign value still serves the host.
@@ -70,7 +70,15 @@ These notes record how the decision was built. They do not change it.
   - CSI requires it to be fixed per volume, and OpenZFS has no place for it. So `<prefix>:nfs_server` is recorded once, in the same `zfs create`/`clone -o` as sharenfs, and read local-only (wave13 Q1).
   - Who may mount is still sharenfs alone.
 - **NFS mode** is on iff the endpoint advertises `-nfs-server`. In that mode every CSI CreateVolume needs `nfs.clients` (wave13 Q2).
+- **Root ownership ("Root squash stays on"; wave14, branch `nfs-owner`).**
+  - `NFSExport` gains `optional uint32 uid = 4, gid = 5, mode = 6`, from StorageClass `nfs.uid`, `nfs.gid` and `nfs.mode` (decimal ids up to 2^31-1, octal mode up to 7777; InvalidArgument otherwise, in zfs-csi and in the endpoint).
+  - The endpoint applies them to the mounted root itself (`set-root`, `LocalRoot`): openat2 with `RESOLVE_NO_SYMLINKS`, the open directory checked against the mount table (zfs, this dataset, root `/`, same device), then fchown and fchmod on that descriptor.
+  - It runs in CreateVolume's resume, on every pass, before the NFS verification and the commit. Nothing records that it ran: it is idempotent, so a crash on either side of it converges by running it again.
+  - **Defaults: unset leaves an attribute as the create made it**, root:root 0755 for a new volume and the source's for a clone or restore. The endpoint never widens a root on its own; the StorageClass author chooses.
+  - They are file metadata, not volume state: never reported, and a repeat of a committed create is not compared on them (a tenant who owns the root may chmod it).
+- **The mountpoint pin (wave14).**
+  - Every new filesystem volume is created with `mountpoint=<parent's mountpoint>/<id>` set locally, in the same `zfs create`/`clone -o` as F12's mount options. `share` and `mountpoint` in volume_context then stay put if the parent's mountpoint moves.
+  - A parent with mountpoint `none` or `legacy` pins nothing.
+  - **Volumes made before the pin are reported, not rewritten.** Reconcile lists a committed filesystem with an inherited path mountpoint in `skipped`. `zfs set mountpoint` unmounts and remounts the volume, and its export, under whoever uses it, so the operator picks the moment.
 - **Not built yet:**
-  - root ownership ("Root squash stays on");
-  - the local mountpoint pin;
-  - the reconcile drift reports other than the leftover list and the server.
+  - the reconcile drift reports other than the leftover list, the server, the mountpoint pin and below-floor.

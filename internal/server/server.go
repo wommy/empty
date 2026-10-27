@@ -86,7 +86,9 @@ func nfsIn(n *pb.NFSExport) *endpoint.NFSExport {
 	if n == nil {
 		return nil
 	}
-	return &endpoint.NFSExport{Clients: n.GetClients(), ReadOnly: n.GetReadOnly(), Server: n.GetServer()}
+	// presence is meaning: unset leaves the root's owner or mode as made
+	return &endpoint.NFSExport{Clients: n.GetClients(), ReadOnly: n.GetReadOnly(), Server: n.GetServer(),
+		UID: n.Uid, GID: n.Gid, Mode: n.Mode}
 }
 
 func snapshotOut(s endpoint.Snapshot) *pb.Snapshot {

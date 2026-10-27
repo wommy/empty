@@ -23,6 +23,7 @@ TestFileExportUnpublishStillServed 1.38
 TestReconcileAgainstDesiredSet 1.29
 TestExpandThickFilesystemRetryAfterENOSPC 1.03
 TestCreateVolumeProperties 0.93
+TestFileExportCreateRootOwner 0.90
 TestFileExportServedBeyondRequest 0.86
 TestCloneSourcesMustBeOwned 0.85
 TestReserveRestoreIsIdempotent 0.85
@@ -33,6 +34,7 @@ TestReconcileCollectsLeakedCloneSource 0.61
 TestRealGetJSONMatchesSim 0.50
 TestFileExportAdoptedVolumes 0.47
 TestFileExportLifecycle 0.44
+TestCreateVolumePinsMountpoint 0.44
 TestFileExportPreconditions 0.44
 TestDeleteVolume 0.43
 TestCloneFromVolumeReleasesInternalSnapshot 0.42

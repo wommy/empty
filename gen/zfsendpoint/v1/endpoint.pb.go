@@ -397,7 +397,17 @@ type NFSExport struct {
 	// One of GetCapabilitiesResponse.nfs_servers; empty is the first. A
 	// committed volume keeps the server it was created with: another one
 	// explicitly is ALREADY_EXISTS, an empty one returns the recorded one.
-	Server        string `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
+	Server string `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
+	// CreateVolume only: the owner and mode the volume's root directory is
+	// given before the volume is committed (under root_squash a root:root
+	// 0755 root is writable by no client). Unset leaves that one as the
+	// create made it: root:root 0755, or a clone's source's. uid and gid
+	// are at most 2147483647, mode at most 07777 (permission bits); else
+	// INVALID_ARGUMENT. File metadata, not volume state: never reported,
+	// and a repeat of a committed create is not compared on them.
+	Uid           *uint32 `protobuf:"varint,4,opt,name=uid,proto3,oneof" json:"uid,omitempty"`
+	Gid           *uint32 `protobuf:"varint,5,opt,name=gid,proto3,oneof" json:"gid,omitempty"`
+	Mode          *uint32 `protobuf:"varint,6,opt,name=mode,proto3,oneof" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -451,6 +461,27 @@ func (x *NFSExport) GetServer() string {
 		return x.Server
 	}
 	return ""
+}
+
+func (x *NFSExport) GetUid() uint32 {
+	if x != nil && x.Uid != nil {
+		return *x.Uid
+	}
+	return 0
+}
+
+func (x *NFSExport) GetGid() uint32 {
+	if x != nil && x.Gid != nil {
+		return *x.Gid
+	}
+	return 0
+}
+
+func (x *NFSExport) GetMode() uint32 {
+	if x != nil && x.Mode != nil {
+		return *x.Mode
+	}
+	return 0
 }
 
 type Snapshot struct {
@@ -2011,11 +2042,17 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"mountpoint\x18\t \x01(\tR\n" +
 	"mountpoint\x12+\n" +
 	"\x03nfs\x18\n" +
-	" \x01(\v2\x19.zfsendpoint.v1.NFSExportR\x03nfs\"Z\n" +
+	" \x01(\v2\x19.zfsendpoint.v1.NFSExportR\x03nfs\"\xba\x01\n" +
 	"\tNFSExport\x12\x18\n" +
 	"\aclients\x18\x01 \x03(\tR\aclients\x12\x1b\n" +
 	"\tread_only\x18\x02 \x01(\bR\breadOnly\x12\x16\n" +
-	"\x06server\x18\x03 \x01(\tR\x06server\"\xbe\x01\n" +
+	"\x06server\x18\x03 \x01(\tR\x06server\x12\x15\n" +
+	"\x03uid\x18\x04 \x01(\rH\x00R\x03uid\x88\x01\x01\x12\x15\n" +
+	"\x03gid\x18\x05 \x01(\rH\x01R\x03gid\x88\x01\x01\x12\x17\n" +
+	"\x04mode\x18\x06 \x01(\rH\x02R\x04mode\x88\x01\x01B\x06\n" +
+	"\x04_uidB\x06\n" +
+	"\x04_gidB\a\n" +
+	"\x05_mode\"\xbe\x01\n" +
 	"\bSnapshot\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12(\n" +
@@ -2260,6 +2297,7 @@ func file_zfsendpoint_v1_endpoint_proto_init() {
 	if File_zfsendpoint_v1_endpoint_proto != nil {
 		return
 	}
+	file_zfsendpoint_v1_endpoint_proto_msgTypes[3].OneofWrappers = []any{}
 	file_zfsendpoint_v1_endpoint_proto_msgTypes[5].OneofWrappers = []any{
 		(*CreateVolumeRequest_SourceSnapshotId)(nil),
 		(*CreateVolumeRequest_SourceVolumeId)(nil),

@@ -172,6 +172,7 @@ An undesired volume whose `sharenfs` is not `off`, or whose client list is not e
 
 - Filesystem volumes are created and cloned with `setuid=off`, `exec=off` and `devices=off` set locally, next to `sharenfs=off` and `sharesmb=off`.
 - These are server-side mount options. NFS clients are unaffected.
+- The same `-o` block also pins `mountpoint` locally (wave14). That is addressing for volume_context `share`, not a guard, and is recorded in ADR 0004's implementation notes.
 - Unlike `snapdir`, they are stamped rather than inherited. Each guards the storage host itself against what a tenant's client writes, not a tenant-visible behaviour.
 - A StorageClass cannot set them.
 - They hold only while pods reach filesystems over NFS (ADR 0004). A node plugin that bind-mounts the host's ZFS mount into a pod would inherit `nosuid`, `noexec` and `nodev`, so pods could not run programs from their volume. Such a plugin must revisit this decision before it ships.

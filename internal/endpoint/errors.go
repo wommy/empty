@@ -138,11 +138,11 @@ var errRules = []errRule{
 // absent without the parent there to confirm it (parentUnavailable).
 const (
 	opRead       OpKind = 0
-	opReadParent        = OpMount + 1
+	opReadParent        = OpSetRoot + 1
 )
 
 // mutatingOps are the apply ops: every OpKind.
-var mutatingOps = []OpKind{OpCreateFS, OpCreateVol, OpSnapshot, OpClone, OpSet, OpDestroy, OpMount}
+var mutatingOps = []OpKind{OpCreateFS, OpCreateVol, OpSnapshot, OpClone, OpSet, OpDestroy, OpMount, OpSetRoot}
 
 // errKind is a zfs.Kind, or kindDeadline.
 type errKind uint8

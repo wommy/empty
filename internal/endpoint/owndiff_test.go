@@ -272,7 +272,7 @@ func TestOwnershipDifferentialCrashes(t *testing.T) {
 			for k := 0; ; k++ {
 				reached := false
 				for _, after := range []bool{false, true} {
-					ep0, h := setup(t)
+					ep0, h := setupNFS(t, "192.0.2.10") // as crashEndpoint
 					if c.nfs {
 						h.NFS(t)
 					}

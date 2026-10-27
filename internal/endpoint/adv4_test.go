@@ -51,7 +51,8 @@ func newA4(t *testing.T) *a4 {
 // vol makes an owned volume (committed when c), as CreateVolume would.
 func (h *a4) vol(id string, c bool) {
 	h.t.Helper()
-	own := map[string]string{h.n.managed(): "true", h.n.volumeName(): id}
+	// mountpoint pinned at create, as CreateVolume does since wave14
+	own := map[string]string{h.n.managed(): "true", h.n.volumeName(): id, "mountpoint": "/" + a4Parent + "/" + id}
 	if c {
 		own[h.n.success()] = "true"
 	}

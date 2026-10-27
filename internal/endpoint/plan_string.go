@@ -19,6 +19,9 @@ func (p Plan) String() string {
 		if op.Source != "" {
 			b.WriteString(" from=" + op.Source)
 		}
+		if op.Path != "" {
+			b.WriteString(" path=" + op.Path)
+		}
 		if op.Size != 0 {
 			b.WriteString(" size=" + u64(op.Size))
 		}

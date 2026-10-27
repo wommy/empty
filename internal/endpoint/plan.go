@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,11 +28,16 @@ const (
 	// OpMount: `zfs mount` of a filesystem; already mounted is done
 	// (OkExists).
 	OpMount
+	// OpSetRoot: the owner and mode of a mounted filesystem's root
+	// directory (Config.Root), Props uid, gid (decimal) and mode (octal),
+	// each absent when left as it is, at Path, the mountpoint the plan's
+	// scan read. Not a zfs call; idempotent by itself.
+	OpSetRoot
 )
 
 var opNames = map[OpKind]string{
 	OpCreateFS: "create-filesystem", OpCreateVol: "create-volume", OpSnapshot: "snapshot",
-	OpClone: "clone", OpSet: "set", OpDestroy: "destroy", OpMount: "mount",
+	OpClone: "clone", OpSet: "set", OpDestroy: "destroy", OpMount: "mount", OpSetRoot: "set-root",
 }
 
 func (k OpKind) String() string {
@@ -55,6 +61,7 @@ type Op struct {
 	Props     map[string]string // create/clone/snapshot -o, or OpSet values
 	OkExists  bool              // create/snapshot/clone: already exists is done
 	OkMissing bool              // destroy: already gone is done
+	Path      string            // OpSetRoot: the mountpoint
 }
 
 // Plan is the ordered ops of one request.
@@ -84,6 +91,10 @@ type Planner struct {
 	// now, when set, is stamped as committed_at by a create's commit: the
 	// caller's clock reading, so planning stays pure.
 	now int64
+	// parentMount, when an absolute path, is the parent's mountpoint as
+	// the caller read it: a new filesystem's mountpoint is pinned to
+	// <parentMount>/<id>, set locally in the create (csi-nfs-design §4).
+	parentMount string
 }
 
 func (p Planner) full(id string) string { return p.Parent + "/" + id }
@@ -175,6 +186,7 @@ type nfsWant struct {
 	clients  []NFSClient // sorted, canonical
 	server   string      // resolved: the request's, or the first advertised
 	explicit bool        // the request named the server
+	root     rootAttrs   // the volume root's owner and mode (-1: as made)
 }
 
 // validateNFS checks a request's NFS export on its own: a filesystem, an
@@ -220,14 +232,22 @@ func (p Planner) validateNFS(r CreateVolumeRequest) (*nfsWant, error) {
 	if n := len(ShareNFS(cs)); n > maxPropLen {
 		return nil, errorf(InvalidArgument, "%d NFS clients make a %d-byte sharenfs, over the %d-byte limit; use wider networks", len(cs), n, maxPropLen)
 	}
+	root, err := validRoot(r.NFS)
+	if err != nil {
+		return nil, err
+	}
 	server := r.NFS.Server
 	if server == "" {
 		server = p.NFSServers[0]
 	} else if !slices.Contains(p.NFSServers, server) {
 		return nil, errorf(InvalidArgument, "NFS server %q is not one this endpoint advertises (%s)", server, strings.Join(p.NFSServers, ", "))
 	}
-	return &nfsWant{clients: cs, server: server, explicit: r.NFS.Server != ""}, nil
+	return &nfsWant{clients: cs, server: server, explicit: r.NFS.Server != "", root: root}, nil
 }
+
+// ownsRoot reports whether the export sets the volume root's owner or
+// mode. Nil-safe.
+func (w *nfsWant) ownsRoot() bool { return w != nil && w.root.set() }
 
 // nfsCompatible applies CreateVolume idempotency to a committed volume's
 // export. The value is compared as parsed (canonical form is unique, so
@@ -350,11 +370,20 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 			if len(set) > 0 {
 				plan = append(plan, Op{Kind: OpSet, Target: p.full(id), Props: set})
 			}
+			if nfs.ownsRoot() && (!mountable(row) || !row.Mounted && !p.RequireMounted) {
+				return nil, errorf(FailedPrecondition, "volume %s is not mounted (canmount=%s, mountpoint=%s): its root's owner and mode cannot be set", id, row.CanMount, row.Mount)
+			}
 			if p.RequireMounted && mountable(row) && !row.Mounted {
 				// zfs create and clone exit 0 when their mount fails: mount
 				// it now, right before the commit, so a failed mount leaves
 				// the row uncommitted (a retry mounts again)
 				plan = append(plan, Op{Kind: OpMount, Target: p.full(id), OkExists: true})
+			}
+			if nfs.ownsRoot() {
+				// on every resume, not only the first: nothing records
+				// that it ran, and it is idempotent, so a crash anywhere
+				// before the commit is converged by applying it again
+				plan = append(plan, Op{Kind: OpSetRoot, Target: p.full(id), Path: row.Mount, Props: nfs.root.props()})
 			}
 			return append(plan, commit), nil
 		}
@@ -384,6 +413,14 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		// honoured, nor exec. Server-side mount options: NFS clients and
 		// their own mounts are unaffected.
 		own["setuid"], own["exec"], own["devices"] = "off", "off", "off"
+		// pinned where zfs would put it now: a PV holds the path as
+		// volume_context share (and mountpoint), which must not follow the
+		// parent if its mountpoint later moves (csi-nfs-design §4). A
+		// native property, not state of our own. A parent mounted nowhere
+		// (none, legacy) leaves it inherited.
+		if path.IsAbs(p.parentMount) {
+			own["mountpoint"] = path.Join(p.parentMount, id)
+		}
 	}
 	if nfs != nil {
 		// set in the create (or clone) itself: no committed volume can
@@ -481,9 +518,10 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		}
 		plan = Plan{{Kind: OpCreateFS, Target: p.full(id), Props: own}}
 	}
-	if p.RequireMounted && r.Kind == Filesystem {
+	if (p.RequireMounted || nfs.ownsRoot()) && r.Kind == Filesystem {
 		// whether the create (or clone) mounted is known only from a scan
-		// after it: the commit is the resume's, which checks Mounted
+		// after it: the commit is the resume's, which checks Mounted, and
+		// which sets the root's owner and mode on the mountpoint it read
 		return plan, nil
 	}
 	return append(plan, commit), nil

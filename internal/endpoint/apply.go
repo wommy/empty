@@ -43,6 +43,10 @@ func (e *Endpoint) applyN(ctx context.Context, plan Plan) (int, error) {
 			err = e.destroy(ctx, op)
 		case OpMount:
 			err = e.zfs.Mount(ctx, op.Target)
+		case OpSetRoot:
+			if err = e.setRoot(ctx, op); err != nil {
+				return i, rootErr(err, i, plan)
+			}
 		default:
 			// unreachable after the check above; never treat it as done
 			return i, &Error{Code: Internal, Msg: "unknown op kind " + op.Kind.String()}
@@ -73,6 +77,36 @@ func (e *Endpoint) destroy(ctx context.Context, op Op) error {
 		return err
 	}
 	return e.zfs.Destroy(ctx, op.Target, o)
+}
+
+// setRoot runs an OpSetRoot through Config.Root.
+func (e *Endpoint) setRoot(ctx context.Context, op Op) error {
+	a, err := rootOf(op.Props)
+	if err != nil {
+		return &Error{Code: Internal, Msg: "planner bug: " + err.Error()}
+	}
+	return e.cfg.Root.SetRoot(ctx, op.Target, op.Path, a.uid, a.gid, a.mode)
+}
+
+// rootErr maps the failure of an OpSetRoot, op i of plan: a classified
+// one (*Error, from LocalRoot) keeps its code; anything else is
+// unclassified, as opErr treats it (Aborted once an earlier op applied).
+func rootErr(err error, i int, plan Plan) error {
+	what := fmt.Sprintf("op %d/%d %s %s", i+1, len(plan), plan[i].Kind, plan[i].Target)
+	var e *Error
+	if errors.As(err, &e) {
+		return &Error{Code: e.Code, Msg: what + ": " + e.Msg, Err: e.Err}
+	}
+	code := Internal
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		code = DeadlineExceeded
+	case errors.Is(err, context.Canceled):
+		code = Aborted
+	case i > 0:
+		return &Error{Code: Aborted, Msg: what + " (earlier ops applied; a retry converges)", Err: err}
+	}
+	return &Error{Code: code, Msg: what, Err: err}
 }
 
 // opErr maps the failure of op i of plan through the error table

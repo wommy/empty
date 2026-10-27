@@ -18,7 +18,8 @@ import (
 // at creation, as PlanCreateVolume makes it.
 func fsv(id string, mut func(*Row)) Row {
 	return vol(id, func(r *Row) {
-		r.Mount, r.Mounted, r.CanMount = "/tank/v/"+id, true, "on"
+		// mountpoint pinned at create, as CreateVolume does since wave14
+		r.Mount, r.MountLocal, r.Mounted, r.CanMount = "/tank/v/"+id, true, true, "on"
 		r.ShareNFS, r.ShareNFSLocal = "off", true
 		if mut != nil {
 			mut(r)

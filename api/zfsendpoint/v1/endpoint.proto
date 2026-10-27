@@ -116,6 +116,16 @@ message NFSExport {
   // committed volume keeps the server it was created with: another one
   // explicitly is ALREADY_EXISTS, an empty one returns the recorded one.
   string server = 3;
+  // CreateVolume only: the owner and mode the volume's root directory is
+  // given before the volume is committed (under root_squash a root:root
+  // 0755 root is writable by no client). Unset leaves that one as the
+  // create made it: root:root 0755, or a clone's source's. uid and gid
+  // are at most 2147483647, mode at most 07777 (permission bits); else
+  // INVALID_ARGUMENT. File metadata, not volume state: never reported,
+  // and a repeat of a committed create is not compared on them.
+  optional uint32 uid = 4;
+  optional uint32 gid = 5;
+  optional uint32 mode = 6;
 }
 
 message Snapshot {

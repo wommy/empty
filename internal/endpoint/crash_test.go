@@ -40,15 +40,38 @@ type faultRunner struct {
 
 func mutating(args []string) bool { return len(args) > 0 && args[0] != "get" && args[0] != "list" }
 
-func (f *faultRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+// step counts one mutation and says whether it is the one to crash at.
+func (f *faultRunner) step() bool {
 	f.mu.Lock()
-	crash := false
-	if mutating(args) {
-		crash = f.n == f.crashAt
-		f.crashed = f.crashed || crash
-		f.n++
+	defer f.mu.Unlock()
+	crash := f.n == f.crashAt
+	f.crashed = f.crashed || crash
+	f.n++
+	return crash
+}
+
+// faultRoot puts the endpoint's root owner and mode change (not a zfs
+// call) into the same count: it is a mutation a crash can precede or
+// follow like any other.
+type faultRoot struct {
+	endpoint.RootSetter
+	f *faultRunner
+}
+
+func (r faultRoot) SetRoot(ctx context.Context, dataset, mountpoint string, uid, gid, mode int64) error {
+	crash := r.f.step()
+	if crash && !r.f.after {
+		return errCrash
 	}
-	f.mu.Unlock()
+	err := r.RootSetter.SetRoot(ctx, dataset, mountpoint, uid, gid, mode)
+	if crash {
+		return errCrash
+	}
+	return err
+}
+
+func (f *faultRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	crash := mutating(args) && f.step()
 	lost := &zfs.ExitError{Args: args, Code: -1, Underlay: errCrash}
 	if crash && !f.after {
 		return nil, lost
@@ -165,6 +188,15 @@ var crashCases = []crashCase{
 				return ep.DeleteSnapshot(ctx, "src@s")
 			}),
 		op: func(ctx context.Context, ep *endpoint.Endpoint) error { return ep.DeleteVolume(ctx, "r") }},
+	// N11: the root's owner and mode are set before the commit, by the
+	// resume, on every pass: a crash on either side of the change converges
+	{name: "create-nfs-root", nfs: true, op: createOp(endpoint.CreateVolumeRequest{Name: "v", CapacityBytes: 16 * cmib,
+		NFS: &endpoint.NFSExport{Clients: []string{"10.20.0.0/24"}, UID: u32(1000), GID: u32(2000), Mode: u32(0o2775)}})},
+	{name: "restore-nfs-root-mode", nfs: true,
+		setup: then(mk(endpoint.CreateVolumeRequest{Name: "src", NFS: &endpoint.NFSExport{Clients: []string{"10.20.0.0/24"}, UID: u32(1000)}}),
+			snapOf("s", "src")),
+		op: createOp(endpoint.CreateVolumeRequest{Name: "r", SourceSnapshotID: "src@s",
+			NFS: &endpoint.NFSExport{Clients: []string{"10.20.0.0/24"}, Mode: u32(0o700)}})},
 	{name: "publish", nfs: true,
 		setup: mk(endpoint.CreateVolumeRequest{Name: "v"}),
 		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
@@ -186,7 +218,7 @@ var crashCases = []crashCase{
 func fingerprint(t *testing.T, h *harness) string {
 	t.Helper()
 	p := endpoint.DefaultPropertyPrefix + ":"
-	props := []string{"type", "volsize", "refquota", "refreservation", "origin", "sharenfs", "compression", "recordsize",
+	props := []string{"type", "volsize", "refquota", "refreservation", "origin", "sharenfs", "compression", "recordsize", "mountpoint", "mounted",
 		p + "managed_resource", p + "provision_success", p + "csi_volume_name", p + "csi_snapshot_name", p + "nfs_clients",
 		p + "csi_volume_content_source_id"}
 	ds, err := h.Z.List(context.Background(), h.Parent, zfs.ListOptions{
@@ -194,6 +226,8 @@ func fingerprint(t *testing.T, h *harness) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// a mountpoint names the parent's, which differs per run on a pool
+	parentMP := h.Prop(h.Parent, "mountpoint")
 	var lines []string
 	for _, d := range ds {
 		var kv []string
@@ -207,7 +241,16 @@ func fingerprint(t *testing.T, h *harness) string {
 				// a source names the parent, which differs per run
 				s += "(" + strings.ReplaceAll(v.Source, h.Parent+"/", "") + ")"
 			}
+			if k == "mountpoint" {
+				// pinned (local) or following the parent's
+				s = k + "=" + strings.Replace(v.Value, parentMP, "$PARENT", 1) + "(" + map[bool]string{true: "local", false: "inherited"}[v.Local()] + ")"
+			}
 			kv = append(kv, s)
+		}
+		if d.Props["mounted"].Value == "yes" {
+			// the root directory's owner and mode (N11)
+			r := h.rootOf(t, d.Name, d.Props["mountpoint"].Value)
+			kv = append(kv, fmt.Sprintf("root=%d:%d:%04o", r.UID, r.GID, r.Mode))
 		}
 		lines = append(lines, strings.TrimPrefix(d.Name, h.Parent+"/")+" "+strings.Join(kv, " "))
 	}
@@ -217,9 +260,13 @@ func fingerprint(t *testing.T, h *harness) string {
 
 func crashEndpoint(t *testing.T, h *harness, r zfs.Runner, late bool) *endpoint.Endpoint {
 	t.Helper()
-	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true}
+	cfg := endpoint.Config{Parent: h.Parent, LockWait: time.Second, FileExport: true, NFSServers: []string{"192.0.2.10"}}
+	cfg.Root = endpoint.RootSetter(endpoint.LocalRoot{})
 	if h.sim != nil {
-		cfg.Etab = h.sim
+		cfg.Etab, cfg.Root = h.sim, h.sim
+	}
+	if f, ok := r.(*faultRunner); ok {
+		cfg.Root = faultRoot{cfg.Root, f}
 	}
 	if late {
 		cfg.Now = func() time.Time { return time.Now().Add(48 * time.Hour) }
@@ -237,7 +284,7 @@ func crashEndpoint(t *testing.T, h *harness, r zfs.Runner, late bool) *endpoint.
 func runCrash(t *testing.T, c crashCase, crashAt int, after bool) (string, int) {
 	t.Helper()
 	ctx := context.Background()
-	ep0, h := setup(t)
+	ep0, h := setupNFS(t, "192.0.2.10") // as crashEndpoint
 	if c.nfs {
 		h.NFS(t)
 	}
