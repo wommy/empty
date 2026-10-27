@@ -69,6 +69,20 @@ func CheckPath(path string) error {
 	return nil
 }
 
+// Target checks a gRPC target that must name a unix socket by absolute
+// path, unix:///absolute/path, and returns the path. Anything else (TCP,
+// dns:///, unix://relative, unix:@abstract) is refused.
+func Target(addr string) (string, error) {
+	path, ok := strings.CutPrefix(addr, "unix://")
+	if !ok {
+		return "", fmt.Errorf("%q: want unix:///absolute/path", addr)
+	}
+	if err := CheckPath(path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 // SecureDir creates dir 0700 if it is missing, and refuses an existing one
 // another user could tamper with: it must be a real directory (not a
 // symlink), owned by this process's euid or by root, and not writable by

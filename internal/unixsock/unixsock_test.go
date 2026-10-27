@@ -143,3 +143,17 @@ func TestListenRefusesAnUnsafeDirectory(t *testing.T) {
 	}
 	l.Close()
 }
+
+// A front end's endpoint target is unix:///absolute/path only (was
+// cmd/zfs-csi's TestEndpointTargetIsAnAbsoluteSocketPath; testing it here
+// spares a grpc-linked test binary).
+func TestTargetIsAnAbsoluteSocketPath(t *testing.T) {
+	if p, err := unixsock.Target("unix:///run/zfs-endpoint/endpoint.sock"); err != nil || p != "/run/zfs-endpoint/endpoint.sock" {
+		t.Fatalf("%q %v", p, err)
+	}
+	for _, bad := range []string{"unix://@zfs-endpoint", "unix:@zfs-endpoint", "unix://run/x.sock", "localhost:9000", "dns:///endpoint:9000"} {
+		if _, err := unixsock.Target(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}
