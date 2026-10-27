@@ -69,9 +69,15 @@ func (p Planner) planReserves(t Table, plan Plan) (need uint64, creates bool) {
 			}
 		case OpClone:
 			creates = true
-			// a clone starts with its origin's volsize and no reservation
+			// a clone starts with its origin snapshot's volsize, which a
+			// volume expanded since no longer has, and no reservation; only
+			// the snapshot this plan cuts is absent, and it is cut from the
+			// volume as it stands
 			after = space{}
-			if vol, _, ok := strings.Cut(strings.TrimPrefix(op.Source, p.Parent+"/"), "@"); ok {
+			rel := strings.TrimPrefix(op.Source, p.Parent+"/")
+			if snap, ok := t.Get(rel); ok && snap.Name == op.Source {
+				after.volsize = snap.Volsize
+			} else if vol, _, ok := strings.Cut(rel, "@"); ok {
 				if src, ok := t.Get(vol); ok {
 					after.volsize = src.Volsize
 				}

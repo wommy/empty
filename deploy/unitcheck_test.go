@@ -39,13 +39,14 @@ func TestUnitCheckReadsTheDropIn(t *testing.T) {
 }
 
 // stubs: systemctl fails start while a drop-in carries $FAIL_SETTING
-// ("always": every start), unitprobe answers as the endpoint would for
+// ("always": every start) or of unit $FAIL_UNIT, unitprobe answers as the endpoint would for
 // the socket modes the check sets ($FAKE_NOBODY: what uid 65534 gets past
 // them), setpriv marks the call as uid 65534, journalctl prints
 // $FAKE_JOURNAL.
 var unitCheckStubs = map[string]string{
 	"systemctl": `case $1 in start)
   [ "$FAIL_SETTING" = always ] && exit 1
+  [ -n "$FAIL_UNIT" ] && [ "$2" = "$FAIL_UNIT" ] && exit 1
   [ -n "$FAIL_SETTING" ] && cat "$UNIT_DIR"/zfs-endpoint@.service.d/*.conf 2>/dev/null | awk -v s="$FAIL_SETTING=" 'index($0, s) == 1 { f = 1 } END { exit !f }' && exit 1
 esac
 exit 0`,
@@ -81,10 +82,11 @@ func runUnitCheck(t *testing.T, env ...string) (out, last string, code int) {
 		}
 	}
 	for name, from := range map[string]string{
-		"zfs-endpoint@.service": filepath.Join("systemd", "zfs-endpoint@.service"),
-		"hardening.conf":        filepath.Join("systemd", "zfs-endpoint@.service.d", "hardening.conf"),
-		"zfs-endpoint":          filepath.Join(stubs, "zpool"),
-		"unitprobe":             filepath.Join(stubs, "unitprobe"),
+		"zfs-endpoint@.service":           filepath.Join("systemd", "zfs-endpoint@.service"),
+		"hardening.conf":                  filepath.Join("systemd", "zfs-endpoint@.service.d", "hardening.conf"),
+		"zfs-endpoint-reconcile@.service": filepath.Join("systemd", "zfs-endpoint-reconcile@.service"),
+		"zfs-endpoint":                    filepath.Join(stubs, "zpool"),
+		"unitprobe":                       filepath.Join(stubs, "unitprobe"),
 	} {
 		b, err := os.ReadFile(from)
 		if err != nil {
@@ -101,7 +103,7 @@ func runUnitCheck(t *testing.T, env ...string) (out, last string, code int) {
 	cmd.Env = append(os.Environ(), "PATH="+stubs+":"+os.Getenv("PATH"),
 		"UNIT_DIR="+filepath.Join(dir, "unit"), "UNIT_SBIN="+filepath.Join(dir, "sbin"), "UNIT_BIN="+filepath.Join(dir, "bin"),
 		"UNIT_RUN="+run, "UNIT_VDEV="+filepath.Join(dir, "zunit.vdev"),
-		"FAIL_SETTING=", "FAKE_NOBODY=PermissionDenied", "FAKE_JOURNAL=")
+		"FAIL_SETTING=", "FAIL_UNIT=", "FAKE_NOBODY=PermissionDenied", "FAKE_JOURNAL=")
 	cmd.Env = append(cmd.Env, env...)
 	b, err := cmd.CombinedOutput()
 	if err != nil {
@@ -131,6 +133,7 @@ func TestUnitCheckNamesTheFailingSetting(t *testing.T) {
 		{"the unit itself fails", []string{"FAIL_SETTING=always"}, 1, "unit hardening: FAIL: the unit fails without the drop-in too"},
 		{"uid 65534 is served", []string{"FAKE_NOBODY=OK"}, 1, "unit hardening: FAIL: served, but the checks above failed"},
 		{"EPERM in the journal", []string{"FAKE_JOURNAL=cannot mount: Operation not permitted"}, 1, "unit hardening: FAIL: served, but the checks above failed"},
+		{"the reconcile unit fails", []string{"FAIL_UNIT=zfs-endpoint-reconcile@zunit-k8s.service"}, 1, "unit hardening: FAIL: served, but the checks above failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -140,7 +143,8 @@ func TestUnitCheckNamesTheFailingSetting(t *testing.T) {
 				t.Errorf("exit %d, last line %q; want %d, %q\n%s", code, last, tc.code, tc.want, out)
 			}
 			if tc.name == "uid 65534 is served" && !strings.Contains(out, "uid 65534 was not refused PERMISSION_DENIED") ||
-				tc.name == "EPERM in the journal" && !strings.Contains(out, "journal: cannot mount: Operation not permitted") {
+				tc.name == "EPERM in the journal" && !strings.Contains(out, "journal: cannot mount: Operation not permitted") ||
+				tc.name == "the reconcile unit fails" && !strings.Contains(out, "reconcile: zfs-endpoint-reconcile@zunit-k8s.service failed") {
 				t.Errorf("the reason is not in the output:\n%s", out)
 			}
 		})

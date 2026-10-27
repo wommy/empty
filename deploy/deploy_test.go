@@ -360,6 +360,9 @@ func TestUnitLint(t *testing.T) {
 		if fi, err := os.Stat(f); err != nil || fi.IsDir() {
 			continue
 		}
+		if strings.HasPrefix(filepath.Base(f), "zfs-endpoint-reconcile@") {
+			continue // a socket client that mounts nothing (TestReconcileTimerIsReportOnly)
+		}
 		active, commented := directives(t, f)
 		for _, k := range noNamespace {
 			if active[k] != nil || slices.Contains(commented, k) {

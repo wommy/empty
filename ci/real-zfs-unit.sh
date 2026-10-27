@@ -9,15 +9,17 @@
 #   - the admin socket serves root (a dry-run Reconcile), refuses uid 65534
 #     at connect(2) with its shipped modes, and, with every mode on its path
 #     opened to others, refuses it in the daemon with PERMISSION_DENIED
-#     (SO_PEERCRED, ADR 0001 v2 D2).
+#     (SO_PEERCRED, ADR 0001 v2 D2);
+#   - the reconcile timer's service, hardening and all, runs its dry run
+#     against that admin socket and logs no EPERM.
 # When the drop-in fails, it starts the unit alone, then the unit with each
 # active drop-in setting on its own, and names the settings that fail.
 # The last line is the verdict: "unit hardening: PASS ..." or
 # "unit hardening: FAIL: ...". Exit 0 on PASS, 1 on FAIL.
 #
 # usage: real-zfs-unit.sh <dir>
-#   <dir> holds zfs-endpoint, unitprobe (ci/unitprobe), zfs-endpoint@.service
-#   and hardening.conf
+#   <dir> holds zfs-endpoint, unitprobe (ci/unitprobe), zfs-endpoint@.service,
+#   hardening.conf and zfs-endpoint-reconcile@.service
 # real-zfs-unit.sh --settings <hardening.conf>: print the drop-in's active
 #   settings, one per line, and exit (deploy/deploy_test.go)
 #
@@ -45,6 +47,7 @@ vdev=${UNIT_VDEV:-/run/zfsci/$pool.vdev}
 parent=$pool/k8s
 esc=$pool-k8s
 inst=zfs-endpoint@$esc.service
+rinst=zfs-endpoint-reconcile@$esc.service
 csi=unix://$rundir/sock/$esc/endpoint.sock
 admin=unix://$rundir/admin/$esc/endpoint.sock
 dropdir=$unitdir/zfs-endpoint@.service.d
@@ -54,7 +57,7 @@ elapsed() { awk -v a="$t0" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.2fs", b - a 
 verdict() { echo "unit hardening: $1 ($(elapsed))"; }
 cleanup() {
   systemctl stop "$inst" >/dev/null 2>&1
-  systemctl reset-failed "$inst" >/dev/null 2>&1
+  systemctl reset-failed "$inst" "$rinst" >/dev/null 2>&1
   zpool destroy -f "$pool" >/dev/null 2>&1
   rm -f "$vdev"
 }
@@ -62,7 +65,8 @@ trap cleanup EXIT
 
 install -m 0755 "$src/zfs-endpoint" "$sbin/zfs-endpoint" &&
   install -m 0755 "$src/unitprobe" "$bin/unitprobe" &&
-  install -m 0644 "$src/zfs-endpoint@.service" "$unitdir/zfs-endpoint@.service" ||
+  install -m 0644 "$src/zfs-endpoint@.service" "$unitdir/zfs-endpoint@.service" &&
+  install -m 0644 "$src/zfs-endpoint-reconcile@.service" "$unitdir/zfs-endpoint-reconcile@.service" ||
   { verdict "FAIL: could not install the binaries and the unit"; exit 1; }
 mkdir -p "$(dirname "$vdev")"
 truncate -s 1G "$vdev" && zpool create -f "$pool" "$vdev" && zfs create "$parent" ||
@@ -126,9 +130,19 @@ admin_checks() {
   return $rc
 }
 
-# eperm: lines of the instance's journal since $since that say EPERM
+# reconcile_unit: the timer's service (oneshot: start waits for it, and
+# fails when the dry run does) under its own hardening
+reconcile_unit() {
+  systemctl start "$rinst" && eperm "$rinst" && return
+  echo "reconcile: $rinst failed under its hardening"
+  journalctl -u "$rinst" --since "@$since" --no-pager -o cat 2>&1 | awk 'NR <= 30'
+  return 1
+}
+
+# eperm [unit]: lines of its journal (the instance's) since $since that
+# say EPERM
 eperm() {
-  journalctl -u "$inst" --since "@$since" --no-pager -o cat 2>&1 |
+  journalctl -u "${1:-$inst}" --since "@$since" --no-pager -o cat 2>&1 |
     awk '/Operation not permitted|EPERM/ { n++; if (n <= 10) print "journal: " $0 } END { exit n > 0 }'
 }
 
@@ -138,10 +152,11 @@ echo "drop-in settings in effect: ${active[*]:-none}"
 if attempt "unit + drop-in" "$conf"; then
   rc=0
   admin_checks || rc=1
+  reconcile_unit || rc=1
   eperm || { echo "the journal shows EPERM under the drop-in"; rc=1; }
   stop
   if [ $rc = 0 ]; then
-    verdict "PASS: served under the unit and the drop-in (${active[*]:-no settings}); admin refused uid 65534"
+    verdict "PASS: served under the unit and the drop-in (${active[*]:-no settings}); admin refused uid 65534; reconcile unit ran"
     exit 0
   fi
   verdict "FAIL: served, but the checks above failed"

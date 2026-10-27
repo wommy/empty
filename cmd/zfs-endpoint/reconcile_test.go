@@ -85,6 +85,57 @@ func TestReconcileSubcommand(t *testing.T) {
 	}
 }
 
+// An applied run in which a group failed exits non-zero, after printing
+// what ran and the failed target: a wrapper must not read a partial
+// collection as done.
+func TestReconcileSubcommandApplyFailure(t *testing.T) {
+	t.Parallel()
+	d, sim := simDeps(t)
+	z := zfs.New(sim)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	old := time.Now().Add(-2 * time.Hour).Unix()
+	sim.Clock = func() int64 { return old }
+	for _, id := range []string{"gone", "stuck"} {
+		if err := z.CreateFilesystem(ctx, "tank/k8s/"+id, map[string]string{"zfs-endpoint:managed_resource": "true", "zfs-endpoint:csi_volume_name": id}, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sim.Fail = func(args []string) error {
+		if args[0] == "destroy" && args[len(args)-1] == "tank/k8s/stuck" {
+			return &zfs.ExitError{Code: 1, Stderr: "cannot destroy 'tank/k8s/stuck': dataset is busy\n"}
+		}
+		return nil
+	}
+	dir := t.TempDir()
+	admin := filepath.Join(dir, "admin", "endpoint.sock")
+	done := make(chan error, 1)
+	go func() {
+		done <- run(ctx, []string{"-parent", "tank/k8s", "-listen", "unix://" + filepath.Join(dir, "sock", "endpoint.sock"), "-admin-listen", "unix://" + admin}, d)
+	}()
+	waitSocket(t, admin, done)
+	cli := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		dd := d
+		dd.stdout = &out
+		err := run(ctx, append([]string{"reconcile", "-admin-socket", "unix://" + admin}, args...), dd)
+		return out.String(), err
+	}
+	out, err := cli()
+	m := regexp.MustCompile(`(?m)^plan_digest: (\S+)$`).FindStringSubmatch(out)
+	if err != nil || m == nil {
+		t.Fatalf("dry run: %v\n%s", err, out)
+	}
+	out, err = cli("-apply", "-digest", m[1])
+	if err == nil || exitCode(err) == exitConfig || !strings.Contains(out, "destroy gone: ") || !strings.Contains(out, "stuck: failed: ") {
+		t.Fatalf("-apply with a failed destroy: %v, want a non-config error after the plan\n%s", err, out)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestReconcileSubcommandRefusals(t *testing.T) {
 	t.Parallel()
 	f := filepath.Join(t.TempDir(), "ids")
@@ -101,6 +152,7 @@ func TestReconcileSubcommandRefusals(t *testing.T) {
 		{"-parent", "tank/k8s", "-digest", "x"},
 		{"-parent", "tank/k8s", "-min-age", "90.5s"},
 		{"-parent", "tank/k8s", "-max-deletions", "3", "-unlimited-deletions"},
+		{"-parent", "tank/k8s", "-max-deletions", "4294967296"},
 		{"-parent", "tank/k8s", "extra"},
 		{"-parent", "tank/k8s", "-desired-file", filepath.Join(t.TempDir(), "missing")},
 	} {

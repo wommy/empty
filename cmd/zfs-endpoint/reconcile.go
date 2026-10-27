@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -88,6 +89,9 @@ func runReconcile(ctx context.Context, args []string, out io.Writer) error {
 	if *minAge < 0 || *minAge%time.Second != 0 {
 		return configErr("reconcile: -min-age %v: want whole seconds", *minAge)
 	}
+	if *maxDel > math.MaxUint32 {
+		return configErr("reconcile: -max-deletions %d: at most %d", *maxDel, uint64(math.MaxUint32))
+	}
 	if *maxDel > 0 && *unlimited {
 		return configErr("reconcile: -max-deletions and -unlimited-deletions together")
 	}
@@ -120,6 +124,15 @@ func runReconcile(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("reconcile on %s: %w", path, err)
 	}
 	printPlan(out, resp, *apply, *verbose)
+	// an applied run that left a group failed or unattempted is partial:
+	// exit 1 (not 78), so a wrapper does not read it as done
+	if *apply {
+		for _, s := range resp.GetSkipped() {
+			if r := s.GetReason(); strings.HasPrefix(r, endpoint.SkipFailed) || strings.HasPrefix(r, endpoint.SkipNotAttempted) {
+				return fmt.Errorf("reconcile on %s: applied in part: %s: %s", path, s.GetTarget(), r)
+			}
+		}
+	}
 	return nil
 }
 

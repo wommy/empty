@@ -457,7 +457,7 @@ bins=()
 for pkg in "${pkgs[@]}"; do bins+=("$work/$pkg.test"); done
 has endpoint && bins+=("$work/endpoint.plan")
 [ -z "$unit" ] || bins+=("$work/zfs-endpoint" "$work/unitprobe" ci/real-zfs-unit.sh deploy/systemd/zfs-endpoint@.service \
-  deploy/systemd/zfs-endpoint@.service.d/hardening.conf)
+  deploy/systemd/zfs-endpoint@.service.d/hardening.conf deploy/systemd/zfs-endpoint-reconcile@.service)
 scp "${common[@]}" -P 2222 "${bins[@]}" ci/real-zfs-guest.sh ci/test-times.awk ci@127.0.0.1:
 rc=0
 # concurrent shards on tmpfs-backed pools, three per suite (ci/real-zfs-guest.sh);
