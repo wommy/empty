@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"net"
+	"slices"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -18,14 +19,17 @@ import (
 	"github.com/wommy/empty/internal/zfs/zfstest"
 )
 
-func client(t *testing.T) pb.EndpointServiceClient {
+func client(t *testing.T) pb.EndpointServiceClient { return clientWith(t, false) }
+
+func clientWith(t *testing.T, fileExport bool) pb.EndpointServiceClient {
 	t.Helper()
 	ctx := context.Background()
-	z := zfs.New(zfstest.New("tank"))
+	sim := zfstest.New("tank")
+	z := zfs.New(sim)
 	if err := z.CreateFilesystem(ctx, "tank/vols", nil, false); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: "tank/vols"})
+	ep, err := endpoint.New(z, endpoint.Config{Parent: "tank/vols", FileExport: fileExport, Etab: sim})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,5 +85,46 @@ func TestRoundTripAndCodes(t *testing.T) {
 	}
 	if _, err := c.GetVolume(ctx, &pb.GetVolumeRequest{VolumeId: "nope"}); status.Code(err) != codes.NotFound {
 		t.Fatalf("get missing: %v", err)
+	}
+}
+
+func TestFileExport(t *testing.T) {
+	ctx := context.Background()
+
+	// not root: not advertised, and the calls are UNIMPLEMENTED
+	off := client(t)
+	caps, err := off.GetCapabilities(ctx, &pb.GetCapabilitiesRequest{})
+	if err != nil || slices.Contains(caps.Capabilities, pb.Capability_CAPABILITY_FILE_EXPORT) {
+		t.Fatalf("caps %v %v", caps, err)
+	}
+	if _, err := off.PublishFileExport(ctx, &pb.PublishFileExportRequest{VolumeId: "v", Client: "10.0.0.1"}); status.Code(err) != codes.Unimplemented {
+		t.Fatalf("publish without capability: %v", err)
+	}
+
+	c := clientWith(t, true)
+	caps, err = c.GetCapabilities(ctx, &pb.GetCapabilitiesRequest{})
+	if err != nil || !slices.Contains(caps.Capabilities, pb.Capability_CAPABILITY_FILE_EXPORT) {
+		t.Fatalf("caps %v %v", caps, err)
+	}
+	if _, err := c.CreateVolume(ctx, &pb.CreateVolumeRequest{Name: "fs"}); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		r, err := c.PublishFileExport(ctx, &pb.PublishFileExportRequest{VolumeId: "fs", Client: "10.0.0.1", ReadOnly: true})
+		if err != nil || r.ExportPath != "/tank/vols/fs" {
+			t.Fatalf("publish %v %v", r, err)
+		}
+	}
+	if _, err := c.PublishFileExport(ctx, &pb.PublishFileExportRequest{VolumeId: "fs", Client: "10.0.0.1"}); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("other mode: %v", err)
+	}
+	if _, err := c.PublishFileExport(ctx, &pb.PublishFileExportRequest{VolumeId: "fs", Client: "*"}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("wildcard: %v", err)
+	}
+	if _, err := c.UnpublishFileExport(ctx, &pb.UnpublishFileExportRequest{VolumeId: "fs", Client: "10.0.0.1"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.UnpublishFileExport(ctx, &pb.UnpublishFileExportRequest{VolumeId: "gone", Client: "10.0.0.1"}); err != nil {
+		t.Fatalf("unpublish missing: %v", err)
 	}
 }

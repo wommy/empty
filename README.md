@@ -11,7 +11,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 | ZFS execution (`internal/zfs`) | done: typed `zfs(8)` client, `-Hp` columnar parsing, error classification from OpenZFS's own CLI strings |
 | Volume/snapshot lifecycle (`internal/endpoint`) | done: create (plain, from snapshot, from volume), delete, expand, get, list, snapshot create/delete/list, capacity |
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
-| File export (NFS/SMB) | not started; the design calls for `sharenfs`/`sharesmb` properties (`docs/research/edges/file-export.md`) |
+| File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; hostname, IPv4 or IPv4 CIDR, rw/ro), desired clients in a local `<prefix>:nfs_clients` property with `sharenfs` computed from it, each change verified against `/var/lib/nfs/etab`; root only (`docs/research/gaps/file-export.md` and its two reviews). SMB not started |
 | Block export (iSCSI/NVMe-oF) | not started; the design calls for LIO/nvmet configfs (`docs/research/edges/block-export.md`) |
 | CSI front end | not started |
 | Transport auth | not started; the socket is mode 0600 until then (`docs/research/edges2/transport-auth.md`) |
@@ -53,6 +53,8 @@ All research is in `docs/research/`. Delegates produced it from pinned clones an
 | Request-scoped plans, not a reconcile queue | CSI CreateVolume is synchronous and the external-provisioner times out after 10s |
 | Keep the `provision_success` marker | ZFS channel programs can't create datasets or set refquota/volsize, so a plan can't run as one atomic transaction |
 | Fat-struct `Op`, not a sealed interface | a homogeneous `[]Op` is printable, diffable data for golden tests |
+| Unexport sets `sharenfs=off` locally, never `zfs inherit` | `sharenfs` inherits: an ancestor shared to `*` would re-export the volume to every host |
+| Exports are verified in the kernel's export table | libzfs discards the `exportfs` status, so `zfs set sharenfs=` exits 0 when the export failed (`docs/research/gaps/adv-file-export-facts.md` B1) |
 | No struct-of-arrays layout | measured: about 12 µs per 10k rows against about 1.5 ms per `zfs` exec. The real cost was a map per dataset, now one flat buffer |
 
 ### Corrections from adversarial review
@@ -79,7 +81,7 @@ The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or,
 ## Open gaps
 
 The research found these, and nothing ships for them yet:
-- **Exports** and node attach. For per-LUN detach, see Trident's `RemoveLUNFromSessions` and gobrick.
+- **Block exports, SMB** and node attach. For per-LUN detach, see Trident's `RemoveLUNFromSessions` and gobrick.
 - **Reconcile/GC.** It should run off the request path and delete only against a desired set the caller supplies.
 - **HA exclusivity.** A channel-program fencing epoch was designed and then **dropped** after adversarial review: the epoch can go backwards, and creates, resizes and clones can't be fenced (`docs/research/gaps/adv-fencing.md`). Exclusivity is per host, with a `flock` per parent dataset, and across hosts it belongs to the HA layer (`zpool multihost` plus pacemaker/STONITH).
 - **Changed-block tracking** (the CSI SnapshotMetadata service). No ZFS implementation exists anywhere, and the zfs send stream is the only exact source.

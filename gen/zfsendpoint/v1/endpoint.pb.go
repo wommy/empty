@@ -42,7 +42,9 @@ const (
 	Capability_CAPABILITY_CLONE_FROM_VOLUME   Capability = 4
 	Capability_CAPABILITY_EXPAND              Capability = 5
 	Capability_CAPABILITY_LIST                Capability = 6
-	Capability_CAPABILITY_CAPACITY            Capability = 7 // reserved for upcoming edges: exports, metadata (CBT), modify
+	Capability_CAPABILITY_CAPACITY            Capability = 7
+	// 8 is CAPABILITY_PROPERTIES (added on a parallel branch)
+	Capability_CAPABILITY_FILE_EXPORT Capability = 9 // PublishFileExport/UnpublishFileExport
 )
 
 // Enum value maps for Capability.
@@ -56,6 +58,7 @@ var (
 		5: "CAPABILITY_EXPAND",
 		6: "CAPABILITY_LIST",
 		7: "CAPABILITY_CAPACITY",
+		9: "CAPABILITY_FILE_EXPORT",
 	}
 	Capability_value = map[string]int32{
 		"CAPABILITY_UNSPECIFIED":         0,
@@ -66,6 +69,7 @@ var (
 		"CAPABILITY_EXPAND":              5,
 		"CAPABILITY_LIST":                6,
 		"CAPABILITY_CAPACITY":            7,
+		"CAPABILITY_FILE_EXPORT":         9,
 	}
 )
 
@@ -1361,6 +1365,202 @@ func (x *CreateSnapshotResponse) GetSnapshot() *Snapshot {
 	return nil
 }
 
+type PublishFileExportRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	VolumeId string                 `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	// a hostname, IPv4 address or IPv4 CIDR ("10.0.0.0/24"); no wildcards,
+	// netgroups or IPv6
+	Client        string `protobuf:"bytes,2,opt,name=client,proto3" json:"client,omitempty"`
+	ReadOnly      bool   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishFileExportRequest) Reset() {
+	*x = PublishFileExportRequest{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishFileExportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishFileExportRequest) ProtoMessage() {}
+
+func (x *PublishFileExportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishFileExportRequest.ProtoReflect.Descriptor instead.
+func (*PublishFileExportRequest) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *PublishFileExportRequest) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *PublishFileExportRequest) GetClient() string {
+	if x != nil {
+		return x.Client
+	}
+	return ""
+}
+
+func (x *PublishFileExportRequest) GetReadOnly() bool {
+	if x != nil {
+		return x.ReadOnly
+	}
+	return false
+}
+
+type PublishFileExportResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// path to mount from the storage host (server:export_path). It is read
+	// fresh on every call: pass it on (CSI publish_context), do not store it.
+	ExportPath    string `protobuf:"bytes,1,opt,name=export_path,json=exportPath,proto3" json:"export_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishFileExportResponse) Reset() {
+	*x = PublishFileExportResponse{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishFileExportResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishFileExportResponse) ProtoMessage() {}
+
+func (x *PublishFileExportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishFileExportResponse.ProtoReflect.Descriptor instead.
+func (*PublishFileExportResponse) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *PublishFileExportResponse) GetExportPath() string {
+	if x != nil {
+		return x.ExportPath
+	}
+	return ""
+}
+
+type UnpublishFileExportRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VolumeId      string                 `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
+	Client        string                 `protobuf:"bytes,2,opt,name=client,proto3" json:"client,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnpublishFileExportRequest) Reset() {
+	*x = UnpublishFileExportRequest{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnpublishFileExportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnpublishFileExportRequest) ProtoMessage() {}
+
+func (x *UnpublishFileExportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnpublishFileExportRequest.ProtoReflect.Descriptor instead.
+func (*UnpublishFileExportRequest) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *UnpublishFileExportRequest) GetVolumeId() string {
+	if x != nil {
+		return x.VolumeId
+	}
+	return ""
+}
+
+func (x *UnpublishFileExportRequest) GetClient() string {
+	if x != nil {
+		return x.Client
+	}
+	return ""
+}
+
+type UnpublishFileExportResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnpublishFileExportResponse) Reset() {
+	*x = UnpublishFileExportResponse{}
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnpublishFileExportResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnpublishFileExportResponse) ProtoMessage() {}
+
+func (x *UnpublishFileExportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_zfsendpoint_v1_endpoint_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnpublishFileExportResponse.ProtoReflect.Descriptor instead.
+func (*UnpublishFileExportResponse) Descriptor() ([]byte, []int) {
+	return file_zfsendpoint_v1_endpoint_proto_rawDescGZIP(), []int{25}
+}
+
 var File_zfsendpoint_v1_endpoint_proto protoreflect.FileDescriptor
 
 const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
@@ -1451,7 +1651,18 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x11GetVolumeResponse\x12.\n" +
 	"\x06volume\x18\x01 \x01(\v2\x16.zfsendpoint.v1.VolumeR\x06volume\"N\n" +
 	"\x16CreateSnapshotResponse\x124\n" +
-	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot*\xe5\x01\n" +
+	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot\"l\n" +
+	"\x18PublishFileExportRequest\x12\x1b\n" +
+	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\x12\x16\n" +
+	"\x06client\x18\x02 \x01(\tR\x06client\x12\x1b\n" +
+	"\tread_only\x18\x03 \x01(\bR\breadOnly\"<\n" +
+	"\x19PublishFileExportResponse\x12\x1f\n" +
+	"\vexport_path\x18\x01 \x01(\tR\n" +
+	"exportPath\"Q\n" +
+	"\x1aUnpublishFileExportRequest\x12\x1b\n" +
+	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\x12\x16\n" +
+	"\x06client\x18\x02 \x01(\tR\x06client\"\x1d\n" +
+	"\x1bUnpublishFileExportResponse*\x81\x02\n" +
 	"\n" +
 	"Capability\x12\x1a\n" +
 	"\x16CAPABILITY_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -1461,12 +1672,13 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x1cCAPABILITY_CLONE_FROM_VOLUME\x10\x04\x12\x15\n" +
 	"\x11CAPABILITY_EXPAND\x10\x05\x12\x13\n" +
 	"\x0fCAPABILITY_LIST\x10\x06\x12\x17\n" +
-	"\x13CAPABILITY_CAPACITY\x10\a*\\\n" +
+	"\x13CAPABILITY_CAPACITY\x10\a\x12\x1a\n" +
+	"\x16CAPABILITY_FILE_EXPORT\x10\t*\\\n" +
 	"\n" +
 	"VolumeKind\x12\x1b\n" +
 	"\x17VOLUME_KIND_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16VOLUME_KIND_FILESYSTEM\x10\x01\x12\x15\n" +
-	"\x11VOLUME_KIND_BLOCK\x10\x022\xa8\a\n" +
+	"\x11VOLUME_KIND_BLOCK\x10\x022\x82\t\n" +
 	"\x0fEndpointService\x12b\n" +
 	"\x0fGetCapabilities\x12&.zfsendpoint.v1.GetCapabilitiesRequest\x1a'.zfsendpoint.v1.GetCapabilitiesResponse\x12Y\n" +
 	"\fCreateVolume\x12#.zfsendpoint.v1.CreateVolumeRequest\x1a$.zfsendpoint.v1.CreateVolumeResponse\x12Y\n" +
@@ -1477,7 +1689,9 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x0eCreateSnapshot\x12%.zfsendpoint.v1.CreateSnapshotRequest\x1a&.zfsendpoint.v1.CreateSnapshotResponse\x12_\n" +
 	"\x0eDeleteSnapshot\x12%.zfsendpoint.v1.DeleteSnapshotRequest\x1a&.zfsendpoint.v1.DeleteSnapshotResponse\x12\\\n" +
 	"\rListSnapshots\x12$.zfsendpoint.v1.ListSnapshotsRequest\x1a%.zfsendpoint.v1.ListSnapshotsResponse\x12V\n" +
-	"\vGetCapacity\x12\".zfsendpoint.v1.GetCapacityRequest\x1a#.zfsendpoint.v1.GetCapacityResponseB9Z7github.com/wommy/empty/gen/zfsendpoint/v1;zfsendpointv1b\x06proto3"
+	"\vGetCapacity\x12\".zfsendpoint.v1.GetCapacityRequest\x1a#.zfsendpoint.v1.GetCapacityResponse\x12h\n" +
+	"\x11PublishFileExport\x12(.zfsendpoint.v1.PublishFileExportRequest\x1a).zfsendpoint.v1.PublishFileExportResponse\x12n\n" +
+	"\x13UnpublishFileExport\x12*.zfsendpoint.v1.UnpublishFileExportRequest\x1a+.zfsendpoint.v1.UnpublishFileExportResponseB9Z7github.com/wommy/empty/gen/zfsendpoint/v1;zfsendpointv1b\x06proto3"
 
 var (
 	file_zfsendpoint_v1_endpoint_proto_rawDescOnce sync.Once
@@ -1492,32 +1706,36 @@ func file_zfsendpoint_v1_endpoint_proto_rawDescGZIP() []byte {
 }
 
 var file_zfsendpoint_v1_endpoint_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_zfsendpoint_v1_endpoint_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_zfsendpoint_v1_endpoint_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_zfsendpoint_v1_endpoint_proto_goTypes = []any{
-	(Capability)(0),                 // 0: zfsendpoint.v1.Capability
-	(VolumeKind)(0),                 // 1: zfsendpoint.v1.VolumeKind
-	(*GetCapabilitiesRequest)(nil),  // 2: zfsendpoint.v1.GetCapabilitiesRequest
-	(*GetCapabilitiesResponse)(nil), // 3: zfsendpoint.v1.GetCapabilitiesResponse
-	(*Volume)(nil),                  // 4: zfsendpoint.v1.Volume
-	(*Snapshot)(nil),                // 5: zfsendpoint.v1.Snapshot
-	(*CreateVolumeRequest)(nil),     // 6: zfsendpoint.v1.CreateVolumeRequest
-	(*DeleteVolumeRequest)(nil),     // 7: zfsendpoint.v1.DeleteVolumeRequest
-	(*DeleteVolumeResponse)(nil),    // 8: zfsendpoint.v1.DeleteVolumeResponse
-	(*ExpandVolumeRequest)(nil),     // 9: zfsendpoint.v1.ExpandVolumeRequest
-	(*GetVolumeRequest)(nil),        // 10: zfsendpoint.v1.GetVolumeRequest
-	(*ListVolumesRequest)(nil),      // 11: zfsendpoint.v1.ListVolumesRequest
-	(*ListVolumesResponse)(nil),     // 12: zfsendpoint.v1.ListVolumesResponse
-	(*CreateSnapshotRequest)(nil),   // 13: zfsendpoint.v1.CreateSnapshotRequest
-	(*DeleteSnapshotRequest)(nil),   // 14: zfsendpoint.v1.DeleteSnapshotRequest
-	(*DeleteSnapshotResponse)(nil),  // 15: zfsendpoint.v1.DeleteSnapshotResponse
-	(*ListSnapshotsRequest)(nil),    // 16: zfsendpoint.v1.ListSnapshotsRequest
-	(*ListSnapshotsResponse)(nil),   // 17: zfsendpoint.v1.ListSnapshotsResponse
-	(*GetCapacityRequest)(nil),      // 18: zfsendpoint.v1.GetCapacityRequest
-	(*GetCapacityResponse)(nil),     // 19: zfsendpoint.v1.GetCapacityResponse
-	(*CreateVolumeResponse)(nil),    // 20: zfsendpoint.v1.CreateVolumeResponse
-	(*ExpandVolumeResponse)(nil),    // 21: zfsendpoint.v1.ExpandVolumeResponse
-	(*GetVolumeResponse)(nil),       // 22: zfsendpoint.v1.GetVolumeResponse
-	(*CreateSnapshotResponse)(nil),  // 23: zfsendpoint.v1.CreateSnapshotResponse
+	(Capability)(0),                     // 0: zfsendpoint.v1.Capability
+	(VolumeKind)(0),                     // 1: zfsendpoint.v1.VolumeKind
+	(*GetCapabilitiesRequest)(nil),      // 2: zfsendpoint.v1.GetCapabilitiesRequest
+	(*GetCapabilitiesResponse)(nil),     // 3: zfsendpoint.v1.GetCapabilitiesResponse
+	(*Volume)(nil),                      // 4: zfsendpoint.v1.Volume
+	(*Snapshot)(nil),                    // 5: zfsendpoint.v1.Snapshot
+	(*CreateVolumeRequest)(nil),         // 6: zfsendpoint.v1.CreateVolumeRequest
+	(*DeleteVolumeRequest)(nil),         // 7: zfsendpoint.v1.DeleteVolumeRequest
+	(*DeleteVolumeResponse)(nil),        // 8: zfsendpoint.v1.DeleteVolumeResponse
+	(*ExpandVolumeRequest)(nil),         // 9: zfsendpoint.v1.ExpandVolumeRequest
+	(*GetVolumeRequest)(nil),            // 10: zfsendpoint.v1.GetVolumeRequest
+	(*ListVolumesRequest)(nil),          // 11: zfsendpoint.v1.ListVolumesRequest
+	(*ListVolumesResponse)(nil),         // 12: zfsendpoint.v1.ListVolumesResponse
+	(*CreateSnapshotRequest)(nil),       // 13: zfsendpoint.v1.CreateSnapshotRequest
+	(*DeleteSnapshotRequest)(nil),       // 14: zfsendpoint.v1.DeleteSnapshotRequest
+	(*DeleteSnapshotResponse)(nil),      // 15: zfsendpoint.v1.DeleteSnapshotResponse
+	(*ListSnapshotsRequest)(nil),        // 16: zfsendpoint.v1.ListSnapshotsRequest
+	(*ListSnapshotsResponse)(nil),       // 17: zfsendpoint.v1.ListSnapshotsResponse
+	(*GetCapacityRequest)(nil),          // 18: zfsendpoint.v1.GetCapacityRequest
+	(*GetCapacityResponse)(nil),         // 19: zfsendpoint.v1.GetCapacityResponse
+	(*CreateVolumeResponse)(nil),        // 20: zfsendpoint.v1.CreateVolumeResponse
+	(*ExpandVolumeResponse)(nil),        // 21: zfsendpoint.v1.ExpandVolumeResponse
+	(*GetVolumeResponse)(nil),           // 22: zfsendpoint.v1.GetVolumeResponse
+	(*CreateSnapshotResponse)(nil),      // 23: zfsendpoint.v1.CreateSnapshotResponse
+	(*PublishFileExportRequest)(nil),    // 24: zfsendpoint.v1.PublishFileExportRequest
+	(*PublishFileExportResponse)(nil),   // 25: zfsendpoint.v1.PublishFileExportResponse
+	(*UnpublishFileExportRequest)(nil),  // 26: zfsendpoint.v1.UnpublishFileExportRequest
+	(*UnpublishFileExportResponse)(nil), // 27: zfsendpoint.v1.UnpublishFileExportResponse
 }
 var file_zfsendpoint_v1_endpoint_proto_depIdxs = []int32{
 	0,  // 0: zfsendpoint.v1.GetCapabilitiesResponse.capabilities:type_name -> zfsendpoint.v1.Capability
@@ -1539,18 +1757,22 @@ var file_zfsendpoint_v1_endpoint_proto_depIdxs = []int32{
 	14, // 16: zfsendpoint.v1.EndpointService.DeleteSnapshot:input_type -> zfsendpoint.v1.DeleteSnapshotRequest
 	16, // 17: zfsendpoint.v1.EndpointService.ListSnapshots:input_type -> zfsendpoint.v1.ListSnapshotsRequest
 	18, // 18: zfsendpoint.v1.EndpointService.GetCapacity:input_type -> zfsendpoint.v1.GetCapacityRequest
-	3,  // 19: zfsendpoint.v1.EndpointService.GetCapabilities:output_type -> zfsendpoint.v1.GetCapabilitiesResponse
-	20, // 20: zfsendpoint.v1.EndpointService.CreateVolume:output_type -> zfsendpoint.v1.CreateVolumeResponse
-	8,  // 21: zfsendpoint.v1.EndpointService.DeleteVolume:output_type -> zfsendpoint.v1.DeleteVolumeResponse
-	21, // 22: zfsendpoint.v1.EndpointService.ExpandVolume:output_type -> zfsendpoint.v1.ExpandVolumeResponse
-	22, // 23: zfsendpoint.v1.EndpointService.GetVolume:output_type -> zfsendpoint.v1.GetVolumeResponse
-	12, // 24: zfsendpoint.v1.EndpointService.ListVolumes:output_type -> zfsendpoint.v1.ListVolumesResponse
-	23, // 25: zfsendpoint.v1.EndpointService.CreateSnapshot:output_type -> zfsendpoint.v1.CreateSnapshotResponse
-	15, // 26: zfsendpoint.v1.EndpointService.DeleteSnapshot:output_type -> zfsendpoint.v1.DeleteSnapshotResponse
-	17, // 27: zfsendpoint.v1.EndpointService.ListSnapshots:output_type -> zfsendpoint.v1.ListSnapshotsResponse
-	19, // 28: zfsendpoint.v1.EndpointService.GetCapacity:output_type -> zfsendpoint.v1.GetCapacityResponse
-	19, // [19:29] is the sub-list for method output_type
-	9,  // [9:19] is the sub-list for method input_type
+	24, // 19: zfsendpoint.v1.EndpointService.PublishFileExport:input_type -> zfsendpoint.v1.PublishFileExportRequest
+	26, // 20: zfsendpoint.v1.EndpointService.UnpublishFileExport:input_type -> zfsendpoint.v1.UnpublishFileExportRequest
+	3,  // 21: zfsendpoint.v1.EndpointService.GetCapabilities:output_type -> zfsendpoint.v1.GetCapabilitiesResponse
+	20, // 22: zfsendpoint.v1.EndpointService.CreateVolume:output_type -> zfsendpoint.v1.CreateVolumeResponse
+	8,  // 23: zfsendpoint.v1.EndpointService.DeleteVolume:output_type -> zfsendpoint.v1.DeleteVolumeResponse
+	21, // 24: zfsendpoint.v1.EndpointService.ExpandVolume:output_type -> zfsendpoint.v1.ExpandVolumeResponse
+	22, // 25: zfsendpoint.v1.EndpointService.GetVolume:output_type -> zfsendpoint.v1.GetVolumeResponse
+	12, // 26: zfsendpoint.v1.EndpointService.ListVolumes:output_type -> zfsendpoint.v1.ListVolumesResponse
+	23, // 27: zfsendpoint.v1.EndpointService.CreateSnapshot:output_type -> zfsendpoint.v1.CreateSnapshotResponse
+	15, // 28: zfsendpoint.v1.EndpointService.DeleteSnapshot:output_type -> zfsendpoint.v1.DeleteSnapshotResponse
+	17, // 29: zfsendpoint.v1.EndpointService.ListSnapshots:output_type -> zfsendpoint.v1.ListSnapshotsResponse
+	19, // 30: zfsendpoint.v1.EndpointService.GetCapacity:output_type -> zfsendpoint.v1.GetCapacityResponse
+	25, // 31: zfsendpoint.v1.EndpointService.PublishFileExport:output_type -> zfsendpoint.v1.PublishFileExportResponse
+	27, // 32: zfsendpoint.v1.EndpointService.UnpublishFileExport:output_type -> zfsendpoint.v1.UnpublishFileExportResponse
+	21, // [21:33] is the sub-list for method output_type
+	9,  // [9:21] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1571,7 +1793,7 @@ func file_zfsendpoint_v1_endpoint_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_zfsendpoint_v1_endpoint_proto_rawDesc), len(file_zfsendpoint_v1_endpoint_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   22,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

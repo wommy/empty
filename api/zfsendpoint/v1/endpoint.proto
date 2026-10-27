@@ -29,6 +29,19 @@ service EndpointService {
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
 
   rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+
+  // NFS export of FILESYSTEM volumes, one client at a time (CSI
+  // ControllerPublish/Unpublish). Offered only with CAPABILITY_FILE_EXPORT;
+  // otherwise UNIMPLEMENTED.
+  // - Publishing the same client in the same mode again is OK; in the other
+  //   mode ALREADY_EXISTS.
+  // - Unpublishing a client (or volume) that is not exported is OK.
+  // - BLOCK volumes and filesystems not mounted on the storage host are
+  //   FAILED_PRECONDITION.
+  // - OK means the NFS server serves (or no longer serves) the client; if it
+  //   does not, UNAVAILABLE, and a retry re-applies.
+  rpc PublishFileExport(PublishFileExportRequest) returns (PublishFileExportResponse);
+  rpc UnpublishFileExport(UnpublishFileExportRequest) returns (UnpublishFileExportResponse);
 }
 
 enum Capability {
@@ -40,6 +53,8 @@ enum Capability {
   CAPABILITY_EXPAND = 5;
   CAPABILITY_LIST = 6;
   CAPABILITY_CAPACITY = 7;
+  // 8 is CAPABILITY_PROPERTIES (added on a parallel branch)
+  CAPABILITY_FILE_EXPORT = 9; // PublishFileExport/UnpublishFileExport
   // reserved for upcoming edges: exports, metadata (CBT), modify
 }
 
@@ -140,3 +155,22 @@ message ExpandVolumeResponse { Volume volume = 1; }
 message GetVolumeResponse { Volume volume = 1; }
 
 message CreateSnapshotResponse { Snapshot snapshot = 1; }
+
+message PublishFileExportRequest {
+  string volume_id = 1;
+  // a hostname, IPv4 address or IPv4 CIDR ("10.0.0.0/24"); no wildcards,
+  // netgroups or IPv6
+  string client = 2;
+  bool read_only = 3;
+}
+message PublishFileExportResponse {
+  // path to mount from the storage host (server:export_path). It is read
+  // fresh on every call: pass it on (CSI publish_context), do not store it.
+  string export_path = 1;
+}
+
+message UnpublishFileExportRequest {
+  string volume_id = 1;
+  string client = 2;
+}
+message UnpublishFileExportResponse {}

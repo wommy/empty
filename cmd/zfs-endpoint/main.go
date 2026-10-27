@@ -62,9 +62,16 @@ func run() error {
 	} else if !ok {
 		return fmt.Errorf("parent dataset %s does not exist", *parent)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait})
+	// NFS exports need root: libzfs writes /etc/exports.d and runs exportfs
+	// as the caller, and only root mounts. Without it the export calls stay
+	// unadvertised and UNIMPLEMENTED.
+	root := os.Geteuid() == 0
+	ep, err := endpoint.New(z, endpoint.Config{Parent: *parent, PropertyPrefix: *prefix, LockWait: *lockWait, FileExport: root})
 	if err != nil {
 		return err
+	}
+	if !root {
+		slog.Warn("not running as root: NFS file export disabled")
 	}
 
 	lis, err := listener(*listen)

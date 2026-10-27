@@ -30,16 +30,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	EndpointService_GetCapabilities_FullMethodName = "/zfsendpoint.v1.EndpointService/GetCapabilities"
-	EndpointService_CreateVolume_FullMethodName    = "/zfsendpoint.v1.EndpointService/CreateVolume"
-	EndpointService_DeleteVolume_FullMethodName    = "/zfsendpoint.v1.EndpointService/DeleteVolume"
-	EndpointService_ExpandVolume_FullMethodName    = "/zfsendpoint.v1.EndpointService/ExpandVolume"
-	EndpointService_GetVolume_FullMethodName       = "/zfsendpoint.v1.EndpointService/GetVolume"
-	EndpointService_ListVolumes_FullMethodName     = "/zfsendpoint.v1.EndpointService/ListVolumes"
-	EndpointService_CreateSnapshot_FullMethodName  = "/zfsendpoint.v1.EndpointService/CreateSnapshot"
-	EndpointService_DeleteSnapshot_FullMethodName  = "/zfsendpoint.v1.EndpointService/DeleteSnapshot"
-	EndpointService_ListSnapshots_FullMethodName   = "/zfsendpoint.v1.EndpointService/ListSnapshots"
-	EndpointService_GetCapacity_FullMethodName     = "/zfsendpoint.v1.EndpointService/GetCapacity"
+	EndpointService_GetCapabilities_FullMethodName     = "/zfsendpoint.v1.EndpointService/GetCapabilities"
+	EndpointService_CreateVolume_FullMethodName        = "/zfsendpoint.v1.EndpointService/CreateVolume"
+	EndpointService_DeleteVolume_FullMethodName        = "/zfsendpoint.v1.EndpointService/DeleteVolume"
+	EndpointService_ExpandVolume_FullMethodName        = "/zfsendpoint.v1.EndpointService/ExpandVolume"
+	EndpointService_GetVolume_FullMethodName           = "/zfsendpoint.v1.EndpointService/GetVolume"
+	EndpointService_ListVolumes_FullMethodName         = "/zfsendpoint.v1.EndpointService/ListVolumes"
+	EndpointService_CreateSnapshot_FullMethodName      = "/zfsendpoint.v1.EndpointService/CreateSnapshot"
+	EndpointService_DeleteSnapshot_FullMethodName      = "/zfsendpoint.v1.EndpointService/DeleteSnapshot"
+	EndpointService_ListSnapshots_FullMethodName       = "/zfsendpoint.v1.EndpointService/ListSnapshots"
+	EndpointService_GetCapacity_FullMethodName         = "/zfsendpoint.v1.EndpointService/GetCapacity"
+	EndpointService_PublishFileExport_FullMethodName   = "/zfsendpoint.v1.EndpointService/PublishFileExport"
+	EndpointService_UnpublishFileExport_FullMethodName = "/zfsendpoint.v1.EndpointService/UnpublishFileExport"
 )
 
 // EndpointServiceClient is the client API for EndpointService service.
@@ -57,6 +59,18 @@ type EndpointServiceClient interface {
 	DeleteSnapshot(ctx context.Context, in *DeleteSnapshotRequest, opts ...grpc.CallOption) (*DeleteSnapshotResponse, error)
 	ListSnapshots(ctx context.Context, in *ListSnapshotsRequest, opts ...grpc.CallOption) (*ListSnapshotsResponse, error)
 	GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error)
+	// NFS export of FILESYSTEM volumes, one client at a time (CSI
+	// ControllerPublish/Unpublish). Offered only with CAPABILITY_FILE_EXPORT;
+	// otherwise UNIMPLEMENTED.
+	//   - Publishing the same client in the same mode again is OK; in the other
+	//     mode ALREADY_EXISTS.
+	//   - Unpublishing a client (or volume) that is not exported is OK.
+	//   - BLOCK volumes and filesystems not mounted on the storage host are
+	//     FAILED_PRECONDITION.
+	//   - OK means the NFS server serves (or no longer serves) the client; if it
+	//     does not, UNAVAILABLE, and a retry re-applies.
+	PublishFileExport(ctx context.Context, in *PublishFileExportRequest, opts ...grpc.CallOption) (*PublishFileExportResponse, error)
+	UnpublishFileExport(ctx context.Context, in *UnpublishFileExportRequest, opts ...grpc.CallOption) (*UnpublishFileExportResponse, error)
 }
 
 type endpointServiceClient struct {
@@ -167,6 +181,26 @@ func (c *endpointServiceClient) GetCapacity(ctx context.Context, in *GetCapacity
 	return out, nil
 }
 
+func (c *endpointServiceClient) PublishFileExport(ctx context.Context, in *PublishFileExportRequest, opts ...grpc.CallOption) (*PublishFileExportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PublishFileExportResponse)
+	err := c.cc.Invoke(ctx, EndpointService_PublishFileExport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *endpointServiceClient) UnpublishFileExport(ctx context.Context, in *UnpublishFileExportRequest, opts ...grpc.CallOption) (*UnpublishFileExportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnpublishFileExportResponse)
+	err := c.cc.Invoke(ctx, EndpointService_UnpublishFileExport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EndpointServiceServer is the server API for EndpointService service.
 // All implementations must embed UnimplementedEndpointServiceServer
 // for forward compatibility.
@@ -182,6 +216,18 @@ type EndpointServiceServer interface {
 	DeleteSnapshot(context.Context, *DeleteSnapshotRequest) (*DeleteSnapshotResponse, error)
 	ListSnapshots(context.Context, *ListSnapshotsRequest) (*ListSnapshotsResponse, error)
 	GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error)
+	// NFS export of FILESYSTEM volumes, one client at a time (CSI
+	// ControllerPublish/Unpublish). Offered only with CAPABILITY_FILE_EXPORT;
+	// otherwise UNIMPLEMENTED.
+	//   - Publishing the same client in the same mode again is OK; in the other
+	//     mode ALREADY_EXISTS.
+	//   - Unpublishing a client (or volume) that is not exported is OK.
+	//   - BLOCK volumes and filesystems not mounted on the storage host are
+	//     FAILED_PRECONDITION.
+	//   - OK means the NFS server serves (or no longer serves) the client; if it
+	//     does not, UNAVAILABLE, and a retry re-applies.
+	PublishFileExport(context.Context, *PublishFileExportRequest) (*PublishFileExportResponse, error)
+	UnpublishFileExport(context.Context, *UnpublishFileExportRequest) (*UnpublishFileExportResponse, error)
 	mustEmbedUnimplementedEndpointServiceServer()
 }
 
@@ -221,6 +267,12 @@ func (UnimplementedEndpointServiceServer) ListSnapshots(context.Context, *ListSn
 }
 func (UnimplementedEndpointServiceServer) GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCapacity not implemented")
+}
+func (UnimplementedEndpointServiceServer) PublishFileExport(context.Context, *PublishFileExportRequest) (*PublishFileExportResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PublishFileExport not implemented")
+}
+func (UnimplementedEndpointServiceServer) UnpublishFileExport(context.Context, *UnpublishFileExportRequest) (*UnpublishFileExportResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnpublishFileExport not implemented")
 }
 func (UnimplementedEndpointServiceServer) mustEmbedUnimplementedEndpointServiceServer() {}
 func (UnimplementedEndpointServiceServer) testEmbeddedByValue()                         {}
@@ -423,6 +475,42 @@ func _EndpointService_GetCapacity_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EndpointService_PublishFileExport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishFileExportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EndpointServiceServer).PublishFileExport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EndpointService_PublishFileExport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EndpointServiceServer).PublishFileExport(ctx, req.(*PublishFileExportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EndpointService_UnpublishFileExport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnpublishFileExportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EndpointServiceServer).UnpublishFileExport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EndpointService_UnpublishFileExport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EndpointServiceServer).UnpublishFileExport(ctx, req.(*UnpublishFileExportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EndpointService_ServiceDesc is the grpc.ServiceDesc for EndpointService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -469,6 +557,14 @@ var EndpointService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCapacity",
 			Handler:    _EndpointService_GetCapacity_Handler,
+		},
+		{
+			MethodName: "PublishFileExport",
+			Handler:    _EndpointService_PublishFileExport_Handler,
+		},
+		{
+			MethodName: "UnpublishFileExport",
+			Handler:    _EndpointService_UnpublishFileExport_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
