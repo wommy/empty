@@ -12,7 +12,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 | Volume/snapshot lifecycle (`internal/endpoint`) | done: create (plain, from snapshot, from volume), delete, expand, get, list, snapshot create/delete/list, capacity |
 | ZFS property passthrough (`internal/endpoint/props.go`) | done: default-deny per-kind allowlist with value checks; requested properties must be set locally for a retry to be compatible (`docs/research/gaps/adv-csi-frontend.md` B3) |
 | Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over a unix socket, owner-only permissions |
-| File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; an IPv4 address or IPv4 CIDR, always written as a masked CIDR with `/N`, no broader than `-nfs-min-prefix` (default /16), no overlapping networks on one volume; rw/ro), desired clients in a local `<prefix>:nfs_clients` property with `sharenfs` computed from it, each Publish verified against `/var/lib/nfs/etab` (at the mountpoint's real path) and running nfsd threads; root only (`docs/research/gaps/file-export.md` and its reviews). SMB not started |
+| File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; an IPv4 address or IPv4 CIDR, always written as a masked CIDR with `/N`, no broader than `-nfs-min-prefix` (default /16), no overlapping networks on one volume; rw/ro), desired clients in a local `<prefix>:nfs_clients` property with `sharenfs` computed from it, each Publish verified against `/var/lib/nfs/etab` (at the mountpoint's real path) and running nfsd threads; root only (`docs/research/gaps/file-export.md` and its reviews). ADR 0004 since decided that export state lives only in `sharenfs`: `nfs_clients` is to be removed in a follow-up and reconcile is to report a leftover one (neither is done yet). SMB not started |
 | Block export (iSCSI/NVMe-oF) | design v2 done, not implemented: sole configfs owner, minted `block_id` identity, fail-closed build order (`docs/research/gaps/block-export-v2.md`) |
 | CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS. Node side not started, so block access is opt-in (`-enable-block`, default off) |
 | Deployment (`deploy/`) | hyperconverged, unix sockets only (`docs/adr/0006-first-deployment-shape.md`): systemd unit per parent serving `/run/zfs-endpoint/<systemd-escape parent>.sock` (also zfs-endpoint's default `-listen`; `zfs-csi -parent` dials it), Kubernetes manifests in `deploy/k8s/`. Version set at build with `-ldflags -X github.com/wommy/empty/internal/version.Version=...`, printed by `-version`. No image or release build yet |
@@ -28,12 +28,12 @@ lock(keys) → scan → Table → plan(Table, request) → Plan → apply → re
              get -Hp     immutable  no I/O             plain data own replay tolerance
 ```
 
-- **Scan** (`table.go`): one `zfs get -Hp` per call reads the subtree into a flat columnar buffer. That is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
+- **Scan** (`table.go`): one `zfs get -Hp -d` per scan reads the parent's volumes and their snapshots (or one volume and its snapshots) into a flat columnar buffer. The parent itself and anything deeper, such as a dataset someone made below a volume, are dropped, so planners never see them. An RPC may scan more than once: once per volume it touches, and again to re-read after applying. Each scan is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
 - **Plan** (`plan.go`): pure functions take a `Table` and a request and return either a `Plan` (a `[]Op` of plain data) or a typed error.
   - Idempotency means the plan is empty.
   - A provision that was interrupted converges, because uncommitted rows are driven toward the request rather than judged for compatibility.
 - **Apply** (`apply.go`): runs ops in order. Each op states whether "already exists" or "already gone" counts as done, so replaying a partially applied plan converges.
-- **Locks** (`internal/lock`): every resource an operation touches is locked, including the source snapshot of a clone. A busy resource returns `ABORTED` one second before the caller's deadline, so CSI sidecars retry instead of timing out.
+- **Locks** (`internal/lock`): CreateVolume locks the new volume and, for a clone, its source volume and snapshot. CreateSnapshot and DeleteSnapshot lock the snapshot and its volume. DeleteVolume, ExpandVolume and the export calls lock only the volume, so DeleteVolume releases a clone-source snapshot on another volume without that volume's lock. Reconcile takes volume locks without waiting and skips busy volumes. A busy lock is waited for up to `-lock-wait` (default 30 s), cut to one second before the caller's deadline when the call has one, and then returns `ABORTED`, so CSI sidecars retry instead of timing out.
 
 Errors use the CSI/gRPC codes directly:
 - `ALREADY_EXISTS` for an incompatible re-create.
@@ -45,7 +45,7 @@ Errors use the CSI/gRPC codes directly:
 
 ## Decisions and their evidence
 
-All research is in `docs/research/`. Delegates produced it from pinned clones and GitHits searches, and adversarial rounds then attacked it. `alignment.md` maps 495 operations across 13 implementations onto one vocabulary.
+All research is in `docs/research/`. Delegates produced it from pinned clones and GitHits searches, and adversarial rounds then attacked it. `alignment.md` maps 108 distinct operations across 13 implementations onto one vocabulary (495 mappings).
 
 | Decision | Evidence |
 |---|---|
@@ -79,7 +79,7 @@ All research is in `docs/research/`. Delegates produced it from pinned clones an
 | Busy is mapped by operation | CSI: "in use" on DeleteVolume/DeleteSnapshot is `FAILED_PRECONDITION`. On create, expand and clone it clears by itself, so it is retryable |
 | A killed zfs command is `DEADLINE_EXCEEDED`/`ABORTED`, never `INTERNAL` | its outcome is unknown, and a final code would strand a half-applied plan. Commands get SIGTERM and then a 5 s `WaitDelay` |
 | Never delete a non-socket at the socket path | a misconfigured `-csi-address` removed whatever file it named |
-| No struct-of-arrays layout | measured: about 12 µs per 10k rows against about 1.5 ms per `zfs` exec. The real cost was a map per dataset, now one flat buffer |
+| No struct-of-arrays layout | measured: struct-of-arrays saves about 12 µs on a filter over 10k rows (`docs/research/dod-go/memory-layout.md`), while a whole-parent scan of 10k rows costs about 140 ms and 100 MB of allocations Go-side (`BenchmarkScan`: parse, decode and index, zfs exec excluded). The cost is in parsing and decoding, not in the row layout |
 
 ### Corrections from adversarial review
 
@@ -104,11 +104,11 @@ go test -run '^$' -fuzz FuzzReconcileSafe ./internal/endpoint
 go test -run '^$' -fuzz FuzzParseColumns ./internal/zfs
 ```
 
-The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter on a file-backed pool. Planner tests build `Table`s directly from rows, with no I/O.
+The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter in an Ubuntu VM running OpenZFS 2.4 (`ci/real-zfs-vm.sh`): six concurrent shards, each on its own pool backed by a sparse file on a guest tmpfs (`ci/real-zfs-guest.sh`). Planner tests build `Table`s directly from rows, with no I/O.
 
 `FuzzCreateConverges` asserts the core invariant: for any accepted request, a second identical CreateVolume succeeds and changes nothing.
 
-`FuzzReconcileSafe` builds arbitrary parents on the simulator: received copies, foreign snapshots, child datasets, clones and origins outside the parent, deferred snapshots, unstamped clone sources, just-committed retries, and a busy destroy on the first run. It asserts that reconcile never errors, never targets anything the endpoint does not own (or a desired, young or CSI-snapshotted volume), that everything unowned and everything outside the scan survives, and that once failures clear it converges and then plans nothing.
+`FuzzReconcileSafe` builds arbitrary parents on the simulator: received copies, foreign snapshots, child datasets, clones and origins outside the parent, deferred snapshots, unstamped clone sources, just-committed retries, and a busy destroy on the first run. It asserts that reconcile never errors, never targets anything the endpoint does not own (or a desired, young or CSI-snapshotted volume), that everything unowned and everything outside the scan survives, and that once injected failures clear it converges: the run after that applies nothing and reports no failed group, except a volume zfs refuses for something the scan cannot see (a child dataset, an outside clone of a deferred snapshot); with no such volume, a dry run then plans nothing.
 
 The simulator injects failures (`Sim.Fail`) and received properties (`Sim.Receive`), and it prints index properties the way zfs 2.4 does.
 
