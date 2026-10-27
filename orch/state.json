@@ -1,6 +1,6 @@
 {
  "ci": "green",
- "head": "863c432",
+ "head": "6e2cc66",
  "caps": {
   "total": 8,
   "writers": 3,
@@ -13,5 +13,5 @@
  "notes": "First warm run 62s wall (VM job 57s: restore guest 12s, qemu 4s, test 29s; static 12s; test 17s). Next: overlap guest restore with setup-go; default-branch warm job (b-cache-warm).",
  "last_ci_seconds": 56,
  "budget_regression": "variance: 3ab03d5 69s, bdfe867 56s; b-cache-warm targets <=45s nominal",
- "open_anomaly": "TestModel guid fix: 3 consecutive green real-pool runs (closing); budget 54-73s, b-ci-levers in flight"
+ "open_anomaly": "budget: warm measurement of ci-levers pending next push"
 }
