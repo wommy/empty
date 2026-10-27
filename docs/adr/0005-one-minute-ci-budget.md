@@ -36,10 +36,10 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
     - pure planner tables;
     - simulator tests;
     - the seed-corpus run of each fuzz target as plain `go test`;
-    - the real-ZFS VM suites, one job and VM per suite (see the two VM jobs below).
+    - the real-ZFS VM suites, one VM job per part of a suite: endpoint in two parts, csi in one (see "The endpoint suite in two parts" below).
   - **Nightly** (`nightly.yml`, 03:17 UTC and on dispatch; nothing in it gates a PR). Three jobs:
     - `fuzz`: exploratory fuzzing of the nine targets in its matrix, 5 minutes each by default (the `fuzztime` input).
-    - `real-zfs-full`: the same suite matrix as `ci.yml` (`endpoint`, `csi`), one VM per suite, with `ZFSDIFF_FULL=1` and `ZFS_CRASH_FULL=1`. Both sweeps are endpoint tests; the csi job runs the csi suite against the same guest.
+    - `real-zfs-full`: the same suites as `ci.yml` (`endpoint`, `csi`), one VM each, the endpoint suite unsplit (one part, 3 shards; no `ZFSVM_PART`), and the csi leg booted with `ZFSVM_INITRD=1`, the only run of the GRUB fallback path; with `ZFSDIFF_FULL=1` and `ZFS_CRASH_FULL=1`. Both sweeps are endpoint tests; the csi job runs the csi suite against the same guest.
       - `ZFSDIFF_FULL=1` replays the whole zfsdiff corpus on the real pool. Its divergences are reported, not failed, until the three ambiguities are settled (`ZFSDIFF_STRICT`).
       - `ZFS_CRASH_FULL=1` runs every crash point of every case on the real pool. The PR's real leg runs each crash case uninterrupted plus one crash point, rotated across cases; the simulator leg runs every point on every PR. The full sweep cost about 29s of the VM's two vCPUs (run 40468062545), and it slowed every other shard.
       - It also runs every destroy of `TestDestroyNeverHitsAReplacedDataset` (OWN-15) on the real pool. The PR's real leg swaps only the first destroy of each of its five cases (`swapSweep`): every case still reaches the guid guard, which is one code path for every destroy. The simulator leg swaps every destroy on every PR. The full sweep was 19 subtests and 18.8 test-seconds, all on one shard (run 40511369632); the first destroys are 5 subtests and 8.0 test-seconds. With the guard disabled (`sameDataset` returning nil), the first destroy of every case fails on the simulator, so the reduced run still catches it.
@@ -53,7 +53,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
     - the simulator and VM keep only what needs zfs or races;
     - redundant tests become tables.
   - **Parallel on the VM (adopted):**
-    - Process shards come first. Each guest runs three concurrent shards, each on its own pool: the endpoint job three endpoint shards, the csi job csi, csi-sanity on filesystems and csi-sanity on zvols (see the two VM jobs below). This needs no test-code change.
+    - Process shards come first. Each guest runs three concurrent shards, each on its own pool: each endpoint part job 3 of the 6 endpoint shards, the csi job csi, csi-sanity on filesystems and csi-sanity on zvols (see the VM job sections below). This needs no test-code change.
     - `t.Parallel` inside a shard is the follow-up. Each test owns its datasets (one child per test).
   - **Time cost as data (adopted):**
     - `ci/real-zfs-weights.txt` is the time cost of each real-pool test, next to `ci/expected-skips.txt`, and it drives the sharding.
@@ -75,7 +75,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
     - The Go build cache stays warm.
   - **No real waiting in the race build:** `GORACE=atexit_sleep_ms=0` drops the race runtime's 1s exit sleep in each test binary. A race still fails the binary.
   - **Few jobs, sized to the critical path:** the static checks share one job, and the real-ZFS VM jobs set the pace.
-  - **Two real-ZFS VM jobs, one per suite (adopted, wave 15):** see below.
+  - **Two real-ZFS VM jobs, one per suite (adopted, wave 15):** see below; the endpoint suite split in two parts since wave 18, so three VM jobs.
 
 ### Two VM jobs: endpoint and csi on separate runners
 
@@ -85,7 +85,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - vmstat: run queue 10–41 and idle 1–2% while five or six shards ran; still about 88% busy with only one or two endpoint shards left.
   - shard walls: endpoint 24.3 / 27.0 / 31.3s, csi-sanity mount 23.1s and block 23.2s, csi other 4.7s. csi-sanity took 13.5–13.9s on the 54s run 40497090324, so it is slowed by the other shards, not by itself.
   - Steal at 1% rules out a contended host, so a bigger guest on the same runner would not help. In-guest tuning was tried: the wave 14 levers were estimated at 45–49s and measured 70s push-to-green.
-- **Decision.** The VM job is a matrix over the suites in `ci/real-zfs-suites.txt`: `endpoint` (the three endpoint shards, TestPropertyRoundTrip's rows split across them by `PROPRT_SHARD`) and `csi` (csi tests, csi-sanity on filesystems and on zvols). Each job restores the same cache entry (`zfsvm-v4`, guest and qemu; `zfsvm-v5` since the cache-bytes change below), boots its own VM and builds only its own test binaries (`ZFSVM_SUITE`). Its checks run in that job: `ci/check-skips.sh` for its binaries, and in the endpoint job `ci/check-split.sh`. `fail-fast` is off, so one suite's failure does not cancel the other's measurement. `nightly.yml`'s `real-zfs-full` runs the same matrix. `cache-warm.yml` provisions the one guest both jobs restore, and warms one Go namespace per suite (`real-zfs-endpoint`, `real-zfs-csi`).
+- **Decision.** The VM job is a matrix over the suites in `ci/real-zfs-suites.txt`: `endpoint` (the three endpoint shards, TestPropertyRoundTrip's rows split across them by `PROPRT_SHARD`) and `csi` (csi tests, csi-sanity on filesystems and on zvols). Each job restores the same cache entry (`zfsvm-v4`, guest and qemu; `zfsvm-v5` since the cache-bytes change below), boots its own VM and builds only its own test binaries (`ZFSVM_SUITE`). Its checks run in that job: `ci/check-skips.sh` for its binaries, and in the endpoint job `ci/check-split.sh`. `fail-fast` is off, so one suite's failure does not cancel the other's measurement. `nightly.yml`'s `real-zfs-full` runs the same suites (endpoint unsplit since the two-part split below). `cache-warm.yml` provisions the one guest both jobs restore, and warms one Go namespace per suite (`real-zfs-endpoint`, `real-zfs-csi`).
 - **Completeness is proved, not assumed:**
   - `ci/check-suites.sh` (static job) fails unless every package whose tests read `ZFS_TEST_POOL` is in exactly one suite, and `ci.yml`'s and `nightly.yml`'s `suite` matrices and `cache-warm.yml`'s namespaces name every suite exactly once.
   - In each job, `ci/check-skips.sh` fails unless every test its binaries list passed or skipped.
@@ -145,11 +145,12 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
 - **Exactly-once across jobs, without a job that waits for both.** A final job that compares the two jobs' uploaded lists would add a queue, a set-up and a download to push-to-green, about 8–10s. The plan is deterministic instead, and each part proves its own half in its own job:
   - **The plan is static.** `ci/check-split.sh` remakes the plan and requires the job's plan to match it byte for byte. It also proves the plan is a partition of the list over all 6 shards: every listed test in exactly one shard, TestPropertyRoundTrip in all 6, nothing unlisted. Both jobs build the same commit, so they make the same plan. Each job prints the list's and the plan's sha256, so any two can be compared. The guest's own list must equal the host's list.
   - **Each part's run is checked against the plan.** The shard logs must be exactly the part's shards. Each top-level result must appear once, in the shard the plan assigns it. Every test the plan gives those shards must report. Each `PROPRT_SHARD i/6: k of T` line must have k = #{r < T : r mod 6 = i}. The subtests must number Σk, with none twice.
-  - So a test that one part drops fails that part's job, and a test that a part runs outside its shards fails that part's job. Rows `i mod 6` over i = 0..5 cover each row once.
+  - So a test that one part drops fails that part's job, and a test that a part runs outside its shards fails that part's job. Rows `i mod 6` over i = 0..5 cover each row once, provided both parts split the same total T, which neither job sees of the other: so each shard's T must equal the committed `propRTRows` (`internal/endpoint/props_roundtrip_test.go`), which the test itself pins to `len(allowlistRows())` (3d6b248).
+  - A shard the plan gives no test writes an empty log, which passes only as that: an empty shard log is expected, not a lost shard.
   - `ci/check-skips.sh` takes the part's own list. With `SKIPS_ELSEWHERE`, the other part's tests set the skip budget per job: an allowed skip planned for the other part is the other part's to meet, and the two budgets add up to the whole list (22 at 7048b51, all in part 1).
   - `ci/check-suites.sh` statically requires every part 0..P−1 of every suite exactly once, with one P per suite, and P > 1 only for endpoint.
   - Locally, against run 40513522394's shard logs and a synthetic 2×3 run built from them, the checks reject the following: a dropped test, a dropped shard log, a dropped row, a test run in both parts, a test run twice within a part, a duplicated row, a wrong `PROPRT_SHARD` split, a hand-edited plan, and a planner that drops or duplicates a test.
-- **Prediction.** Each guest does half the CPU work: 41.5 CPU-s at about 3.6 effective vCPUs is 11.4s. TestRealFacts (9.5s contended) is the floor. So each endpoint job's phase is about 12s, against 22.1s, about 10s less, and the endpoint job ends at about 45s. Push-to-green is then bound by csi (about 54s today, about 44s once the ssh poll fix and the cache levers land). The max is now over three VM jobs instead of two, which adds one more queue and runner sample.
+- **Prediction.** Each guest does half the CPU work: 41.5 CPU-s at about 3.6 effective vCPUs is 11.4s. TestRealFacts (9.5s contended) is the floor. So each endpoint job's phase is about 12s, against 22.1s, about 10s less, and the endpoint job ends at about 45s. Push-to-green is then bound by whichever VM job is slowest. The max is now over three VM jobs instead of two, which adds one more queue and runner sample.
 - **Cost.**
   - Runner time per push grows by about 24s: two endpoint jobs of about 34s each (about 22.3s fixed plus 12s), against one of about 44s. Billed per job, rounded up to a minute, that is one more minute, which is free on a public repo.
   - Each push restores the guest entry three times instead of twice, which is about 590 MB more cache egress.
@@ -159,6 +160,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - `check-split: part p/2: … each in exactly its planned shard`;
   - each part's `guest load` phase is near 12s;
   - the csi job is now the last to finish.
+- **Measured.** Each part's phase took 6.6–10.4s (runs 40536056973, 40536341101, 40536492611; 10.7s and 7.7s on the first three-job run, 40519558807). With the parts this short, no job is reliably last (csi was, on 40535710051): push-to-green is bound by the slowest of the three VM jobs in each run, whichever that is.
 
 ### Cache bytes (zfsvm-v5)
 
@@ -193,19 +195,20 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - Only files that exist are read. A stopped unit or a missing cgroup prints `-`, and nothing in it can fail the job. Measured on a 4-CPU container: 4 ms per snapshot, so well under 0.1s for the job.
   - Kernel threads and irq are root − (init + system + user.slice). The table prints root, init and system; the tests' scope is most of user.slice.
 - **Measured (run 40536056973, endpoint part 0).** Phase 10.4s at 93% busy, about 39 CPU-s: 5886 forks at 6.6 CPU-ms each, so the phase is zfs(8) launches. zfs-zed used 3.62 CPU-s, udisks2 0.44, systemd-udevd 3.05 (reading 82 MB from new zvols). The lever is fewer launches from the tests, not the guest's daemons.
-- **Quiet guest: tried and reverted.** Stopping zfs-zed and masking udisks2 for the tests (9a8b891) removed about 900 forks per part, but the phase measured 8.5s with it (run 40536492611) against 6.6s and 10.4s without it (runs 40536341101, 40536056973): the 1.3-4 CPU-s it saves are inside the run-to-run spread, under this section's keep rule (a drop of >= 1.5s, or >= 6 CPU-s in those units). zed and udisks2 stay as the image ships them.
+- **Quiet guest: tried and reverted.** Stopping zfs-zed and masking udisks2 for the tests (9a8b891) removed about 900 forks per part, but the phase measured 8.5s with it (run 40536492611) against 6.6s and 10.4s without it (runs 40536341101, 40536056973): the 1.3-4 CPU-s it saves are inside the run-to-run spread, under the keep rule 9a8b891 recorded with it (a drop of >= 1.5s, or >= 6 CPU-s in those units). zed and udisks2 stay as the image ships them.
 
 ### ssh poll and module load
 
 - **Data.** Run 40513522394 (2b648ef, jobs 122221249079 endpoint and 122221249080 csi), times after qemu started:
   - endpoint: test binaries built at +5.75s, `ssh up` at +9.22s, `nfs-server active` at +9.25s. In the guest, ssh.service was active 5.4s after the kernel's clock started (1.20s kernel + 4.19s userspace), about +6.2s on the host clock;
   - csi: built at +7.87s, `ssh up` at +15.77s. ssh.service was active at about 8.7s of uptime (+9.5s);
-  - so the host saw sshd 3s (endpoint) and 6s (csi) after it started. The cause is the poll. slirp's hostfwd accepts the TCP connect at once and then sends its own SYN to the guest, which is lost until the guest has its address and is retried seconds later. ssh waits for the banner up to `ConnectTimeout` (5s), so each try could stall for 5s;
+  - so the host saw sshd 3s (endpoint) and 6s (csi) after it started. This was first blamed on the poll (slirp's hostfwd losing its SYN to the guest until the guest has its address, each 5s ssh try stalling). That theory was wrong; see the next bullet;
+  - **the cause was OpenSSH's PerSourcePenalties** (OpenSSH ≥ 9.8; the guest runs 10.5). sshd refuses logins while /run/nologin exists (pam_nologin, `account required` in Ubuntu's sshd PAM stack, until systemd-user-sessions removes it), and charges each refused login as authfail (5s). Past 15s of charge it refuses every connection from the source ("Not allowed at this time") until the charge expires, and all host traffic reaches the guest from one address (slirp's 10.0.2.2). With 0.3s banner probes (run 40519558807) the host saw sshd 18–19s late; with 1s probes (run 40535710051, d0aae91) still 16–19s, with 8 penalised drops per boot. The banner probe bounds were never the lever;
   - nfs-server is now 2.2s behind ssh on the endpoint guest (rpc-statd after network-online.target, systemd-networkd-wait-online +2.0s). The wave 16 note that wait-online was at +75ms no longer holds;
   - on ssh's chain: `systemd-modules-load.service +978ms` (endpoint, sysinit.target) and `+2.600s` (csi), which loads zfs from `/etc/modules-load.d/zfs.conf`. On csi, `zfs-load-module.service +1.050s` held local-fs.target, and so ssh and nfs-server. `systemd-ask-password-console.path`, on both chains, started as modules-load finished on both guests (@3.076s after +978ms ending at 3.057s; @4.601s after 2.6s). This suggests, but does not prove, that it waits for it;
   - `apparmor.service +531ms` was on the endpoint's sysinit chain.
 - **Levers taken:**
-  - **The poll reads the banner, bounded at 0.3s** (`banner` in `ci/real-zfs-vm.sh`, a bash `/dev/tcp` read). A probe that stalls is dropped, and the next one makes slirp send a fresh SYN. Only once a banner comes does ssh log in and open the master, with its full ConnectTimeout. Against a fake slirp (accept and stall, accept and close, or refuse until T), the host saw the banner 0.03–0.40s after T. The old shape (a 5s bound) took 2.2s at T = 3s and 4.3s at T = 6s. Every 40th probe (about 16s) waits 5s, so a guest whose sshd answers slower than 0.3s is still reached (measured: a 1s banner was reached at 17s). The deadline is explicit: 600s. Before, it was 900 polls, 3 to 78 minutes depending on how they failed. The panic fallback is unchanged: qemu exits, and the loop boots again through GRUB.
+  - **Logins wait for the serial getty's login prompt** (6629b7e; `wait_ssh` in `ci/real-zfs-vm.sh`, the `login prompt` mark). getty starts after systemd-user-sessions, so once the console log shows ` login:`, /run/nologin is gone and the first login is not refused. Then each probe reads the banner with a 1s bound (`banner`, a bash `/dev/tcp` read) and requires `SSH-`, because a penalised source reads `Not `; only then does ssh log in and open the master, with its full ConnectTimeout. With no prompt in 60s (a console that prints none), it polls as before. The gate is re-armed after a GRUB reboot. The deadline is explicit: 600s. Before, it was 900 polls, 3 to 78 minutes depending on how they failed. The panic fallback is unchanged: qemu exits, and the loop boots again through GRUB. (An earlier version read the banner with a 0.3s bound, then 1s (d0aae91); each abandoned probe was itself charged as noauth.)
   - **systemd-modules-load, zfs-load-module and zfs-mount masked** on the kernel command line (direct boots only, no key change). zfs is loaded explicitly by `modprobe zfs` after ssh, in the background over the master, beside the checks that do not need it. Its time is logged (`modprobe zfs: …ms`). The version check (`zfs-kmod-2.4.x`) then gates on it, as before.
     - zfs-mount: no pool exists at boot, so `zfs mount -a` had nothing to do. Its upstream unit has `ConditionPathIsDirectory=/sys/module/zfs` anyway.
     - zfs-zed has the same condition, so it skips its boot start without the module. It is started (`--no-block`) after the modprobe, so it runs during the tests as before.
@@ -217,12 +220,12 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
 - **Levers rejected:**
   - **masking apparmor** (0.53s on the endpoint's sysinit chain). Once ssh is seen at once, nfs-server's chain (local-fs, networkd, wait-online) binds, not sysinit. So it would buy nothing. It would also change what is confined during the tests (no profiles loaded), which cannot be justified for no gain;
   - **a smaller `ConnectTimeout`** alone: it is whole seconds (1s at least), and a 1s login bound risks failing a real handshake on a busy guest.
-- **Predicted** (from run 40513522394; host time after qemu start until the guest is ready for scp, then the job):
-  - endpoint: before, ready at about +9.95 (nfs-server +9.25, then 0.7s of checks). With the poll: ssh at +6.4, checks by about +7.1, nfs-server at about +8.45, so ready at about +8.6: **−1.35s**. With the masks: ssh at about +5.45 and the modprobe hidden under the nfs wait, so **−0 to −1.0s** more, depending on whether modules-load gated local-fs (the path unit above). Endpoint total: **−1.35 to −2.35s**, about 53–54s on that runner. Build-bound only below +5.75.
-  - csi: before, ready at about +16.5. With the poll: ssh at +9.7, nfs-server at about +11.35, so ready at about +11.5: **−5.0s**. With the masks: −1.05s (zfs-load-module) up to −3.6s (if modules-load gated local-fs too), floored by the build at +7.87. csi total: **−6 to −8.5s**, about 46–48s.
-  - push-to-green is still bound by the endpoint job. The split into a third VM job and the cache levers (ADR's other waves) do the rest.
+- **Measured** (the poll's predictions from run 40513522394 assumed the slirp theory and are superseded):
+  - run 40536341101 (6629b7e): `ssh up (1 probes)` about 0.6s after `login prompt`, at +10.1s; push-to-green **36s**, the first run under the 45s margin. Later runs took 43–57s (for example 40537085486 at 43s, 40537458909 at 51s), which is the run-to-run spread of hosted runners, not a regression of the gate.
+  - push-to-green is bound by the slowest of the three VM jobs (see the two-part section).
+  - The masks' prediction is separate and unaffected: they remove modules-load (and on csi zfs-load-module, +1.05s) from ssh's chain, up to −3.6s if modules-load gated local-fs.
 - **The first runs must confirm:**
-  - `ssh up (N probes)` within about 0.4s of ssh.service in the critical chain (uptime + about 0.8s);
+  - `login prompt`, then `ssh up (1 probes)`; the `sshd penalties:` line prints the setting, and the ssh journal block has no `drop connection … penalty` lines;
   - `modprobe zfs: …ms, exit 0` and `zfs loaded` before `nfs-server active`;
   - `systemd-modules-load: inactive, masked-runtime; zfs-load-module: inactive, masked-runtime; zfs-mount: inactive, masked-runtime; zfs-zed: active, enabled`;
   - the `modules-load.d` line lists only `zfs`, or nothing a test needs;
@@ -232,7 +235,7 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
   - The guest is throwaway and single-tenant, and the ZFS code paths do not change.
   - Predicted saving: 1.5–3s on the endpoint phase. This is unmeasured.
   - The summary prints the guest's `/proc/cmdline` and `/sys/devices/system/cpu/vulnerabilities/*` once (`guest CPU mitigations: N of M vulnerable`).
-  - Adopt it if the endpoint phase drops by at least 1s. Otherwise revert it.
+  - The rule was to adopt it if the endpoint phase dropped by at least 1s, else revert it. No A/B run was made, and the phase's run-to-run spread (6.6–10.4s) is wider than the predicted saving, so the outcome is unknown: it is **kept, unmeasured**.
 
 ## Consequences
 
