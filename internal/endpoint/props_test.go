@@ -86,8 +86,7 @@ func TestValidatePropertyValues(t *testing.T) {
 		{Block, "dedup", "verify", "verify"},
 		{Block, "dedup", "sha256", ""}, // off|on|verify only
 		{Block, "dedup", "sha256,verify", ""},
-		// xattr: on is dir on 2.2 and sa on 2.4, and 2.2 prints dir as on;
-		// only sa and off mean, and read back as, the same everywhere
+		// xattr: on is an alias printed as sa; only sa and off are accepted
 		{Filesystem, "xattr", "sa", "sa"},
 		{Filesystem, "xattr", "off", "off"},
 		{Filesystem, "xattr", "on", ""},
@@ -96,7 +95,7 @@ func TestValidatePropertyValues(t *testing.T) {
 		{Filesystem, "acltype", "noacl", "off"},
 		{Filesystem, "snapdir", "visible", "visible"},
 		{Filesystem, "snapdir", "shown", ""},
-		{Filesystem, "snapdir", "disabled", ""}, // 2.4 only
+		{Filesystem, "snapdir", "disabled", "disabled"},
 		{Block, "copies", "3", "3"},
 		{Block, "copies", "4", ""},
 		{Block, "copies", "0", ""},

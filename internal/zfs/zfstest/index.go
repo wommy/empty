@@ -8,7 +8,7 @@ import (
 // Index properties are stored by value, not by name: zfs_prop.c maps each
 // accepted name to an index, and zprop_index_to_string prints the first
 // name in the table with that index. So `-o compression=gzip-6` reads back
-// as "gzip", and on 2.2 `-o xattr=dir` reads back as "on". The simulator
+// as "gzip" and `-o xattr=on` as "sa". The simulator
 // stores what real zfs would print, so a caller comparing read-backs
 // against what it sent is tested against OpenZFS, not against an echo.
 
@@ -17,9 +17,9 @@ type indexName struct {
 	val  int
 }
 
-// indexTables are zfs_prop.c's tables in table order (OpenZFS 2.4.0; the
-// 2.2 differences are in tables22). Only the properties the simulator
-// models are listed.
+// indexTables are zfs_prop.c's tables in table order (OpenZFS 2.4.0, the
+// only supported userland). Only the properties the simulator models are
+// listed.
 var indexTables = func() map[string][]indexName {
 	compress := []indexName{{"on", 1}, {"off", 2}, {"lzjb", 3}, {"gzip", 106}}
 	for i := 1; i <= 9; i++ {
@@ -50,29 +50,11 @@ var indexTables = func() map[string][]indexName {
 	}
 }()
 
-// tables22 are the OpenZFS 2.2.9 tables that differ: "on" was the
-// directory-based xattr and listed before "dir", and snapdir had no
-// "disabled".
-var tables22 = map[string][]indexName{
-	"xattr":   {{"off", 0}, {"on", 2}, {"sa", 1}, {"dir", 2}},
-	"snapdir": {{"hidden", 0}, {"visible", 1}},
-}
-
-func (s *Sim) table(prop string) ([]indexName, bool) {
-	if s.OpenZFS22 {
-		if t, ok := tables22[prop]; ok {
-			return t, true
-		}
-	}
-	t, ok := indexTables[prop]
-	return t, ok
-}
-
 // canonIndex returns what zfs get prints for value of an index property:
 // the first name with its index. ok is false for a value the table lacks;
 // msg is then libzfs's zprop_parse_value text.
 func (s *Sim) canonIndex(prop, value string) (canon, msg string, ok bool) {
-	t, isIndex := s.table(prop)
+	t, isIndex := indexTables[prop]
 	if !isIndex {
 		return value, "", true
 	}

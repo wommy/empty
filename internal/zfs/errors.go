@@ -150,7 +150,7 @@ var patterns = []struct {
 	// zfs_setprop_error ENOSPC: quota/refquota below what is already used
 	{KindInvalidProperty, "size is less than current used or reserved space"},
 	// libzfs_util.c zprop_parse_value: an index value this userland's
-	// table lacks, e.g. 2.2's "'snapdir' must be one of 'hidden | visible'"
+	// table lacks, e.g. "'snapdir' must be one of 'hidden | visible | disabled'"
 	{KindInvalidProperty, "must be one of"},
 	// libzfs_dataset.c zfs_valid_proplist: a block size above the pool's
 	// maximum (no large_blocks feature): "'recordsize' must be power of 2

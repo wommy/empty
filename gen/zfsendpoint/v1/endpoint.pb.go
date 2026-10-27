@@ -464,7 +464,7 @@ type CreateVolumeRequest struct {
 	// INVALID_ARGUMENT.
 	//   FILESYSTEM: compression, recordsize, atime, relatime, sync, logbias,
 	//               dedup (off|on|verify), xattr (sa|off), acltype,
-	//               snapdir (hidden|visible)
+	//               snapdir (hidden|visible|disabled)
 	//   BLOCK:      compression, volblocksize (create-only; a clone must match
 	//               its source), sync, logbias, dedup, copies
 	// A repeat with the same name is compatible only if every requested

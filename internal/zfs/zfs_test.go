@@ -162,33 +162,28 @@ func TestKilledCommandIsInterrupted(t *testing.T) {
 }
 
 // The simulator stores index properties by value and prints the first
-// table name, like zfs_prop.c/zprop_index_to_string, per userland version.
+// table name, like zfs_prop.c/zprop_index_to_string (OpenZFS 2.4).
 func TestSimPrintsIndexPropertiesLikeOpenZFS(t *testing.T) {
 	ctx := context.Background()
 	for _, tc := range []struct {
-		v22       bool
 		prop, set string
 		want      string // "" = refused as an invalid property value
 	}{
-		{false, "compression", "gzip-6", "gzip"},
-		{false, "compression", "zstd-fast-1", "zstd-fast"},
-		{false, "acltype", "posixacl", "posix"},
-		{false, "xattr", "on", "sa"},
-		{false, "xattr", "dir", "dir"},
-		{false, "snapdir", "disabled", "disabled"},
-		{true, "xattr", "dir", "on"},
-		{true, "xattr", "on", "on"},
-		{true, "xattr", "sa", "sa"},
-		{true, "snapdir", "disabled", ""},
-		{false, "compression", "bogus", ""},
+		{"compression", "gzip-6", "gzip"},
+		{"compression", "zstd-fast-1", "zstd-fast"},
+		{"acltype", "posixacl", "posix"},
+		{"xattr", "on", "sa"},
+		{"xattr", "dir", "dir"},
+		{"snapdir", "disabled", "disabled"},
+		{"snapdir", "shown", ""},
+		{"compression", "bogus", ""},
 	} {
 		sim := zfstest.New("tank")
-		sim.OpenZFS22 = tc.v22
 		c := zfs.New(sim)
 		err := c.CreateFilesystem(ctx, "tank/a", map[string]string{tc.prop: tc.set}, false)
 		if tc.want == "" {
 			if !errors.Is(err, zfs.ErrInvalidProperty) {
-				t.Errorf("2.2=%v %s=%s: %v, want an invalid property", tc.v22, tc.prop, tc.set, err)
+				t.Errorf("%s=%s: %v, want an invalid property", tc.prop, tc.set, err)
 			}
 			continue
 		}
@@ -197,7 +192,7 @@ func TestSimPrintsIndexPropertiesLikeOpenZFS(t *testing.T) {
 		}
 		d, err := c.Get(ctx, "tank/a", tc.prop)
 		if got := d.Props[tc.prop]; err != nil || got.Value != tc.want || got.Source != "local" {
-			t.Errorf("2.2=%v %s=%s reads back %+v %v, want %q", tc.v22, tc.prop, tc.set, got, err, tc.want)
+			t.Errorf("%s=%s reads back %+v %v, want %q", tc.prop, tc.set, got, err, tc.want)
 		}
 	}
 }
