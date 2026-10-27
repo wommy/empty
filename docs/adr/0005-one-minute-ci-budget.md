@@ -130,6 +130,36 @@ Status: accepted (budget, 45s nominal margin); mechanisms adopted where marked, 
 - **The first runs must confirm the boot:** `Startup finished` without an initrd term; `ssh up` before `test binaries built`; `systemd-udev-settle: inactive, masked-runtime` and no failed units; no "booting it with the stored initrd" warning.
 - **The first runs must confirm:** both jobs pass their checks, with `check-split: … top-level tests over 3 shard logs, each in exactly one`; the endpoint job's `guest load` line shows the phase near 22s; the csi job's phase is under the endpoint job's.
 
+### The endpoint suite in two parts (three VM jobs)
+
+- **Data.** Run 40513522394 (2b648ef). The endpoint job was the long pole, and csi finished 1s before it. Its test phase took 22.1s over 3 shards (15.6 / 22.2 / 22.5 guest-s). The guest was CPU-bound: busy 91%, sys+irq 69%, cpu some 73%. The work is about 83 CPU-s. Balancing the shards within the job does not help, because the CPU stays busy to the end.
+- **Decision.** The endpoint suite runs as two jobs: matrix `include` entries `{suite: endpoint, part: 0|1, parts: 2}` and `{suite: csi, part: 0, parts: 1}`. Each job runs 3 shards of one 6-shard plan.
+  - `ci/real-zfs-plan.sh` makes the plan. It is a pure function of the binary's `-test.list`, `ci/real-zfs-weights.txt` and the part count. It works on two levels:
+    - first the tests go onto the parts, longest first onto the lightest, so the parts get equal test-seconds (37.09 / 37.10 at 7048b51);
+    - then each part's tests go onto its 3 shards the same way;
+    - TestPropertyRoundTrip runs in all 6 shards, with rows `i mod 6`;
+    - the NFS tests stay together in one shard.
+  - The host makes the plan from the built binary, in the background build, at about 25 ms. The guest runs only its part's shards.
+  - With `parts: 1` the plan is byte-for-byte the old 3-shard guest plan, so `nightly.yml` is unchanged.
+  - Both jobs restore the same guest entry. Only the csi job saves it. Only part 0 saves the shared `real-zfs-endpoint` Go namespace.
+- **Exactly-once across jobs, without a job that waits for both.** A final job that compares the two jobs' uploaded lists would add a queue, a set-up and a download to push-to-green, about 8–10s. The plan is deterministic instead, and each part proves its own half in its own job:
+  - **The plan is static.** `ci/check-split.sh` remakes the plan and requires the job's plan to match it byte for byte. It also proves the plan is a partition of the list over all 6 shards: every listed test in exactly one shard, TestPropertyRoundTrip in all 6, nothing unlisted. Both jobs build the same commit, so they make the same plan. Each job prints the list's and the plan's sha256, so any two can be compared. The guest's own list must equal the host's list.
+  - **Each part's run is checked against the plan.** The shard logs must be exactly the part's shards. Each top-level result must appear once, in the shard the plan assigns it. Every test the plan gives those shards must report. Each `PROPRT_SHARD i/6: k of T` line must have k = #{r < T : r mod 6 = i}. The subtests must number Σk, with none twice.
+  - So a test that one part drops fails that part's job, and a test that a part runs outside its shards fails that part's job. Rows `i mod 6` over i = 0..5 cover each row once.
+  - `ci/check-skips.sh` takes the part's own list. With `SKIPS_ELSEWHERE`, the other part's tests set the skip budget per job: an allowed skip planned for the other part is the other part's to meet, and the two budgets add up to the whole list (22 at 7048b51, all in part 1).
+  - `ci/check-suites.sh` statically requires every part 0..P−1 of every suite exactly once, with one P per suite, and P > 1 only for endpoint.
+  - Locally, against run 40513522394's shard logs and a synthetic 2×3 run built from them, the checks reject the following: a dropped test, a dropped shard log, a dropped row, a test run in both parts, a test run twice within a part, a duplicated row, a wrong `PROPRT_SHARD` split, a hand-edited plan, and a planner that drops or duplicates a test.
+- **Prediction.** Each guest does half the CPU work: 41.5 CPU-s at about 3.6 effective vCPUs is 11.4s. TestRealFacts (9.5s contended) is the floor. So each endpoint job's phase is about 12s, against 22.1s, about 10s less, and the endpoint job ends at about 45s. Push-to-green is then bound by csi (about 54s today, about 44s once the ssh poll fix and the cache levers land). The max is now over three VM jobs instead of two, which adds one more queue and runner sample.
+- **Cost.**
+  - Runner time per push grows by about 24s: two endpoint jobs of about 34s each (about 22.3s fixed plus 12s), against one of about 44s. Billed per job, rounded up to a minute, that is one more minute, which is free on a public repo.
+  - Each push restores the guest entry three times instead of twice, which is about 590 MB more cache egress.
+  - The weights still come from the uploaded `test-times.tsv`. There is one per part (`real-zfs-report-endpoint-<p>`). `ci/real-zfs-weights.sh` sums the parts of a run (the `run=` header) before it averages runs.
+- **The first runs must confirm the following:**
+  - both endpoint jobs print the same list and plan sha256;
+  - `check-split: part p/2: … each in exactly its planned shard`;
+  - each part's `guest load` phase is near 12s;
+  - the csi job is now the last to finish.
+
 ### Cache bytes (zfsvm-v5)
 
 - **Data.** Every VM job restores one entry of 942,776,534 B (~899 MB). It downloaded at 60–234 MB/s depending on the host (wave 15 runs 40510207805, 40511042404, 40511369632), so it costs 4–15s on the critical path: 1s per 130 MB at nominal speed, 1s per 60 MB on a bad day. The disk is already a zstd-compressed qcow2 (`qemu-img convert -c -o compression_type=zstd`), so a higher actions/cache zstd level gains almost nothing. Only fewer bytes help. The cold run 40500713922 (job 122177403029) stored `zfsvm-cache` at 885 MiB (`du`):

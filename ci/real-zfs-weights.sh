@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Regenerate ci/real-zfs-weights.txt from the per-test times of real-ZFS VM
 # runs: the test-times.tsv the guest writes (ci/test-times.awk), uploaded
-# by ci.yml's real-zfs endpoint job in the artifact zfsdiff-report.
+# by ci.yml's real-zfs endpoint jobs, one per part of the suite, in the
+# artifacts real-zfs-report-endpoint-<p>.
 #
 # usage: ci/real-zfs-weights.sh [-s <source note>] [-l <endpoint.list>] <test-times.tsv>...
-#   gh run download <run> -n zfsdiff-report -D /tmp/tt
-#   ci/real-zfs-weights.sh -s "run <run>" /tmp/tt/test-times.tsv
-# The artifact carries the run's endpoint.list next to the TSV; it is used
-# when -l is not given, and drops old weights of tests that no longer exist.
+#   gh run download <run> -p 'real-zfs-report-endpoint-*' -D /tmp/tt
+#   ci/real-zfs-weights.sh -s "run <run>" /tmp/tt/*/test-times.tsv
+# Each artifact carries the run's endpoint.list next to the TSV; the first
+# file's is used when -l is not given, and drops old weights of tests that
+# no longer exist. The parts of one run (the TSV header's run=<id>) are one
+# measurement: their rows add up as one file's would.
 #
 # A test's weight is what it adds to its shard's wall clock:
 # - a sequential test: its wall, parallel subtests included (without
@@ -16,7 +19,8 @@
 #   summed, / nproc, since it shares the shard's nproc slots with the
 #   shard's other parallel tests.
 # A test split across shards (TestPropertyRoundTrip) sums its rows within
-# a file, and the guest gives each shard 1/n of it. Several files average. Rows from a nightly run (mode=full: the whole
+# a run, its parts' files together, and ci/real-zfs-plan.sh gives each
+# shard 1/n of it. Several runs average. Rows from a nightly run (mode=full: the whole
 # zfsdiff corpus or every crash point) are skipped, since they are not what
 # a PR runs. An endpoint test with no measurement keeps its old weight.
 # Only the shard balance depends on the weights, never the coverage.
@@ -42,9 +46,11 @@ tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
 awk -v src="$src" '
-  FNR == 1 { nproc = 4; full = 0 }
+  FNR == 1 { nproc = 4; full = 0; key = FILENAME }
   /^#/ {
     if (match($0, /nproc=[0-9]+/)) nproc = substr($0, RSTART + 6, RLENGTH - 6) + 0
+    # the parts of one run sum as one measurement; "local" is no run
+    if (match($0, /run=[^ ]+/) && substr($0, RSTART + 4, RLENGTH - 4) != "local") key = "run " substr($0, RSTART + 4, RLENGTH - 4)
     if ($0 ~ /mode=full/) full = 1
     if (full && !(FILENAME in warned)) { warned[FILENAME] = 1; print "skipping " FILENAME ": a nightly (mode=full) run" >"/dev/stderr" }
     next
@@ -66,10 +72,10 @@ awk -v src="$src" '
     if (par) w = cost / nproc
     else if (wall != "-") w = wall + 0
     else w = own + (cost - own) / nproc
-    # a split test (ci/real-zfs-guest.sh split=) has a row per shard in one
-    # file: its parts add up within a run, runs average
+    # a split test (ci/real-zfs-plan.sh) has a row per shard of the run,
+    # over the files of its parts: they add up within a run, runs average
     sum[t] += w
-    if (!((FILENAME, t) in run)) { run[FILENAME, t] = 1; cnt[t]++ }
+    if (!((key, t) in run)) { run[key, t] = 1; cnt[t]++ }
   }
   END {
     print "# Seconds each top-level endpoint test adds to its shard on the real-ZFS"
