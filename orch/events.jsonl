@@ -167,3 +167,4 @@
 {"ts": "2026-10-27T11:44:35Z", "id": "a1ef6cfe663da83d2", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T11:44:35Z", "id": "a1ef6cfe663da83d2", "from": "triaged", "to": "merged", "note": ""}
 {"ts": "2026-10-27T11:45:01Z", "id": "af94e460282111105", "from": "queued", "to": "running", "note": "b-ci-levers"}
+{"ts": "2026-10-27T11:45:10Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

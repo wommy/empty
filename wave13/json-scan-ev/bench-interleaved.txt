@@ -2,3 +2,15 @@
 base BenchmarkScan/1000-4         	      68	  21775296 ns/op	  68.61 MB/s	10049226 B/op	   35657 allocs/op
 base BenchmarkScan/10000-4        	       7	 186807804 ns/op	  79.93 MB/s	102065690 B/op	  355272 allocs/op
 # after run 1
+after BenchmarkScan/1000-4         	      30	  33519784 ns/op	  76.89 MB/s	 1989933 B/op	      70 allocs/op
+after BenchmarkScan/10000-4        	       5	 256417363 ns/op	 100.47 MB/s	18526996 B/op	     118 allocs/op
+# base run 2
+base BenchmarkScan/1000-4         	      50	  25208804 ns/op	  59.27 MB/s	10049268 B/op	   35657 allocs/op
+base BenchmarkScan/10000-4        	       6	 174176672 ns/op	  85.72 MB/s	102065706 B/op	  355272 allocs/op
+# after run 2
+after BenchmarkScan/1000-4         	      45	  31291769 ns/op	  82.37 MB/s	 1989725 B/op	      70 allocs/op
+after BenchmarkScan/10000-4        	       5	 235874612 ns/op	 109.22 MB/s	18526977 B/op	     117 allocs/op
+# base run 3
+base BenchmarkScan/1000-4         	      52	  26689410 ns/op	  55.98 MB/s	10049284 B/op	   35657 allocs/op
+base BenchmarkScan/10000-4        	       7	 168277476 ns/op	  88.73 MB/s	102065704 B/op	  355272 allocs/op
+# after run 3

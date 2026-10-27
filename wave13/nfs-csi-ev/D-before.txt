@@ -1,0 +1,12 @@
+# github.com/wommy/empty/internal/endpoint [github.com/wommy/empty/internal/endpoint.test]
+internal/endpoint/nfs_create_test.go:23:22: p.NFSServers undefined (type Planner has no field or method NFSServers)
+internal/endpoint/nfs_create_test.go:23:36: p.NFSMinPrefix undefined (type Planner has no field or method NFSMinPrefix)
+internal/endpoint/nfs_create_test.go:27:31: undefined: NFSExport
+internal/endpoint/nfs_create_test.go:28:83: unknown field NFS in struct literal of type CreateVolumeRequest
+internal/endpoint/nfs_create_test.go:35:29: r.NFSServer undefined (type *Row has no field or method NFSServer)
+internal/endpoint/nfs_create_test.go:48:19: nfsPl.validateNFS undefined (type Planner has no field or method validateNFS)
+internal/endpoint/nfs_create_test.go:48:44: undefined: NFSExport
+internal/endpoint/nfs_create_test.go:68:19: nfsPl.validateNFS undefined (type Planner has no field or method validateNFS)
+internal/endpoint/nfs_create_test.go:68:44: undefined: NFSExport
+internal/endpoint/nfs_create_test.go:73:21: nfsPl.validateNFS undefined (type Planner has no field or method validateNFS)
+internal/endpoint/nfs_create_test.go:73:21: too many errors
