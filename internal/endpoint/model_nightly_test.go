@@ -4,7 +4,7 @@ package endpoint_test
 
 // The model suite's nightly tier (ADR 0005): the long sweep and the check
 // that every mask still hides a live divergence. The nightly explore job
-// runs them with `-tags nightly -run '^Test(Scale|Explore)'`.
+// runs them with `-tags nightly -run '^TestExplore'`.
 
 import (
 	"fmt"

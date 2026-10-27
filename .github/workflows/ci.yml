@@ -33,7 +33,7 @@ jobs:
   # Go comes from the sha256-pinned tarball in .github/actions/setup-go, and
   # every job restores a Go build/module cache keyed by go.sum, saved by the
   # first run that misses it.
-  # Exploratory fuzzing, scale tests and the FSM explorer run in nightly.yml.
+  # Exploratory fuzzing, the model sweep and the FSM explorer run in nightly.yml.
   static:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
