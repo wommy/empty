@@ -35,7 +35,7 @@ func main() {
 func run() error {
 	parent := flag.String("parent", "", "parent dataset to manage, e.g. tank/k8s/vols (required)")
 	listen := flag.String("listen", "unix:///run/zfs-endpoint/endpoint.sock", "unix:///path or host:port")
-	prefix := flag.String("property-prefix", "democratic-csi", "user property namespace")
+	prefix := flag.String("property-prefix", endpoint.DefaultPropertyPrefix, "user property namespace (democratic-csi: adopt that driver's volumes)")
 	lockWait := flag.Duration("lock-wait", 30*time.Second, "max wait for a busy resource")
 	drain := flag.Duration("drain", 30*time.Second, "max time to drain in-flight calls on shutdown")
 	lockDir := flag.String("lock-dir", "/run/zfs-endpoint", "directory for the per-parent writer lock")

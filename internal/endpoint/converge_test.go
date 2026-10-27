@@ -30,7 +30,7 @@ func FuzzCreateConverges(f *testing.F) {
 	f.Add(true, uint64(1<<20), uint64(1<<20+512), true, false, "volblocksize", "512", false)
 	f.Add(true, uint64(1<<20), uint64(0), false, false, "recordsize", "16K", false)
 	f.Add(false, uint64(0), uint64(0), false, false, "mountpoint", "/etc", false)
-	f.Add(false, uint64(0), uint64(0), false, false, "democratic-csi:managed_resource", "false", false)
+	f.Add(false, uint64(0), uint64(0), false, false, "zfs-endpoint:managed_resource", "false", false)
 	f.Fuzz(func(t *testing.T, block bool, capacity, limit uint64, sparse, reserve bool, pk, pv string, both bool) {
 		// the simulator prints index properties through OpenZFS 2.4's
 		// tables, so read-backs are checked against what zfs prints

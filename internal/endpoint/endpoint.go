@@ -7,8 +7,10 @@
 // Plan of mutations or an error (plan.go); apply executes it (apply.go).
 // Idempotency is "the plan is empty"; recovery is "re-scan and re-plan".
 //
-// State lives in ZFS user properties using democratic-csi's names (the
-// behavioral baseline), so volumes it provisioned are adopted as-is.
+// State lives in ZFS user properties under the endpoint's own namespace
+// (DefaultPropertyPrefix). The property names follow democratic-csi's, so
+// with its prefix (adoption mode) the volumes it provisioned are adopted.
+// ADR 0003.
 package endpoint
 
 import (
@@ -38,8 +40,40 @@ func (k VolumeKind) String() string {
 	return "filesystem"
 }
 
-// Property names; the prefix defaults to the baseline's "democratic-csi".
+// DefaultPropertyPrefix is the endpoint's own user-property namespace.
+// "democratic-csi" is the adoption mode: it reads (and writes) that
+// driver's properties, so the volumes it provisioned are adopted.
+const DefaultPropertyPrefix = "zfs-endpoint"
+
+// Property names under a prefix.
 type props struct{ p string }
+
+func (n props) all() []string {
+	return []string{n.managed(), n.success(), n.volumeName(), n.sourceType(), n.sourceID(),
+		n.snapshotName(), n.snapshotSource(), n.nfsClients()}
+}
+
+// validPrefix reports why prefix cannot name OpenZFS user properties:
+// zfs_prop.c zfs_prop_user accepts only a-z 0-9 - _ . : (the ':' we
+// append makes it a user property), and zfs_check_userprops refuses a name
+// of ZAP_MAXNAMELEN (256) bytes or more. Checked at startup, so a bad
+// prefix is not first found by zfs refusing every create.
+func validPrefix(prefix string) error {
+	if prefix == "" {
+		return errors.New("empty")
+	}
+	for _, c := range []byte(prefix) {
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || strings.IndexByte("-_.:", c) >= 0) {
+			return fmt.Errorf("%q is not allowed in a zfs user property (a-z 0-9 - _ . :)", c)
+		}
+	}
+	for _, n := range (props{prefix}).all() {
+		if len(n) >= 256 {
+			return fmt.Errorf("property %s is %d bytes, zfs allows 255", n[:20]+"...", len(n))
+		}
+	}
+	return nil
+}
 
 func (n props) managed() string        { return n.p + ":managed_resource" }
 func (n props) success() string        { return n.p + ":provision_success" }
@@ -60,7 +94,8 @@ const cloneSourceSnapshotPrefix = "volume-source-for-volume-"
 type Config struct {
 	// Parent dataset volumes are created under, e.g. "tank/k8s/vols".
 	Parent string
-	// PropertyPrefix for user properties. Default "democratic-csi".
+	// PropertyPrefix for user properties. Default DefaultPropertyPrefix;
+	// "democratic-csi" is the adoption mode.
 	PropertyPrefix string
 	// VolBlockSize used to pre-round zvol sizes for limit checks. Default
 	// 16 KiB. zfs may round further; reported sizes are always re-read.
@@ -96,7 +131,10 @@ func New(z *zfs.Client, cfg Config) (*Endpoint, error) {
 		return nil, fmt.Errorf("invalid parent dataset %q", cfg.Parent)
 	}
 	if cfg.PropertyPrefix == "" {
-		cfg.PropertyPrefix = "democratic-csi"
+		cfg.PropertyPrefix = DefaultPropertyPrefix
+	}
+	if err := validPrefix(cfg.PropertyPrefix); err != nil {
+		return nil, fmt.Errorf("property prefix %q: %w", cfg.PropertyPrefix, err)
 	}
 	if cfg.VolBlockSize == 0 {
 		cfg.VolBlockSize = 16 * 1024
