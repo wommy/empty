@@ -159,8 +159,9 @@ jobs:
           sum=$(curl -fsSL --retry 3 https://cloud-images.ubuntu.com/stonking/current/SHA256SUMS | awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }')
           test -n "$sum"
           # provisioning inputs only: editing how the tests run must not
-          # reprovision. v2: trimmed, zstd-compressed disk
-          echo "key=zfsvm-v2-stonking-$sum-${{ hashFiles('ci/real-zfs-cloud-config.yaml') }}" >>"$GITHUB_OUTPUT"
+          # reprovision. v2: trimmed, zstd-compressed disk. The ISO week bounds
+          # how far the guest can lag zfsutils updates published after the image
+          echo "key=zfsvm-v2-stonking-$sum-$(date -u +%G-W%V)-${{ hashFiles('ci/real-zfs-cloud-config.yaml') }}" >>"$GITHUB_OUTPUT"
           # the qemu tree is unpacked from this runner image's apt view
           echo "qemu=qemu-tree-$ImageOS-$ImageVersion-${{ hashFiles('ci/qemu-tree.sh') }}" >>"$GITHUB_OUTPUT"
       - name: restore the provisioned guest
