@@ -250,3 +250,4 @@
 {"ts": "2026-10-27T13:49:15Z", "id": "ae5bbba5f5297c943", "from": "queued", "to": "running", "note": "r-sim-gaps"}
 {"ts": "2026-10-27T13:49:15Z", "id": "a8806c3aad4d92fff", "from": "queued", "to": "running", "note": "r-ci-45"}
 {"ts": "2026-10-27T13:49:15Z", "id": "af6985ce32183060f", "from": "queued", "to": "running", "note": "r-seams"}
+{"ts": "2026-10-27T13:49:22Z", "id": "-", "from": "-", "to": "checkpoint", "note": ""}

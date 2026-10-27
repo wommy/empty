@@ -13,3 +13,4 @@
 {"run": 40511369632, "sha": "806727d", "conclusion": "success", "seconds": 57, "cause": null, "note": "ci-boot merged; within 60s cap, over 45s target; whether no-initrd boot took effect (vs fallback) -> r-ci-76s checks"}
 {"run": 40512309207, "sha": "b1ed45a", "conclusion": "success", "seconds": 62, "cause": "endpoint test step 44s (unweighted TestDestroyNeverHitsAReplacedDataset on shard 0); restore 7s", "note": "run updated_at 144s is post-job bookkeeping, jobs done at +62s; b-ci-trim targets this"}
 {"run": 40513522394, "sha": "2b648ef", "conclusion": "success", "seconds": 55, "cause": null, "note": "ci-trim merged; under 60 cap, 10s over 45 target; cache lever pending"}
+{"run": 40515292150, "sha": "c1f00ba", "conclusion": "failure", "seconds": null, "cause": "A-zvol-cleanup-busy"}
