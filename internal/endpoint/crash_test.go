@@ -520,15 +520,28 @@ func swapSweep() int {
 	return 1
 }
 
+// destroySweepCap bounds TestDestroyNeverHitsAReplacedDataset's sweep: no
+// case makes this many destroys, so reaching it is a failure, not a loop.
+const destroySweepCap = 64
+
+// destroyRunTimeout bounds one swapped run, so a regression that wedges an
+// op fails the named subtest instead of the binary's -timeout.
+const destroyRunTimeout = 60 * time.Second
+
 func TestDestroyNeverHitsAReplacedDataset(t *testing.T) {
 	sweep := swapSweep()
 	for _, c := range swapCases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			for k := 0; ; k++ {
-				done := false
+				if k == destroySweepCap {
+					t.Fatalf("still swapping at destroy %d: the sweep does not end", k)
+				}
+				done, ran := false, false
 				t.Run(fmt.Sprintf("destroy%d", k), func(t *testing.T) {
-					ctx := context.Background()
+					ran = true
+					ctx, cancel := context.WithTimeout(context.Background(), destroyRunTimeout)
+					defer cancel()
 					ep0, h := setupNFS(t, "192.0.2.10")
 					if c.setup != nil {
 						if err := c.setup(ctx, ep0, h); err != nil {
@@ -556,6 +569,12 @@ func TestDestroyNeverHitsAReplacedDataset(t *testing.T) {
 						t.Errorf("op after the swap of %s: %v (code %d), want Aborted", sw.swapped, err, endpoint.CodeOf(err))
 					}
 				})
+				// t.Run returns without running f under -failfast after a
+				// failure elsewhere, or when -run filters destroy<k> out:
+				// the sweep ends there instead of spinning
+				if !ran {
+					return
+				}
 				if done || t.Failed() {
 					if k == 0 && done {
 						t.Fatal("the op made no destroy")

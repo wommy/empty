@@ -14,6 +14,7 @@
 # Source: runs 40549402887 (2f72064) and 40548715833 (17877d2), both endpoint parts, from their test steps' job logs (shard logs through ci/test-times.awk, without timestamps; the artifacts could not be downloaded where this ran).
 # note: Wave 24's sim-only endpoint tests (own simulator, no real-pool work) are set by hand to 0.00 like the other sim-only tests: TestDeleteVolumeLockPassesAreBounded, TestDeleteVolumeSettleWindow, TestExpandRollbackFailureIsReported, TestFileExportCreateChangedBeforeCommit, TestFileExportCreateRootFailureIsRetryable, TestFileExportCreateServedBeyondByAncestor, TestFileExportRefusedPublishRestoresLocalList, TestReconcileCancelledMidRunStops, TestReconcileDefaultMaxDeletionsWithDigest, TestReconcileRescanFailureDestroysNothing, TestRootErrMapping, TestWholeScanSlotWaitEndsWithTheContext.
 # note: part 0's tests here (TestCrashAtEveryMutationConverges, TestZFSDiffReplay, TestModel, TestReconcileAgainstDesiredSet, TestCloneSourcesMustBeOwned, TestDeleteVolumeScanIsSubtreeScoped, TestCreateVolumeProperties) were measured with part 0 overloaded (62% of the guest work under the old weights, 6.8-7.1 CPU-ms per fork against 4.3-5.8 in part 1), so they read about 1.3-1.5x high; kept as measured, not scaled by hand: rerun this script on the first green runs after this rebalance.
+# note: Wave 25's guard-kill tests (pure planner, or their own simulator, no real-pool work) are set by hand to 0.00 like the other sim-only tests: TestPlanReconcileOrphanCloneSourceHonoursLocks, TestPlanReconcileZeroCreationIsNeverOld, TestPublishFileExportLocksTheVolume, TestSnapshotDeleteAndCloneTakeTheSourceLocks.
 #
 # <test> <seconds>
 TestPropertyRoundTrip 16.06
@@ -208,6 +209,8 @@ TestPlanReconcileHeldLimitsActions 0.00
 TestPlanReconcileMountpointNotPinned 0.00
 TestPlanReconcileNFSBelowFloor 0.00
 TestPlanReconcileNFSServer 0.00
+TestPlanReconcileOrphanCloneSourceHonoursLocks 0.00
+TestPlanReconcileZeroCreationIsNeverOld 0.00
 TestPlanReserves 0.00
 TestPlanResumeThickness 0.00
 TestPlanSnapshotLongAndUnusualNames 0.00
@@ -217,6 +220,7 @@ TestPlannerErrorCodes 0.00
 TestPlannersRequireACoveringTable 0.00
 TestPropertyPrefixIsValidated 0.00
 TestPropertyRoundTripCoversEveryKey 0.00
+TestPublishFileExportLocksTheVolume 0.00
 TestRPCCallBudget 0.00
 TestReachCapacityWrap 0.00
 TestReachOriginOutsideParent 0.00
@@ -244,6 +248,7 @@ TestShortDeadlineStillTakesAFreeLock 0.00
 TestSimulateDestroyAllCases 0.00
 TestSimulateDestroyReapsDeferredOrigins 0.00
 TestSnapshotComponentNeverDots 0.00
+TestSnapshotDeleteAndCloneTakeTheSourceLocks 0.00
 TestSortClientsIsTotal 0.00
 TestTableSnapshotsOf 0.00
 TestTableVolumesSkipsSnapshots 0.00
