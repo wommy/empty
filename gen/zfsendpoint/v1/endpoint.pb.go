@@ -1395,13 +1395,27 @@ type ReconcileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The complete set of volume ids the caller wants kept. Every other owned,
 	// committed volume is collected. Empty collects no committed volume: it
-	// cannot be told apart from a caller that sent nothing.
+	// cannot be told apart from a caller that sent nothing. A set naming none
+	// of the endpoint's volumes counts as empty.
 	DesiredVolumeIds []string `protobuf:"bytes,1,rep,name=desired_volume_ids,json=desiredVolumeIds,proto3" json:"desired_volume_ids,omitempty"`
-	// Nothing created less than this long ago is touched (in-flight creates,
-	// volumes newer than the caller's desired set). 0 means one hour.
+	// Nothing created (or committed) less than this long ago is touched
+	// (in-flight creates, volumes newer than the caller's desired set).
+	// 0 means one hour; below 600 (ten minutes) is INVALID_ARGUMENT.
 	MinAgeSeconds uint64 `protobuf:"varint,2,opt,name=min_age_seconds,json=minAgeSeconds,proto3" json:"min_age_seconds,omitempty"`
 	// Return the plan without locking or applying it.
-	DryRun        bool `protobuf:"varint,3,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	DryRun bool `protobuf:"varint,3,opt,name=dry_run,json=dryRun,proto3" json:"dry_run,omitempty"`
+	// At most this many committed volumes may be collected as undesired in
+	// one run; a plan with more applies nothing and fails with
+	// FAILED_PRECONDITION (a truncated or wrong desired set must not empty
+	// the parent). 0 means 10. Uncommitted rows and orphan clone sources do
+	// not count.
+	MaxDeletions uint32 `protobuf:"varint,4,opt,name=max_deletions,json=maxDeletions,proto3" json:"max_deletions,omitempty"`
+	// Lift max_deletions. Setting both is INVALID_ARGUMENT.
+	UnlimitedDeletions bool `protobuf:"varint,5,opt,name=unlimited_deletions,json=unlimitedDeletions,proto3" json:"unlimited_deletions,omitempty"`
+	// Optional: the plan_digest of a dry run. When set, the run applies
+	// only if it plans exactly what that dry run did, else ABORTED (dry-run
+	// again); what runs is always a subset of it.
+	PlanDigest    string `protobuf:"bytes,6,opt,name=plan_digest,json=planDigest,proto3" json:"plan_digest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1455,6 +1469,27 @@ func (x *ReconcileRequest) GetDryRun() bool {
 		return x.DryRun
 	}
 	return false
+}
+
+func (x *ReconcileRequest) GetMaxDeletions() uint32 {
+	if x != nil {
+		return x.MaxDeletions
+	}
+	return 0
+}
+
+func (x *ReconcileRequest) GetUnlimitedDeletions() bool {
+	if x != nil {
+		return x.UnlimitedDeletions
+	}
+	return false
+}
+
+func (x *ReconcileRequest) GetPlanDigest() string {
+	if x != nil {
+		return x.PlanDigest
+	}
+	return ""
 }
 
 type ReconcileAction struct {
@@ -1572,8 +1607,12 @@ func (x *ReconcileSkip) GetReason() string {
 type ReconcileResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// done (or, for a dry run, planned), in order
-	Actions       []*ReconcileAction `protobuf:"bytes,1,rep,name=actions,proto3" json:"actions,omitempty"`
-	Skipped       []*ReconcileSkip   `protobuf:"bytes,2,rep,name=skipped,proto3" json:"skipped,omitempty"`
+	Actions []*ReconcileAction `protobuf:"bytes,1,rep,name=actions,proto3" json:"actions,omitempty"`
+	// left alone, with why; an action that failed is here with
+	// "failed: <error>", and the run went on
+	Skipped []*ReconcileSkip `protobuf:"bytes,2,rep,name=skipped,proto3" json:"skipped,omitempty"`
+	// digest of the plan (for a dry run, to echo in plan_digest)
+	PlanDigest    string `protobuf:"bytes,3,opt,name=plan_digest,json=planDigest,proto3" json:"plan_digest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1620,6 +1659,13 @@ func (x *ReconcileResponse) GetSkipped() []*ReconcileSkip {
 		return x.Skipped
 	}
 	return nil
+}
+
+func (x *ReconcileResponse) GetPlanDigest() string {
+	if x != nil {
+		return x.PlanDigest
+	}
+	return ""
 }
 
 type PublishFileExportRequest struct {
@@ -1914,21 +1960,27 @@ const file_zfsendpoint_v1_endpoint_proto_rawDesc = "" +
 	"\x11GetVolumeResponse\x12.\n" +
 	"\x06volume\x18\x01 \x01(\v2\x16.zfsendpoint.v1.VolumeR\x06volume\"N\n" +
 	"\x16CreateSnapshotResponse\x124\n" +
-	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot\"\x81\x01\n" +
+	"\bsnapshot\x18\x01 \x01(\v2\x18.zfsendpoint.v1.SnapshotR\bsnapshot\"\xf8\x01\n" +
 	"\x10ReconcileRequest\x12,\n" +
 	"\x12desired_volume_ids\x18\x01 \x03(\tR\x10desiredVolumeIds\x12&\n" +
 	"\x0fmin_age_seconds\x18\x02 \x01(\x04R\rminAgeSeconds\x12\x17\n" +
-	"\adry_run\x18\x03 \x01(\bR\x06dryRun\"Q\n" +
+	"\adry_run\x18\x03 \x01(\bR\x06dryRun\x12#\n" +
+	"\rmax_deletions\x18\x04 \x01(\rR\fmaxDeletions\x12/\n" +
+	"\x13unlimited_deletions\x18\x05 \x01(\bR\x12unlimitedDeletions\x12\x1f\n" +
+	"\vplan_digest\x18\x06 \x01(\tR\n" +
+	"planDigest\"Q\n" +
 	"\x0fReconcileAction\x12\x0e\n" +
 	"\x02op\x18\x01 \x01(\tR\x02op\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\"?\n" +
 	"\rReconcileSkip\x12\x16\n" +
 	"\x06target\x18\x01 \x01(\tR\x06target\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x87\x01\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xa8\x01\n" +
 	"\x11ReconcileResponse\x129\n" +
 	"\aactions\x18\x01 \x03(\v2\x1f.zfsendpoint.v1.ReconcileActionR\aactions\x127\n" +
-	"\askipped\x18\x02 \x03(\v2\x1d.zfsendpoint.v1.ReconcileSkipR\askipped\"l\n" +
+	"\askipped\x18\x02 \x03(\v2\x1d.zfsendpoint.v1.ReconcileSkipR\askipped\x12\x1f\n" +
+	"\vplan_digest\x18\x03 \x01(\tR\n" +
+	"planDigest\"l\n" +
 	"\x18PublishFileExportRequest\x12\x1b\n" +
 	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\x12\x16\n" +
 	"\x06client\x18\x02 \x01(\tR\x06client\x12\x1b\n" +

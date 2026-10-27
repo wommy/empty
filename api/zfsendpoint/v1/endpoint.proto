@@ -181,13 +181,27 @@ message CreateSnapshotResponse { Snapshot snapshot = 1; }
 message ReconcileRequest {
   // The complete set of volume ids the caller wants kept. Every other owned,
   // committed volume is collected. Empty collects no committed volume: it
-  // cannot be told apart from a caller that sent nothing.
+  // cannot be told apart from a caller that sent nothing. A set naming none
+  // of the endpoint's volumes counts as empty.
   repeated string desired_volume_ids = 1;
-  // Nothing created less than this long ago is touched (in-flight creates,
-  // volumes newer than the caller's desired set). 0 means one hour.
+  // Nothing created (or committed) less than this long ago is touched
+  // (in-flight creates, volumes newer than the caller's desired set).
+  // 0 means one hour; below 600 (ten minutes) is INVALID_ARGUMENT.
   uint64 min_age_seconds = 2;
   // Return the plan without locking or applying it.
   bool dry_run = 3;
+  // At most this many committed volumes may be collected as undesired in
+  // one run; a plan with more applies nothing and fails with
+  // FAILED_PRECONDITION (a truncated or wrong desired set must not empty
+  // the parent). 0 means 10. Uncommitted rows and orphan clone sources do
+  // not count.
+  uint32 max_deletions = 4;
+  // Lift max_deletions. Setting both is INVALID_ARGUMENT.
+  bool unlimited_deletions = 5;
+  // Optional: the plan_digest of a dry run. When set, the run applies
+  // only if it plans exactly what that dry run did, else ABORTED (dry-run
+  // again); what runs is always a subset of it.
+  string plan_digest = 6;
 }
 
 message ReconcileAction {
@@ -204,7 +218,11 @@ message ReconcileSkip {
 message ReconcileResponse {
   // done (or, for a dry run, planned), in order
   repeated ReconcileAction actions = 1;
+  // left alone, with why; an action that failed is here with
+  // "failed: <error>", and the run went on
   repeated ReconcileSkip skipped = 2;
+  // digest of the plan (for a dry run, to echo in plan_digest)
+  string plan_digest = 3;
 }
 
 message PublishFileExportRequest {

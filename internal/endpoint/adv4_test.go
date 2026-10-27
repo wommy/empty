@@ -6,6 +6,7 @@ package endpoint
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -265,6 +266,66 @@ func TestAdv4OneBusyLockAbortsWholeRun(t *testing.T) {
 	}
 	if h.ep.locks.Held("vol:a") {
 		t.Fatal("lock not released")
+	}
+}
+
+// F2: no guard against a truncated or wrong desired set: one page of a
+// paginated PV list, or a set from another cluster, destroyed everything.
+func TestAdv4PartialDesiredSetMassDeletes(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	for i := range 50 {
+		h.vol(fmt.Sprintf("pvc-%02d", i), true)
+	}
+	h.vol("abandoned", false)
+	p, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"pvc-00"}})
+	if CodeOf(err) != FailedPrecondition || len(p.Actions) != 50 {
+		t.Fatalf("over the cap: %d actions, %v", len(p.Actions), err)
+	}
+	p2, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: []string{"pvc-from-other-cluster"}})
+	h.must(err)
+	for i := range 50 {
+		if !h.has(fmt.Sprintf("%s/pvc-%02d", a4Parent, i)) {
+			t.Fatalf("pvc-%02d destroyed: %+v", i, p2)
+		}
+	}
+	// the set naming nothing of ours still collects what never depends on it
+	if len(p2.Actions) != 1 || p2.Actions[0].Target != "abandoned" {
+		t.Fatalf("second: %+v", p2)
+	}
+}
+
+func TestReconcileMaxDeletionsAndDigest(t *testing.T) {
+	h := newA4(t)
+	ctx := context.Background()
+	for _, id := range []string{"keep", "a", "b", "c"} {
+		h.vol(id, true)
+	}
+	keep := []string{"keep"}
+	_, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, MaxDeletions: 2})
+	if CodeOf(err) != FailedPrecondition || !h.has(a4Parent+"/a") {
+		t.Fatalf("3 > 2: %v", err)
+	}
+	if _, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, MaxDeletions: 2, UnlimitedDeletions: true}); CodeOf(err) != InvalidArgument {
+		t.Fatalf("both: %v", err)
+	}
+	dry, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, DryRun: true})
+	h.must(err)
+	if dry.Digest == "" || len(dry.Actions) != 3 {
+		t.Fatalf("dry %+v", dry)
+	}
+	// the state moved since the dry run: refused, nothing applied
+	h.vol("d", true)
+	if _, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, PlanDigest: dry.Digest}); CodeOf(err) != Aborted || !h.has(a4Parent+"/a") {
+		t.Fatalf("stale digest: %v", err)
+	}
+	keep = append(keep, "d")
+	dry, err = h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, DryRun: true})
+	h.must(err)
+	done, err := h.ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: keep, PlanDigest: dry.Digest, MaxDeletions: 3})
+	h.must(err)
+	if done.Digest != dry.Digest || len(done.Actions) != 3 || h.has(a4Parent+"/a") {
+		t.Fatalf("echoed digest: %+v", done)
 	}
 }
 
