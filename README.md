@@ -2,7 +2,7 @@
 
 A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset and exposes it over gRPC (`api/zfsendpoint/v1`), so that CSI drivers and other front ends can stay thin translators.
 
-**OpenZFS is the source of truth** (`docs/adr/0003-openzfs-is-the-source-of-truth.md`). Behavior follows OpenZFS's own semantics, as verified in its source and on a real 2.4.x pool, never another driver's choices. [democratic-csi](https://github.com/democratic-csi/democratic-csi) is an **adoption target**: the endpoint can read its ZFS user properties (`democratic-csi:*`), so volumes it provisioned can be adopted, but it is evidence of practice, not of correctness.
+**OpenZFS is the source of truth** (`docs/adr/0003-openzfs-is-the-source-of-truth.md`). Behavior follows OpenZFS's own semantics, as verified in its source and on a real 2.4.x pool, never another driver's choices. **OpenZFS 2.4 is the only supported version** (`docs/adr/0004-support-floor-and-node-side.md`). [democratic-csi](https://github.com/democratic-csi/democratic-csi) is an **adoption target**: the endpoint can read its ZFS user properties (`democratic-csi:*`), so volumes it provisioned can be adopted, but it is evidence of practice, not of correctness.
 
 ## Status
 
@@ -92,3 +92,7 @@ The research found these, and nothing ships for them yet:
 - **Changed-block tracking** (the CSI SnapshotMetadata service). No ZFS implementation exists anywhere, and the zfs send stream is the only exact source.
 - **ControllerModifyVolume.** No ZFS driver implements it.
 - **Detached snapshots,** which would let volumes be deleted while their snapshots survive.
+
+## License
+
+Apache-2.0. See `LICENSE`.
