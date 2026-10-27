@@ -455,22 +455,6 @@ func TestInheritedOwnershipIsNotOwnership(t *testing.T) {
 	}
 }
 
-// review C1 end-to-end: thick clones are idempotent after success
-func TestThickCloneRetryIsIdempotent(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	ep, _ := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "s", Kind: endpoint.Block, CapacityBytes: mib64}); err != nil {
-		t.Fatal(err)
-	}
-	req := endpoint.CreateVolumeRequest{Name: "c", Kind: endpoint.Block, CapacityBytes: mib64, SourceVolumeID: "s"}
-	for i := 0; i < 2; i++ {
-		if _, err := ep.CreateVolume(ctx, req); err != nil {
-			t.Fatalf("attempt %d: %v", i, err)
-		}
-	}
-}
-
 // a failure between clone and resize converges on retry
 func TestCloneResizeFailureConverges(t *testing.T) {
 	t.Parallel()

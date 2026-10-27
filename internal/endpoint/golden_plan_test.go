@@ -106,6 +106,8 @@ var goldenRows = []goldenRow{
 	{"create/satisfied", []Row{vol("a", func(r *Row) { r.Refquota = 1 << 30 })}, create(CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30})},
 	{"create/foreign", []Row{vol("a", func(r *Row) { r.Managed = false })}, create(CreateVolumeRequest{Name: "a"})},
 	{"create/incompatible-size", []Row{vol("a", func(r *Row) { r.Refquota = 10 })}, create(CreateVolumeRequest{Name: "a", CapacityBytes: 11})},
+	{"create/incompatible-kind", []Row{vol("a", func(r *Row) { r.Refquota = 10 })}, create(CreateVolumeRequest{Name: "a", Kind: Block, CapacityBytes: 1})},
+	{"create/thick-on-sparse-zvol", []Row{vol("z", zvol(16384))}, create(CreateVolumeRequest{Name: "z", Kind: Block, CapacityBytes: 16384})},
 	{"create/uncommitted-resume", []Row{vol("a", func(r *Row) { r.Committed = false })}, create(CreateVolumeRequest{Name: "a", CapacityBytes: 1 << 30})},
 	{"create/uncommitted-clone-converges", []Row{
 		vol("src", func(r *Row) { r.Type, r.Volsize, r.Refres = zfs.TypeVolume, 1<<30, 1<<30 }),
@@ -124,6 +126,7 @@ var goldenRows = []goldenRow{
 		create(CreateVolumeRequest{Name: "r", Kind: Block, CapacityBytes: 4 << 20, LimitBytes: 5 << 20, SourceSnapshotID: "src@s"})},
 	{"restore/unknown-source", []Row{vol("src", nil)}, create(CreateVolumeRequest{Name: "r", SourceSnapshotID: "src@nope"})},
 	{"restore/malformed-source", nil, create(CreateVolumeRequest{Name: "r", SourceSnapshotID: "non-existing-snapshot-id"})},
+	{"clone/malformed-source", nil, create(CreateVolumeRequest{Name: "c", CapacityBytes: 1, SourceVolumeID: "no/such@volume"})},
 	{"clone/from-volume-reserve", []Row{vol("src", func(r *Row) { r.Refquota = 1 << 20 })},
 		create(CreateVolumeRequest{Name: "c", SourceVolumeID: "src", Reserve: true})},
 	{"clone/from-uncommitted-volume", []Row{vol("src", func(r *Row) { r.Committed = false })},

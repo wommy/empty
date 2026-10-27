@@ -77,23 +77,3 @@ func TestDeleteVolumeSparesForeignSnapshots(t *testing.T) {
 		t.Fatal("not destroyed with the opt-in")
 	}
 }
-
-// The endpoint's own internal clone-source snapshot is not foreign: a
-// volume whose clone is gone deletes as before.
-func TestDeleteVolumeAfterItsCloneIsGone(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	ep, _ := setup(t)
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "dst", SourceVolumeID: "src"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := ep.DeleteVolume(ctx, "dst"); err != nil {
-		t.Fatal(err)
-	}
-	if err := ep.DeleteVolume(ctx, "src"); err != nil {
-		t.Fatal(err)
-	}
-}

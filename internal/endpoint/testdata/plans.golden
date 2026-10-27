@@ -48,6 +48,12 @@ error: AlreadyExists
 ## create/incompatible-size
 error: AlreadyExists
 
+## create/incompatible-kind
+error: AlreadyExists
+
+## create/thick-on-sparse-zvol
+error: AlreadyExists
+
 ## create/uncommitted-resume
 set tank/v/a refquota=1073741824
 set tank/v/a democratic-csi:provision_success=true
@@ -73,6 +79,9 @@ error: OutOfRange
 error: NotFound
 
 ## restore/malformed-source
+error: NotFound
+
+## clone/malformed-source
 error: NotFound
 
 ## clone/from-volume-reserve

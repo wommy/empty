@@ -250,6 +250,25 @@ func TestPlanReconcile(t *testing.T) {
 			skips: []string{"a@volume-source-for-volume-x:" + SkipUnstampedCloneSource},
 		},
 		{
+			// was TestPlanReconcileLocksEveryTarget: an orphan clone
+			// source and a released one, whose locks the loop checks
+			name: "orphan and released clone sources lock their volumes and clones",
+			rows: []Row{
+				vol("a", nil),
+				snap("a@volume-source-for-volume-gone", stamp),
+				vol("b", nil),
+				snap("b@volume-source-for-volume-c", stamp),
+				vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
+			},
+			want: desired("a"),
+			acts: []string{
+				"b@volume-source-for-volume-c:" + ReasonReleasedWithVolume,
+				"c:" + ReasonUndesired,
+				"b:" + ReasonUndesired,
+				"a@volume-source-for-volume-gone:" + ReasonOrphanCloneSource,
+			},
+		},
+		{
 			// wave-5 R9b: a name zfs accepts but the client refuses
 			name:  "unaddressable clone-source snapshot is reported, not planned",
 			rows:  []Row{vol("a", nil), snap("a@volume-source-for-volume-x y", stamp)},
@@ -276,30 +295,23 @@ func TestPlanReconcile(t *testing.T) {
 					t.Fatalf("op %+v: never -r; only snapshots are destroyed deferred", op)
 				}
 			}
+			// every action locks its volume, and a released or orphan clone
+			// source also locks the clone it serves, there or not (REC-10).
+			// A clone-source snapshot destroyed with its collected volume
+			// (ReasonWithVolume) relies on the volume's lock alone:
+			// CreateVolume from that volume takes vol:<source> too.
+			for _, a := range plan.Actions {
+				vol, _, _ := strings.Cut(a.Target, "@")
+				if !slices.Contains(a.Volumes, vol) {
+					t.Errorf("%s: locks %v miss its volume", a.Target, a.Volumes)
+				}
+				_, clone, ok := strings.Cut(a.Target, "@"+cloneSourceSnapshotPrefix)
+				serves := a.Reason == ReasonReleasedWithVolume || a.Reason == ReasonOrphanCloneSource
+				if ok && serves && !slices.Contains(a.Volumes, clone) {
+					t.Errorf("%s: locks %v miss the clone it serves", a.Target, a.Volumes)
+				}
+			}
 		})
-	}
-}
-
-func TestPlanReconcileLocksEveryTarget(t *testing.T) {
-	tab := table(
-		vol("a", nil),
-		snap("a@volume-source-for-volume-gone", stamp),
-		vol("b", nil),
-		snap("b@volume-source-for-volume-c", stamp),
-		vol("c", func(r *Row) { r.Origin = "tank/v/b@volume-source-for-volume-c" }),
-	)
-	plan, err := pl.PlanReconcile(tab, desired("a"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, a := range plan.Actions {
-		vol, _, _ := strings.Cut(a.Target, "@")
-		if !slices.Contains(a.Volumes, vol) {
-			t.Errorf("%s: locks %v miss its volume", a.Target, a.Volumes)
-		}
-		if _, clone, ok := strings.Cut(a.Target, "@"+cloneSourceSnapshotPrefix); ok && !slices.Contains(a.Volumes, clone) {
-			t.Errorf("%s: locks %v miss the clone it serves", a.Target, a.Volumes)
-		}
 	}
 }
 
