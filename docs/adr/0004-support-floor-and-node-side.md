@@ -33,7 +33,7 @@ Status: accepted · Date: 2026-10-27 · Related: ADR 0003 (OpenZFS is the source
     - Per node (later, behind a flag): add or remove one `<node>/32` in the value.
     - Static export at create comes first, because it needs no attacher sidecar.
   - **Root squash stays on.** The endpoint sets the new dataset root's owner and mode from StorageClass parameters before committing the volume.
-  - The full design and its attack are in the research notes (`csi-nfs-design.md`).
+  - The full design and its attack are in `docs/research/gaps/csi-nfs-design.md`.
 - **The node side is delegated to csi-driver-nfs**, run with our driver name. CreateVolume returns `server` and `share` in `volume_context`, and this repo writes no node plugin for NFS.
 - **License: Apache-2.0.**
 
