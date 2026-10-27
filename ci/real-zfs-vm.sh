@@ -641,7 +641,8 @@ fi
 # TestZFSDiffReplay replays zfs(8) sequences (internal/zfs/zfsdiff) on the
 # pool, the simulator and the reference model. Divergences are reported,
 # not failed (ZFSDIFF_STRICT=1 would); the summary gets the verdict per
-# sequence, the workflow uploads the whole report. Its last line is the
+# sequence, the job log has the whole report (the zfsdiff.log group;
+# uploaded too when the job fails). Its last line is the
 # tally with the replay's wall time.
 if ! inpart TestZFSDiffReplay; then
   :
@@ -663,8 +664,14 @@ else
   echo "::error::vm: the unit check wrote no unit-hardening.log"; rc=1
 fi
 # per-test time (ci/test-times.awk): the data ci/real-zfs-weights.sh turns
-# into ci/real-zfs-weights.txt; the workflow uploads test-times.tsv
+# into ci/real-zfs-weights.txt. Whole into the job log, as the group
+# "test-times.tsv" that ci/real-zfs-weights.sh reads from a saved log: an
+# endpoint job uploads it as an artifact only when it fails, since the
+# upload cost 1-2s of push-to-green on every green run (ADR 0005)
 if [ -s "$o/test-times.tsv" ]; then
+  echo "::group::test-times.tsv"
+  cat "$o/test-times.tsv"
+  echo "::endgroup::"
   {
     echo "<details><summary>real-ZFS shard walls and slowest tests (out/test-times.tsv)</summary>"
     echo
