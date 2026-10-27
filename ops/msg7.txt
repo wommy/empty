@@ -1,0 +1,24 @@
+endpoint: "not managed" says why; "has dependent clone" says when the clone is an uncommitted create
+
+"dataset X is not managed" now says why and what to do: no
+managed_resource marker, one that is received (zfs recv), inherited or
+set to something other than true, no local csi_volume_name, or one
+naming another volume (renamed or copied); then "if it is this volume,
+set both markers locally (zfs set ...), otherwise rename it away". The
+scan records a non-counting marker's source (Row.ManagedSource, messages
+only).
+
+"volume S has dependent clone X" appends, when the table holds X and X
+is an uncommitted create (Reconcile's whole-parent table), "(X is an
+uncommitted create, never provisioned: zfs-endpoint reconcile collects
+it once older than -min-age, and this delete then goes through)".
+DeleteVolume's table does not read the clone, and no zfs call is added
+for it (TestRPCCallBudget): where the snapshot is the endpoint's
+clone-source stamped for X, the tail is a hint, "(if X's CreateVolume
+never completed, ...)".
+
+plan.go changes only the two errorf calls; the texts are built in
+messages.go.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

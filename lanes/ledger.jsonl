@@ -106,3 +106,5 @@
 {"t": "2026-10-27T17:47:48Z", "lane": "writer", "id": "ops-csi", "agent": "a6bc4d1bdd7188707", "commits": 2, "files": 10, "ins": 557, "del": 28, "merge": "bb66dc8", "deviation": "readiness not liveness (justified, ADR 0008 addendum)", "outcome": "merged, gating"}
 {"t": "2026-10-27T17:48:41Z", "lane": "reader", "id": "mutation", "agent": "ac259b3d72ffec8e1", "mutants": 189, "killed": 154, "survived": 35, "equiv": 6, "outcome": "queued q-guard-kills prio 0"}
 {"t": "2026-10-27T17:54:12Z", "lane": "reader", "id": "deploy-seam", "agent": "aa255e826ccc26911", "blocking": 2, "degrading": 4, "outcome": "queued q-deploy-usable; A-deploy-cannot-mount closed by design"}
+{"t": "2026-10-27T17:57:10Z", "lane": "reader", "id": "part-balance", "agent": "a804dc84a8a9138c6", "runs": 4, "finding": "work ratio 1.24 systematic; phase gap mostly host speed; weights measured-part-biased 2-4x; fix buys ~1s", "outcome": "queued q-weights-normalize prio 1"}
+{"t": "2026-10-27T17:57:10Z", "lane": "writer", "id": "node-harden", "agent": "ae3a6babc225a3e78", "commits": 1, "deviation": "zfs-csi image tag-only (unpublished)", "merge": "08ca83f", "outcome": "merged, gating"}

@@ -1,0 +1,15 @@
+zfs-endpoint: JSON "exit" line with exit_code before a fatal exit; README exit-code table
+
+The fatal line was plain text ("zfs-endpoint: <err>") with no code, so a
+journal read as JSON dropped it. Before exiting with an error the process
+now logs {"level":"ERROR","msg":"exit","exit_code":N,"error":"..."}; the
+reconcile subcommand, an operator's terminal command, prints the plain
+line as well. The field is "error", as on every other line.
+
+README "Runbook: exit codes" tables the codes as the code sets them
+(startup.go, lockparent.go): 78 configuration (no restart), 75 pool or
+module not ready (restarted forever), 1 anything else, 0 a stop during
+startup, and reconcile's 3 for findings.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

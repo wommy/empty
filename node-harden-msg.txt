@@ -1,0 +1,43 @@
+deploy: harden the NFS node side (DNS, taints, mount options, fsGroup, pins)
+
+From the node-side security review (F-1 to F-6):
+
+- node.yaml: dnsPolicy Default, not ClusterFirstWithHostNet. Under
+  cluster DNS (ndots:5, the cluster search list) mount.nfs tries a short
+  server name such as nas.lan as nas.lan.svc.cluster.local first, which
+  is Service nas in namespace lan: a tenant could make every node mount
+  its server. The node plugin needs nothing from cluster DNS: nfsplugin
+  v4.13.6 has no Kubernetes client (no kubeconfig flag, no client-go,
+  and the pod gets no token), the registrar and the liveness probe reach
+  it over the plugin's unix socket, the probe serves on localhost, and
+  kubelet dials the socket through the registration path. The only name
+  it resolves is the NFS server, now with the node's resolver.
+  nfs.conf.example, classes.yaml and the README say: advertise an IPv4
+  address or an FQDN with a trailing dot.
+- node.yaml: no blanket operator: Exists toleration, so the privileged
+  pod lands on untainted nodes only; a commented example toleration for
+  operators who need one. The ZFS host stays eligible (hyperconverged,
+  ADR 0006), recorded in ADR 0009 as decisive and reversible.
+- ADR 0004 Consequences: the export is per CIDR, so any host, node or
+  hostNetwork pod inside it can mount every exported volume; keep
+  nfs.clients narrow and firewall 2049 on the ZFS host to the node
+  addresses (README "Deploying the node side"; ADR 0001 v2 D8 and ADR
+  0009 point at it).
+- classes.yaml: mountOptions nfsvers=4.2, hard, nosuid, nodev. The repo
+  ships no nfsd config that limits versions; the real-ZFS VM now gates on
+  /proc/fs/nfsd/versions listing +4.2.
+- csidriver.yaml: fsGroupPolicy None, explicit: ownership is set
+  server-side from nfs.uid/gid/mode (ADR 0004), and kubelet's recursive
+  chown fails under root_squash. Its stale "Controller only" comment and
+  rbac.yaml's namespace comment now name the node plugin.
+- README: a table of every pinned image tag and digest.
+
+Tests: TestNodeDaemonSet pins dnsPolicy Default, no tolerations, no
+affinity and the commented example; TestManifests pins fsGroupPolicy
+None; TestStorageClassMountOptions the mount options; TestUnitNFSDropIn
+the trailing-dot rule; TestImagePins that every image in deploy/k8s but
+ghcr.io/wommy/zfs-csi (not published yet, its TODO stays) is pinned by
+digest, one digest per tag, matching the README table.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

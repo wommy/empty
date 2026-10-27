@@ -464,3 +464,13 @@
 {"ts": "2026-10-27T17:48:41Z", "id": "ac259b3d72ffec8e1", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-27T17:48:41Z", "id": "ac259b3d72ffec8e1", "from": "triaged", "to": "done", "note": ""}
 {"ts": "2026-10-27T17:48:41Z", "id": "ae3a6babc225a3e78", "from": "queued", "to": "running", "note": "q-node-harden"}
+{"ts": "2026-10-27T17:56:07Z", "id": "aa255e826ccc26911", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T17:56:07Z", "id": "aa255e826ccc26911", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T17:56:07Z", "id": "aa255e826ccc26911", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T17:56:07Z", "id": "a804dc84a8a9138c6", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T17:56:07Z", "id": "a804dc84a8a9138c6", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T17:56:07Z", "id": "a804dc84a8a9138c6", "from": "triaged", "to": "done", "note": ""}
+{"ts": "2026-10-27T17:56:07Z", "id": "ae3a6babc225a3e78", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-27T17:56:07Z", "id": "ae3a6babc225a3e78", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-27T17:57:10Z", "id": "ae3a6babc225a3e78", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-27T17:57:10Z", "id": "a43719727e37e1ecb", "from": "queued", "to": "running", "note": "q-guard-kills"}
