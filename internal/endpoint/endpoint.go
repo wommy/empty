@@ -744,8 +744,7 @@ func (e *Endpoint) deleteLocked(ctx context.Context, volID string, vols *[]strin
 		return false, err
 	}
 	defer release()
-	// clones of this volume's snapshots live elsewhere under the parent
-	t, err := e.scan(ctx, "")
+	t, err := e.scanDelete(ctx, volID)
 	if err != nil {
 		return false, err
 	}
@@ -768,6 +767,56 @@ func (e *Endpoint) deleteLocked(ctx context.Context, volID string, vols *[]strin
 		defer more()
 	}
 	return false, e.apply(ctx, plan)
+}
+
+// scanDelete reads what DeleteVolume of id decides on, and no more of the
+// parent:
+//   - the volume, its snapshots and the datasets below it (scan(id)); each
+//     snapshot's clones come from its clones property, wherever they live;
+//   - every volume carrying a snapshot named
+//     <src>@volume-source-for-volume-<id>: the volume's own clone origin,
+//     and any a CreateVolume(id from src) cut and died before cloning.
+//     They are found by a names-only listing of the parent's snapshots
+//     (which volumes alone never grow), then read like the volume.
+//
+// The table covers those volumes and every such snapshot (srcsFor).
+// vol:<id> is held: no CreateVolume of id cuts a new one meanwhile.
+func (e *Endpoint) scanDelete(ctx context.Context, id string) (Table, error) {
+	t, err := e.scan(ctx, id)
+	if err != nil {
+		return Table{}, err
+	}
+	snaps, err := e.zfs.ListColumns(ctx, e.cfg.Parent, zfs.ListOptions{
+		Types: []zfs.Type{zfs.TypeSnapshot}, Depth: 1, Props: []string{"type"},
+	})
+	if err != nil {
+		if zfs.IsNotFound(err) {
+			return Table{}, parentUnavailable(e.cfg.Parent, err)
+		}
+		return Table{}, zfsErr(err, "list snapshots of "+e.cfg.Parent)
+	}
+	parts := []Table{t}
+	seen := map[string]bool{id: true}
+	suffix := "@" + cloneSourceSnapshotPrefix + id
+	for _, name := range snaps.Names {
+		rel, ok := strings.CutPrefix(name, e.cfg.Parent+"/")
+		src, isSrc := strings.CutSuffix(rel, suffix)
+		if !ok || !isSrc || strings.ContainsAny(src, "/@") || seen[src] {
+			continue
+		}
+		seen[src] = true
+		if _, err := volumeID(src); err != nil {
+			continue // no volume of ours: nothing the planner releases
+		}
+		s, err := e.scan(ctx, src)
+		if err != nil {
+			return Table{}, err
+		}
+		parts = append(parts, s)
+	}
+	t = mergeTables(parts...)
+	t.srcsFor = id
+	return t, nil
 }
 
 func volKeys(vols []string) []string {

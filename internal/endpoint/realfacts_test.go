@@ -190,6 +190,24 @@ var facts = []fact{
 		}
 		return nil
 	}},
+	// DeleteVolume reads a snapshot's dependents from this property instead
+	// of scanning the whole parent for origins (ADR 0007)
+	{row: "DEL-03/clones", what: "a snapshot's clones property names its clones wherever they live; none reads as `-` or empty",
+		check: func(f *factEnv) error {
+			f.zfs("create", f.p+"/a")
+			f.zfs("create", f.p+"/o")
+			f.zfs("snapshot", f.p+"/a@s")
+			f.zfs("snapshot", f.p+"/a@t")
+			if err := f.zfs("clone", f.p+"/a@s", f.p+"/o/x"); err != nil {
+				return err
+			}
+			c, _ := f.get(f.p+"/a@s", "clones")
+			none, _ := f.get(f.p+"/a@t", "clones")
+			if c != f.p+"/o/x" || none != "-" && none != "" {
+				return fmt.Errorf("clones %q, of an unused snapshot %q", c, none)
+			}
+			return nil
+		}},
 	{row: "OWN-02/rename", what: "rename keeps guid and local markers, and moves a clone's origin with it", check: func(f *factEnv) error {
 		f.zfs("create", "-o", "zfs-endpoint:csi_volume_name=a", f.p+"/a")
 		f.zfs("snapshot", f.p+"/a@s")

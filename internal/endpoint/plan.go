@@ -700,13 +700,18 @@ func (p Planner) PlanDeleteVolume(t Table, volID string) (Plan, error) {
 // clone id on a volume the endpoint owns. Only the stamp makes one ours;
 // the reserved name alone is anyone's (ADR 0003).
 func (p Planner) releaseCloneSourcesFor(t Table, id string) (Plan, error) {
-	if err := t.mustBeWhole("DeleteVolume of an absent volume"); err != nil {
-		return nil, err
+	if t.srcsFor != id {
+		if err := t.mustBeWhole("finding the clone sources cut for " + id); err != nil {
+			return nil, err
+		}
 	}
 	var plan Plan
 	for src := range t.Volumes() {
 		s, ok := t.Get(src.ID + "@" + cloneSourceSnapshotPrefix + id)
-		if !ok || !src.OwnedVolume() || s.Deferred || !zfs.ValidSnapshot(s.Name) || hasAny(t.ClonesOf(s.Name)) {
+		if !ok || !src.OwnedVolume() || s.Deferred || !zfs.ValidSnapshot(s.Name) {
+			continue
+		}
+		if _, used := t.dependent(s, p.Parent); used {
 			continue
 		}
 		if clone, ours := s.OwnedCloneSource(); !ours || clone != id {
@@ -797,8 +802,8 @@ func (p Planner) planDelete(t Table, volID string, destroyForeign bool) (deletio
 		if s.SnapshotName != "" && !s.Deferred {
 			return deletion{}, errorf(FailedPrecondition, "volume %s has snapshot %s", id, s.ID)
 		}
-		for c := range t.ClonesOf(s.Name) {
-			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c.ID)
+		if c, ok := t.dependent(s, p.Parent); ok {
+			return deletion{}, errorf(FailedPrecondition, "volume %s has dependent clone %s", id, c)
 		}
 		// a user hold is someone's claim on the snapshot (zfs send, a
 		// backup tool); only its holder releases it (HOLD-REPLAN)

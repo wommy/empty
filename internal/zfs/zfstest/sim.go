@@ -1238,7 +1238,7 @@ func (s *Sim) inherit(args []string) error {
 // readonlyProps are the properties zfs_prop_readonly reports (PROP_READONLY
 // and the set-once PROP_ONETIME ones) among those the simulator knows.
 var readonlyProps = map[string]bool{
-	"type": true, "origin": true, "mounted": true, "defer_destroy": true, "userrefs": true,
+	"type": true, "origin": true, "mounted": true, "defer_destroy": true, "userrefs": true, "clones": true,
 	"used": true, "available": true, "creation": true, "name": true, "volblocksize": true,
 }
 
@@ -1350,7 +1350,7 @@ func known(prop string) bool {
 		return true
 	}
 	switch prop {
-	case "all", "name", "type", "origin", "creation", "used", "userrefs", "guid":
+	case "all", "name", "type", "origin", "creation", "used", "userrefs", "guid", "clones":
 		return true
 	}
 	_, ok := applies[prop]
@@ -1416,6 +1416,16 @@ func (s *Sim) value(name, prop string) (string, string, bool) {
 		return "no", "-", true
 	case "guid":
 		return s.guid(n), "-", true
+	case "clones":
+		// a snapshot's clones, wherever they live (zfs_get_clones_nvl);
+		// none, or not a snapshot, prints "-" (get_clones_string fails)
+		if n.typ != zfs.TypeSnapshot {
+			return "-", "-", true
+		}
+		if c := s.clonesOf(name); len(c) > 0 {
+			return strings.Join(c, ","), "-", true
+		}
+		return "-", "-", true
 	case "userrefs":
 		if n.typ != zfs.TypeSnapshot {
 			return "-", "-", true
