@@ -130,11 +130,18 @@ vm 'set -eo pipefail
   t=(-test.count=1 -test.v -test.timeout=8m)
   ./endpoint.test -test.list ".*" >endpoint.list
   ./csi.test -test.list ".*" >csi.list
-  sudo "${env[@]}" ./endpoint.test "${t[@]}" 2>&1 | tee endpoint.log || rc=$?
+  # The three binaries run at once, and the endpoint tests in parallel
+  # within theirs: every test owns its parent dataset (ep-<test>-<ns>,
+  # csi-<ns>), and the tests wait on zfs execs, not CPU, so 8 run at a time
+  # on the 2 vCPUs (-test.parallel defaults to GOMAXPROCS, i.e. 2). Ginkgo
+  # allows one suite per process, so mount and block are two processes.
   # csi-sanity, Identity and Controller groups, for filesystems and zvols;
   # the non-sanity csi tests do not depend on the access type, run them once
-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" 2>&1 | tee csi-mount.log || rc=$?
-  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run "^TestSanity\$" 2>&1 | tee csi-block.log || rc=$?
+  sudo "${env[@]}" ./endpoint.test "${t[@]}" -test.parallel=8 >endpoint.log 2>&1 & ep=$!
+  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" >csi-mount.log 2>&1 & cm=$!
+  sudo "${env[@]}" CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run "^TestSanity\$" >csi-block.log 2>&1 & cb=$!
+  for p in $ep $cm $cb; do wait $p || rc=$?; done
+  cat endpoint.log csi-mount.log csi-block.log
   sudo zpool destroy -f zfsep-test
   exit $rc' || rc=$?
 
