@@ -1,6 +1,6 @@
 {
  "ci": "pending 0ea9575",
- "head": "0ea9575 pushed; 6f3fa82 local (ci-poll+ci-split3)",
+ "head": "0ea9575 pushed; 2f7cf43 local (ci-poll+ci-split3, signed)",
  "caps": {
   "total": 8,
   "writers": 3,
