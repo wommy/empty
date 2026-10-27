@@ -53,8 +53,16 @@ ExecStart=/usr/local/sbin/zfs-endpoint \
     -admin-listen unix:///run/zfs-endpoint/admin/%i/endpoint.sock \
     -drain 30s \
     -stop-wait 10s \
-    -parent-wait 60s
+    -parent-wait 60s \
+    $ZFS_ENDPOINT_NFS
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+# NFS mode (ADR 0004, ADR 0009): -nfs-server words, split by systemd at
+# whitespace (unbraced $VAR above) and dropped when empty, as here. Set it
+# in a drop-in rather than restating ExecStart: copy
+# zfs-endpoint@.service.d/nfs.conf.example to nfs.conf and edit it.
+# Without it the endpoint is not in NFS mode, and zfs-csi provisions no
+# filesystem volume unless started with -enable-local-filesystem.
+Environment=ZFS_ENDPOINT_NFS=
 
 # /run/zfs-endpoint, 0700, shared by all instances: it holds the
 # per-parent locks (which must be shared to refuse nested parents) and,

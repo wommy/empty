@@ -17,6 +17,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	zcsi "github.com/wommy/empty/internal/csi"
+	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/unixsock"
 )
 
@@ -103,6 +104,57 @@ func TestUnitServesTheConventionalSocket(t *testing.T) {
 		if got, want := strings.ReplaceAll(admin, "%i", unixsock.SystemdEscape(parent)), unixsock.EndpointAdminAddr(parent); got != want {
 			t.Errorf("unit serves admin %s for %s, want %s", got, parent, want)
 		}
+	}
+}
+
+// NFS mode is one drop-in away (ADR 0009): the unit ends its ExecStart
+// with an unbraced $ZFS_ENDPOINT_NFS, which systemd splits into words and
+// drops when empty (the unit's default), and the shipped example drop-in
+// sets only that variable, to -nfs-server= words. An operator never
+// restates ExecStart, so the socket convention above still holds.
+func TestUnitNFSDropIn(t *testing.T) {
+	t.Parallel()
+	const env = "ZFS_ENDPOINT_NFS"
+	args, _ := unitFile(t)
+	if len(args) == 0 || args[len(args)-1] != "$"+env {
+		t.Errorf("ExecStart does not end with $%s: %q", env, args)
+	}
+	unit, _ := directives(t, filepath.Join("systemd", "zfs-endpoint@.service"))
+	if !slices.Contains(unit["Environment"], env+"=") {
+		t.Errorf("unit Environment=%q: want %s= (empty: not NFS mode)", unit["Environment"], env)
+	}
+
+	example := filepath.Join("systemd", "zfs-endpoint@.service.d", "nfs.conf.example")
+	b, err := os.ReadFile(example)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "\n[Service]\n") {
+		t.Errorf("%s has no [Service] section", example)
+	}
+	dropIn, _ := directives(t, example)
+	if len(dropIn) != 1 || len(dropIn["Environment"]) != 1 {
+		t.Fatalf("%s sets %v: want one Environment= line only", example, dropIn)
+	}
+	v, ok := strings.CutPrefix(dropIn["Environment"][0], env+"=")
+	words := strings.Fields(v)
+	if !ok || len(words) == 0 {
+		t.Fatalf("%s: Environment=%s, want %s=-nfs-server=...", example, dropIn["Environment"][0], env)
+	}
+	for _, w := range words {
+		a, ok := strings.CutPrefix(w, "-nfs-server=")
+		if !ok || a == "" {
+			t.Errorf("%s: %q is not -nfs-server=<address>", example, w)
+		}
+		// a placeholder: installed unedited, zfs-endpoint refuses it (78)
+		// rather than advertise an address someone else may hold
+		if endpoint.ValidNFSServer(a) == nil {
+			t.Errorf("%s: %q is a valid address; ship a placeholder the endpoint refuses", example, a)
+		}
+	}
+	// a template, not loaded as is: systemd reads only *.conf drop-ins
+	if strings.HasSuffix(example, ".conf") {
+		t.Errorf("%s would be loaded unedited", example)
 	}
 }
 
