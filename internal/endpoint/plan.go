@@ -178,14 +178,17 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if err != nil {
 			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
 		}
+		// only a CSI snapshot of a committed volume the endpoint owns: an
+		// administrator's snapshot, an internal clone source or anything on
+		// a foreign dataset is not ours to clone (ADR 0003)
 		snap, ok := t.Get(r.SourceSnapshotID)
-		if !ok || snap.Type != zfs.TypeSnapshot || snap.Deferred {
+		src, srcOK := t.Get(vol)
+		if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.OwnedVolume() || !src.Committed {
 			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
 		}
-		if src, ok := t.Get(vol); ok && src.Kind() != r.Kind {
+		if src.Kind() != r.Kind {
 			return nil, errorf(InvalidArgument, "source is %s, requested %s", src.Kind(), r.Kind)
 		}
-		src, _ := t.Get(vol)
 		if err := cloneBlockSize(own, src); err != nil {
 			return nil, err
 		}
@@ -203,8 +206,10 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		if err != nil {
 			return nil, errorf(NotFound, "source volume %s not found", r.SourceVolumeID)
 		}
+		// only a committed volume the endpoint owns: cloning anything else
+		// would snapshot, and pin, a dataset that is not ours
 		src, ok := t.Get(srcID)
-		if !ok || src.Type == zfs.TypeSnapshot {
+		if !ok || !src.OwnedVolume() || !src.Committed {
 			return nil, errorf(NotFound, "source volume %s not found", srcID)
 		}
 		if src.Kind() != r.Kind {

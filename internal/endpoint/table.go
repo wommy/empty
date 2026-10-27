@@ -63,6 +63,24 @@ func (r Row) Kind() VolumeKind {
 	return Filesystem
 }
 
+// OwnedVolume reports whether r is a volume the endpoint owns: marked
+// managed on the dataset itself and, where the volume-name marker is set,
+// marked for this id. A copy made with `zfs send | recv` or a renamed
+// dataset carries another volume's name and is not this volume (ADR 0003).
+func (r Row) OwnedVolume() bool {
+	return r.Type != zfs.TypeSnapshot && r.Managed && (r.VolumeName == "" || r.VolumeName == r.ID)
+}
+
+// OwnedSnapshot reports whether r is a CSI snapshot the endpoint cut: a
+// managed snapshot with a CSI name whose source marker, where set, is the
+// volume it hangs off. Administrators' and internal clone-source snapshots
+// carry no CSI name.
+func (r Row) OwnedSnapshot() bool {
+	vol, _, _ := strings.Cut(r.ID, "@")
+	return r.Type == zfs.TypeSnapshot && r.Managed && r.SnapshotName != "" &&
+		(r.SnapshotSource == "" || r.SnapshotSource == vol)
+}
+
 // Table is an immutable, ID-sorted set of rows with secondary indexes built
 // once: snapshots by volume and clones by origin. Planners only read it.
 type Table struct {
