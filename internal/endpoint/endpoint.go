@@ -187,7 +187,7 @@ type Config struct {
 	Settle func(context.Context) error
 	// MinFreeBytes is the headroom floor: CreateVolume and ExpandVolume
 	// refuse, ResourceExhausted, a plan that makes a volume or reserves
-	// space when the parent's available space after it would fall below
+	// space when the space a new child of the parent gets after it would fall below
 	// this many bytes (headroom.go). Advisory, not a reservation: racing
 	// creates can each pass and together cross it. 0: off (the default).
 	MinFreeBytes uint64
