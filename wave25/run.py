@@ -35,14 +35,26 @@ def gotest(args, env=None, timeout=900):
     except subprocess.TimeoutExpired as x:
         return -9, (x.stdout or b"").decode() if isinstance(x.stdout, bytes) else (x.stdout or "")
 
+COMPILE = re.compile(r"^\S+\.go:\d+:\d+: (syntax error|declared and not used|undefined|cannot use|invalid operation|missing return|.*not used)", re.M)
+
 def classify(rc, txt):
     if rc == 0:
         return "survived", ""
-    if re.search(r"\[build failed\]|\[setup failed\]|^# github.com", txt, re.M) and not re.search(r"^--- FAIL", txt, re.M):
-        return "compile-fail", next((l for l in txt.splitlines() if ".go:" in l), "")[:200]
+    ce = COMPILE.search(txt)
+    if ce and not re.search(r"^\s*--- FAIL", txt, re.M):
+        return "compile-fail", ce.group(0)[:200]
+    if "[build failed]" in txt and not re.search(r"^\s*--- FAIL", txt, re.M):
+        return "env-fail", "build failed without a compile error (OOM?)"
     m = re.search(r"^\s*--- FAIL: (\S+)", txt, re.M)
     pkg = re.search(r"^FAIL\s+(github.com/\S+)", txt, re.M)
-    first = (m.group(1) if m else ("panic/timeout" if ("panic:" in txt or rc == -9) else "?"))
+    if m:
+        first = m.group(1)
+    elif "signal: killed" in txt:
+        first = "test binary killed (OOM/runaway)"
+    elif "panic:" in txt or rc == -9 or "test timed out" in txt:
+        first = "panic/timeout"
+    else:
+        first = "?"
     if pkg: first += " (" + pkg.group(1).replace("github.com/wommy/empty/", "") + ")"
     return "killed", first
 
@@ -71,7 +83,7 @@ for i, mu in enumerate(MUTANTS):
                 rec["by"] = "model"
             rec.update(status=st, first=first, secs=round(time.time() - t0, 1))
             if st != "survived":
-                rec["tail"] = "\n".join(l for l in txt.splitlines() if "FAIL" in l or "Error" in l or ".go:" in l)[:600]
+                rec["tail"] = "\n".join(l for l in txt.splitlines() if l.strip() and not l.startswith("ok ") and "no test files" not in l)[:1500]
         finally:
             open(path, "w").write(src)
     with open(out, "a") as f:

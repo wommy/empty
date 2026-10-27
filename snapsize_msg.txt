@@ -1,0 +1,23 @@
+endpoint: a filesystem snapshot reports its size when taken, not its source's now
+
+CSI size_bytes is the snapshot's size, the minimum a restore needs, and
+CreateSnapshot retries must answer the same. A filesystem snapshot has no
+refquota, so snapshotView reported the source's current refquota: after
+an expand, ListSnapshots and a CreateSnapshot retry reported the grown
+size, and a restore from the snapshot started at it.
+
+CreateSnapshot now records <prefix>:snapshot_size (the source's refquota,
+0 for unlimited) in the same `zfs snapshot -o` as the markers, so it adds
+no crash point. The scan reads it when set locally; snapshotView and the
+restore's sourceSize prefer it. Zvol snapshots record nothing: they keep
+the volsize they were cut at (SNP-11), which both already read, as does
+the clone headroom guard. Snapshots taken before this fall back to the
+source's current size, as before.
+
+TestSnapshotSizeIsItsSizeWhenTaken: create 8 MiB, snapshot, expand to
+16 MiB; retry, list and restore report 8 MiB (the filesystem leg failed
+before: 16 MiB). Golden rows for the recorded and legacy restore and for
+fs and zvol snapshot plans.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

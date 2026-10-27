@@ -49,3 +49,23 @@ expand-limit killed TestPlannerErrorCodes (internal/endpoint)
 floor-check killed TestNFS_N2_ClientsValidated (internal/csi)
 client-masked killed TestNFS_N2_ClientsValidated (internal/csi)
 client-v4 killed TestNFS_N2_ClientsValidated (internal/csi)
+export-foreign killed TestFileExportReceivedShareNFS (internal/endpoint)
+export-overlap killed TestExportConverges (internal/endpoint)
+export-mounted killed TestFileExportPreconditions (internal/endpoint)
+id-slash killed TestGoldenPlans (internal/endpoint)
+snapid-shape killed panic/timeout (internal/csi)
+get-served survived 
+list-served killed TestNFS_N6_NFSDDownNotCommitted (internal/csi)
+verify-owned survived 
+pub-gate killed TestFileExportPreconditions (internal/endpoint)
+pub-uncommitted compile-fail internal/endpoint/endpoint.go:1136:18: syntax error: unexpected comma, expected )
+unpub-covers compile-fail internal/endpoint/endpoint.go:1270:17: syntax error: unexpected :=, expected )
+lock-create killed TestConcurrentCreatesSerialize (internal/endpoint)
+lock-delete killed TestDeleteCloneWaitsForBusySource (internal/endpoint)
+lock-expand killed TestReconcileLocksTargets (internal/endpoint)
+lock-snapdel survived 
+cfg-parent survived 
+cfg-servers-root killed TestFileExportCreateNeedsServers (internal/endpoint)
+scan-parent-prefix survived 
+scan-children killed TestAdv4ChildDatasetsDestroyed (internal/endpoint)
+scandel-src survived 

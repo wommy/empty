@@ -17,7 +17,8 @@ def m(id, file, old, new, cat, risk, note, nth=None, conc=False):
 
 def ff(id, file, cond, cat, risk, note, nth=None, conc=False):
     """`if COND {` -> `if false && (COND) {`: delete the check."""
-    return m(id, file, "if " + cond + " {", "if false && (" + cond + ") {", cat, risk, note, nth, conc)
+    init, sep, c = cond.rpartition("; ")
+    return m(id, file, "if " + cond + " {", "if " + init + sep + "false && (" + c + ") {", cat, risk, note, nth, conc)
 
 
 MUTANTS = [
@@ -177,7 +178,7 @@ MUTANTS = [
     ff("snapdel-owned", P, "!row.OwnedSnapshot()", "ownership", "D", "DeleteSnapshot of an unmanaged snapshot"),
     ff("snap-reserved", P, "strings.HasPrefix(name, cloneSourceSnapshotPrefix)", "validation", "D", "CSI snapshot named with the reserved clone-source prefix"),
     ff("snap-name", P, "name == \"\" || len(name) > 128 || strings.ContainsFunc(name, unicode.IsControl)", "validation", "V", "snapshot name validation removed"),
-    m("snap-src-served", P, "if !ok || !src.ServedVolume() {\n\t\treturn nil, \"\", errorf(NotFound", "if !ok {\n\t\treturn nil, \"\", errorf(NotFound",
+    m("snap-src-served", P, "if !ok || !src.ServedVolume() {\n\t\treturn nil, \"\", errorf(NotFound", "if !ok || false && !src.ServedVolume() {\n\t\treturn nil, \"\", errorf(NotFound",
       "ownership", "S", "snapshot of a dataset the endpoint does not serve"),
     m("snap-name-global", P, "return nil, \"\", errorf(AlreadyExists, \"snapshot %q exists for volume %s\", name, r.SnapshotSource)", "continue",
       "idempotency", "I", "snapshot name reused across volumes"),

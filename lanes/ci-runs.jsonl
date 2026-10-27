@@ -32,3 +32,5 @@
 {"run":40543256272,"sha":"96c49ff","result":"green","s":40}
 {"run":40545863835,"sha":"a07a765","result":"green","s":45}
 {"run":40546554379,"sha":"2f21231","result":"green","s":45}
+{"run":40548404256,"sha":"f7aa459","result":"red","cause":"3 sim-only guard tests skipped on VM, not in expected-skips","fix":"17877d2"}
+{"run":40548715833,"sha":"17877d2","result":"green","s":61,"note":"updated_at-based; at/over 60s budget - watch"}

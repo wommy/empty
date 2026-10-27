@@ -91,3 +91,7 @@
 {"t": "2026-10-27T17:01:50Z", "lane": "writer", "id": "cov-tests", "tokens": 252770, "tools": 152, "ms": 1597018, "commits": 12, "mutations_killed": 30, "bugs": 1, "outcome": "merged 2f21231 (weights conflict resolved)"}
 {"t": "2026-10-27T17:13:23Z", "lane": "writer", "id": "scan-cut", "tokens": 179762, "tools": 110, "ms": 1633529, "commits": 4, "endpoint_calls": "12392->10898 (-12.1%)", "outcome": "merged f7aa459 (weights conflict resolved)"}
 {"t": "2026-10-27T17:13:23Z", "lane": "reader", "id": "retryable", "tokens": 207933, "tools": 46, "ms": 505611, "findings": 5, "high": 3, "outcome": "-> retry-fix writer"}
+{"lane": "writer", "id": "csi-snapsize", "tokens": 127974, "tools": 47, "ms": 732385, "outcome": "merged (weights conflict, split to own # line)", "t": "2026-10-27T17:19:51Z"}
+{"lane": "writer", "id": "csi-sanity", "tokens": 179371, "tools": 111, "ms": 766975, "outcome": "merged 2f72064; first VM exact-name compare pending", "t": "2026-10-27T17:19:51Z"}
+{"lane": "reader", "id": "pr-body", "tokens": 131207, "tools": 23, "ms": 141342, "stale_claims": 20, "outcome": "draft used for PR edit", "t": "2026-10-27T17:19:51Z"}
+{"lane": "reader", "id": "rollback", "tokens": 150515, "tools": 27, "ms": 365285, "outcome": "recommend rollback except deadline/cancel; queued after retry-fix", "t": "2026-10-27T17:19:51Z"}

@@ -45,3 +45,25 @@ snap-reserved killed TestGoldenPlans (internal/endpoint)
 snap-src-served compile-fail internal/endpoint/plan.go:988:2: declared and not used: src
 snap-whole killed TestPlannersRequireACoveringTable (internal/endpoint)
 expand-cap-max killed TestReachCapacityWrap (internal/endpoint)
+expand-noshrink killed TestGoldenPlans (internal/endpoint)
+client-slash0 killed TestParseClient (internal/endpoint)
+client-canon survived 
+export-owned killed TestPlanPublishExport (internal/endpoint)
+export-crossmnt compile-fail internal/endpoint/export.go:755:17: syntax error: unexpected :=, expected )
+export-exposure-plan compile-fail internal/endpoint/export.go:783:17: syntax error: unexpected :=, expected )
+export-block survived 
+id-len killed TestNeverIssuedIDs (internal/csi)
+snapid-vol survived 
+getvol-served killed TestLiteralDashMarkerIsAValue (internal/endpoint)
+listsnap-owned killed TestSanity (internal/csi)
+verify-exposure compile-fail internal/endpoint/endpoint.go:650:18: syntax error: unexpected :=, expected )
+pub-floor killed TestAdv4_ClientPolicyGaps (internal/endpoint)
+pub-exposure compile-fail internal/endpoint/endpoint.go:1176:17: syntax error: unexpected :=, expected )
+unpub-lookup compile-fail internal/endpoint/endpoint.go:1266:16: syntax error: unexpected comma, expected )
+lock-create-srcvol survived 
+lock-delete-extra killed TestDeleteCloneWaitsForBusySource (internal/endpoint)
+lock-snap killed TestDeleteCloneLocksItsSource (internal/endpoint)
+lock-publish survived 
+cfg-minprefix killed TestFileExportPreconditions (internal/endpoint)
+cfg-server-valid survived 
+scan-deeper killed TestAdv4ChildDatasetsDestroyed (internal/endpoint)

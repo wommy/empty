@@ -1,0 +1,17 @@
+endpoint: LocalRoot's Internal after a change is Aborted
+
+rootErr kept the code of any classified *Error, and LocalRoot returns a
+classified Internal for open, fstat, mount table and chown/chmod failures
+it has no better code for. So 65c03cb's after-change Aborted reached only
+the bare errors test setters return: in production an NFS create whose
+set-root failed that way after the create returned Internal, which
+external-provisioner treats as final, stranding the exported, uncommitted
+volume once the PVC is deleted.
+
+rootErr now treats a classified Internal as unclassified: Aborted at
+op i > 0, and a zfsFail cell at op 0 that resumeErr remaps to Aborted.
+TestFileExportCreateRootFailureIsRetryable runs with LocalRoot's Internal
+too (code 13 before), and TestRootErrMapping pins both positions.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

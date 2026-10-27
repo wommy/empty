@@ -1,0 +1,29 @@
+
+// resumeErr (wave 25 item 2): after a change, an unclassified failure is
+// Aborted whatever made it (an op, a read, a scan whose output does not
+// decode); a refusal made on purpose keeps its code.
+func TestResumeErrKeepsRefusals(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		err  error
+		want Code
+	}{
+		{"unclassified read", zfsErr(&zfs.Error{Kind: zfs.KindUnknown, Stderr: "boom"}, "scan"), Aborted},
+		{"undecodable scan", errorf(Internal, "scan: tank/a: unparsable number %q", "x"), Aborted},
+		{"read: not found", zfsErr(&zfs.Error{Kind: zfs.KindNotFound}, "scan"), NotFound},
+		{"read: busy", zfsErr(&zfs.Error{Kind: zfs.KindBusy}, "scan"), Unavailable},
+		{"served beyond its export", errorf(FailedPrecondition, "served beyond its export"), FailedPrecondition},
+		{"source not found", errorf(NotFound, "source not found"), NotFound},
+		{"not served yet", errorf(Unavailable, "not served"), Unavailable},
+		{"vanished", errorf(Aborted, "vanished"), Aborted},
+	} {
+		got := resumeErr(tc.err)
+		if CodeOf(got) != tc.want || !errors.Is(got, tc.err) && got != tc.err {
+			t.Errorf("%s: %v (code %d), want code %d wrapping %v", tc.name, got, CodeOf(got), tc.want, tc.err)
+		}
+	}
+	if resumeErr(nil) != nil {
+		t.Error("resumeErr(nil) is not nil")
+	}
+}
