@@ -81,13 +81,23 @@ func ValidDataset(name string) bool { return len(name) < 256 && datasetRE.MatchS
 // ValidSnapshot reports whether name is a snapshot name we accept.
 func ValidSnapshot(name string) bool { return len(name) < 256 && snapRE.MatchString(name) }
 
+// checkProps refuses a property name that is not a plain zfs property
+// name, and any value that is not printable ASCII (0x20-0x7e). Every value
+// the endpoint writes then reads back byte for byte from the JSON scan: the
+// printer drops code points above U+FFFF, and in the C locale it stops at
+// the first byte >= 0x80, which fails the whole scan of every dataset
+// under the parent (exit 0, truncated JSON). Control characters, newline
+// and tab among them, would make `-Hp` text ambiguous (Get).
 func checkProps(props map[string]string) error {
 	for k, v := range props {
 		if !propRE.MatchString(k) {
 			return &Error{Kind: KindInvalidProperty, Op: "validate", Stderr: "invalid property name " + strconv.Quote(k)}
 		}
-		if strings.ContainsAny(v, "\n\t\x00") {
-			return &Error{Kind: KindInvalidProperty, Op: "validate", Stderr: "invalid value for " + k}
+		for i := 0; i < len(v); i++ {
+			if v[i] < 0x20 || v[i] > 0x7e {
+				return &Error{Kind: KindInvalidProperty, Op: "validate",
+					Stderr: fmt.Sprintf("invalid value for %s: byte %#02x at %d is not printable ASCII", k, v[i], i)}
+			}
 		}
 	}
 	return nil

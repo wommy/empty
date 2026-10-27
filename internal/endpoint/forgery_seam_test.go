@@ -65,3 +65,30 @@ func TestSeamGhostRowFromForgedNewlines(t *testing.T) {
 		t.Fatalf("a: found %v, source id %q", ok, r.SourceID)
 	}
 }
+
+// F11 (threat model): a foreign newline value that forges a line for a
+// dataset that does exist made the text scan see a repeated (dataset,
+// property) and fail as a whole, so every RPC that scans the parent
+// failed: a denial of service by anyone who can set a user property under
+// it. Through JSON it is just a value, and the scan serves the volumes.
+func TestF11NewlineValueDoesNotFailTheScan(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, sim := simEndpoint(t, Config{Now: func() time.Time { return rNow }, LockWait: time.Second})
+	for _, id := range []string{"a", "b"} {
+		if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: id, CapacityBytes: 1 << 20}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	forged := "x\tlocal\n" + rParent + "/b\t" + rNames.managed() + "\tfalse"
+	if _, err := sim.Run(ctx, "zfs", "set", rNames.sourceID()+"="+forged, rParent+"/a"); err != nil {
+		t.Fatal(err)
+	}
+	vols, _, err := ep.ListVolumes(ctx, 0, "")
+	if err != nil {
+		t.Fatalf("one foreign value fails every scan of the parent: %v", err)
+	}
+	if len(vols) != 2 {
+		t.Fatalf("volumes %+v, want a and b", vols)
+	}
+}
