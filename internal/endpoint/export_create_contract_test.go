@@ -86,8 +86,13 @@ func TestFileExportCreate(t *testing.T) {
 	}
 }
 
-// N6: zfs create -o sharenfs exits 0 when exportfs fails. The volume stays
-// uncommitted and unlisted, the error says so, and a retry converges.
+// N6: zfs create -o sharenfs exits 0 when exportfs fails. The volume is
+// not committed or listed, the error says so, and a retry converges.
+//
+// Flipped by ADR 0010: the unserved volume used to stay, uncommitted and
+// exported (sharenfs set), until a retry resumed it. The fresh create is
+// now rolled back (Unavailable is kept: a refusal made on purpose), and
+// the retry creates it afresh.
 func TestFileExportCreateNotServed(t *testing.T) {
 	t.Parallel()
 	requireSim(t)
@@ -114,6 +119,9 @@ func TestFileExportCreateNotServed(t *testing.T) {
 			}
 			if vs, _, err := ep.ListVolumes(ctx, 0, ""); err != nil || len(vs) > 0 {
 				t.Fatalf("listed before it is served: %v, %v", vs, err)
+			}
+			if !strings.Contains(err.Error(), "rolled back") || h.Has(h.Parent+"/pvc") {
+				t.Fatalf("want the unserved volume rolled back (%v)", err)
 			}
 			down(false)
 			v, err := ep.CreateVolume(ctx, nfsCreate("pvc", "", "10.20.0.0/24"))

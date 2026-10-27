@@ -17,10 +17,13 @@ import (
 // Reconcile collects garbage off the request path. Three kinds arise:
 //
 //   - uncommitted volumes: owned rows without the provision_success marker,
-//     left by a CreateVolume that crashed or failed and was never retried
+//     left by a CreateVolume that crashed, or whose failure was not rolled
+//     back (its rollback failed, or the caller's deadline ended it: ADR
+//     0010), and was never retried
 //   - clone-source snapshots ("<src>@volume-source-for-volume-<id>") whose
 //     clone is gone (a crash between destroying a clone and its origin, or a
-//     clone that failed after the snapshot was cut)
+//     clone that failed after the snapshot was cut, and was neither rolled
+//     back nor retried)
 //   - committed volumes the caller no longer wants
 //
 // The endpoint cannot know what is wanted: the caller supplies the complete

@@ -29,25 +29,54 @@ import (
 var errCrash = errors.New("injected crash")
 
 // faultRunner counts mutating zfs calls and fails call crashAt (0-based).
+//
+// What follows a crash depends on dead. A dead process makes no further
+// call: every call after its crash fails, reads included, so the op
+// returns with what the crash left, and the retry (a fresh endpoint)
+// resumes it: Resume, the backstop for a real crash. A process that
+// survives (dead false: the crash was only a lost answer) goes on, and a
+// fresh CreateVolume then rolls itself back (ADR 0010) before the retry
+// creates afresh.
+//
+// again, when above crashAt, is a second crash point, in a process that
+// survived the first: the mutation it makes there (in a rolled-back
+// create, one of the rollback's) crashes too, and dead applies to that
+// one.
 type faultRunner struct {
 	zfs.Runner
 	crashAt int  // -1: never
 	after   bool // run the call, then lose its answer
+	dead    bool // the (last) crash kills the process
+	again   int  // a second crash point, if > crashAt
 	mu      sync.Mutex
 	n       int
 	crashed bool
+	twice   bool // crashed at again too
+	gone    bool // died: every call fails
 }
 
 func mutating(args []string) bool { return len(args) > 0 && args[0] != "get" && args[0] != "list" }
 
-// step counts one mutation and says whether it is the one to crash at.
-func (f *faultRunner) step() bool {
+// step counts one call (a mutation when mut) and says whether it is one to
+// crash at, or whether the process is already gone.
+func (f *faultRunner) step(mut bool) (crash, gone bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	crash := f.n == f.crashAt
+	if f.gone {
+		return false, true
+	}
+	if !mut {
+		return false, false
+	}
+	second := f.crashAt >= 0 && f.again > f.crashAt && f.n == f.again
+	crash = f.n == f.crashAt || second
 	f.crashed = f.crashed || crash
+	f.twice = f.twice || second
+	if crash && f.dead && (second || f.again <= f.crashAt || f.crashAt < 0) {
+		f.gone = true
+	}
 	f.n++
-	return crash
+	return crash, false
 }
 
 // faultRoot puts the endpoint's root owner and mode change (not a zfs
@@ -59,8 +88,8 @@ type faultRoot struct {
 }
 
 func (r faultRoot) SetRoot(ctx context.Context, dataset, mountpoint string, uid, gid, mode int64) error {
-	crash := r.f.step()
-	if crash && !r.f.after {
+	crash, gone := r.f.step(true)
+	if gone || crash && !r.f.after {
 		return errCrash
 	}
 	err := r.RootSetter.SetRoot(ctx, dataset, mountpoint, uid, gid, mode)
@@ -71,9 +100,9 @@ func (r faultRoot) SetRoot(ctx context.Context, dataset, mountpoint string, uid,
 }
 
 func (f *faultRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	crash := mutating(args) && f.step()
+	crash, gone := f.step(mutating(args))
 	lost := &zfs.ExitError{Args: args, Code: -1, Underlay: errCrash}
-	if crash && !f.after {
+	if gone || crash && !f.after {
 		return nil, lost
 	}
 	out, err := f.Runner.Run(ctx, name, args...)
@@ -99,6 +128,9 @@ type crashCase struct {
 	// listed crash point that converges fails the test: the fix must remove
 	// its row, so the list only shrinks (a ratchet).
 	xfail map[string]string
+	// wrap, when set, puts a runner of the case's own between the endpoint
+	// and the pool (a fault the op needs; TestDestroyNeverHitsAReplacedDataset)
+	wrap func(zfs.Runner) zfs.Runner
 }
 
 const cmib = 1 << 20
@@ -284,6 +316,10 @@ func crashEndpoint(t *testing.T, h *harness, r zfs.Runner, late bool) *endpoint.
 	cfg.Root = endpoint.RootSetter(endpoint.LocalRoot{})
 	if h.sim != nil {
 		cfg.Etab, cfg.Root = h.sim, h.sim
+	} else {
+		// as cmd/zfs-endpoint: a rollback destroys a zvol udev may
+		// still be probing
+		cfg.Settle = endpoint.UdevSettle
 	}
 	if f, ok := r.(*faultRunner); ok {
 		cfg.Root = faultRoot{cfg.Root, f}
@@ -298,10 +334,23 @@ func crashEndpoint(t *testing.T, h *harness, r zfs.Runner, late bool) *endpoint.
 	return ep
 }
 
-// runCrash sets the scenario up, runs its op with a crash at mutating call
-// crashAt (-1: none), restarts and retries, checks the retry is a no-op, and
-// returns the end state and how many mutating calls the faulted run made.
-func runCrash(t *testing.T, c crashCase, crashAt int, after bool) (string, int) {
+// crashRun says where runCrash crashes: at mutating call at (-1: none),
+// before or after it runs; whether the process survives that crash (see
+// faultRunner); and again (> at), a second crash point in a survivor,
+// which it then survives or not as dies says.
+type crashRun struct {
+	at       int
+	after    bool
+	survives bool
+	again    int
+	dies     bool
+}
+
+// runCrash sets the scenario up, runs its op with r's crashes, restarts
+// and retries, checks the retry is a no-op, and returns the end state and
+// how many mutating calls the faulted run made. reached is false when the
+// run never got to r.again: nothing is checked then.
+func runCrash(t *testing.T, c crashCase, r crashRun) (state string, n int, reached bool) {
 	t.Helper()
 	ctx := context.Background()
 	ep0, h := setupNFS(t, "192.0.2.10") // as crashEndpoint
@@ -313,16 +362,19 @@ func runCrash(t *testing.T, c crashCase, crashAt int, after bool) (string, int) 
 			t.Fatalf("setup: %v", err)
 		}
 	}
-	fr := &faultRunner{Runner: h.Z.Runner, crashAt: crashAt, after: after}
+	twice := r.at >= 0 && r.again > r.at
+	fr := &faultRunner{Runner: h.Z.Runner, crashAt: r.at, after: r.after, dead: !r.survives || twice && r.dies, again: r.again}
 	err := c.op(ctx, crashEndpoint(t, h, fr, c.late))
 	switch {
-	case crashAt < 0 && err != nil:
+	case r.at < 0 && err != nil:
 		t.Fatalf("uninterrupted run: %v", err)
-	case crashAt >= 0 && !fr.crashed:
-		t.Fatalf("op made only %d mutating calls, never reached call %d", fr.count(), crashAt)
+	case r.at >= 0 && !fr.crashed:
+		t.Fatalf("op made only %d mutating calls, never reached call %d", fr.count(), r.at)
+	case twice && !fr.twice:
+		return "", fr.count(), false
 	}
 	// restart and retry, as the CO would
-	if crashAt >= 0 {
+	if r.at >= 0 {
 		retry := crashEndpoint(t, h, h.Z.Runner, c.late)
 		for i := 0; i < 3; i++ {
 			if err = c.op(ctx, retry); err == nil {
@@ -337,60 +389,101 @@ func runCrash(t *testing.T, c crashCase, crashAt int, after bool) (string, int) 
 	if err := c.op(ctx, crashEndpoint(t, h, idle, c.late)); err != nil || idle.count() != 0 {
 		t.Fatalf("a repeat after success: %v, %d mutating calls, want none", err, idle.count())
 	}
-	return fingerprint(t, h), fr.count()
+	return fingerprint(t, h), fr.count(), true
 }
 
 // crashSample: on a real pool the PR leg runs one crash point per case,
-// rotated by the case's index, besides its uninterrupted run: the full sweep
-// (93 runs) costs ~29s of the VM's 2 vCPUs, which ADR 0005's budget cannot
-// carry. The simulator leg and ZFS_CRASH_FULL=1 run every point.
-func crashSample(ci, k int, after bool, n int) bool {
-	if os.Getenv("ZFS_TEST_POOL") == "" || os.Getenv("ZFS_CRASH_FULL") != "" {
+// rotated by the case's index over its points (k, before or after, the
+// process dead or surviving), besides its uninterrupted run: the full
+// sweep costs ~29s of the VM's 2 vCPUs, which ADR 0005's budget cannot
+// carry. The simulator leg and ZFS_CRASH_FULL=1 run every point, and the
+// rollback's own crash points (fullSweep).
+func crashSample(ci, k int, after, survives bool, n int) bool {
+	if fullSweep() {
 		return true
 	}
-	i := 2 * k
+	i := 4 * k
 	if after {
+		i += 2
+	}
+	if survives {
 		i++
 	}
-	return i == ci%(2*n)
+	return i == ci%(4*n)
 }
 
+func fullSweep() bool { return os.Getenv("ZFS_TEST_POOL") == "" || os.Getenv("ZFS_CRASH_FULL") != "" }
+
+// Every crash point k of every case, before and after the call runs, in
+// two process models:
+//   - kK-before, kK-after: the process dies with the crash; the retry
+//     resumes what it left (Resume, the backstop for a real crash);
+//   - kK-before-survives, kK-after-survives: the crash only lost an
+//     answer, and the process goes on: a fresh CreateVolume rolls itself
+//     back (ADR 0010), and the retry creates afresh.
+//
+// Both must reach the uninterrupted run's end state. A survivor that
+// rolled back is crashed once more at each of the rollback's own
+// mutations (…/rollback-crashes: dying there, and surviving with the
+// rollback failed), which must converge too.
 func TestCrashAtEveryMutationConverges(t *testing.T) {
 	for ci, c := range crashCases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel() // each run has its own parent dataset (sim: its own Sim)
 			var want string
 			var n int
-			t.Run("uninterrupted", func(t *testing.T) { want, n = runCrash(t, c, -1, false) })
+			t.Run("uninterrupted", func(t *testing.T) { want, n, _ = runCrash(t, c, crashRun{at: -1}) })
 			if want == "" && n == 0 {
 				t.Skip("uninterrupted run did not complete")
 			}
 			for k := 0; k < n; k++ {
 				for _, after := range []bool{false, true} {
-					mode := "before"
-					if after {
-						mode = "after"
-					}
-					label := fmt.Sprintf("k%d-%s", k, mode)
-					if !crashSample(ci, k, after, n) {
-						continue
-					}
-					t.Run(label, func(t *testing.T) {
-						t.Parallel()
-						got, _ := runCrash(t, c, k, after)
-						if why, known := c.xfail[label]; known {
-							if got == want {
-								t.Fatalf("known divergence (%s) now converges: remove it from xfail", why)
+					for _, survives := range []bool{false, true} {
+						mode := "before"
+						if after {
+							mode = "after"
+						}
+						label := fmt.Sprintf("k%d-%s", k, mode)
+						if survives {
+							label += "-survives"
+						}
+						if !crashSample(ci, k, after, survives, n) {
+							continue
+						}
+						t.Run(label, func(t *testing.T) {
+							t.Parallel()
+							got, m, _ := runCrash(t, c, crashRun{at: k, after: after, survives: survives})
+							if why, known := c.xfail[label]; known {
+								if got == want {
+									t.Fatalf("known divergence (%s) now converges: remove it from xfail", why)
+								}
+								// logged, not skipped: a skip would break the real
+								// leg's skip budget (ci/check-skips.sh)
+								t.Logf("XFAIL known divergence: %s", why)
+								return
 							}
-							// logged, not skipped: a skip would break the real
-							// leg's skip budget (ci/check-skips.sh)
-							t.Logf("XFAIL known divergence: %s", why)
-							return
-						}
-						if got != want {
-							t.Errorf("end state after a crash differs from the uninterrupted run:\n--- uninterrupted\n%s\n--- crash at %d (%s)\n%s", want, k, mode, got)
-						}
-					})
+							if got != want {
+								t.Errorf("end state after a crash differs from the uninterrupted run:\n--- uninterrupted\n%s\n--- crash at %d (%s)\n%s", want, k, label, got)
+							}
+							if !survives || !fullSweep() {
+								return
+							}
+							// the survivor's later mutations (a rollback's) crash too
+							for j := k + 1; j < m; j++ {
+								for _, dies := range []bool{true, false} {
+									r := crashRun{at: k, after: after, survives: true, again: j, dies: dies}
+									got, _, reached := runCrash(t, c, r)
+									if !reached {
+										t.Fatalf("crash at %d then %d: the second point was not reached", k, j)
+									}
+									if got != want {
+										t.Errorf("end state after a crash at %d (%s), then at %d (dies %v), differs from the uninterrupted run:\n--- uninterrupted\n%s\n--- crashed\n%s",
+											k, label, j, dies, want, got)
+									}
+								}
+							}
+						})
+					}
 				}
 			}
 		})
@@ -496,6 +589,32 @@ var swapCases = []crashCase{
 			}
 			return ep.DeleteSnapshot(ctx, snaps[0].ID)
 		}},
+	// ADR 0010: a fresh clone whose commit fails is rolled back, by
+	// planDelete's destroys (the released origin, then the clone), each
+	// tied to the guid its re-scan read. Unswapped, the rollback succeeds
+	// and the op reports the failure's own code (Internal), which it
+	// accepts; swapped, the rollback is Aborted, joined to the failure.
+	{name: "rollback-create",
+		setup: mk(endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 16 * cmib}),
+		wrap:  func(r zfs.Runner) zfs.Runner { return failCommit{r} },
+		op: func(ctx context.Context, ep *endpoint.Endpoint) error {
+			_, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "c", SourceVolumeID: "src"})
+			if endpoint.CodeOf(err) == endpoint.Internal && strings.Contains(err.Error(), "rolled back") {
+				return nil
+			}
+			return err
+		}},
+}
+
+// failCommit fails every commit (`zfs set …:provision_success=true`) with
+// an unclassified error, on any runner.
+type failCommit struct{ zfs.Runner }
+
+func (r failCommit) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if isSetOf(":provision_success=true")(args) {
+		return nil, &zfs.ExitError{Args: args, Code: 1, Stderr: "boom\n"}
+	}
+	return r.Runner.Run(ctx, name, args...)
 }
 
 func crashCaseNamed(name string) crashCase {
@@ -535,7 +654,11 @@ func TestDestroyNeverHitsAReplacedDataset(t *testing.T) {
 							t.Fatalf("setup: %v", err)
 						}
 					}
-					sw := &swapRunner{Runner: h.Z.Runner, t: t, z: h.Z, at: k}
+					run := h.Z.Runner
+					if c.wrap != nil {
+						run = c.wrap(run)
+					}
+					sw := &swapRunner{Runner: run, t: t, z: h.Z, at: k}
 					err := c.op(ctx, crashEndpoint(t, h, sw, c.late))
 					if sw.swapped == "" {
 						done = true // the run made fewer destroys

@@ -144,8 +144,12 @@ func TestDeleteOfAbsentCloneReleasesItsCloneSource(t *testing.T) {
 	h := newA4(t)
 	ctx := context.Background()
 	h.vol("a", true)
+	// died at the clone: every call from it on fails, so no rollback of
+	// the fresh create (ADR 0010) releases the cut
+	dead := false
 	h.sim.Fail = func(args []string) error {
-		if args[0] == "clone" {
+		if dead || args[0] == "clone" {
+			dead = true
 			return errors.New("crash")
 		}
 		return nil

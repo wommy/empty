@@ -18,6 +18,7 @@
 # note: estimated by hand until the next run measures it: TestCreateVolumeCatchesDatasetReplacedBeforeCommit 0.30 (its filesystem subtest: one create, a rename, a create, three cheap calls; the block subtest is simulator-only).
 # note: Wave 24's sim-only endpoint tests (own simulator, no real-pool work) are set by hand to 0.00 like the other sim-only tests: TestDeleteVolumeLockPassesAreBounded, TestDeleteVolumeSettleWindow, TestExpandRollbackFailureIsReported, TestFileExportCreateChangedBeforeCommit, TestFileExportCreateRootFailureIsRetryable, TestFileExportCreateServedBeyondByAncestor, TestFileExportRefusedPublishRestoresLocalList, TestReconcileCancelledMidRunStops, TestReconcileDefaultMaxDeletionsWithDigest, TestReconcileRescanFailureDestroysNothing, TestRootErrMapping, TestWholeScanSlotWaitEndsWithTheContext.
 # note: TestSnapshotSizeIsItsSizeWhenTaken 0.55 set by hand from TestFilesystemCloneNeverSmallerThanSource (0.56), which does the same create, snapshot and clone, plus an expand, in two parallel subtests.
+# note: ADR 0010 (rollback of a failed fresh create): its sim-only and pure tests are set by hand to 0.00 (TestCreateRollbackAmbiguousFirstOp, TestCreateRollbackConcurrentSameName, TestCreateRollbackFailureIsJoined, TestCreateRollbackFreesTheName, TestCreateRollbackLeavesNothing, TestCreateRollbackReleasesCutSource, TestCreateNoRollbackOnResume, TestPlanRollbackCreate), TestCreateNoRollbackOnCallerDeadline to 0.10 (two 50 ms deadlines), and TestDestroyNeverHitsAReplacedDataset from 1.99 to 2.09 for its rollback-create case's destroy0 on a real pool (a create, a clone, a failed commit, a swap: ~0.4 test-s / nproc 4).
 #
 # <test> <seconds>
 TestPropertyRoundTrip 19.33
@@ -26,7 +27,7 @@ TestRealFacts 11.50
 TestZFSDiffReplay 5.85
 TestModel 3.01
 TestNFSReplay 2.29
-TestDestroyNeverHitsAReplacedDataset 1.99
+TestDestroyNeverHitsAReplacedDataset 2.09
 TestFileExportServedBeyondRequest 1.19
 TestReconcileAgainstDesiredSet 0.94
 TestFileExportAdminWorldEditIsForeign 0.91
@@ -68,6 +69,7 @@ TestCreateVolumeResumesInterruptedProvision 0.16
 TestPlanPublishExport 0.16
 TestCreateVolumeIdempotent 0.15
 TestExportSizeLimit 0.11
+TestCreateNoRollbackOnCallerDeadline 0.10
 TestAdv4PartialDesiredSetMassDeletes 0.07
 FuzzReconcileSafe 0.05
 TestNFSReplayOnSim 0.05
@@ -120,8 +122,15 @@ TestCloneResizeFailureConverges 0.00
 TestCodeOfNeverReportsAFailureAsOK 0.00
 TestConcurrentCreatesSerialize 0.00
 TestCreateNeverStampsRowWithoutName 0.00
+TestCreateNoRollbackOnResume 0.00
 TestCreateNoSpaceBeforeChangeStaysExhausted 0.00
 TestCreateResumeFailureStaysAborted 0.00
+TestCreateRollbackAmbiguousFirstOp 0.00
+TestCreateRollbackConcurrentSameName 0.00
+TestCreateRollbackFailureIsJoined 0.00
+TestCreateRollbackFreesTheName 0.00
+TestCreateRollbackLeavesNothing 0.00
+TestCreateRollbackReleasesCutSource 0.00
 TestCreateSnapshotAfterCutIsRetryable 0.00
 TestCreateUnmountedFilesystemMountsThenCommits 0.00
 TestCreateVolumeReadAfterChangeIsRetryable 0.00
@@ -200,6 +209,7 @@ TestPlanReconcileMountpointNotPinned 0.00
 TestPlanReconcileNFSBelowFloor 0.00
 TestPlanReconcileNFSServer 0.00
 TestPlanResumeThickness 0.00
+TestPlanRollbackCreate 0.00
 TestPlanSnapshotLongAndUnusualNames 0.00
 TestPlanUnlimitedFilesystemIdempotency 0.00
 TestPlanUnpublishExport 0.00

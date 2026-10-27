@@ -148,7 +148,8 @@ func rootErr(err error, i int, plan Plan) error {
 	case errors.Is(err, context.Canceled):
 		code = Aborted
 	case i > 0:
-		return &Error{Code: Aborted, Msg: what + " (earlier ops applied; a retry converges)", Err: err}
+		return &Error{Code: Aborted, Msg: what + " (earlier ops applied; a retry converges)", Err: err,
+			pre: zfsFail(OpSetRoot, err, false, what)}
 	default:
 		// unclassified on the plan's first op: Internal, keyed as a zfs
 		// failure would be, so that a resumed provision (resumeErr; the

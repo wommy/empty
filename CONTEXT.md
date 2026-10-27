@@ -62,6 +62,10 @@ _Avoid_: finalize, mark done
 A CreateVolume pass over an uncommitted volume that drives it toward the request rather than judging compatibility, ending in the commit (`PlanCreateVolume`, `internal/endpoint/plan.go`; `CreateVolume`, `internal/endpoint/endpoint.go`).
 _Avoid_: retry (for the planner's branch), repair
 
+**Rollback**:
+A fresh CreateVolume (its first scan, under the lock, found no volume) that made something and then fails destroys what it made, still under its locks, behind Resume's guards and through DeleteVolume's guid-tied destroys; never on the caller's deadline or cancellation, never on a Resume. A failed rollback leaves the volume uncommitted for Resume (`Endpoint.rollbackCreate`, `internal/endpoint/endpoint.go`; `PlanRollbackCreate`, `internal/endpoint/plan.go`; ADR 0010).
+_Avoid_: undo, cleanup, compensation
+
 **Crash point**:
 A mutation of an operation (a zfs call, or the root owner change) before which, or after which but before its answer, the process dies; a fresh endpoint's retry must then converge (`internal/endpoint/crash_test.go`).
 _Avoid_: failure point, kill point

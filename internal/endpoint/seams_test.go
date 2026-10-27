@@ -105,6 +105,10 @@ func TestCloneOfLargeBlockZvolProvisions(t *testing.T) {
 // S2: a retry of a half-applied CreateVolume that fails the same way must
 // not turn the first attempt's "a retry converges" (Aborted) into a final
 // Internal: the earlier attempt's ops are applied either way.
+//
+// Since ADR 0010 the first attempt, a fresh create, rolls itself back;
+// its destroys fail here too, so the half-applied volume stays and the
+// later attempts resume it, as before.
 func TestCreateResumeFailureStaysAborted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -113,7 +117,7 @@ func TestCreateResumeFailureStaysAborted(t *testing.T) {
 		t.Fatal(err)
 	}
 	sim.Fail = func(args []string) error {
-		if args[0] == "set" && slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "volsize=") }) {
+		if args[0] == "set" && slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "volsize=") }) || args[0] == "destroy" {
 			return &zfs.ExitError{Code: 1, Stderr: "internal error: Input/output error\n"}
 		}
 		return nil
@@ -280,7 +284,10 @@ func TestCreateUnmountedFilesystemMountsThenCommits(t *testing.T) {
 		t.Fatalf("create: %+v %v, mounted=%s", v, err, mounted(rParent+"/u"))
 	}
 	// the mount itself fails (a busy or non-empty mountpoint): nothing is
-	// committed, the code is retryable, and the retry converges
+	// committed, and the retry converges. Flipped by ADR 0010: the fresh
+	// create is rolled back, so the code is the mount failure's own
+	// (unclassified: Internal) where it was retryable to finish the
+	// half-made volume, and nothing is left
 	sim.Fail = func(args []string) error {
 		if args[0] == "mount" {
 			return &zfs.ExitError{Code: 1, Stderr: "cannot mount '/tank/x': directory is not empty\n"}
@@ -288,11 +295,11 @@ func TestCreateUnmountedFilesystemMountsThenCommits(t *testing.T) {
 		return nil
 	}
 	_, err = ep.CreateVolume(ctx, CreateVolumeRequest{Name: "w", CapacityBytes: 1 << 30})
-	if c := CodeOf(err); c != Aborted && c != Unavailable {
-		t.Fatalf("mount failure: %v, want a retryable code", err)
+	if c := CodeOf(err); c != Internal || !strings.Contains(err.Error(), "rolled back") {
+		t.Fatalf("mount failure: %v, want it rolled back", err)
 	}
-	if got := sim.Prop(rParent+"/w", rNames.success()); got == "true" || mounted(rParent+"/w") != "no" {
-		t.Fatalf("committed (%q) or mounted an unmountable filesystem", got)
+	if sim.Has(rParent + "/w") {
+		t.Fatal("an unmountable filesystem was left behind")
 	}
 	sim.Fail = nil
 	if v, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: "w", CapacityBytes: 1 << 30}); err != nil || mounted(rParent+"/w") != "yes" {
