@@ -1,5 +1,6 @@
 // Command zfs-endpoint serves the ZFS endpoint API on a unix socket for one
-// parent dataset on this host.
+// parent dataset on this host. `zfs-endpoint reconcile` is an operator's
+// client of a running endpoint's admin socket (reconcile.go).
 package main
 
 import (
@@ -75,6 +76,13 @@ const (
 )
 
 func run(ctx context.Context, args []string, d deps) error {
+	if len(args) > 0 && args[0] == "reconcile" {
+		out := d.stdout
+		if out == nil {
+			out = os.Stdout
+		}
+		return runReconcile(ctx, args[1:], out)
+	}
 	fs := flag.NewFlagSet("zfs-endpoint", flag.ContinueOnError)
 	parent := fs.String("parent", "", "parent dataset to manage, e.g. tank/k8s/vols (required)")
 	listen := fs.String("listen", "", "unix:///absolute/path to serve on (TCP is refused until transport auth, ADR 0001); default "+unixsock.EndpointAddr("<parent>")+", systemd-escaped, as zfs-endpoint@.service serves it")

@@ -1,0 +1,38 @@
+# Report-only Reconcile of one parent's endpoint, run by
+# zfs-endpoint-reconcile@.timer. The instance is the endpoint's: the
+# systemd-escaped parent dataset.
+#
+#   systemctl enable --now "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).timer"
+#   journalctl -u "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).service"
+#
+# It is a dry run and nothing else: it prints what Reconcile would collect
+# (abandoned creates, orphan clone sources), the drift it reports in
+# "skipped", and the plan_digest, to the journal. It never passes -apply:
+# collecting is an operator's step, after reading the plan
+# (`zfs-endpoint reconcile -apply -digest <d>`, README "Runbook: Reconcile";
+# ADR 0001 D3). The desired set is empty, which collects no committed
+# volume. A failed call (endpoint down, admin socket missing) fails the
+# unit.
+#
+# It talks to the admin socket, /run/zfs-endpoint/admin/%i/endpoint.sock,
+# served to root (or the daemon's uid) only, so it runs as root.
+
+[Unit]
+Description=ZFS endpoint reconcile report (dry run) for dataset %I
+Documentation=https://github.com/wommy/empty
+After=zfs-endpoint@%i.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/zfs-endpoint reconcile -parent %I -timeout 5m
+# > -timeout
+TimeoutStartSec=6min
+UMask=0077
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+# a client of one unix socket
+RestrictAddressFamilies=AF_UNIX
