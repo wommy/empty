@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -11,32 +12,57 @@ import (
 	"github.com/wommy/empty/internal/zfs/zfstest"
 )
 
-// FuzzReconcileSafe builds an arbitrary parent on the simulator (owned and
-// unowned volumes, committed or not, old or young, CSI snapshots, clones of
-// clones, leaked clone-source snapshots) from the fuzz bytes, then checks
-// reconcile's safety invariant on the plan and convergence on the result:
+// FuzzReconcileSafe builds an arbitrary parent on the simulator from the
+// fuzz bytes, two per volume (a third picks a clone's source):
 //
-//   - no op targets a desired, unowned or CSI-snapshotted volume, a CSI
-//     snapshot, or anything younger than the minimum age
-//   - after applying, every desired, unowned (received copies included)
-//     or snapshotted volume and every CSI snapshot still exists
-//   - reconciling again plans nothing
+//	b: owned or not, committed, desired, young, a CSI snapshot, cloned from
+//	   an earlier volume, zvol, an orphan clone-source snapshot (stamped)
+//	x: a foreign snapshot (sanoid), a child dataset someone made below it,
+//	   a clone of its snapshot outside the parent, an origin outside the
+//	   parent, a deferred CSI snapshot kept by a clone outside, an unstamped
+//	   (legacy or hand-cut) clone source, a busy destroy on the first run,
+//	   a just-committed retry (committed_at now)
+//
+// Unowned committed volumes are received copies (markers from zfs recv).
+// Then it reconciles three times (the first with injected failures) and
+// checks:
+//
+//   - no run errors; what runs is a subset of the dry run
+//   - no op targets a desired, unowned, young or CSI-snapshotted volume, a
+//     CSI snapshot, or a snapshot the endpoint did not cut, except a legacy
+//     clone source released with the clone its origin proves it serves
+//   - afterwards every row the endpoint does not own still exists, and so
+//     does everything outside the scan (children, datasets elsewhere)
+//   - once failures clear, the next run converges and the one after it
+//     does nothing
 func FuzzReconcileSafe(f *testing.F) {
-	f.Add([]byte{0x07, 0x03, 0x23, 0x00, 0x83})
-	f.Add([]byte{0x01, 0x00, 0x21, 0x00, 0x21, 0x01})
-	f.Add([]byte{0x13, 0x00, 0x2b, 0x00, 0x09})
-	f.Add([]byte{0x00, 0x00, 0x05, 0x00})
+	f.Add([]byte{0x07, 0x00, 0x03, 0x00, 0x23, 0x00, 0x00, 0x83, 0x00})
+	f.Add([]byte{0x01, 0x00, 0x00, 0x21, 0x00, 0x00, 0x21, 0x00, 0x01})
+	f.Add([]byte{0x13, 0x00, 0x00, 0x2b, 0x20, 0x00, 0x09, 0x00})
+	f.Add([]byte{0x00, 0x00, 0x00, 0x05, 0x00})
 	f.Add([]byte{0xff, 0xff, 0xff, 0x00, 0x23, 0x01, 0x23, 0x02})
+	f.Add([]byte{0x03, 0x01, 0x03, 0x02, 0x03, 0x04, 0x03, 0x08, 0x03, 0x10, 0x03, 0x40, 0x07, 0x00})
+	f.Add([]byte{0x03, 0x00, 0x23, 0x20, 0x00, 0x03, 0x40, 0x07, 0x80, 0x03, 0x00})
 	f.Fuzz(func(t *testing.T, spec []byte) {
 		const (
-			managed   = 1 << iota // owned: managed_resource set locally
+			managed   = 1 << iota // owned: markers set locally
 			committed             // provision_success set
 			desiredB              // in the desired set
 			youngB                // created inside the minimum age
 			csiSnap               // has a CSI snapshot
 			cloned                // cloned from an earlier volume (next byte picks it)
 			block                 // zvol
-			leak                  // carries a clone-source snapshot whose clone is gone
+			leak                  // a stamped clone-source snapshot whose clone is gone
+		)
+		const (
+			foreignSnap   = 1 << iota // a snapshot someone else cut
+			child                     // a dataset below a filesystem volume
+			outsideClone              // a clone of its foreign snapshot outside the parent
+			originOutside             // the volume is a clone of a snapshot outside the parent
+			deferredSnap              // a deleted CSI snapshot kept by a clone outside
+			unstamped                 // cloned: its source snapshot carries no stamp
+			failDestroy               // its destroy is busy on the first run
+			recommitted               // committed just now by a retry (committed_at)
 		)
 		const (
 			parent = "tank/v"
@@ -48,14 +74,29 @@ func FuzzReconcileSafe(f *testing.F) {
 		clock := old
 		sim.Clock = func() int64 { return clock }
 		z := zfs.New(sim)
-		if err := z.CreateFilesystem(ctx, parent, nil, false); err != nil {
-			t.Fatal(err)
+		for _, d := range []string{parent, "tank/other"} {
+			if err := z.CreateFilesystem(ctx, d, nil, false); err != nil {
+				t.Fatal(err)
+			}
 		}
-		names := props{"democratic-csi"}
-		var ids, want []string
+		names := props{DefaultPropertyPrefix}
+		must := func(err error) {
+			t.Helper()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		var ids, want, outside []string
+		busy := map[string]bool{}
 		for i := 0; i < len(spec) && len(ids) < 8; i++ {
 			b := spec[i]
+			var x byte
+			if i+1 < len(spec) {
+				i++
+				x = spec[i]
+			}
 			id := fmt.Sprintf("v%d", len(ids))
+			ds := parent + "/" + id
 			clock = old
 			if b&youngB != 0 {
 				clock = now - 60
@@ -64,45 +105,74 @@ func FuzzReconcileSafe(f *testing.F) {
 			if b&managed != 0 {
 				own[names.managed()], own[names.volumeName()] = "true", id
 			}
-			var err error
 			switch {
 			case b&cloned != 0 && len(ids) > 0 && i+1 < len(spec):
 				i++
 				src := ids[int(spec[i])%len(ids)]
 				snap := parent + "/" + src + "@" + cloneSourceSnapshotPrefix + id
-				if err = z.Snapshot(ctx, snap, nil); err == nil {
-					err = z.Clone(ctx, snap, parent+"/"+id, own)
+				stamp := map[string]string{names.managed(): "true", names.cloneSourceFor(): id}
+				if x&unstamped != 0 {
+					stamp = nil
 				}
+				must(z.Snapshot(ctx, snap, stamp))
+				must(z.Clone(ctx, snap, ds, own))
+			case x&originOutside != 0:
+				golden := "tank/other/g" + id
+				must(z.CreateFilesystem(ctx, golden, nil, false))
+				snap := golden + "@" + cloneSourceSnapshotPrefix + id
+				must(z.Snapshot(ctx, snap, nil))
+				must(z.Clone(ctx, snap, ds, own))
+				outside = append(outside, golden, snap)
 			case b&block != 0:
-				err = z.CreateVolume(ctx, parent+"/"+id, 1<<20, true, own)
+				must(z.CreateVolume(ctx, ds, 1<<20, true, own))
 			default:
-				err = z.CreateFilesystem(ctx, parent+"/"+id, own, false)
-			}
-			if err != nil {
-				t.Fatal(err)
+				must(z.CreateFilesystem(ctx, ds, own, false))
 			}
 			if b&managed != 0 && b&committed != 0 {
-				if err := z.Set(ctx, parent+"/"+id, map[string]string{names.success(): "true"}); err != nil {
-					t.Fatal(err)
+				set := map[string]string{names.success(): "true"}
+				if x&recommitted != 0 {
+					set[names.committedAt()] = fmt.Sprint(now - 60)
 				}
+				must(z.Set(ctx, ds, set))
 			}
 			if b&managed == 0 && b&committed != 0 {
 				// a received copy (zfs recv): every marker, none of them local
 				for k, v := range map[string]string{names.managed(): "true", names.success(): "true", names.volumeName(): id} {
-					sim.Receive(parent+"/"+id, k, v)
+					sim.Receive(ds, k, v)
 				}
 			}
 			if b&csiSnap != 0 {
-				if err := z.Snapshot(ctx, parent+"/"+id+"@csi", map[string]string{
+				must(z.Snapshot(ctx, ds+"@csi", map[string]string{
 					names.managed(): "true", names.snapshotName(): "csi-" + id, names.snapshotSource(): id,
-				}); err != nil {
-					t.Fatal(err)
-				}
+				}))
+			}
+			if x&deferredSnap != 0 {
+				must(z.Snapshot(ctx, ds+"@gone", map[string]string{
+					names.managed(): "true", names.snapshotName(): "gone-" + id, names.snapshotSource(): id,
+				}))
+				must(z.Clone(ctx, ds+"@gone", "tank/other/d"+id, nil))
+				must(z.Destroy(ctx, ds+"@gone", zfs.DestroyOptions{Defer: true}))
+				outside = append(outside, "tank/other/d"+id)
 			}
 			if b&leak != 0 {
-				if err := z.Snapshot(ctx, parent+"/"+id+"@"+cloneSourceSnapshotPrefix+"gone"+id, nil); err != nil {
-					t.Fatal(err)
+				must(z.Snapshot(ctx, ds+"@"+cloneSourceSnapshotPrefix+"gone"+id, map[string]string{
+					names.managed(): "true", names.cloneSourceFor(): "gone" + id,
+				}))
+			}
+			if x&foreignSnap != 0 {
+				must(z.Snapshot(ctx, ds+"@autosnap", nil))
+				if x&outsideClone != 0 {
+					must(z.Clone(ctx, ds+"@autosnap", "tank/other/c"+id, nil))
+					outside = append(outside, "tank/other/c"+id)
 				}
+			}
+			if x&child != 0 && b&block == 0 {
+				must(z.CreateFilesystem(ctx, ds+"/kid", nil, false))
+				must(z.Snapshot(ctx, ds+"/kid@s", nil))
+				outside = append(outside, ds+"/kid", ds+"/kid@s")
+			}
+			if x&failDestroy != 0 {
+				busy[ds] = true
 			}
 			ids = append(ids, id)
 			if b&desiredB != 0 {
@@ -111,89 +181,138 @@ func FuzzReconcileSafe(f *testing.F) {
 		}
 
 		ep, err := New(z, Config{Parent: parent, Now: func() time.Time { return time.Unix(now, 0) }})
-		if err != nil {
-			t.Fatal(err)
-		}
+		must(err)
 		before, err := ep.scan(ctx, "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		must(err)
 		isWanted := map[string]bool{}
+		stated := false
 		for _, id := range want {
 			isWanted[id] = true
+			if r, ok := before.Get(id); ok && r.OwnedVolume() {
+				stated = true
+			}
 		}
-		req := ReconcileRequest{DesiredVolumeIDs: want, MinAge: time.Hour}
+		req := ReconcileRequest{DesiredVolumeIDs: want, MinAge: time.Hour, UnlimitedDeletions: true}
+		dryReq := req
+		dryReq.DryRun = true
 
-		dry, err := ep.Reconcile(ctx, ReconcileRequest{DesiredVolumeIDs: want, MinAge: time.Hour, DryRun: true})
-		if err != nil {
-			t.Fatal(err)
+		dry, err := ep.Reconcile(ctx, dryReq)
+		must(err)
+		sim.Fail = func(args []string) error {
+			if args[0] == "destroy" && busy[args[len(args)-1]] {
+				return &zfs.ExitError{Code: 1, Stderr: fmt.Sprintf("cannot destroy '%s': dataset is busy\n", args[len(args)-1])}
+			}
+			return nil
 		}
-		done, err := ep.Reconcile(ctx, req)
+		first, err := ep.Reconcile(ctx, req)
+		sim.Fail = nil
 		if err != nil {
 			t.Fatalf("reconcile: %v", err)
 		}
-		if fmt.Sprint(dry) != fmt.Sprint(done) {
-			t.Fatalf("dry run %+v differs from the run %+v", dry, done)
+		planned := map[string]string{}
+		for _, a := range dry.Actions {
+			planned[a.Target] = a.Reason
 		}
-		for _, a := range done.Actions {
-			row, ok := before.Get(a.Target)
-			if !ok {
-				t.Fatalf("%s: targets a row that did not exist", a.Target)
+		for _, a := range first.Actions {
+			if planned[a.Target] != a.Reason {
+				t.Fatalf("%s (%s) ran but was not in the dry run %+v", a.Target, a.Reason, dry.Actions)
 			}
-			if a.Op.Kind != OpDestroy || !a.Op.OkMissing {
-				t.Fatalf("%s: op %+v", a.Target, a.Op)
+		}
+		second, err := ep.Reconcile(ctx, req)
+		must(err)
+		third, err := ep.Reconcile(ctx, req)
+		if err != nil || len(third.Actions) != 0 {
+			t.Fatalf("third reconcile: %+v %v", third.Actions, err)
+		}
+
+		// origins an undesired clone of ours proves were cut for it: under
+		// the parent, from a volume of ours, named for that clone
+		released := map[string]bool{}
+		for r := range before.Volumes() {
+			src, name, ok := strings.Cut(strings.TrimPrefix(r.Origin, parent+"/"), "@")
+			if s, sok := before.Get(src); ok && sok && s.OwnedVolume() && r.OwnedVolume() && !isWanted[r.ID] &&
+				strings.HasPrefix(r.Origin, parent+"/") && name == cloneSourceSnapshotPrefix+r.ID {
+				released[r.Origin] = true
 			}
-			if row.Type == zfs.TypeSnapshot {
-				if row.Managed || row.SnapshotName != "" {
-					t.Fatalf("%s: a CSI snapshot is targeted", a.Target)
+		}
+		for _, run := range []ReconcilePlan{first, second} {
+			for _, a := range run.Actions {
+				row, ok := before.Get(a.Target)
+				if !ok {
+					t.Fatalf("%s: targets a row that did not exist", a.Target)
 				}
-				if !strings.Contains(a.Target, "@"+cloneSourceSnapshotPrefix) {
-					t.Fatalf("%s: not a clone-source snapshot", a.Target)
+				if a.Op.Kind != OpDestroy || !a.Op.OkMissing || a.Op.Recursive {
+					t.Fatalf("%s: op %+v", a.Target, a.Op)
 				}
-				continue
-			}
-			switch {
-			case !row.Managed:
-				t.Fatalf("%s: unowned volume targeted", a.Target)
-			case isWanted[a.Target]:
-				t.Fatalf("%s: desired volume targeted", a.Target)
-			case time.Unix(now, 0).Sub(time.Unix(row.Creation, 0)) < time.Hour:
-				t.Fatalf("%s: young volume targeted", a.Target)
-			case len(want) == 0 && row.Committed:
-				t.Fatalf("%s: committed volume collected on an empty desired set", a.Target)
-			}
-			for s := range before.SnapshotsOf(a.Target) {
-				if s.SnapshotName != "" {
-					t.Fatalf("%s: volume with CSI snapshot %s targeted", a.Target, s.ID)
+				if row.Type == zfs.TypeSnapshot {
+					_, stampedOurs := row.OwnedCloneSource()
+					switch {
+					case row.OwnedSnapshot() && !row.Deferred:
+						t.Fatalf("%s: a CSI snapshot is targeted", a.Target)
+					case stampedOurs, row.Deferred:
+					case a.Reason == ReasonReleasedWithVolume && released[row.Name]:
+						// legacy: the collected clone's origin proves it
+					default:
+						t.Fatalf("%s (%s): a snapshot the endpoint did not cut is targeted", a.Target, a.Reason)
+					}
+					continue
+				}
+				born := row.Creation
+				if row.Committed && row.CommittedAt > born {
+					born = row.CommittedAt
+				}
+				switch {
+				case !row.OwnedVolume():
+					t.Fatalf("%s: unowned volume targeted", a.Target)
+				case isWanted[a.Target]:
+					t.Fatalf("%s: desired volume targeted", a.Target)
+				case time.Unix(now, 0).Sub(time.Unix(born, 0)) < time.Hour:
+					t.Fatalf("%s: young volume targeted", a.Target)
+				case !stated && row.Committed:
+					t.Fatalf("%s: committed volume collected without a desired set naming ours", a.Target)
+				case csiSnapped(before, a.Target):
+					t.Fatalf("%s: volume with a CSI snapshot targeted", a.Target)
 				}
 			}
 		}
 
 		after, err := ep.scan(ctx, "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		must(err)
+		gone := func(id string) bool { _, ok := after.Get(id); return !ok }
 		for r := range before.All() {
-			vol, _, _ := strings.Cut(r.ID, "@")
-			keep := r.SnapshotName != "" || isWanted[vol] && r.Type != zfs.TypeSnapshot
-			if r.Type != zfs.TypeSnapshot {
-				keep = keep || !r.Managed || csiSnapped(before, r.ID)
+			if !gone(r.ID) {
+				continue
 			}
-			if _, ok := after.Get(r.ID); keep && !ok {
-				t.Fatalf("%s was destroyed (plan %+v)", r.ID, done)
+			vol, _, _ := strings.Cut(r.ID, "@")
+			if r.Type != zfs.TypeSnapshot {
+				if !r.OwnedVolume() || isWanted[vol] || csiSnapped(before, r.ID) {
+					t.Fatalf("volume %s was destroyed (runs %+v / %+v)", r.ID, first, second)
+				}
+				continue
+			}
+			if _, ours := r.OwnedCloneSource(); ours || r.Deferred {
+				continue
+			}
+			if r.OwnedSnapshot() {
+				t.Fatalf("CSI snapshot %s was destroyed", r.ID)
+			}
+			// a legacy clone source goes only with every clone it served
+			clones := slices.Collect(before.ClonesOf(r.Name))
+			if len(clones) == 0 || slices.ContainsFunc(clones, func(c Row) bool { return !gone(c.ID) }) {
+				t.Fatalf("snapshot %s the endpoint did not cut was destroyed (runs %+v / %+v)", r.ID, first, second)
 			}
 		}
-
-		again, err := ep.Reconcile(ctx, req)
-		if err != nil || len(again.Actions) != 0 {
-			t.Fatalf("second reconcile: %+v %v", again.Actions, err)
+		for _, name := range outside {
+			if !sim.Has(name) {
+				t.Fatalf("%s, outside the scan, was destroyed (runs %+v / %+v)", name, first, second)
+			}
 		}
 	})
 }
 
 func csiSnapped(t Table, id string) bool {
 	for s := range t.SnapshotsOf(id) {
-		if s.SnapshotName != "" {
+		if s.OwnedSnapshot() && !s.Deferred {
 			return true
 		}
 	}
