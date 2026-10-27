@@ -186,11 +186,12 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 	}
 
 	if row, ok := t.Get(id); ok {
-		if !row.Managed {
-			return nil, errorf(AlreadyExists, "dataset %s exists and is not managed", row.Name)
-		}
-		if row.VolumeName != "" && row.VolumeName != r.Name {
-			return nil, errorf(AlreadyExists, "dataset %s belongs to volume %q", row.Name, row.VolumeName)
+		// the one ownership rule (ADR 0003): managed without the name
+		// marker, or with another volume's, is not ours, and nothing may
+		// be written on it, least of all the commit
+		if !row.OwnedVolume() {
+			return nil, errorf(AlreadyExists, "dataset %s exists and is not the endpoint's volume %s (managed=%v, volume name %q)",
+				row.Name, id, row.Managed, row.VolumeName)
 		}
 		if row.Kind() != r.Kind || row.SourceType != srcType || row.SourceID != srcID {
 			return nil, errorf(AlreadyExists, "volume %s exists as %s from %q %q", id, row.Kind(), row.SourceType, row.SourceID)
