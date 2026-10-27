@@ -105,4 +105,4 @@
 {"id": "af5ac15f93157bea3", "name": "operator", "lane": "reader", "wave": 28, "status": "done", "branch": null, "report": "wave28/operator.md", "anomaly": false, "queue": "q-operator"}
 {"id": "a672364fdc0482ef0", "name": "ops-endpoint", "lane": "writer", "wave": 29, "status": "running", "branch": "ops-endpoint", "report": null, "anomaly": false, "queue": "q-ops-endpoint"}
 {"id": "a6bc4d1bdd7188707", "name": "ops-csi", "lane": "writer", "wave": 29, "status": "running", "branch": "ops-csi", "report": null, "anomaly": false, "queue": "q-ops-csi"}
-{"id": "a614a1d2e842fa2d4", "name": "node-sec", "lane": "reader", "wave": 29, "status": "running", "branch": null, "report": "wave29/node-sec.md", "anomaly": false, "queue": "q-node-sec"}
+{"id": "a614a1d2e842fa2d4", "name": "node-sec", "lane": "reader", "wave": 29, "status": "done", "branch": null, "report": "wave29/node-sec.md", "anomaly": false, "queue": "q-node-sec"}

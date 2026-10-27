@@ -1,3 +1,7 @@
+internal/csi/log.go
+internal/csi/log_test.go
+ci/skiplint/main.go
+ci/skiplint/main_test.go
 ci/unitprobe/main.go
 ci/unitprobe/main_test.go
 cmd/zfs-csi/main.go
@@ -15,6 +19,7 @@ cmd/zfs-endpoint/signal_test.go
 cmd/zfs-endpoint/sockdir_test.go
 cmd/zfs-endpoint/startup.go
 cmd/zfs-endpoint/startup_seams_test.go
+deploy/classes_test.go
 deploy/deploy_test.go
 deploy/k8s_test.go
 deploy/reconcile_timer_test.go
