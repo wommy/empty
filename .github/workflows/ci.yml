@@ -136,6 +136,22 @@ jobs:
           # build of both binaries in the static job cost 1.7-2.0s
           WANT_VERSION: test-1
         run: go test -race -count=1 -ldflags "-X github.com/wommy/empty/internal/version.Version=$WANT_VERSION" ./...
+      - name: csi-sanity in NFS mode (simulator)
+        # the production mode (static export at create, ADR 0004) through
+        # the conformance suite, its passed specs compared exactly with
+        # internal/csi/testdata/sanity-passed-nfs.txt (the step above ran
+        # mount mode against sanity-passed-mount.txt). Ginkgo runs once
+        # per process, hence a second go test; the same flags reuse the
+        # step above's compiled packages (measured locally, warm: 1.2-1.6s
+        # of test, 4.3-5.2s with the link). Off the critical path: this job
+        # ends well before the VM jobs. The real-pool NFS run is nightly
+        # only (ADR 0005)
+        if: success() || failure()
+        env:
+          GORACE: atexit_sleep_ms=0
+          WANT_VERSION: test-1
+          CSI_SANITY_NFS: "1"
+        run: go test -race -count=1 -ldflags "-X github.com/wommy/empty/internal/version.Version=$WANT_VERSION" -run '^TestSanity$' -v ./internal/csi
       - name: save Go caches (none for this go.sum was restored)
         if: steps.go.outputs.save == 'true'
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -282,6 +298,7 @@ jobs:
             ${{ runner.temp }}/zfsvm/out/test-times.tsv
             ${{ runner.temp }}/zfsvm/out/*.list
             ${{ runner.temp }}/zfsvm/out/*.plan
+            ${{ runner.temp }}/zfsvm/out/*.passed
             ${{ runner.temp }}/zfsvm/out/load.txt
             ${{ runner.temp }}/zfsvm/out/vmstat.txt
           if-no-files-found: warn

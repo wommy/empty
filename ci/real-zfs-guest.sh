@@ -27,7 +27,7 @@
 # ZFSDIFF_FULL=1, TestZFSDiffReplay joins them: its whole corpus turns
 # shares on, which runs exportfs -ra on the same table), the csi
 # tests other than csi-sanity, csi-sanity on filesystems, csi-sanity on
-# zvols. One process per shard, each on its own pool, so no shard's
+# zvols (and nightly csi-sanity in NFS mode, ZFSVM_CSI_NFS). One process per shard, each on its own pool, so no shard's
 # datasets, space accounting or txg syncs meet another's.
 #
 # usage: sudo bash real-zfs-guest.sh
@@ -225,11 +225,21 @@ if has endpoint; then
   done
 fi
 # csi: the non-sanity tests do not depend on the access type and run once,
-# with mount as before; csi-sanity runs for filesystems and for zvols
+# with mount as before; csi-sanity runs for filesystems and for zvols, and
+# with ZFSVM_CSI_NFS=1 (nightly.yml only, ADR 0005) on an endpoint in NFS
+# mode, exporting through this guest's nfsd. Each csi-sanity shard writes
+# the specs that passed to out/<shard>.passed, which ci/real-zfs-vm.sh
+# compares with the pinned list (internal/csi/testdata)
 if has csi; then
   run csi-other zcsi0 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.skip '^TestSanity$'
-  run csi-mount zcsi1 env CSI_SANITY_ACCESS_TYPE=mount ./csi.test "${t[@]}" -test.run '^TestSanity$'
-  run csi-block zcsi2 env CSI_SANITY_ACCESS_TYPE=block ./csi.test "${t[@]}" -test.run '^TestSanity$'
+  run csi-mount zcsi1 env CSI_SANITY_ACCESS_TYPE=mount CSI_SANITY_PASSED_OUT="$out/csi-mount.passed" \
+    ./csi.test "${t[@]}" -test.run '^TestSanity$'
+  run csi-block zcsi2 env CSI_SANITY_ACCESS_TYPE=block CSI_SANITY_PASSED_OUT="$out/csi-block.passed" \
+    ./csi.test "${t[@]}" -test.run '^TestSanity$'
+  if [ -n "${ZFSVM_CSI_NFS:-}" ]; then
+    run csi-nfs zcsi3 env CSI_SANITY_NFS=1 CSI_SANITY_PASSED_OUT="$out/csi-nfs.passed" \
+      ./csi.test "${t[@]}" -test.run '^TestSanity$'
+  fi
 fi
 
 for k in "${!pids[@]}"; do

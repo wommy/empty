@@ -34,7 +34,21 @@ func endpointClient(t *testing.T) pb.EndpointServiceClient {
 // health service, SERVING, as the daemon does once ready.
 func endpointConn(t *testing.T) *grpc.ClientConn {
 	t.Helper()
+	return endpointConnMode(t, false)
+}
+
+// sanityNFSServer is the one server an NFS-mode endpointConnMode advertises
+// (-nfs-server); nothing mounts from it.
+const sanityNFSServer = "nfs.example.com"
+
+// endpointConnMode is endpointConn, in NFS mode (static export at create,
+// ADR 0004) when nfs is set: FileExport with one advertised server, and
+// the simulator's export table, or the kernel's (/var/lib/nfs/etab) on a
+// real pool, which then needs root and a running nfs-server.
+func endpointConnMode(t *testing.T, nfs bool) *grpc.ClientConn {
+	t.Helper()
 	ctx := context.Background()
+	var cfg endpoint.Config
 	var z *zfs.Client
 	var parent string
 	var settle func(context.Context) error
@@ -57,13 +71,22 @@ func endpointConn(t *testing.T) *grpc.ClientConn {
 	} else if os.Getenv("ZFS_REQUIRE_REAL") != "" {
 		t.Fatal("ZFS_REQUIRE_REAL is set but ZFS_TEST_POOL is not: refusing the simulator fallback")
 	} else {
-		z = zfs.New(zfstest.New("tank"))
+		sim := zfstest.New("tank")
+		z = zfs.New(sim)
 		parent = "tank/vols"
+		if nfs {
+			cfg.Etab = sim
+		}
 	}
 	if err := z.CreateFilesystem(ctx, parent, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	ep, err := endpoint.New(z, endpoint.Config{Parent: parent, Settle: settle})
+	cfg.Parent, cfg.Settle = parent, settle
+	if nfs {
+		cfg.FileExport = true
+		cfg.NFSServers = []string{sanityNFSServer}
+	}
+	ep, err := endpoint.New(z, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
