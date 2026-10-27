@@ -88,6 +88,7 @@ Status: accepted (v2) · Date: 2026-10-27 · Supersedes: ADR 0001 v1, "Transport
 
 - A run that collects any undesired volume must carry a `plan_digest` from a dry run. Without one it returns FAILED_PRECONDITION.
 - The digest guards against the plan changing between the dry run and the apply. It is not an approval (F4).
+- The digest covers each destroy target's guid, not only its name: a target renamed away and replaced by a same-named dataset with the same markers after the dry run would otherwise match the digest and be destroyed unseen. `TestReconcileDigestCoversTheGuid` proves it.
 - As built: "undesired" is the unlocked plan's `not in the desired set` actions. A run without a digest that would collect one applies nothing, not even the uncommitted rows and orphan clone sources in the same plan; a run whose plan holds only those needs no digest. The check sits before `max_deletions`. `TestReconcileNeedsADigestToCollectUndesired` proves it.
 
 ### D4. Two-person Reconcile: deferred

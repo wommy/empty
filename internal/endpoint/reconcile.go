@@ -588,12 +588,16 @@ type ReconcileRequest struct {
 // cannot empty the parent.
 const DefaultMaxDeletions = 10
 
-// digest identifies the plan's actions (targets and reasons, in order):
-// what a dry run returns for a destructive run to echo.
+// digest identifies the plan's actions (targets, the guids the plan read
+// for them, and reasons, in order): what a dry run returns for a
+// destructive run to echo. The guid makes it name datasets, not names: a
+// target renamed away and replaced by another with the same markers after
+// the dry run changes the digest, so the caller's digest never covers a
+// dataset it did not see.
 func (r ReconcilePlan) digest() string {
 	h := sha256.New()
 	for _, a := range r.Actions {
-		fmt.Fprintf(h, "%s\x00%s\x00%s\n", a.Op.Kind, a.Target, a.Reason)
+		fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\n", a.Op.Kind, a.Target, a.Op.GUID, a.Reason)
 	}
 	return hex.EncodeToString(h.Sum(nil)[:16])
 }

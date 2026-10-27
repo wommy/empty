@@ -308,3 +308,62 @@ func TestReconcileNeedsADigestToCollectUndesired(t *testing.T) {
 		t.Fatal("digested run did not collect")
 	}
 }
+
+// The digest names each destroy target's guid, not only its name: after
+// a dry run, the undesired volume is renamed away and another made under
+// its name with the same markers. A run echoing the dry run's digest must
+// not destroy what the caller never saw: it plans the impostor's guid, so
+// the digest differs and nothing is applied.
+func TestReconcileDigestCoversTheGuid(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	for _, name := range []string{"keep", "drop"} {
+		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := later(t, ep, h)
+	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
+	r := digested(ctx, t, old, keep)
+	again := digested(ctx, t, old, keep)
+	if r.PlanDigest != again.PlanDigest {
+		t.Fatalf("identical dry runs digest differently: %s, %s", r.PlanDigest, again.PlanDigest)
+	}
+
+	drop := h.Parent + "/drop"
+	p := endpoint.DefaultPropertyPrefix + ":"
+	marks := []string{p + "managed_resource", p + "provision_success", p + "committed_at", p + "csi_volume_name"}
+	d, err := h.Z.Get(ctx, drop, append(marks, "guid")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"create", "-o", "canmount=noauto"}
+	for _, k := range marks {
+		if v := d.Props[k]; v.Local() {
+			args = append(args, "-o", k+"="+v.Value)
+		}
+	}
+	if _, err := h.Z.Runner.Run(ctx, "zfs", "rename", drop, drop+"-moved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Z.Runner.Run(ctx, "zfs", append(args, drop)...); err != nil {
+		t.Fatal(err)
+	}
+	imp, err := h.Z.Get(ctx, drop, "guid")
+	if err != nil || imp.Props["guid"].Value == d.Props["guid"].Value {
+		t.Fatalf("impostor guid %v: %v", imp.Props["guid"], err)
+	}
+
+	got, err := old.Reconcile(ctx, r)
+	if c := endpoint.CodeOf(err); c != endpoint.Aborted && c != endpoint.FailedPrecondition {
+		t.Fatalf("run after the swap: %+v %v (code %d), want Aborted or FailedPrecondition", got, err, c)
+	}
+	now, err := h.Z.Get(ctx, drop, "guid")
+	if err != nil || now.Props["guid"].Value != imp.Props["guid"].Value {
+		t.Fatalf("the impostor at %s was destroyed (%v)", drop, err)
+	}
+	if !h.Has(drop+"-moved") || !h.Has(h.Parent+"/keep") {
+		t.Fatal("the run applied something")
+	}
+}
