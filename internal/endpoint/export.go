@@ -1,8 +1,6 @@
 package endpoint
 
 import (
-	"bufio"
-	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -278,12 +276,14 @@ type Etab map[string][]NFSClient
 // is served (Unpublish must not report it gone) but in no mode Publish can
 // confirm. Lines keep their file order, which is mountd's order within a
 // client class (nfs-utils xtab.c xtab_write, cache.c lookup_export).
+//
+// Every line is read, whatever its length: the file is in memory already,
+// and a line cut or dropped (as bufio.Scanner's limit did, silently, to
+// every line after it) would make a served export read as absent.
 func ParseEtab(b []byte) Etab {
 	t := Etab{}
-	sc := bufio.NewScanner(bytes.NewReader(b))
-	sc.Buffer(nil, 1<<20)
-	for sc.Scan() {
-		line := sc.Text()
+	for line := range strings.Lines(string(b)) {
+		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
 		path, rest, ok := strings.Cut(line, "\t")
 		if !ok {
 			continue

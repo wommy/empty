@@ -62,6 +62,27 @@ func TestErrorsDoNotEchoUnboundedInput(t *testing.T) {
 	}
 }
 
+// H-15: ParseEtab stopped at a line over bufio.Scanner's limit without
+// saying so, dropping every later line: a served export then read as
+// absent, and Unpublish reported it gone. Every line is read, whatever
+// its length; the file is in memory already.
+func TestParseEtabSurvivesALongLine(t *testing.T) {
+	t.Parallel()
+	etab := "/junk\t" + strings.Repeat("x", 2<<20) + "(rw)\n" +
+		"/srv/v\t10.0.0.0/24(rw,sync)\r\n" +
+		"/srv/w\t10.0.0.9/32(ro)" // no final newline
+	e := ParseEtab([]byte(etab))
+	if c, ok := e.Lookup("/srv/v", "10.0.0.0/24"); !ok || c.ReadOnly {
+		t.Error("an export after an oversized etab line is invisible: Unpublish would report it gone")
+	}
+	if c, ok := e.Lookup("/srv/w", "10.0.0.9/32"); !ok || !c.ReadOnly {
+		t.Error("the last line, without a newline, is lost")
+	}
+	if len(e["/junk"]) != 1 {
+		t.Errorf("the long line itself: %d clients, want 1", len(e["/junk"]))
+	}
+}
+
 // scanGate holds every whole-parent scan (`zfs get ... <parent>`) until
 // open closes, counting how many are held at once.
 type scanGate struct {
