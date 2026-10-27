@@ -100,7 +100,75 @@ snap() {
     [ -r "/proc/pressure/$r" ] && awk -v r="$r" '{ print "psi", r, $0 }' "/proc/pressure/$r"
   done
 }
+# where the phase's CPU went, by source (ADR 0005, "quiet guest"): forks
+# (processes), context switches and interrupts from /proc/stat, interrupt
+# totals from /proc/interrupts, block reads (pgpgin counts every block
+# device; vda's sectors read come from /proc/diskstats, and the rest is
+# zvols, which leave diskstats once destroyed), and the cgroup v2 CPU
+# (cpu.stat) of the root, of the units that react to zfs(8) and its
+# uevents, and of the session scope this script, and so the shards' tests
+# and their zfs(8), run in. One awk per snapshot over the files that exist:
+# an absent file or cgroup (a unit stopped, cgroup v1) is left out and
+# prints as -. Diagnostics only, like snap: nothing here can fail the run
+cg=/sys/fs/cgroup
+cgself=$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup 2>/dev/null) || cgself=
+counters() {
+  local a=() n f
+  for f in up=/proc/uptime stat=/proc/stat irq=/proc/interrupts vm=/proc/vmstat disk=/proc/diskstats; do
+    [ -r "${f#*=}" ] && a+=("tag=${f%%=*}" "${f#*=}")
+  done
+  local cgs=(root=. init=init.scope system=system.slice)
+  [ -z "$cgself" ] || cgs+=("tests=${cgself#/}")
+  for n in zfs-zed udisks2 systemd-udevd systemd-journald rsyslog; do cgs+=("$n=system.slice/$n.service"); done
+  for n in "${cgs[@]}"; do
+    f=$cg/${n#*=}/cpu.stat
+    [ -r "$f" ] && a+=("tag=cg:${n%%=*}" "$f")
+  done
+  [ ${#a[@]} -gt 0 ] || return 0
+  awk '
+    tag == "up" { print "uptime", $1 }
+    tag == "stat" && $1 == "cpu" { print "busy_ticks", $2 + $3 + $4 + $7 + $8 + $9 }
+    tag == "stat" && ($1 == "processes" || $1 == "ctxt" || $1 == "intr") { print $1, $2 }
+    tag == "irq" && FNR == 1 { ncpu = NF; next }
+    tag == "irq" { s = 0; for (i = 2; i <= ncpu + 1 && $i ~ /^[0-9]+$/; i++) s += $i
+                   irq += s; n = $1; sub(/:$/, "", n); if (n ~ /^(LOC|RES|CAL|TLB)$/) print "irq." n, s }
+    tag == "vm" && ($1 == "pgpgin" || $1 == "pgfault" || $1 == "pgmajfault") { print $1, $2 }
+    tag == "disk" && $3 == "vda" { print "vda_sectors_read", $6 }
+    tag ~ /^cg:/ && ($1 == "usage_usec" || $1 == "system_usec") { print tag "." $1, $2 }
+    END { if (ncpu) print "irq.total", irq }' "${a[@]}"
+}
+# counters.before, counters.after -> the table appended to load.txt (so to
+# the job summary): rates over the phase, CPU-ms per fork (all busy CPU /
+# forks, USER_HZ 100), block reads vda vs other (zvols), CPU-s per cgroup
+counters_table() {
+  [ -s "$1" ] && [ -s "$2" ] || { echo "guest counters: no before/after snapshot"; return 0; }
+  awk '
+    FNR == 1 { k++ }
+    NF == 2 { v[k, $1] = $2 }
+    function d(key) { return ((1, key) in v && (2, key) in v) ? v[2, key] - v[1, key] : "" }
+    function f(x, fmt) { return x == "" ? "-" : sprintf(fmt, x) }
+    function r(x, by) { return x == "" ? "" : x / by }
+    END {
+      wall = d("uptime")
+      if (k < 2 || wall == "" || wall <= 0) { print "guest counters: no before/after snapshot"; exit }
+      fk = d("processes"); cs = d("ctxt"); bt = d("busy_ticks")
+      printf "forks %s (%s/s, %s CPU-ms each), context switches %s (%s/s)\n", f(fk, "%d"), f(r(fk, wall), "%.0f"),
+        f(fk != "" && fk > 0 && bt != "" ? bt * 10 / fk : "", "%.1f"), f(cs, "%d"), f(r(cs, wall), "%.0f")
+      printf "interrupts %s (/proc/stat); /proc/interrupts %s: LOC %s RES %s CAL %s TLB %s\n", f(d("intr"), "%d"),
+        f(d("irq.total"), "%d"), f(d("irq.LOC"), "%d"), f(d("irq.RES"), "%d"), f(d("irq.CAL"), "%d"), f(d("irq.TLB"), "%d")
+      pg = d("pgpgin"); vs = d("vda_sectors_read")
+      printf "block reads: pgpgin %s MB, vda %s MB, other (zvols) %s MB; page faults %s (major %s)\n",
+        f(r(pg, 1024), "%.1f"), f(r(vs, 2048), "%.1f"), f(pg == "" || vs == "" ? "" : pg / 1024 - vs / 2048, "%.1f"),
+        f(d("pgfault"), "%d"), f(d("pgmajfault"), "%d")
+      print "cgroup CPU-s over the phase (cpu.stat usage, of it system):"
+      n = split("root tests init system zfs-zed udisks2 systemd-udevd systemd-journald rsyslog", cgs, " ")
+      for (i = 1; i <= n; i++)
+        printf "  %-17s %8s  (sys %s)\n", cgs[i], f(r(d("cg:" cgs[i] ".usage_usec"), 1e6), "%.2f"),
+          f(r(d("cg:" cgs[i] ".system_usec"), 1e6), "%.2f")
+    }' "$@"
+}
 snap >"$out/load.before" 2>/dev/null || true
+counters >"$out/counters.before" 2>/dev/null || true
 vmstat_pid=
 if command -v vmstat >/dev/null; then
   vmstat -n -t 1 >"$out/vmstat.txt" 2>&1 &
@@ -160,6 +228,7 @@ if [ -n "$unit_pid" ]; then
   echo "unit check (started at ${unit_s}s): $(tail -n 1 "$out/unit-hardening.log")"
 fi
 snap >"$out/load.after" 2>/dev/null || true
+counters >"$out/counters.after" 2>/dev/null || true
 [ -z "$vmstat_pid" ] || { kill "$vmstat_pid" 2>/dev/null; wait "$vmstat_pid" 2>/dev/null; } || true
 # busy = all but idle and iowait; steal = a vCPU runnable while the host ran
 # something else. PSI "some" = share of the phase in which at least one
@@ -187,6 +256,7 @@ awk -v nproc="$(nproc)" '
       line = line sprintf("%s%s %.0f%%", line == "" ? "" : ", ", ks[i], 100 * (ps[2, ks[i]] - ps[1, ks[i]]) / (wall * 1e6))
     print "pressure (stalled share of the phase): " (line == "" ? "PSI unavailable" : line)
   }' "$out/load.before" "$out/load.after" >"$out/load.txt" 2>&1 || true
+counters_table "$out/counters.before" "$out/counters.after" >>"$out/load.txt" 2>&1 || true
 cat "$out/load.txt" 2>/dev/null || true
 cat "$out/shards.txt"
 # per top-level test: own time, time with parallel subtests summed, wall
