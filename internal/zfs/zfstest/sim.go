@@ -204,8 +204,9 @@ func (s *Sim) Receive(name, prop, value string) {
 
 // SendRecv models `zfs send -p snap | zfs recv dst` (test helper): dst is
 // a new dataset like snap's, with the head's local and received
-// properties received, plus dst@<snapname>; a canmount=on filesystem is
-// mounted.
+// properties received, plus dst@<snapname> with snap's guid and its user
+// properties received (the stream's snapprops, which zfs_receive_one sets
+// as received); a canmount=on filesystem is mounted.
 func (s *Sim) SendRecv(snap, dst string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -240,8 +241,18 @@ func (s *Sim) SendRecv(snap, dst string) error {
 	s.ds[dst] = n
 	s.txg++
 	// a received snapshot keeps its guid: it is the same snapshot
-	sn := &node{typ: zfs.TypeSnapshot, props: map[string]string{}, birth: s.now(), txg: s.txg}
+	sn := &node{typ: zfs.TypeSnapshot, props: map[string]string{}, recv: map[string]string{}, birth: s.now(), txg: s.txg}
 	sn.guid, _ = strconv.ParseUint(s.guid(src), 10, 64)
+	for k, v := range src.recv {
+		if !src.inh[k] {
+			sn.recv[k] = v
+		}
+	}
+	for k, v := range src.props {
+		if strings.Contains(k, ":") { // volsize is the Sim's own stash
+			sn.recv[k] = v
+		}
+	}
 	if v, ok := n.props["volsize"]; ok {
 		sn.props["volsize"] = v
 	}

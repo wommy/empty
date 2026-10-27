@@ -58,6 +58,15 @@ func (f *factEnv) exists(name string) bool {
 	return err == nil && ok
 }
 
+// sendRecv is `zfs send -p snap | zfs recv dst`: on the Sim, its SendRecv.
+func (f *factEnv) sendRecv(snap, dst string) error {
+	if f.sim != nil {
+		return f.sim.SendRecv(snap, dst)
+	}
+	_, err := f.runner.Run(context.Background(), "sh", "-c", `zfs send -p "$1" | zfs recv "$2"`, "sh", snap, dst)
+	return err
+}
+
 func kindOf(err error) zfs.Kind {
 	var e *zfs.Error
 	if errors.As(err, &e) {
@@ -206,6 +215,28 @@ var facts = []fact{
 			}
 			if src := f.source(f.p+"/b", "zfs-endpoint:managed_resource"); src != "received" {
 				return fmt.Errorf("source %q", src)
+			}
+			return nil
+		}},
+	// libzfs_sendrecv.c: a -p stream carries each snapshot's properties
+	// (snapprops) and zfs_receive_one sets them on the received snapshot
+	// as received (ZFS_IOC_SET_PROP, zc_cookie = B_TRUE). The Sim's
+	// SendRecv dropped them.
+	{row: "OWN-06/snapshot", what: "`zfs send -p | zfs recv` keeps a snapshot's user properties (source `received`) and its guid",
+		check: func(f *factEnv) error {
+			const p = "zfs-endpoint:csi_snapshot_name"
+			f.zfs("create", f.p+"/a")
+			if err := f.zfs("snapshot", "-o", p+"=snap-1", f.p+"/a@s"); err != nil {
+				return err
+			}
+			g1, _ := f.get(f.p+"/a@s", "guid")
+			if err := f.sendRecv(f.p+"/a@s", f.p+"/b"); err != nil {
+				return err
+			}
+			v, _ := f.get(f.p+"/b@s", p)
+			g2, _ := f.get(f.p+"/b@s", "guid")
+			if src := f.source(f.p+"/b@s", p); v != "snap-1" || src != "received" || g1 == "" || g1 != g2 {
+				return fmt.Errorf("%s=%q (source %q), guid %s->%s", p, v, src, g1, g2)
 			}
 			return nil
 		}},
