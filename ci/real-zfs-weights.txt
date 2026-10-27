@@ -98,6 +98,9 @@ TestDeleteVolumeSettlesDeviceEventsOnBusy 0.00
 TestDeleteVolumeSparesChildDatasets 0.00
 TestDeleteVolumeSparesForeignSnapshots 0.00
 TestDeleteVolumeSparesSnapshotCutAfterScan 0.00
+TestErrTableIsTotal 0.00
+TestErrTableMatchesHead 0.00
+TestErrTableMatchesHeadSeesEveryCell 0.00
 TestErrorText 0.00
 TestEtabServesPrecedence 0.00
 TestExportConverges 0.00

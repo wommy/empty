@@ -436,52 +436,12 @@ func (e *Endpoint) lock(ctx context.Context, keys ...string) (func(), error) {
 	return release, nil
 }
 
-// zfsErr maps a zfs failure to an endpoint Code.
-func zfsErr(err error, what string) error {
-	if err == nil {
-		return nil
-	}
-	code := Internal
-	switch {
-	case errors.Is(err, zfs.ErrNotFound), errors.Is(err, zfs.ErrParentNotFound):
-		code = NotFound
-	case errors.Is(err, zfs.ErrExists):
-		code = AlreadyExists
-	case errors.Is(err, zfs.ErrHasClones), errors.Is(err, zfs.ErrHasChildren), errors.Is(err, zfs.ErrPrecondition),
-		errors.Is(err, zfs.ErrPermission): // a missing zfs allow grant
-		// states only the caller or an administrator changes: final
-		code = FailedPrecondition
-	case errors.Is(err, zfs.ErrBusy):
-		// an open zvol, a mounted filesystem in use, a user hold: clears
-		// by itself, so retryable here. A destroy is the exception: CSI
-		// wants FAILED_PRECONDITION for a volume or snapshot in use on
-		// DeleteVolume/DeleteSnapshot (apply maps by op).
-		code = Unavailable
-	case errors.Is(err, zfs.ErrInterrupted):
-		// killed by the caller's context: the op may or may not have run,
-		// so never Internal; a retry re-scans and re-plans
-		code = Aborted
-		if errors.Is(err, context.DeadlineExceeded) {
-			code = DeadlineExceeded
-		}
-	case errors.Is(err, zfs.ErrNoSpace):
-		code = ResourceExhausted
-	case errors.Is(err, zfs.ErrInvalidProperty):
-		code = InvalidArgument
-	}
-	var ze *zfs.Error
-	if errors.As(err, &ze) && ze.Kind == zfs.KindUnavailable {
-		code = Unavailable
-	}
-	return &Error{Code: code, Msg: what, Err: err}
-}
-
 // parentUnavailable reports a parent zfs cannot open. zfs prints the same
 // "dataset does not exist" for an exported pool as for a missing dataset,
 // and the parent is configuration, so it is never "absent": Unavailable is
 // retried, NotFound is final for the CSI sidecars.
 func parentUnavailable(parent string, err error) error {
-	return &Error{Code: Unavailable, Msg: "parent dataset " + parent + " is unavailable", Err: err}
+	return zfsFail(opReadParent, err, false, "parent dataset "+parent+" is unavailable")
 }
 
 // userValue reads a property value; "-" means unset only when zfs says
@@ -657,11 +617,7 @@ func (e *Endpoint) verifyExport(ctx context.Context, id string) error {
 // row (opErr): a final Internal would strand the half-made volume, and
 // flip the code a caller saw for the same state.
 func resumeErr(err error) error {
-	var e *Error
-	if errors.As(err, &e) && e.Code == Internal && e.Err != nil {
-		return &Error{Code: Aborted, Msg: e.Msg + " (resuming an earlier attempt; a retry converges)", Err: e.Err}
-	}
-	return err
+	return remapMutated(err, " (resuming an earlier attempt; a retry converges)")
 }
 
 // scanFor reads the volumes an operation touches (one zfs call each).

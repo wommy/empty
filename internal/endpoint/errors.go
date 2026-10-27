@@ -1,9 +1,13 @@
 package endpoint
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"unicode/utf8"
+
+	"github.com/wommy/empty/internal/zfs"
 )
 
 // Code is the endpoint's error category. Values deliberately mirror the
@@ -30,6 +34,9 @@ type Error struct {
 	Code Code
 	Msg  string
 	Err  error
+	// cell is set on a zfs failure (zfsFail): its code is errTable's, and
+	// CodeOf reads it there.
+	cell *errCell
 }
 
 func (e *Error) Error() string {
@@ -71,8 +78,178 @@ func CodeOf(err error) Code {
 		return OK
 	}
 	var e *Error
-	if errors.As(err, &e) && e.Code != OK {
-		return e.Code
+	if errors.As(err, &e) {
+		if e.cell != nil {
+			return e.cell.code()
+		}
+		if e.Code != OK {
+			return e.Code
+		}
 	}
 	return Internal
+}
+
+// The zfs error table is the one mapping from a failed zfs command to a
+// Code. A cell is keyed by
+//   - the op the command ran for: an apply OpKind, or opRead for a scan or
+//     a get (opReadParent when it read the parent);
+//   - the kind of failure: a zfs.Kind, or kindDeadline for a command the
+//     caller's deadline killed (an error with no *zfs.Error in it is
+//     zfs.KindUnknown);
+//   - mutated: whether an earlier op of the same plan, or the earlier
+//     attempt being resumed, already changed the pool.
+//
+// errRules is the table as written, first match wins; errTable is it
+// expanded once, every cell set. Nothing else maps a zfs failure to a Code:
+// zfsFail is the only constructor, and CodeOf reads the cell.
+//
+// Busy, an unavailable pool and an interrupted command clear by themselves,
+// so they are retryable; states only the caller or an administrator change
+// are final. Busy on a destroy is "in use", which CSI's DeleteVolume and
+// DeleteSnapshot report as FAILED_PRECONDITION. An unclassified failure
+// after a change is Aborted, not Internal: a retry re-scans and converges,
+// while a final code would strand the half-applied plan
+// (external-provisioner never deletes what it never got). Before any
+// change it stays Internal.
+var errRules = []errRule{
+	// zfs prints the same "dataset does not exist" for an exported pool as
+	// for a missing dataset, and the parent is configuration, so it is
+	// never "absent": Unavailable is retried, NotFound is final for the
+	// CSI sidecars
+	{ops: []OpKind{opReadParent}, kinds: kinds(zfs.KindNotFound), code: Unavailable},
+	{ops: []OpKind{OpDestroy}, kinds: kinds(zfs.KindBusy), code: FailedPrecondition},
+	{kinds: kinds(zfs.KindNotFound, zfs.KindParentNotFound), code: NotFound},
+	{kinds: kinds(zfs.KindExists), code: AlreadyExists},
+	// KindPermission: a missing zfs allow grant
+	{kinds: kinds(zfs.KindHasClones, zfs.KindHasChildren, zfs.KindPrecondition, zfs.KindPermission), code: FailedPrecondition},
+	{kinds: kinds(zfs.KindBusy, zfs.KindUnavailable), code: Unavailable},
+	// killed by the caller's context: the op may or may not have run, so
+	// never Internal; a retry re-scans and re-plans
+	{kinds: []errKind{kindDeadline}, code: DeadlineExceeded},
+	{kinds: kinds(zfs.KindInterrupted), code: Aborted},
+	{kinds: kinds(zfs.KindNoSpace), code: ResourceExhausted},
+	{kinds: kinds(zfs.KindInvalidProperty), code: InvalidArgument},
+	{ops: mutatingOps, kinds: kinds(zfs.KindUnknown), after: true, code: Aborted},
+	{kinds: kinds(zfs.KindUnknown), code: Internal},
+}
+
+// opRead is the op of a zfs command that changes nothing: a scan, a get.
+// opReadParent is one that read the parent dataset, or found a volume
+// absent without the parent there to confirm it (parentUnavailable).
+const (
+	opRead       OpKind = 0
+	opReadParent        = OpMount + 1
+)
+
+// mutatingOps are the apply ops: every OpKind.
+var mutatingOps = []OpKind{OpCreateFS, OpCreateVol, OpSnapshot, OpClone, OpSet, OpDestroy, OpMount}
+
+// errKind is a zfs.Kind, or kindDeadline.
+type errKind uint8
+
+// kindDeadline is zfs.KindInterrupted by the caller's deadline.
+const kindDeadline = errKind(zfs.NumKinds)
+
+const (
+	nErrOps   = int(opReadParent) + 1
+	nErrKinds = zfs.NumKinds + 1
+)
+
+func kinds(ks ...zfs.Kind) []errKind {
+	out := make([]errKind, len(ks))
+	for i, k := range ks {
+		out[i] = errKind(k)
+	}
+	return out
+}
+
+// kindOf is the errKind of err.
+func kindOf(err error) errKind {
+	var ze *zfs.Error
+	if !errors.As(err, &ze) || ze.Kind < 0 || int(ze.Kind) >= zfs.NumKinds {
+		return errKind(zfs.KindUnknown)
+	}
+	if ze.Kind == zfs.KindInterrupted && errors.Is(err, context.DeadlineExceeded) {
+		return kindDeadline
+	}
+	return errKind(ze.Kind)
+}
+
+// errRule is a row of errRules.
+type errRule struct {
+	ops   []OpKind // nil: every op, opRead included
+	kinds []errKind
+	after bool // only after a change (mutated)
+	code  Code
+}
+
+func (r errRule) matches(c errCell) bool {
+	return (r.ops == nil || slices.Contains(r.ops, c.op)) &&
+		slices.Contains(r.kinds, c.kind) &&
+		(!r.after || c.mutated)
+}
+
+// errCell is a key of errTable.
+type errCell struct {
+	op      OpKind
+	kind    errKind
+	mutated bool
+}
+
+func (c errCell) code() Code {
+	m := 0
+	if c.mutated {
+		m = 1
+	}
+	return errTable[c.op][c.kind][m]
+}
+
+// errTable is errRules expanded. A cell no rule covers panics at init: the
+// table is total.
+var errTable = expandErrRules(errRules)
+
+func expandErrRules(rules []errRule) (t [nErrOps][nErrKinds][2]Code) {
+	for op := range nErrOps {
+		for k := range nErrKinds {
+			for m := range 2 {
+				c := errCell{OpKind(op), errKind(k), m == 1}
+				i := slices.IndexFunc(rules, func(r errRule) bool { return r.matches(c) })
+				if i < 0 {
+					panic(fmt.Sprintf("errRules: no rule for %+v", c))
+				}
+				t[op][k][m] = rules[i].code
+			}
+		}
+	}
+	return t
+}
+
+// zfsFail is the one place a zfs failure becomes an *Error: its code is
+// errTable's cell for (op, the kind of err, mutated). nil stays nil.
+func zfsFail(op OpKind, err error, mutated bool, msg string) error {
+	if err == nil {
+		return nil
+	}
+	c := errCell{op, kindOf(err), mutated}
+	return &Error{Code: c.code(), Msg: msg, Err: err, cell: &c}
+}
+
+// zfsErr maps the failure of a zfs command that changes nothing: a scan, a
+// get.
+func zfsErr(err error, what string) error { return zfsFail(opRead, err, false, what) }
+
+// remapMutated re-keys a zfs failure as one after a change (an earlier op
+// of the plan, an earlier attempt being resumed). Where that changes the
+// code, the message says why with because; any other error is unchanged.
+func remapMutated(err error, because string) error {
+	var e *Error
+	if !errors.As(err, &e) || e.cell == nil || e.cell.mutated {
+		return err
+	}
+	c := *e.cell
+	c.mutated = true
+	if c.code() == e.cell.code() {
+		return err
+	}
+	return &Error{Code: c.code(), Msg: e.Msg + because, Err: e.Err, cell: &c}
 }
