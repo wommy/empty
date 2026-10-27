@@ -221,6 +221,13 @@ func TestPlanReconcile(t *testing.T) {
 			acts: []string{"b@s:" + ReasonWithVolume, "b:" + ReasonUndesired},
 		},
 		{
+			// adv4 F2: another cluster's set, or one naming only the gone
+			name:  "a desired set naming no existing volume counts as empty",
+			rows:  []Row{vol("a", nil), vol("x", func(r *Row) { r.Managed = false })},
+			want:  desired("gone", "x"),
+			skips: []string{"gone:" + SkipDesiredMissing, "a:" + SkipEmptyDesired},
+		},
+		{
 			// adv4 F6: anyone can `zfs snapshot` the reserved name
 			name:  "unstamped clone-source-named snapshot on a desired volume is not ours",
 			rows:  []Row{vol("a", nil), snap("a@volume-source-for-volume-manual", bare)},

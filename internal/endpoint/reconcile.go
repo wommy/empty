@@ -37,7 +37,7 @@ const (
 const (
 	SkipTooYoung        = "younger than the minimum age"
 	SkipNoCreation      = "creation time unknown"
-	SkipEmptyDesired    = "desired set is empty: undesired volumes are not collected"
+	SkipEmptyDesired    = "desired set names no existing volume: undesired volumes are not collected"
 	SkipDesiredMissing  = "desired volume does not exist"
 	SkipUnmanagedSource = "clone-source snapshot on an unmanaged volume"
 	// SkipUnstampedCloneSource: a snapshot with the reserved clone-source
@@ -63,7 +63,8 @@ type Desired struct {
 	// VolumeIDs is the complete set of volumes the caller wants. Every owned
 	// volume outside it is undesired. Empty means "no statement": only
 	// uncommitted rows and clone-source snapshots are collected, because an
-	// empty set cannot be told apart from a caller that sent nothing.
+	// empty set cannot be told apart from a caller that sent nothing. A set
+	// in which no id names a volume the endpoint owns counts as empty.
 	VolumeIDs []string
 	// MinAge: nothing created less than MinAge before Now is touched. It
 	// keeps in-flight provisions and volumes created after the caller took
@@ -180,10 +181,16 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 	skip := func(target, reason string) {
 		out.Skipped = append(out.Skipped, ReconcileSkip{Target: target, Reason: reason})
 	}
+	// A set naming none of the endpoint's volumes says nothing about them:
+	// a page of another list, another cluster's or another parent's set.
+	// Like the empty set, it collects no committed volume (adv4 F2).
+	stated := false
 	for _, id := range slices.Sorted(maps.Keys(want)) {
-		if r, ok := t.Get(id); !ok || r.Type == zfs.TypeSnapshot {
+		r, ok := t.Get(id)
+		if !ok || r.Type == zfs.TypeSnapshot {
 			skip(id, SkipDesiredMissing)
 		}
+		stated = stated || ok && r.OwnedVolume()
 	}
 
 	type candidate struct {
@@ -197,7 +204,7 @@ func (p Planner) PlanReconcile(t Table, d Desired) (ReconcilePlan, error) {
 		}
 		reason := ReasonUncommitted
 		if r.Committed {
-			if len(want) == 0 {
+			if !stated {
 				skip(r.ID, SkipEmptyDesired)
 				continue
 			}
