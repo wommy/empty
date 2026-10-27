@@ -1,0 +1,34 @@
+endpoint: plan around user holds and datasets below a volume
+
+HOLD-REPLAN: the scan did not read userrefs, so a volume with a user-held
+snapshot (a backup tool pinning it for send) was planned for a plain
+destroy that zfs refuses with EBUSY, on every run. OWN-12: the scan
+dropped datasets below a volume, so a volume with a child was planned for
+a destroy zfs refuses ("has children"), on every run; reconcile twice was
+never empty.
+
+The scan now reads userrefs (Row.Holds) and records the datasets below
+each volume (Row.Children). planDelete refuses both up front with
+FailedPrecondition, so DeleteVolume keeps its code without destroying
+anything first, and Reconcile reports the volume as skipped instead of
+re-planning it. A stamped orphan clone source that is held is still
+released with -d, which zfs accepts (it marks it). The reconcile fixpoint
+no longer reaps a held deferred origin.
+
+Planner tables first (TestPlanReconcile, TestPlanDeleteVolumeRefuses...),
+then the simulator: TestReconcileReportsHeldSnapshots and
+TestAdv4ChildDatasetsDestroyed check that a second reconcile plans
+nothing, and FuzzReconcileSafe no longer whitelists child datasets.
+
+Mutants, each killed:
+- scan ignores userrefs: TestReconcileReportsHeldSnapshots
+- planner ignores holds: TestPlanReconcile, TestPlanDeleteVolumeRefuses...,
+  TestReconcileReportsHeldSnapshots
+- fixpoint reaps a held origin: TestPlanReconcile,
+  TestSimulateDestroyAllEquivalent
+- scan drops children unrecorded: TestAdv4ChildDatasetsDestroyed,
+  FuzzReconcileSafe seeds
+- planner ignores children: the above plus the planner tables
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
