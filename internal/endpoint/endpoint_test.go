@@ -309,6 +309,38 @@ func TestExpand(t *testing.T) {
 	wantCode(t, err, endpoint.NotFound)
 }
 
+// A thick filesystem's Expand sets refquota and refreservation in one
+// `zfs set`; zfs applies refquota, then refreservation fails ENOSPC
+// (zfs_set_prop_nvlist applies space properties one by one). The retry
+// sees the refquota already at the new capacity and must not report the
+// volume expanded while its reservation is the old one: it re-plans the
+// refreservation. 1 PiB is beyond any test pool, so this runs on the
+// simulator's space model and on a real pool alike.
+func TestExpandThickFilesystemRetryAfterENOSPC(t *testing.T) {
+	ctx := context.Background()
+	ep, h := setup(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "thick", CapacityBytes: 1 << 30, Reserve: true}); err != nil {
+		t.Fatal(err)
+	}
+	const huge = 1 << 50
+	_, err := ep.ExpandVolume(ctx, "thick", huge, 0)
+	wantCode(t, err, endpoint.ResourceExhausted)
+	if got := h.Prop(h.Parent+"/thick", "refquota"); got != fmt.Sprint(uint64(huge)) {
+		t.Fatalf("refquota %s: the scenario needs zfs to half-apply the set", got)
+	}
+	for i := 0; i < 2; i++ {
+		v, err := ep.ExpandVolume(ctx, "thick", huge, 0)
+		if err == nil {
+			t.Fatalf("retry %d reported %+v expanded; refreservation is %s", i, v, h.Prop(h.Parent+"/thick", "refreservation"))
+		}
+		wantCode(t, err, endpoint.ResourceExhausted)
+	}
+	// a smaller expand is no way out: the volume reports the 1 PiB
+	// refquota as its capacity, which a thick volume must reserve
+	_, err = ep.ExpandVolume(ctx, "thick", 2<<30, 0)
+	wantCode(t, err, endpoint.ResourceExhausted)
+}
+
 func TestConcurrentCreatesSerialize(t *testing.T) {
 	ctx := context.Background()
 	ep, h := setup(t)

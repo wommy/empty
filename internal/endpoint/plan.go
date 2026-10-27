@@ -631,6 +631,17 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 		// unlimited already satisfies any capacity; a quota would shrink it
 		return nil, row, nil
 	}
+	if row.Kind() == Filesystem && row.Refres > 0 && row.Refres < max(want, row.Refquota) {
+		// thick and under-reserved: an earlier Expand's set applied
+		// refquota, then refreservation failed ENOSPC (zfs applies space
+		// properties one by one). Reserve the capacity, never report it
+		// done.
+		set := map[string]string{"refreservation": u64(max(want, row.Refquota))}
+		if want > row.Refquota {
+			set["refquota"] = u64(want)
+		}
+		return Plan{{Kind: OpSet, Target: row.Name, Props: set}}, row, nil
+	}
 	if want <= row.Capacity() {
 		return nil, row, nil
 	}

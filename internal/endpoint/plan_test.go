@@ -158,6 +158,30 @@ func TestPlanExpand(t *testing.T) {
 	}
 }
 
+// A thick filesystem whose last Expand applied refquota but not
+// refreservation (ENOSPC) is under-reserved: Expand re-plans the
+// reservation up to its capacity instead of reporting it done.
+func TestPlanExpandReplansHalfAppliedReservation(t *testing.T) {
+	half := vol("thick", func(r *Row) { r.Refquota, r.Refres = 10<<30, 1<<30 })
+	for _, capacity := range []uint64{10 << 30, 2 << 30} {
+		plan, _, err := pl.PlanExpandVolume(NewTable([]Row{half}), "thick", capacity, 0)
+		if err != nil || len(plan) != 1 || plan[0].Props["refreservation"] != u64(10<<30) {
+			t.Fatalf("capacity %d: %+v %v", capacity, plan, err)
+		}
+		if _, ok := plan[0].Props["refquota"]; ok {
+			t.Fatalf("capacity %d: refquota re-set: %+v", capacity, plan)
+		}
+	}
+	whole := vol("thick", func(r *Row) { r.Refquota, r.Refres = 10<<30, 10<<30 })
+	if plan, _, err := pl.PlanExpandVolume(NewTable([]Row{whole}), "thick", 10<<30, 0); err != nil || plan != nil {
+		t.Fatalf("reserved volume: %+v %v", plan, err)
+	}
+	thin := vol("thin", func(r *Row) { r.Refquota = 10 << 30 })
+	if plan, _, err := pl.PlanExpandVolume(NewTable([]Row{thin}), "thin", 10<<30, 0); err != nil || plan != nil {
+		t.Fatalf("thin volume: %+v %v", plan, err)
+	}
+}
+
 // review H1: the internal prefix cannot be claimed by a CSI snapshot
 func TestPlanSnapshotReservedPrefix(t *testing.T) {
 	tab := NewTable([]Row{vol("a", nil)})
