@@ -345,3 +345,46 @@ func TestPlanCreateRefusesForeignAndIncompatible(t *testing.T) {
 		}
 	}
 }
+
+// setProp is the value plan sets for prop with an OpSet ("" if none).
+func setProp(plan Plan, prop string) string {
+	v := ""
+	for _, op := range plan {
+		if s, ok := op.Props[prop]; ok && op.Kind == OpSet {
+			v = s
+		}
+	}
+	return v
+}
+
+// A filesystem clone is never smaller than its source, as a zvol clone is
+// never resized below its source's volsize: its refquota is max(requested,
+// the source's refquota). An unlimited source leaves the request as is.
+func TestPlanFilesystemCloneSize(t *testing.T) {
+	t.Parallel()
+	const mib = 1 << 20
+	tab := NewTable([]Row{
+		vol("src", func(r *Row) { r.Refquota = 10 * mib }), snap("src@s", nil),
+		vol("free", nil), snap("free@s", nil),
+		// left by a build that gave the clone the smaller request
+		vol("half", func(r *Row) {
+			r.Committed, r.Refquota, r.SourceType, r.SourceID = false, 4*mib, "snapshot", "src@s"
+		}),
+	})
+	for _, tc := range []struct {
+		r    CreateVolumeRequest
+		want string
+	}{
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"}, u64(10 * mib)},
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 4 * mib, SourceVolumeID: "src"}, u64(10 * mib)},
+		{CreateVolumeRequest{Name: "d", SourceSnapshotID: "src@s"}, u64(10 * mib)},
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 20 * mib, SourceSnapshotID: "src@s"}, u64(20 * mib)},
+		{CreateVolumeRequest{Name: "d", CapacityBytes: 4 * mib, SourceSnapshotID: "free@s"}, u64(4 * mib)},
+		{CreateVolumeRequest{Name: "half", CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"}, u64(10 * mib)},
+	} {
+		plan, err := pl.PlanCreateVolume(tab, tc.r)
+		if err != nil || setProp(plan, "refquota") != tc.want {
+			t.Errorf("%+v: refquota %q (%v), want %s", tc.r, setProp(plan, "refquota"), err, tc.want)
+		}
+	}
+}

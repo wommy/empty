@@ -130,3 +130,30 @@ func TestCloneFailureAfterCloneConvergesToSameState(t *testing.T) {
 		})
 	}
 }
+
+// A filesystem clone asked for less than its source gets the source's size,
+// end to end: the reported capacity and the refquota zfs holds.
+func TestFilesystemCloneNeverSmallerThanSource(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "s", "src"); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []endpoint.CreateVolumeRequest{
+		{Name: "fromsnap", CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"},
+		{Name: "fromvol", CapacityBytes: 4 * mib, SourceVolumeID: "src"},
+	} {
+		v, err := ep.CreateVolume(ctx, r)
+		if err != nil || v.CapacityBytes != 10*mib || h.Prop(h.Parent+"/"+r.Name, "refquota") != "10485760" {
+			t.Errorf("%s: %+v %v refquota %s, want 10 MiB", r.Name, v, err, h.Prop(h.Parent+"/"+r.Name, "refquota"))
+		}
+		// the identical retry is idempotent
+		if _, err := ep.CreateVolume(ctx, r); err != nil {
+			t.Errorf("%s retry: %v", r.Name, err)
+		}
+	}
+}

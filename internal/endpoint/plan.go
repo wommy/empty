@@ -195,13 +195,15 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		commit.Props[p.Names.committedAt()] = strconv.FormatInt(p.now, 10)
 	}
 	// size is what a provision drives the volume to. A clone starts at its
-	// source's size and is never shrunk, and a filesystem clone without a
-	// capacity takes its source's quota. It is derived here, before the
-	// resume branch, so a retry after a failure at any op boundary reaches
-	// the end state an uninterrupted run reaches.
+	// source's size and is never shrunk: a filesystem clone gets
+	// max(requested, its source's refquota), as a zvol clone keeps its
+	// source's volsize (sizeOps only grows). An unlimited source (refquota
+	// 0) leaves the request as is, as a fresh create would. It is derived
+	// here, before the resume branch, so a retry after a failure at any op
+	// boundary reaches the end state an uninterrupted run reaches.
 	size, sizeErr := want, error(nil)
 	if n, ok := sourceSize(t, r); ok {
-		if r.Kind == Filesystem && size == 0 {
+		if r.Kind == Filesystem && n > size {
 			size = n
 		}
 		if r.LimitBytes > 0 && n > r.LimitBytes {
