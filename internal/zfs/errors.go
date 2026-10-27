@@ -73,6 +73,7 @@ var (
 	ErrInvalidProperty = &Error{Kind: KindInvalidProperty}
 	ErrUnavailable     = &Error{Kind: KindUnavailable}
 	ErrPrecondition    = &Error{Kind: KindPrecondition}
+	ErrPermission      = &Error{Kind: KindPermission}
 	ErrInterrupted     = &Error{Kind: KindInterrupted}
 )
 

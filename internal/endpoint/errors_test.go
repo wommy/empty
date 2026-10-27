@@ -17,10 +17,11 @@ func TestZfsErrCodes(t *testing.T) {
 		err  error
 		want Code
 	}{
-		{&zfs.Error{Kind: zfs.KindBusy}, Aborted},
+		{&zfs.Error{Kind: zfs.KindBusy}, Unavailable}, // destroys: FailedPrecondition, see opErr
 		{&zfs.Error{Kind: zfs.KindHasClones}, FailedPrecondition},
 		{&zfs.Error{Kind: zfs.KindHasChildren}, FailedPrecondition},
 		{&zfs.Error{Kind: zfs.KindPrecondition}, FailedPrecondition},
+		{&zfs.Error{Kind: zfs.KindPermission}, FailedPrecondition},
 		{&zfs.Error{Kind: zfs.KindUnavailable}, Unavailable},
 		{&zfs.Error{Kind: zfs.KindInvalidProperty}, InvalidArgument},
 		{&zfs.Error{Kind: zfs.KindNoSpace}, ResourceExhausted},

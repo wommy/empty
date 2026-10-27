@@ -221,15 +221,16 @@ func zfsErr(err error, what string) error {
 		code = NotFound
 	case errors.Is(err, zfs.ErrExists):
 		code = AlreadyExists
-	case errors.Is(err, zfs.ErrHasClones), errors.Is(err, zfs.ErrHasChildren), errors.Is(err, zfs.ErrPrecondition):
+	case errors.Is(err, zfs.ErrHasClones), errors.Is(err, zfs.ErrHasChildren), errors.Is(err, zfs.ErrPrecondition),
+		errors.Is(err, zfs.ErrPermission): // a missing zfs allow grant
 		// states only the caller or an administrator changes: final
 		code = FailedPrecondition
 	case errors.Is(err, zfs.ErrBusy):
 		// an open zvol, a mounted filesystem in use, a user hold: clears
-		// by itself, so retryable (FailedPrecondition is final for the
-		// sidecars). Snapshots and clones that block a delete are refused
-		// as FailedPrecondition before any zfs call, or as KindHasClones.
-		code = Aborted
+		// by itself, so retryable here. A destroy is the exception: CSI
+		// wants FAILED_PRECONDITION for a volume or snapshot in use on
+		// DeleteVolume/DeleteSnapshot (apply maps by op).
+		code = Unavailable
 	case errors.Is(err, zfs.ErrInterrupted):
 		// killed by the caller's context: the op may or may not have run,
 		// so never Internal; a retry re-scans and re-plans
