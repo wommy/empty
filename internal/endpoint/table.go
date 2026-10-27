@@ -71,6 +71,13 @@ func (r Row) OwnedVolume() bool {
 	return r.Type != zfs.TypeSnapshot && r.Managed && (r.VolumeName == "" || r.VolumeName == r.ID)
 }
 
+// ServedVolume reports whether r is a volume front ends may see and use:
+// owned and committed. An uncommitted row is a provision still in flight
+// (or abandoned, which Reconcile collects); only CreateVolume's resume and
+// DeleteVolume act on it. Every serving path (get, list, expand, export,
+// snapshot and clone sources) uses this one rule.
+func (r Row) ServedVolume() bool { return r.OwnedVolume() && r.Committed }
+
 // OwnedSnapshot reports whether r is a CSI snapshot the endpoint cut: a
 // managed snapshot with a CSI name whose source marker, where set, is the
 // volume it hangs off. Administrators' and internal clone-source snapshots

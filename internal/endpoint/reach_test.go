@@ -44,6 +44,45 @@ func TestReachCapacityWrap(t *testing.T) {
 	}
 }
 
+// R15: an uncommitted row (a provision in flight, or one Reconcile will
+// collect as abandoned) was served by GetVolume, ExpandVolume, export and
+// CreateSnapshot, while ListVolumes hid it.
+func TestReachUncommittedServed(t *testing.T) {
+	ctx := context.Background()
+	sim := zfstest.New("tank")
+	z := zfs.New(sim)
+	if err := z.CreateFilesystem(ctx, rParent, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	ep, err := New(z, Config{Parent: rParent, FileExport: true, Etab: sim})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := z.CreateFilesystem(ctx, rParent+"/u", map[string]string{
+		rNames.managed(): "true", rNames.volumeName(): "u", "refquota": "1048576",
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.GetVolume(ctx, "u"); CodeOf(err) != NotFound {
+		t.Errorf("GetVolume: %v", err)
+	}
+	if _, err := ep.ExpandVolume(ctx, "u", 2<<20, 0); CodeOf(err) != NotFound {
+		t.Errorf("ExpandVolume: %v", err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "s", "u"); CodeOf(err) != NotFound {
+		t.Errorf("CreateSnapshot: %v", err)
+	}
+	if _, err := ep.PublishFileExport(ctx, "u", "10.0.0.1", false); CodeOf(err) != NotFound {
+		t.Errorf("PublishFileExport: %v", err)
+	}
+	if _, err := ep.CreateVolume(ctx, CreateVolumeRequest{Name: "c", SourceVolumeID: "u"}); CodeOf(err) != NotFound {
+		t.Errorf("clone from it: %v", err)
+	}
+	if sim.Prop(rParent+"/u", "refquota") != "1048576" || sim.Has(rParent+"/u@s") {
+		t.Error("touched")
+	}
+}
+
 // R12: a Planner built without VolBlockSize divided by zero on any block
 // request.
 func TestReachPlannerZeroBlockSize(t *testing.T) {

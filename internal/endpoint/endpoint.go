@@ -432,7 +432,7 @@ func (e *Endpoint) readVolume(ctx context.Context, id string) (Volume, error) {
 		return Volume{}, err
 	}
 	row, ok := t.Get(id)
-	if !ok || !row.OwnedVolume() {
+	if !ok || !row.ServedVolume() {
 		// only ours is ever returned: something replaced it after the plan
 		return Volume{}, errorf(Aborted, "volume %s vanished or changed owner after provisioning", id)
 	}
@@ -510,7 +510,7 @@ func (e *Endpoint) GetVolume(ctx context.Context, volID string) (Volume, error) 
 		return Volume{}, err
 	}
 	row, ok := t.Get(volID)
-	if !ok || !row.OwnedVolume() {
+	if !ok || !row.ServedVolume() {
 		return Volume{}, errorf(NotFound, "volume %s not found", volID)
 	}
 	return volumeView(row), nil
@@ -547,7 +547,7 @@ func (e *Endpoint) ListVolumes(ctx context.Context, maxEntries int, startingToke
 	}
 	var vols []Volume
 	for r := range t.Volumes() {
-		if r.OwnedVolume() && r.Committed {
+		if r.ServedVolume() {
 			vols = append(vols, volumeView(r))
 		}
 	}
@@ -683,6 +683,10 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 	t, err := e.scan(ctx, volID)
 	if err != nil {
 		return "", err
+	}
+	if row, ok := t.Get(volID); ok && row.OwnedVolume() && !row.ServedVolume() {
+		// a provision still in flight is not a volume yet
+		return "", errorf(NotFound, "volume %s not found", volID)
 	}
 	live, err := e.readEtab(ctx)
 	if err != nil {

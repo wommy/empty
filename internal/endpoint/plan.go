@@ -238,7 +238,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		// a foreign dataset is not ours to clone (ADR 0003)
 		snap, ok := t.Get(r.SourceSnapshotID)
 		src, srcOK := t.Get(vol)
-		if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.OwnedVolume() || !src.Committed {
+		if !ok || !snap.OwnedSnapshot() || snap.Deferred || !srcOK || !src.ServedVolume() {
 			return nil, errorf(NotFound, "source snapshot %s not found", r.SourceSnapshotID)
 		}
 		if src.Kind() != r.Kind {
@@ -262,7 +262,7 @@ func (p Planner) PlanCreateVolume(t Table, r CreateVolumeRequest) (Plan, error) 
 		// only a committed volume the endpoint owns: cloning anything else
 		// would snapshot, and pin, a dataset that is not ours
 		src, ok := t.Get(srcID)
-		if !ok || !src.OwnedVolume() || !src.Committed {
+		if !ok || !src.ServedVolume() {
 			return nil, errorf(NotFound, "source volume %s not found", srcID)
 		}
 		if src.Kind() != r.Kind {
@@ -449,7 +449,7 @@ func (p Planner) PlanExpandVolume(t Table, volID string, capacity, limit uint64)
 		return nil, Row{}, err
 	}
 	row, ok := t.Get(id)
-	if !ok || !row.OwnedVolume() {
+	if !ok || !row.ServedVolume() {
 		return nil, Row{}, errorf(NotFound, "volume %s not found", id)
 	}
 	if capacity > MaxCapacityBytes || limit > MaxCapacityBytes {
@@ -514,7 +514,7 @@ func (p Planner) PlanCreateSnapshot(t Table, name, volID string) (Plan, string, 
 		}
 	}
 	src, ok := t.Get(vol)
-	if !ok || !src.OwnedVolume() {
+	if !ok || !src.ServedVolume() {
 		return nil, "", errorf(NotFound, "source volume %s not found", vol)
 	}
 	if r, ok := t.Get(id); ok {
