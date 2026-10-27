@@ -17,13 +17,20 @@
 #    gives these shards reports; the split test reports in every log, and
 #    each log carries its partition line
 #      <file>:<line>: PROPRT_SHARD <i>/<n>: <k> of <total> rows
-#    with i its shard, n = P*3, one total, and k the number of rows r <
-#    total with r mod n = i (the test runs exactly those,
-#    internal/endpoint/props_roundtrip_test.go); the subtests reporting a
-#    result number the k summed, none twice.
+#    with i its shard, n = P*3, total the committed propRTRows (the same
+#    number in every part's job: it is read from the commit, not from the
+#    run), and k the number of rows r < total with r mod n = i (the test
+#    runs exactly those, internal/endpoint/props_roundtrip_test.go); the
+#    subtests reporting a result number the k summed, none twice. A shard
+#    the plan gives no test has an empty log (ci/real-zfs-guest.sh): the
+#    checks above then hold for it only if nothing reports in it; a
+#    missing log fails.
 # With 1, the parts' shard sets are disjoint and cover the list, and the
 # rows i mod n over i = 0..n-1 are each row once; with 2 in every part's
-# job, every listed test and row ran exactly once across the jobs.
+# job, every listed test and row ran exactly once across the jobs. The
+# jobs compare nothing with each other: the rows' total is pinned, and the
+# list is the binary's -test.list, built by each job from the same commit
+# with the same sha256-pinned Go (its sha256 printed below to compare).
 # ci/check-skips.sh checks that the tests passed or skipped.
 #
 # usage: ci/check-split.sh <test> <test list> <plan> <part p/P> <shard log>...
@@ -73,17 +80,28 @@ echo "check-split: list sha256 $(sha256sum <"$list" | cut -c1-16), plan sha256 $
 
 # 2. this part's logs against the plan
 listed=$(awk -v t="$test" '$1 == t { n++ } END { print n + 0 }' "$list")
-[ "$listed" != 0 ] || echo "check-split: $test is not in $list; not checking its rows"
+pin=
+if [ "$listed" != 0 ]; then
+  src=$(dirname "$0")/../internal/endpoint/props_roundtrip_test.go
+  pin=$(awk '$1 == "const" && $2 == "propRTRows" && $3 == "=" { print $4 }' "$src" 2>/dev/null) || true
+  [[ $pin =~ ^[0-9]+$ ]] || { echo "::error::check-split: no 'const propRTRows = <rows>' in $src" >&2; exit 1; }
+else
+  echo "check-split: $test is not in $list; not checking its rows"
+fi
 # awk reads every line of every input: no early-closing reader in a pipe
-awk -v t="$test" -v listed="$listed" -v n="$n" -v lo=$((p * per)) -v hi=$((p * per + per)) -v part="$part" '
-  FNR == 1 && NR != FNR {
-    # a shard log: its shard from its name, endpoint.<i>.log
-    s = FILENAME; sub(/\.log$/, "", s); sub(/^.*\./, "", s)
-    if (FILENAME !~ /\.[0-9]+\.log$/ || s + 0 < lo || s + 0 >= hi) { printf "::error::check-split: %s is not the log of one of part %s'"'"'s shards %d..%d\n", FILENAME, part, lo, hi - 1; exit 1 }
-    s += 0
-    if (s in given) { printf "::error::check-split: shard %d given twice (%s)\n", s, FILENAME; exit 1 }
-    given[s] = FILENAME; shards++
+awk -v t="$test" -v listed="$listed" -v pin="$pin" -v n="$n" -v lo=$((p * per)) -v hi=$((p * per + per)) -v part="$part" '
+  BEGIN {
+    # the shard logs, from their names, endpoint.<i>.log; here, as an empty
+    # log (a shard with no test) has no first line to see it by
+    for (a = 2; a < ARGC; a++) {
+      lf = ARGV[a]; s = lf; sub(/\.log$/, "", s); sub(/^.*\./, "", s)
+      if (lf !~ /\.[0-9]+\.log$/ || s + 0 < lo || s + 0 >= hi) { printf "::error::check-split: %s is not the log of one of part %s'"'"'s shards %d..%d\n", lf, part, lo, hi - 1; dead = 1; exit 1 }
+      s += 0
+      if (s in given) { printf "::error::check-split: shard %d given twice (%s)\n", s, lf; dead = 1; exit 1 }
+      given[s] = lf; shardof[lf] = s; shards++
+    }
   }
+  FNR == 1 && NR != FNR { s = shardof[FILENAME] }
   FNR == NR { if ($1 >= lo && $1 < hi && $2 != t) plan[$2] = $1; else if ($1 >= lo && $1 < hi) plan[$2] = "all"; next }
   # the partition line, wherever t.Logf put it on the line
   match($0, /PROPRT_SHARD [0-9]+\/[0-9]+: [0-9]+ of [0-9]+ rows/) {
@@ -96,6 +114,7 @@ awk -v t="$test" -v listed="$listed" -v n="$n" -v lo=$((p * per)) -v hi=$((p * p
     if (f[3] != n) bad = bad sprintf("%s says %d/%d, the plan has %d shards\n", FILENAME, i, f[3], n)
     if (tot0 == "") tot0 = tot
     else if (tot != tot0) bad = bad sprintf("%s says %d rows, another shard %d\n", FILENAME, tot, tot0)
+    if (tot != pin) bad = bad sprintf("%s says %d rows, propRTRows pins %d: the other part may split another total\n", FILENAME, tot, pin)
     want = (i < tot) ? int((tot - 1 - i) / n) + 1 : 0
     if (k != want) bad = bad sprintf("%s ran %d rows, rows r < %d with r mod %d = %d number %d\n", FILENAME, k, tot, n, i, want)
     sum += k
@@ -122,6 +141,7 @@ awk -v t="$test" -v listed="$listed" -v n="$n" -v lo=$((p * per)) -v hi=$((p * p
     else { where[name] = FILENAME; subs++ }
   }
   END {
+    if (dead) exit 1
     if (shards != hi - lo) again = again sprintf("%d shard logs for part %s, which has shards %d..%d\n", shards, part, lo, hi - 1)
     tops = 0
     for (x in plan) {
