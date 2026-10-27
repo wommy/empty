@@ -217,6 +217,11 @@ func FuzzNFSRoundTrip(f *testing.F) {
 			t.Fatalf("stored list %q decodes to %v, %v", enc, back, err)
 		}
 		share := ShareNFS(cs)
+		// every list the stored form held is in sharenfs, losslessly: the
+		// canonical grammar reads it back (ADR 0004 drops the stored form)
+		if back, ok := ParseShareNFS(share); !ok || !slices.Equal(back, cs) {
+			t.Fatalf("sharenfs %q of %v reads back as %v, canonical=%v", share, cs, back, ok)
+		}
 		if err := nfsref.ValidateSharenfs(share); err != nil {
 			t.Fatalf("zfs refuses our sharenfs %q: %v", share, err)
 		}

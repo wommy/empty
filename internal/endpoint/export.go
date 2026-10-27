@@ -268,6 +268,55 @@ func ShareNFS(cs []NFSClient) string {
 	return strings.Join(opts, ",")
 }
 
+// ParseShareNFS reads a sharenfs value in the endpoint's canonical grammar
+// (ADR 0004, csi-nfs-design §2) and reports whether it is one:
+//
+//	canonical := "off" | rw [ "," ro ] | ro
+//	rw := "rw=" list    ro := "ro=" list
+//	list := cidr { ":" cidr }   (non-empty, sorted as ShareNFS sorts)
+//	cidr := a masked IPv4 network always written with "/N", N >= 1
+//
+// and no two networks in the whole value overlap, whatever their mode. A
+// value is canonical exactly when ShareNFS of its clients spells it, so
+// ShareNFS(ParseShareNFS(s)) == s. Such a value carries no option and no
+// name, so exportfs reads every client as a subnet, verbatim (Fact C).
+//
+// The configured floor (Config.NFSMinPrefix) is not part of the grammar:
+// it limits what Publish and CreateVolume grant, and raising it must not
+// turn an existing export into someone else's value.
+func ParseShareNFS(s string) ([]NFSClient, bool) {
+	if s == "off" {
+		return nil, true
+	}
+	if s == "" || len(s) > maxPropLen {
+		return nil, false
+	}
+	var cs []NFSClient
+	for i, part := range strings.Split(s, ",") {
+		mode, list, ok := strings.Cut(part, "=")
+		if !ok || (mode != "rw" && mode != "ro") || (i > 0 && mode != "ro") || list == "" {
+			return nil, false
+		}
+		for _, h := range strings.Split(list, ":") {
+			if !strings.Contains(h, "/") {
+				return nil, false
+			}
+			c, err := ParseClient(h, mode == "ro")
+			if err != nil || c.Host != h {
+				return nil, false
+			}
+			if _, bad := overlap(cs, c); bad {
+				return nil, false
+			}
+			cs = append(cs, c)
+		}
+	}
+	if ShareNFS(cs) != s {
+		return nil, false
+	}
+	return sortClients(cs), true
+}
+
 // Etab is the kernel NFS server's export table: export path to the clients
 // it serves, as exportfs last applied it.
 type Etab map[string][]NFSClient
@@ -645,19 +694,36 @@ func (p Planner) exportRow(t Table, volID string) (Row, []NFSClient, bool, error
 	if row.Kind() == Block {
 		return row, nil, true, errorf(FailedPrecondition, "volume %s is a zvol; only filesystems can be NFS-exported", id)
 	}
-	if !row.NFSClientsSet {
-		return row, nil, true, nil
-	}
-	cs, err := decodeClients(row.NFSClients)
+	cs, err := clientsOf(row)
 	if err != nil {
 		return row, nil, true, &Error{Code: FailedPrecondition, Msg: "volume " + id + ": " + p.Names.nfsClients(), Err: err}
 	}
 	return row, cs, true, nil
 }
 
+// clientsOf is the client list a volume is exported to. A local sharenfs
+// in the canonical grammar is the list itself, with or without the stored
+// nfs_clients: a later version keeps export state in sharenfs alone (ADR
+// 0004), so after a rollback to this one the stored list may be missing
+// or stale, and sharenfs, which the kernel serves, wins (wave12 S7). The
+// stored list is read only when sharenfs is not canonical.
+func clientsOf(row Row) ([]NFSClient, error) {
+	if row.ShareNFSLocal {
+		if cs, ok := ParseShareNFS(row.ShareNFS); ok {
+			return cs, nil
+		}
+	}
+	if !row.NFSClientsSet {
+		return nil, nil
+	}
+	return decodeClients(row.NFSClients)
+}
+
 // foreign reports a sharenfs that exports something and that the endpoint
 // did not write, so it never overwrites it:
-//   - set locally by someone else (e.g. democratic-csi's driver-wide value);
+//   - set locally by someone else (e.g. democratic-csi's driver-wide value):
+//     outside the canonical grammar, with no stored client list. A local
+//     canonical value is ours whoever typed it (ADR 0004);
 //   - received (`zfs recv` of a stream with properties): the sending
 //     side's export decision. A local value would silently shadow it, and
 //     adopting it would mean parsing options and names the endpoint never
@@ -668,7 +734,14 @@ func foreign(row Row) bool {
 	if row.ShareNFS == "off" {
 		return false
 	}
-	return row.ShareNFSRecv || (!row.NFSClientsSet && row.ShareNFSLocal)
+	if row.ShareNFSRecv {
+		return true
+	}
+	if !row.ShareNFSLocal {
+		return false
+	}
+	_, canonical := ParseShareNFS(row.ShareNFS)
+	return !canonical && !row.NFSClientsSet
 }
 
 func foreignErr(row Row, what string) error {
@@ -770,10 +843,7 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
 // publishWant is the client list a successful PlanPublishExport of c on
 // row leads to.
 func publishWant(row Row, c NFSClient) []NFSClient {
-	var cs []NFSClient
-	if row.NFSClientsSet {
-		cs, _ = decodeClients(row.NFSClients)
-	}
+	cs, _ := clientsOf(row)
 	if _, ok := overlap(cs, c); ok {
 		return cs
 	}
@@ -782,10 +852,7 @@ func publishWant(row Row, c NFSClient) []NFSClient {
 
 // unpublishWant is the client list after removing host from row's.
 func unpublishWant(row Row, host string) []NFSClient {
-	var cs []NFSClient
-	if row.NFSClientsSet {
-		cs, _ = decodeClients(row.NFSClients)
-	}
+	cs, _ := clientsOf(row)
 	h, err := parseClient(host)
 	if err != nil {
 		return cs
