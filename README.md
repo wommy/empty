@@ -15,7 +15,7 @@ A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset an
 | File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; an IPv4 address or IPv4 CIDR, always written as a masked CIDR with `/N`, no broader than `-nfs-min-prefix` (default /16), no overlapping networks on one volume; rw/ro), export state in `sharenfs` alone (ADR 0004: a local value in the endpoint's grammar is the endpoint's, anything else is never written; a leftover `<prefix>:nfs_clients` is ignored and reported by Reconcile), each Publish verified against `/var/lib/nfs/etab` (at the mountpoint's real path) and running nfsd threads, a Publish refused for an export beyond the volume's list changing nothing; static export at create (`CreateVolumeRequest.nfs_export`, servers advertised with `-nfs-server`, the chosen one recorded per volume in `<prefix>:nfs_server`, read back only when set locally, committed only once served; `CreateVolume` and `nfs.clients` take only networks written with `/N`, while Publish and Unpublish also take a bare address as its `/32`); Reconcile reports, and never rewrites, a leftover `nfs_clients`, an `nfs_server` that is inherited, received or no longer advertised, a network below the floor and a filesystem whose mountpoint is not pinned (`reconcile.go`); root only (`docs/research/gaps/file-export.md`, `docs/research/gaps/csi-nfs-design.md`). SMB not started |
 | Block export (iSCSI/NVMe-oF) | design v2 done, not implemented: sole configfs owner, minted `block_id` identity, fail-closed build order (`docs/research/gaps/block-export-v2.md`) |
 | CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS, in mount, block and NFS mode, their passed specs pinned by name. NFS mode when the endpoint advertises `-nfs-server`: StorageClass `nfs.clients` (required), `nfs.server`, and `nfs.uid`/`nfs.gid`/`nfs.mode` (the root directory's owner and mode, set by the endpoint before the commit; each one unset is left as the create made it: root:root 0755 for a new volume, the source's for a clone or restore), all five access modes, `server`/`share` in volume_context for csi-driver-nfs (ADR 0004). No node plugin of our own, so block access is opt-in (`-enable-block`, default off) and refused in NFS mode, and so is mount access without NFS (`-enable-local-filesystem`, default off; ADR 0009) |
-| Deployment (`deploy/`) | hyperconverged, unix sockets only (`docs/adr/0006-first-deployment-shape.md`): systemd unit per parent serving `/run/zfs-endpoint/sock/<systemd-escape parent>/endpoint.sock` (also zfs-endpoint's default `-listen`; `zfs-csi -parent` dials it; the pod mounts only that socket's directory, never the lock directory `/run/zfs-endpoint`), an optional sandboxing drop-in (`deploy/systemd/zfs-endpoint@.service.d/hardening.conf`; `ProtectHostname` and a syscall deny-list in effect and checked under the unit by `ci/real-zfs-unit.sh` in the real-ZFS VM's csi job; capability, device and memory limits still commented out), a daily report-only Reconcile timer (`deploy/systemd/zfs-endpoint-reconcile@.timer`, a dry run that never applies; see "Runbook: Reconcile"), Kubernetes manifests in `deploy/k8s/` (the controller runs on the one node an admin labels `node-restriction.kubernetes.io/zfs-endpoint-host=true`, a label a kubelet cannot set on itself; label exactly one node, ADR 0008). The shipped deployment is NFS mode (ADR 0009) and provisions nothing until the operator sets three things: `-nfs-server` (copy `deploy/systemd/zfs-endpoint@.service.d/nfs.conf.example` to `nfs.conf`; the unit appends `$ZFS_ENDPOINT_NFS` to ExecStart), the StorageClass's `nfs.clients` (shipped as `<node-subnet>/24`, which the controller refuses), and the F6 controls (pod egress to 2049 denied, a host firewall; ADR 0001 v2 D8). The node side is csi-driver-nfs's node DaemonSet under this driver's name (`deploy/k8s/node.yaml`, v4.13.6, pinned by digest, no RBAC and no token). Version set at build with `-ldflags -X github.com/wommy/empty/internal/version.Version=...`, printed by `-version` (CI's test job links the tests with `-X` and checks it). No image or release build yet |
+| Deployment (`deploy/`) | hyperconverged, unix sockets only (`docs/adr/0006-first-deployment-shape.md`): systemd unit per parent serving `/run/zfs-endpoint/sock/<systemd-escape parent>/endpoint.sock` (also zfs-endpoint's default `-listen`; `zfs-csi -parent` dials it; the pod mounts only that socket's directory, never the lock directory `/run/zfs-endpoint`), an optional sandboxing drop-in (`deploy/systemd/zfs-endpoint@.service.d/hardening.conf`; `ProtectHostname` and a syscall deny-list in effect and checked under the unit by `ci/real-zfs-unit.sh` in the real-ZFS VM's csi job; capability, device and memory limits still commented out), a daily report-only Reconcile timer (`deploy/systemd/zfs-endpoint-reconcile@.timer`, a dry run that never applies; see "Runbook: Reconcile"), Kubernetes manifests in `deploy/k8s/` (the controller runs on the one node an admin labels `node-restriction.kubernetes.io/zfs-endpoint-host=true`, a label a kubelet cannot set on itself; label exactly one node, ADR 0008). The shipped deployment is NFS mode (ADR 0009) and provisions nothing until the operator sets three things: `-nfs-server` (copy `deploy/systemd/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf.example` to `zfs-endpoint-nfs.conf`; the unit appends `$ZFS_ENDPOINT_NFS` to ExecStart), the StorageClass's `nfs.clients` and `nfs.uid`/`nfs.gid`/`nfs.mode` (shipped as placeholders the controller refuses: unset, a volume root is root:root 0755, which no pod can write under root_squash), and the F6 controls (pod egress to 2049 denied, a host firewall; ADR 0001 v2 D8). The node side is csi-driver-nfs's node DaemonSet under this driver's name (`deploy/k8s/node.yaml`, v4.13.6, pinned by digest, no RBAC and no token). Version set at build with `-ldflags -X github.com/wommy/empty/internal/version.Version=...`, printed by `-version` (CI's test job links the tests with `-X` and checks it). The zfs-csi image is built from `Dockerfile` (static, distroless, bases pinned by digest; the nightly `image` job builds it and checks `-version`); none is published and there is no release build yet. Install steps: "Install" |
 | Transport auth | ADR 0001 v2: per-listener roles and peer credentials built; TCP is refused and mTLS is not started (D5). The endpoint socket is mode 0600 in a 0700 directory, and serves the CSI role only (`-socket-group` opens it 0660 to one group, for a non-root controller; ADR 0001 v2 D7): Reconcile and the NFS export RPCs are on `-admin-listen` (root or the daemon's uid, by SO_PEERCRED; never mounted into a pod), and every call's audit line carries the peer's uid, gid and pid (ADR 0001 v2, F2/F7); the CSI socket 0600 in the pod's emptyDir (`internal/unixsock`, `docs/research/edges2/transport-auth.md`) |
 
 ## Design
@@ -98,15 +98,80 @@ These claims were made during the work and then disproved. They're kept here so 
 - **"A clone that already exists is done."** It skipped the ownership check and adopted a racing or foreign dataset.
 - **"A missing parent makes every volume absent."** Only a whole-parent scan saw this. A missing parent is now `UNAVAILABLE` everywhere.
 
+## Install
+
+From a checkout of this repository, on a Debian or Ubuntu ZFS host with OpenZFS 2.4 (`zfsutils-linux`, whose units `zfs-import.target`, `zfs-mount.service` and `zfs.target` the endpoint starts after), for the parent dataset `tank/k8s/vols`. `deploy/readme_test.go` checks that this section names every file in `deploy/systemd`, every path under `/usr/local` or `/etc` they mention, and every unit they order after. Run the host steps as root.
+
+**1. The endpoint, on the ZFS host.**
+
+```
+apt install nfs-kernel-server          # nfs-server.service, which the unit wants
+zfs create -p tank/k8s/vols
+go build -trimpath -ldflags "-X github.com/wommy/empty/internal/version.Version=v0.1.0" -o zfs-endpoint ./cmd/zfs-endpoint
+install -m 0755 zfs-endpoint /usr/local/sbin/zfs-endpoint
+install -m 0644 deploy/systemd/zfs-endpoint@.service deploy/systemd/zfs-endpoint-reconcile@.service deploy/systemd/zfs-endpoint-reconcile@.timer /etc/systemd/system/
+install -D -m 0644 deploy/systemd/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf.example /etc/systemd/system/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf
+install -D -m 0644 deploy/systemd/zfs-endpoint@.service.d/hardening.conf /etc/systemd/system/zfs-endpoint@.service.d/hardening.conf   # optional sandboxing
+```
+
+Edit `/etc/systemd/system/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf`: replace the placeholder with the address nodes mount from, an IPv4 address or an FQDN with a trailing dot (unedited, the endpoint exits 78). Then:
+
+```
+systemctl daemon-reload
+systemctl enable --now nfs-server.service
+systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
+systemctl enable --now "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).timer"   # optional daily report
+zfs-endpoint -version
+```
+
+Firewall 2049 to the node addresses before serving tenants ("Deploying the node side").
+
+**2. The cluster.**
+
+- Label the ZFS host, and only it: `kubectl label node <host> node-restriction.kubernetes.io/zfs-endpoint-host=true` (ADR 0008).
+- Install the snapshot CRDs and snapshot-controller first; `classes.yaml`'s VolumeSnapshotClass is refused without them: `kubectl apply -k 'https://github.com/kubernetes-csi/external-snapshotter/client/config/crd?ref=v8.2.0'` and `kubectl apply -k 'https://github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/snapshot-controller?ref=v8.2.0'`.
+- Build the zfs-csi image and push it where the cluster pulls from: `docker build --build-arg VERSION=v0.1.0 -t <registry>/zfs-csi:v0.1.0 .` then `docker push <registry>/zfs-csi:v0.1.0`. The image is a static binary on distroless, run as uid 0 (ADR 0008).
+- Edit `deploy/k8s/controller.yaml`: the zfs-csi `image:` to what you pushed, `-parent` to the dataset, and `endpoint-dir`'s hostPath and mountPath to its socket directory (`/run/zfs-endpoint/sock/<systemd-escape parent>`).
+- Edit `deploy/k8s/classes.yaml`: replace every placeholder. `nfs.clients` is the node network; `nfs.uid`, `nfs.gid` and `nfs.mode` are the volume root's owner and mode, which pods need to write (the export squashes root, and fsGroup has no effect).
+- `kubectl apply -f deploy/k8s/`. Files apply in name order, `00-namespace.yaml` first.
+
+**3. Check: a pod writes to a volume.** With the class set to `nfs.uid: "1000"`, `nfs.gid: "2000"`, `nfs.mode: "2775"`:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: zfs-check}
+spec:
+  storageClassName: zfs
+  accessModes: [ReadWriteMany]
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: zfs-check}
+spec:
+  securityContext: {runAsUser: 1000, runAsGroup: 2000}
+  containers:
+    - name: write
+      image: busybox:1.37
+      command: [sh, -c, "echo ok > /data/ok && cat /data/ok && sleep 3600"]
+      volumeMounts: [{name: data, mountPath: /data}]
+  volumes:
+    - name: data
+      persistentVolumeClaim: {claimName: zfs-check}
+```
+
+`kubectl logs zfs-check` prints `ok`. A PVC stuck Pending names its cause in `kubectl describe pvc` (an unreplaced placeholder, no `-nfs-server`); `journalctl -u 'zfs-endpoint@*'` has the endpoint's side.
+
 ## Deploying the node side
 
 `deploy/k8s/node.yaml` runs csi-driver-nfs's node plugin on every untainted node (ADR 0009); it mounts what the StorageClass's export allows. Before serving tenants:
 
-- **Name the NFS server by an IPv4 address or an FQDN with a trailing dot** (`-nfs-server=nas.example.com.`, `nfs.conf.example`). The node plugin resolves it with the node's resolver (`dnsPolicy: Default`), never cluster DNS, where a tenant-created Service could answer for a short name. The trailing dot keeps the node's own search list out too. The name is recorded in every PV and never changes (ADR 0004 Q1).
+- **Name the NFS server by an IPv4 address or an FQDN with a trailing dot** (`-nfs-server=nas.example.com.`, `zfs-endpoint-nfs.conf.example`). The node plugin resolves it with the node's resolver (`dnsPolicy: Default`), never cluster DNS, where a tenant-created Service could answer for a short name. The trailing dot keeps the node's own search list out too. The name is recorded in every PV and never changes (ADR 0004 Q1).
 - **Firewall NFS on the ZFS host to the node addresses.** Every host, node and hostNetwork pod inside an export's networks can mount every exported volume as any uid but 0 (AUTH_SYS; ADR 0004 Consequences). Keep `nfs.clients` as narrow as the nodes allow, and accept 2049/tcp on the ZFS host only from the node addresses, for example an nftables set of /32s: `nft add rule inet filter input tcp dport 2049 ip saddr != @k8s_nodes drop`. The class mounts with `nfsvers=4.2`, so 111 and 20048 (NFSv3) can stay closed. Deny pod egress to 2049 as well (ADR 0001 v2 D8).
 - **Tainted nodes get no node plugin.** Add the taint to the commented `tolerations` in `node.yaml` for nodes whose pods use these volumes; the ZFS host stays eligible unless you taint it (ADR 0009).
 
-Images are pinned by tag and by image index digest, the digests kubernetes/k8s.io promotes for these tags (`registry.k8s.io/images/k8s-staging-sig-storage/images.yaml` at the commit in the last column; check one with `crane digest <image>:<tag>`). `deploy/k8s_test.go` `TestImagePins` checks this table against every manifest: each image pinned by digest, one digest per tag. `ghcr.io/wommy/zfs-csi` has no published image yet, so it alone is tag-only (a TODO in `controller.yaml`).
+Images are pinned by tag and by image index digest, the digests kubernetes/k8s.io promotes for these tags (`registry.k8s.io/images/k8s-staging-sig-storage/images.yaml` at the commit in the last column; check one with `crane digest <image>:<tag>`). `deploy/k8s_test.go` `TestImagePins` checks this table against every manifest: each image pinned by digest, one digest per tag. `ghcr.io/wommy/zfs-csi` has no published image yet, so it alone is tag-only (a TODO in `controller.yaml`): build it from `Dockerfile` and set your own ("Install").
 
 | Image | Digest | Used in | images.yaml at |
 |---|---|---|---|
@@ -193,6 +258,7 @@ The research found these, and nothing ships for them yet:
 - **Changed-block tracking** (the CSI SnapshotMetadata service). No ZFS implementation exists anywhere, and the zfs send stream is the only exact source.
 - **ControllerModifyVolume.** No ZFS driver implements it.
 - **Detached snapshots,** which would let volumes be deleted while their snapshots survive.
+- **An end-to-end deploy test.** No job runs "Install" step 3 (a kind cluster, the node plugin's NFS mount of a real CreateVolume, a pod's write); each seam is pinned on its own. A nightly candidate: it does not fit the PR budget (ADR 0005).
 
 ## License
 

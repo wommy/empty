@@ -16,9 +16,15 @@
 #     socket the unit serves (the one convention, internal/unixsock
 #     EndpointAddr), and set endpoint-dir's hostPath and mountPath to that
 #     socket's directory;
-#   - build and push the zfs-csi image (none is published yet) with the
-#     version stamped in:
-#       go build -ldflags "-X github.com/wommy/empty/internal/version.Version=v0.1.0" ./cmd/zfs-csi
+#   - build and push the zfs-csi image (none is published yet) from the
+#     repository root, with the version stamped in (Dockerfile):
+#       docker build --build-arg VERSION=v0.1.0 -t <registry>/zfs-csi:v0.1.0 .
+#       docker push <registry>/zfs-csi:v0.1.0
+#     and set the zfs-csi container's image below to it;
+#   - apply 00-namespace.yaml first (`kubectl apply -f deploy/k8s/` does, by
+#     file order), and install the snapshot CRDs and snapshot-controller
+#     (kubernetes-csi/external-snapshotter) before classes.yaml's
+#     VolumeSnapshotClass (README, "Install").
 #
 # Images are pinned by version tag. Pin each by digest (image@sha256:...)
 # before production: a tag can be re-pushed.

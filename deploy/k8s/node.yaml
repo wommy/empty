@@ -24,7 +24,7 @@
 #     liveness probe talk to kubelet and to each other over the plugin
 #     socket and localhost, and call no Kubernetes API. Even so, advertise
 #     the NFS server as an IPv4 address or an FQDN with a trailing dot
-#     (nfs.conf.example), so no search list ever applies;
+#     (zfs-endpoint-nfs.conf.example), so no search list ever applies;
 #   - no blanket toleration (upstream tolerates every taint with
 #     operator: Exists): this privileged pod runs only on nodes without
 #     taints, never on a tainted control plane by default (ADR 0009).
@@ -50,7 +50,7 @@
 #     narrow as the nodes allow: every host, node and hostNetwork pod inside
 #     an export's networks can mount every exported volume (ADR 0004).
 #
-# The namespace is Pod Security privileged (rbac.yaml): this pod is
+# The namespace is Pod Security privileged (00-namespace.yaml): this pod is
 # privileged, uses the host network and mounts hostPaths.
 apiVersion: v1
 kind: ServiceAccount

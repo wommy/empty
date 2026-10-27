@@ -339,7 +339,12 @@ type Volume struct {
 	// SourceType is "snapshot", "volume" or "".
 	SourceType string
 	SourceID   string
-	// DevicePath for Block (on the storage host), Mountpoint for Filesystem.
+	// DevicePath for Block (on the storage host), Mountpoint for
+	// Filesystem. Mountpoint has symlinks resolved, as nfsd_realpath does:
+	// it is the path nfsd exports, Publish verifies in etab, and an NFSv4
+	// client finds in the pseudo-root, which a parent mounted below a
+	// symlink would otherwise not be (CSI hands it on as share). Unmounted,
+	// it is zfs's mountpoint unchanged.
 	DevicePath string
 	Mountpoint string
 	// NFS, for a filesystem with a recorded NFS server or an export in
@@ -510,7 +515,7 @@ func volumeView(r Row) Volume {
 		v.DevicePath = "/dev/zvol/" + r.Name
 		return v
 	}
-	v.Mountpoint = r.Mount
+	v.Mountpoint = realPath(r.Mount)
 	if cs := clientsOf(r); r.NFSServer != "" || len(cs) > 0 {
 		v.NFS = &NFSExport{Server: r.NFSServer, ReadOnly: len(cs) > 0}
 		for _, c := range cs {

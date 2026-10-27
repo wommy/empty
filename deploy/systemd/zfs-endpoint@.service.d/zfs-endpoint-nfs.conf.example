@@ -1,7 +1,10 @@
 # NFS mode for zfs-endpoint@.service (ADR 0004, ADR 0009). Install as
-# /etc/systemd/system/zfs-endpoint@.service.d/nfs.conf (every instance) or
-# zfs-endpoint@<systemd-escape parent>.service.d/nfs.conf (one), replace
-# the address, then `systemctl daemon-reload` and restart the instance.
+# /etc/systemd/system/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf
+# (every instance) or as
+# zfs-endpoint@<systemd-escape parent>.service.d/zfs-endpoint-nfs.conf
+# (one), replace the address, then `systemctl daemon-reload` and restart
+# the instance. Named for this daemon, not nfs.conf: nfs-utils' own
+# nfs.conf (under /etc) configures nfsd, and this file does not.
 # Unedited, the placeholder is not an address and the endpoint exits 78.
 #
 # - The address is what clients mount from, recorded in every volume and

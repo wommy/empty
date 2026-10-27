@@ -1,4 +1,4 @@
-# Namespace, service account and the cluster permissions the three sidecars
+# The service account and the cluster permissions the three sidecars
 # need: the union of the ClusterRoles in upstream deploy/kubernetes/rbac.yaml
 # for the pinned tags (external-provisioner v5.2.0, external-resizer v1.13.1,
 # external-snapshotter v8.2.0), minus what the flags in controller.yaml turn
@@ -12,19 +12,7 @@
 #   - groupsnapshot.storage.k8s.io: the snapshotter's group snapshot feature
 #     gate is off by default.
 # zfs-csi itself calls no Kubernetes API, and gets no token (controller.yaml).
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: zfs-csi
-  labels:
-    # the controller pod mounts a hostPath (the endpoint's socket
-    # directory), and the node plugin (node.yaml) is privileged, uses the
-    # host network and mounts hostPaths: Pod Security baseline and
-    # restricted refuse both. Say so here rather than inherit a cluster
-    # default that rejects the pods with only a FailedCreate event on the
-    # ReplicaSet or DaemonSet
-    pod-security.kubernetes.io/enforce: privileged
----
+# The namespace is 00-namespace.yaml.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

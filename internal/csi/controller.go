@@ -87,7 +87,8 @@ const (
 	// csi-driver-nfs mounts "<server>:<share>" (ADR 0004). Both are present
 	// iff the volume was created with an NFS export: server is the address
 	// the endpoint recorded then, never recomputed (wave13 Q1), share the
-	// mountpoint.
+	// mountpoint as the endpoint reports it: symlinks resolved, the path
+	// nfsd exports and the endpoint verifies in etab.
 	CtxServer = "server"
 	CtxShare  = "share"
 )
