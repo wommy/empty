@@ -63,3 +63,7 @@
 {"t": "2026-10-27T18:31:13Z", "id": "A-part0-still-heavier", "state": "open", "note": "after normalization forks 54/46 then 59/41; ep0 forks rose 4579->5723 between runs with ~same tests -> fork count is host-speed dependent (polling loops?), so fork-normalization input itself is biased. Next: count forks excluding wait/poll loops, or normalize by test-body CPU"}
 {"t": "2026-10-27T18:31:13Z", "id": "A-nice-probation", "state": "closed", "note": "keep: median login 10.19s over 6 green runs (<=11.15)"}
 {"t":"2026-10-27T18:34:13Z","id":"A-two-root-commits","sev":"low","state":"open","note":"branch history has two parentless commits (2dff442 empty main root, 1d71d65 with code): merge into main will be an unrelated-histories merge or needs --allow-unrelated-histories; verify before merge"}
+{"t": "2026-10-28T09:49:40Z", "id": "A-model-absent-delete-release", "sev": "med", "state": "closed", "note": "nightly explorer seed 15082963: model lacked PlanDeleteVolume clone-source release; fixed 31c4d2a; pre-existing since 9520322; PR-tier TestModel never hit it"}
+{"t": "2026-10-28T09:49:40Z", "id": "A-nightly-ran-on-pr-branch", "sev": "info", "state": "open", "note": "schedule event ran nightly on claude/gallant-johnson-1qaxp5: default branch apparently changed to it"}
+{"t": "2026-10-28T09:49:40Z", "id": "A-fuzz-etab", "sev": "med", "state": "open", "note": "FuzzNFSEtabParse nightly failure, haiku writer assigned"}
+{"t": "2026-10-28T09:49:40Z", "id": "A-fuzz-diff", "sev": "med", "state": "open", "note": "FuzzDiff nightly failure, haiku writer assigned"}

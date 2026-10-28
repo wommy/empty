@@ -118,3 +118,5 @@
 {"id": "aff061cf1dafa51a5", "name": "pr-body", "lane": "reader", "wave": 32, "model": "haiku", "status": "done", "branch": null, "report": "wave32/pr-body.md", "anomaly": false, "queue": "q-pr-body"}
 {"id": "a0ebeb089443dcffe", "name": "ci-check", "lane": "reader", "wave": 32, "model": "haiku", "status": "done", "branch": null, "report": "wave32/ci-check.md", "anomaly": false, "queue": "q-ci-check"}
 {"id": "a8935027b164d11a0", "name": "state-dedup", "lane": "reader", "wave": 32, "model": "haiku", "status": "done", "branch": null, "report": "wave32/state-dedup.md", "anomaly": false, "queue": "q-state-dedup"}
+{"id": "a01e1a1d3529e41fb", "name": "fix-fuzz-etab", "lane": "writer", "wave": 33, "model": "haiku", "status": "running", "branch": "fix-fuzz-etab", "report": null, "anomaly": true, "queue": "q-nightly-1"}
+{"id": "a2577dc1555508783", "name": "fix-fuzz-diff", "lane": "writer", "wave": 33, "model": "haiku", "status": "running", "branch": "fix-fuzz-diff", "report": null, "anomaly": true, "queue": "q-nightly-1"}
