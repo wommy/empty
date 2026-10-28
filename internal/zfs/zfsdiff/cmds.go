@@ -302,17 +302,35 @@ func (m *Model) changelist(d *dset, prop string) []*dset {
 }
 
 // prefix is changelist_prefix (libzfs_changelist.c:96-170): for a
-// mountpoint change every node is unmounted. It returns the nodes with
-// their cn_mounted state.
-func (m *Model) prefix(d *dset, prop string) map[*dset]bool {
+// mountpoint change every mounted node is unmounted, deepest mountpoint
+// first (compare_mountpoints). It returns the nodes with their
+// cn_mounted state. A mounted node with a mounted dataset beneath its
+// mountpoint that is not in the list, and so is not unmounted ahead of
+// it, fails zfs_unmount with EBUSY: prefix returns that node's dir and
+// only the nodes already unmounted, which the caller postfixes.
+func (m *Model) prefix(d *dset, prop string) (map[*dset]bool, string) {
+	nodes := m.changelist(d, prop)
+	if prop == "mountpoint" {
+		slices.SortStableFunc(nodes, func(a, b *dset) int {
+			return strings.Compare(m.effective(b, "mountpoint"), m.effective(a, "mountpoint"))
+		})
+	}
 	was := map[*dset]bool{}
-	for _, n := range m.changelist(d, prop) {
+	for _, n := range nodes {
+		if prop == "mountpoint" && n.mounted {
+			dir := m.effective(n, "mountpoint")
+			for _, o := range m.ds {
+				if o != n && o.mounted && strings.HasPrefix(m.effective(o, "mountpoint"), dir+"/") {
+					return was, dir // zfs_unmount fails EBUSY in changelist_prefix
+				}
+			}
+		}
 		was[n] = n.mounted
 		if prop == "mountpoint" {
 			n.mounted = false
 		}
 	}
-	return was
+	return was, ""
 }
 
 // postfix is changelist_postfix (libzfs_changelist.c:180-300): a node
@@ -987,9 +1005,11 @@ func (m *Model) setOne(d *dset, props []kv, nomount bool) string {
 	var cls []cl
 	if !nomount && d.kind == kFS {
 		for _, p := range list {
+			var c cl
+			unmount := "" // the prefix's property: canmount gathers as mountpoint
 			switch {
 			case p.k == "mountpoint" || p.k == "sharenfs" || p.k == "sharesmb":
-				cls = append(cls, cl{p.k, m.prefix(d, p.k)})
+				c, unmount = cl{p.k, nil}, p.k
 			case p.k == "canmount" && p.v == "off" && d.mounted:
 				// gathered as a mountpoint changelist whose realprop is
 				// canmount (libzfs_changelist.c:710-711; dataset.c:1836-
@@ -999,8 +1019,23 @@ func (m *Model) setOne(d *dset, props []kv, nomount bool) string {
 				// failed set leaves them unmounted. The postfix is keyed
 				// on canmount, so the mountpoint remount rule stays off
 				// (changelist.c:260-261).
-				cls = append(cls, cl{"canmount", m.prefix(d, "mountpoint")})
+				c, unmount = cl{"canmount", nil}, "mountpoint"
+			default:
+				continue
 			}
+			// the prefix runs before the set (lib/libzfs/libzfs_dataset.c
+			// zfs_prop_set_list_flags: changelist_prefix ~:1856, the
+			// property ioctl ~:1871, tag zfs-2.4.0). A busy prefix ends
+			// the set with nothing applied, so a refreservation in the
+			// same list never reports nospace, and the earlier
+			// changelists are not postfixed (the caller returns at once).
+			was, dir := m.prefix(d, unmount)
+			if dir != "" {
+				m.postfix(c.prop, was)
+				return fmt.Sprintf("cannot unmount '%s': pool or dataset is busy", dir)
+			}
+			c.was = was
+			cls = append(cls, c)
 		}
 	}
 	oldVolsize := d.volsize
@@ -1081,7 +1116,9 @@ func (m *Model) inherit(args []string) *exitErr {
 				errs = append(errs, fmt.Sprintf("cannot inherit %s for '%s': property doesn't apply to datasets of this type", prop, t.name))
 				continue
 			}
-			m.inheritOne(t, prop, recvd)
+			if msg := m.inheritOne(t, prop, recvd); msg != "" {
+				return fail("%s", msg) // the inherit stops at the busy target
+			}
 		}
 	}
 	if len(errs) > 0 {
@@ -1095,11 +1132,16 @@ func (m *Model) inherit(args []string) *exitErr {
 // plain inherit removes the local value and, on a dataset with received
 // properties, writes an explicit-inherit marker that hides the received
 // value; -S removes both and so reverts to the received value.
-func (m *Model) inheritOne(d *dset, prop string, recvd bool) {
+func (m *Model) inheritOne(d *dset, prop string, recvd bool) string {
 	var was map[*dset]bool
 	cl := d.kind == kFS && (prop == "mountpoint" || prop == "sharenfs" || prop == "sharesmb")
 	if cl {
-		was = m.prefix(d, prop)
+		var dir string
+		was, dir = m.prefix(d, prop)
+		if dir != "" { // the busy prefix ends the inherit before any local value is removed
+			m.postfix(prop, was)
+			return fmt.Sprintf("cannot unmount '%s': pool or dataset is busy", dir)
+		}
 	}
 	delete(d.local, prop)
 	if recvd {
@@ -1110,6 +1152,7 @@ func (m *Model) inheritOne(d *dset, prop string, recvd bool) {
 	if cl {
 		m.postfix(prop, was)
 	}
+	return ""
 }
 
 // hasRecvd is dsl_prop_get_int_ds(ds, "$hasrecvd") (module/zfs/
