@@ -9,6 +9,7 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/netip"
 	"regexp"
 	"slices"
@@ -460,7 +461,45 @@ func FuzzNFSVerifier(f *testing.F) {
 	})
 }
 
-var etabLineRE = regexp.MustCompile(`^[^\s]+\t[^\s(]*\([^\s()]*\)\n?$`)
+// etabLineRE is one etab line as putexportent writes it (nfsref fprintpath):
+// a path in which every byte below 0x20, DEL, space, '"', '\\' and '#' is
+// \ooo, a tab, a host, and one option list. The mountd side ends a token at
+// any C space (\v too) and drops '"' (xgettok), so neither may appear raw.
+var etabLineRE = regexp.MustCompile(`^(?:[^\x00-\x20\x7f"\\#]|\\[0-3][0-7]{2})+\t[^\x00-\x20\x7f"(]*\([^\x00-\x20\x7f"()]*\)\n?$`)
+
+// etabAsWritten reports whether every line of etab is one putexportent
+// could write.
+func etabAsWritten(etab string) bool {
+	for _, l := range strings.SplitAfter(etab, "\n") {
+		if l != "" && !etabLineRE.MatchString(l) {
+			return false
+		}
+	}
+	return true
+}
+
+// TestEtabAsWrittenRefusesRawPathBytes pins the fuzz precondition: raw
+// bytes that the writer escapes are not etab it could write, and their
+// escaped spelling is, and ParseEtab reads the escaped line as its path.
+func TestEtabAsWrittenRefusesRawPathBytes(t *testing.T) {
+	for _, tc := range []struct {
+		etab string
+		ok   bool
+	}{
+		{diffPath + "\t10.0.0.0/24(ro)\n", true},
+		{diffPath + `\011` + "\t10.0.0.0/24(ro)\n", true},
+		{"/tank/v/a\v\t()", false},
+		{"/tank/\"\"v/a\t()", false},
+	} {
+		if got := etabAsWritten(tc.etab); got != tc.ok {
+			t.Errorf("etabAsWritten(%q) = %v, want %v", tc.etab, got, tc.ok)
+		}
+	}
+	e := ParseEtab([]byte(diffPath + `\011` + "\t10.0.0.0/24(ro)\n"))
+	if len(e[diffPath+"\t"]) != 1 {
+		t.Errorf("escaped tab in path: ParseEtab keys %v, want %q", slices.Collect(maps.Keys(e)), diffPath+"\t")
+	}
+}
 
 // FuzzNFSEtabParse feeds raw etab text to ParseEtab and the mountd model.
 func FuzzNFSEtabParse(f *testing.F) {
@@ -469,12 +508,9 @@ func FuzzNFSEtabParse(f *testing.F) {
 	f.Add(diffPath+"\t10.0.0.0/16(rw)\n"+diffPath+"\t10.0.0.0/24(ro)\n", []byte{1, 0, 0, 0, 4, 1})
 	f.Add(diffPath+"\t10.0.0.0/24(ro,sec=sys,rw)\n", []byte{1, 0, 0, 0, 4, 1})
 	f.Fuzz(func(t *testing.T, etab string, data []byte) {
-		// etab as putexportent writes it: path (escaped), tab, a host
-		// without whitespace or '(', and one option list
-		for _, l := range strings.SplitAfter(etab, "\n") {
-			if l != "" && !etabLineRE.MatchString(l) {
-				return
-			}
+		// etab as putexportent writes it (etabAsWritten)
+		if !etabAsWritten(etab) {
+			return
 		}
 		g := &gen{b: data}
 		cs := g.clients()
