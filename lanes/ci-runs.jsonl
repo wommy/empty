@@ -46,3 +46,5 @@
 {"run":40559709255,"sha":"934d7f5","result":"green","note":"ep0 10.6s/5723 forks slow runner, ep1 5.1s/3904"}
 {"run":40560710022,"sha":"98ac836","result":"green","s":46}
 {"run":40667865161,"sha":"ae23b5d","result":"green","s":39}
+{"run":40669156920,"sha":"4b00973","conclusion":"success","secs":40}
+{"run":40669419412,"sha":"8abaf7a","conclusion":"success","secs":76,"work_secs":42,"note":"endpoint 0/2 last step 10:06:48, job completed 10:07:21: 33s runner teardown"}
