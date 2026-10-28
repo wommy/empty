@@ -393,6 +393,7 @@ func (m *Model) DeleteVolume(id string) mResult {
 		return mResult{} // ID-01: never issued, so CSI says OK
 	}
 	if _, ok := m.DS[id]; !ok {
+		m.releaseCloneSourcesFor(id)
 		return mResult{} // DEL-01
 	}
 	if !m.ownedVol(id) {
@@ -401,8 +402,27 @@ func (m *Model) DeleteVolume(id string) mResult {
 	if c := m.refuses(id, false); c != endpoint.OK {
 		return mResult{Code: c}
 	}
+	m.releaseCloneSourcesFor(id)
 	_, code := m.deleteOps(id, -1, nil)
 	return mResult{Code: code}
+}
+
+// releaseCloneSourcesFor is the first part of every judged delete of id,
+// present or absent (PlanDeleteVolume): destroy -d of each unused
+// clone-source snapshot stamped for id on a volume the endpoint owns. A
+// create that died after the cut, or whose clone was refused, leaves one.
+func (m *Model) releaseCloneSourcesFor(id string) {
+	var rel []string
+	for k, sn := range m.Snaps {
+		src, _, _ := strings.Cut(k, "@")
+		if c, ours := m.ownedCloneSource(k); ours && c == id && m.ownedVol(src) && !sn.Deferred && !m.hasClones(k) {
+			rel = append(rel, k)
+		}
+	}
+	sort.Strings(rel)
+	for _, k := range rel {
+		m.destroyDeferred(k)
+	}
 }
 
 // DeleteVolumeRaced is DeleteVolume with an out-of-band action landing just
