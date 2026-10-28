@@ -520,7 +520,11 @@ func (g *rig) destroyReal() {
 	}
 	o := zfs.DestroyOptions{Recursive: true}
 	err := g.admin.Destroy(ctx, g.parent, o)
-	if errors.Is(err, zfs.ErrBusy) && endpoint.UdevSettle(ctx) == nil {
+	// busy may be on any line of a recursive destroy's output
+	for i := 0; i < 3 && err != nil && (errors.Is(err, zfs.ErrBusy) || strings.Contains(err.Error(), "dataset is busy")); i++ {
+		if endpoint.UdevSettle(ctx) != nil {
+			break
+		}
 		err = g.admin.Destroy(ctx, g.parent, o)
 	}
 	if err != nil {

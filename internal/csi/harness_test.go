@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,7 +116,11 @@ func newEndpoint(t *testing.T, nfs bool) (*endpoint.Endpoint, string) {
 		t.Cleanup(func() {
 			o := zfs.DestroyOptions{Recursive: true}
 			err := z.Destroy(ctx, parent, o)
-			if errors.Is(err, zfs.ErrBusy) && settle(ctx) == nil {
+			// busy may be on any line of a recursive destroy's output
+			for i := 0; i < 3 && err != nil && (errors.Is(err, zfs.ErrBusy) || strings.Contains(err.Error(), "dataset is busy")); i++ {
+				if settle(ctx) != nil {
+					break
+				}
 				err = z.Destroy(ctx, parent, o)
 			}
 			if err != nil {
