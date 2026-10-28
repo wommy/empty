@@ -45,3 +45,4 @@
 {"run":40558567587,"sha":"439d48b","result":"green","s":39,"note":"first run on normalized weights"}
 {"run":40559709255,"sha":"934d7f5","result":"green","note":"ep0 10.6s/5723 forks slow runner, ep1 5.1s/3904"}
 {"run":40560710022,"sha":"98ac836","result":"green","s":46}
+{"run":40667865161,"sha":"ae23b5d","result":"green","s":39}
