@@ -72,3 +72,5 @@
 {"t": "2026-10-28T10:04:02Z", "id": "A-diff-canmount-busy", "sev": "low", "state": "open", "note": "model lacks busy in canmount=off prefix (MNT-01); haiku writer assigned"}
 {"t":"2026-10-28T10:06:00Z","id":"A-fuzz-etab","state":"closed","note":"fuzz precondition admitted raw \\v and quote that nfs-utils fprintpath always escapes; fixed e9e3748"}
 {"id":"A-runner-teardown-tail","weight":"low","status":"watch","data":"run 40669419412: steps done at 42s, job closed at 75s; runner-side, not workflow; act only if it recurs >1 in 5"}
+{"id":"A-diff-canmount-busy","status":"closed","data":"b53c34c: model prefix fails busy for mountpoint set/inherit and canmount=off; corpus + rule test; generator cannot build pinned child (fuzz not evidence)"}
+{"id":"A-fuzzgen-no-pinned-child","weight":"low","status":"open","data":"gen.go emits mountpoint=none|legacy only, so FuzzDiff never explores busy-unmount paths; queued, paused"}

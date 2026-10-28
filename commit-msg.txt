@@ -1,0 +1,23 @@
+zfsdiff: a busy changelist prefix fails the set, as libzfs does
+
+The model unmounted every node of a mountpoint or canmount=off
+changelist and never failed busy. The simulator fails when a mounted
+node has a mounted dataset beneath its mountpoint outside the list:
+zfs_unmount returns EBUSY in changelist_prefix, before the property
+ioctl runs (lib/libzfs/libzfs_dataset.c zfs_prop_set_list_flags, the
+prefix near :1856 and the set near :1871 at tag zfs-2.4.0).
+
+m.prefix now returns the busy dir, unmounting deepest mountpoint first
+as the changelist does. setOne and inheritOne return the busy message
+before any property is applied, so a refreservation in the same set
+does not report nospace. The inherit loop stops at the busy target.
+Earlier changelists in the same set are not postfixed, as the
+simulator's set returns at once.
+
+Covered by TestModelRules (canmount=off with a pinned child), and by
+two corpus scripts that use distinct /zzbusy-* paths so the shared
+simulator in TestReplayHarnessOnSim does not collide: one for canmount=
+off with refreservation, one for a mountpoint set and an inherit.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
