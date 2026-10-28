@@ -991,9 +991,15 @@ func (m *Model) setOne(d *dset, props []kv, nomount bool) string {
 			case p.k == "mountpoint" || p.k == "sharenfs" || p.k == "sharesmb":
 				cls = append(cls, cl{p.k, m.prefix(d, p.k)})
 			case p.k == "canmount" && p.v == "off" && d.mounted:
-				// gathered as mountpoint (libzfs_changelist.c:719-720):
-				// the unmount and remount leave only d unmounted
-				d.mounted = false
+				// gathered as a mountpoint changelist whose realprop is
+				// canmount (libzfs_changelist.c:710-711; dataset.c:1836-
+				// 1844): children with an inherited mountpoint unmount in
+				// the prefix too (change_one :538-550), and the postfix
+				// runs only if the set succeeds (dataset.c:1908), so a
+				// failed set leaves them unmounted. The postfix is keyed
+				// on canmount, so the mountpoint remount rule stays off
+				// (changelist.c:260-261).
+				cls = append(cls, cl{"canmount", m.prefix(d, "mountpoint")})
 			}
 		}
 	}
