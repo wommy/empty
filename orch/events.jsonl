@@ -509,3 +509,6 @@
 {"ts": "2026-10-28T10:04:02Z", "id": "a2577dc1555508783", "from": "running", "to": "reported", "note": ""}
 {"ts": "2026-10-28T10:04:02Z", "id": "a2577dc1555508783", "from": "reported", "to": "triaged", "note": ""}
 {"ts": "2026-10-28T10:04:02Z", "id": "a2577dc1555508783", "from": "triaged", "to": "merged", "note": ""}
+{"ts": "2026-10-28T10:05:59Z", "id": "a01e1a1d3529e41fb", "from": "running", "to": "reported", "note": ""}
+{"ts": "2026-10-28T10:05:59Z", "id": "a01e1a1d3529e41fb", "from": "reported", "to": "triaged", "note": ""}
+{"ts": "2026-10-28T10:05:59Z", "id": "a01e1a1d3529e41fb", "from": "triaged", "to": "merged", "note": ""}

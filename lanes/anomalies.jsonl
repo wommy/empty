@@ -70,3 +70,4 @@
 {"t":"2026-10-28T09:54:05Z","id":"A-cleanup-busy-misclassified","sev":"low","state":"fixed-pending-ci","note":"destroy -r multi-line output classified as dependent-clones while a line was busy; test cleanups now retry on any busy line"}
 {"t": "2026-10-28T10:04:02Z", "id": "A-fuzz-diff", "state": "closed", "note": "fixed 61cc8f4"}
 {"t": "2026-10-28T10:04:02Z", "id": "A-diff-canmount-busy", "sev": "low", "state": "open", "note": "model lacks busy in canmount=off prefix (MNT-01); haiku writer assigned"}
+{"t":"2026-10-28T10:06:00Z","id":"A-fuzz-etab","state":"closed","note":"fuzz precondition admitted raw \\v and quote that nfs-utils fprintpath always escapes; fixed e9e3748"}
