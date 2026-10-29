@@ -121,3 +121,4 @@
 {"id": "a01e1a1d3529e41fb", "name": "fix-fuzz-etab", "lane": "writer", "wave": 33, "model": "haiku", "status": "merged", "branch": "fix-fuzz-etab", "report": null, "anomaly": true, "queue": "q-nightly-1"}
 {"id": "a2577dc1555508783", "name": "fix-fuzz-diff", "lane": "writer", "wave": 33, "model": "haiku", "status": "merged", "branch": "fix-fuzz-diff", "report": null, "anomaly": true, "queue": "q-nightly-1"}
 {"id": "a56e3d9fc3b03d1eb", "name": "fix-diff-busy", "lane": "writer", "wave": 33, "model": "haiku", "status": "running", "branch": "fix-diff-busy", "report": null, "anomaly": true, "queue": "q-nightly-1"}
+{"id":"acf06f81a4d9f65b1","name":"fix-crash-busy-count","lane":"writer","wave":33,"status":"running","branch":"worktree","report":"","anomaly":"A-crash-sweep-busy-count","queue":"pr-failure"}
