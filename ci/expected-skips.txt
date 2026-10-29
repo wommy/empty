@@ -50,3 +50,4 @@ vm    endpoint TestOwnershipDifferentialModel      # Sim: model traces, sim-only
 vm    endpoint TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block # Sim: zvol swap before commit (the filesystem subtest runs)
 vm    endpoint TestMissingParentFailsCreateAndDeleteUnavailable # Sim: missing pool
 vm    endpoint TestRPCCallBudget                       # Sim: call accounting
+vm    endpoint TestCrashSecondPointAllowsBusyRetry     # Sim: busy injection

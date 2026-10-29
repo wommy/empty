@@ -13,6 +13,7 @@ import (
 
 	"github.com/wommy/empty/internal/endpoint"
 	"github.com/wommy/empty/internal/zfs"
+	"github.com/wommy/empty/internal/zfs/zfstest"
 )
 
 // Crash injection, as a table: for every scenario and every mutating zfs
@@ -53,6 +54,28 @@ type faultRunner struct {
 	crashed bool
 	twice   bool // crashed at again too
 	gone    bool // died: every call fails
+	busy    bool // sim: Settle is a no-op, so a busy destroy's retry runs (crashRun.busy)
+	settles int  // Settle calls that returned nil: busy destroys the endpoint retried (apply.go destroy)
+}
+
+// counted wraps the endpoint's Settle to count the calls that let a busy
+// destroy retry (a nil return; apply.go).
+func (f *faultRunner) counted(settle func(context.Context) error) func(context.Context) error {
+	return func(ctx context.Context) error {
+		err := settle(ctx)
+		if err == nil {
+			f.mu.Lock()
+			f.settles++
+			f.mu.Unlock()
+		}
+		return err
+	}
+}
+
+func (f *faultRunner) settled() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.settles
 }
 
 func mutating(args []string) bool { return len(args) > 0 && args[0] != "get" && args[0] != "list" }
@@ -316,6 +339,10 @@ func crashEndpoint(t *testing.T, h *harness, r zfs.Runner, late bool) *endpoint.
 	cfg.Root = endpoint.RootSetter(endpoint.LocalRoot{})
 	if h.sim != nil {
 		cfg.Etab, cfg.Root = h.sim, h.sim
+		if f, ok := r.(*faultRunner); ok && f.busy {
+			// a busy destroy retries only after a settle (apply.go)
+			cfg.Settle = func(context.Context) error { return nil }
+		}
 	} else {
 		// as cmd/zfs-endpoint: a rollback destroys a zvol udev may
 		// still be probing
@@ -323,6 +350,9 @@ func crashEndpoint(t *testing.T, h *harness, r zfs.Runner, late bool) *endpoint.
 	}
 	if f, ok := r.(*faultRunner); ok {
 		cfg.Root = faultRoot{cfg.Root, f}
+		if cfg.Settle != nil {
+			cfg.Settle = f.counted(cfg.Settle)
+		}
 	}
 	if late {
 		cfg.Now = func() time.Time { return time.Now().Add(48 * time.Hour) }
@@ -344,13 +374,15 @@ type crashRun struct {
 	survives bool
 	again    int
 	dies     bool
+	busy     bool // sim: the faulted run's first destroy fails busy once
 }
 
 // runCrash sets the scenario up, runs its op with r's crashes, restarts
-// and retries, checks the retry is a no-op, and returns the end state and
-// how many mutating calls the faulted run made. reached is false when the
-// run never got to r.again: nothing is checked then.
-func runCrash(t *testing.T, c crashCase, r crashRun) (state string, n int, reached bool) {
+// and retries, checks the retry is a no-op, and returns the end state, how
+// many mutating calls the faulted run made, and how many of those busy
+// destroys it retried (settles: see faultRunner.counted). reached is false
+// when the run never got to r.again: nothing is checked then.
+func runCrash(t *testing.T, c crashCase, r crashRun) (state string, n, settles int, reached bool) {
 	t.Helper()
 	ctx := context.Background()
 	ep0, h := setupNFS(t, "192.0.2.10") // as crashEndpoint
@@ -363,15 +395,33 @@ func runCrash(t *testing.T, c crashCase, r crashRun) (state string, n int, reach
 		}
 	}
 	twice := r.at >= 0 && r.again > r.at
-	fr := &faultRunner{Runner: h.Z.Runner, crashAt: r.at, after: r.after, dead: !r.survives || twice && r.dies, again: r.again}
+	fr := &faultRunner{Runner: h.Z.Runner, crashAt: r.at, after: r.after, dead: !r.survives || twice && r.dies, again: r.again, busy: r.busy}
+	var sim *zfstest.Sim
+	if r.busy {
+		if h.sim == nil {
+			t.Fatal("busy injection needs the simulator")
+		}
+		sim = h.sim
+		hit := false
+		sim.Fail = func(a []string) error {
+			if a[0] == "destroy" && !hit {
+				hit = true
+				return &zfs.ExitError{Code: 1, Stderr: "cannot destroy: dataset is busy\n"}
+			}
+			return nil
+		}
+	}
 	err := c.op(ctx, crashEndpoint(t, h, fr, c.late))
+	if sim != nil {
+		sim.Fail = nil
+	}
 	switch {
 	case r.at < 0 && err != nil:
 		t.Fatalf("uninterrupted run: %v", err)
 	case r.at >= 0 && !fr.crashed:
 		t.Fatalf("op made only %d mutating calls, never reached call %d", fr.count(), r.at)
 	case twice && !fr.twice:
-		return "", fr.count(), false
+		return "", fr.count(), fr.settled(), false
 	}
 	// restart and retry, as the CO would
 	if r.at >= 0 {
@@ -389,7 +439,7 @@ func runCrash(t *testing.T, c crashCase, r crashRun) (state string, n int, reach
 	if err := c.op(ctx, crashEndpoint(t, h, idle, c.late)); err != nil || idle.count() != 0 {
 		t.Fatalf("a repeat after success: %v, %d mutating calls, want none", err, idle.count())
 	}
-	return fingerprint(t, h), fr.count(), true
+	return fingerprint(t, h), fr.count(), fr.settled(), true
 }
 
 // crashSample: on a real pool the PR leg runs one crash point per case,
@@ -432,7 +482,7 @@ func TestCrashAtEveryMutationConverges(t *testing.T) {
 			t.Parallel() // each run has its own parent dataset (sim: its own Sim)
 			var want string
 			var n int
-			t.Run("uninterrupted", func(t *testing.T) { want, n, _ = runCrash(t, c, crashRun{at: -1}) })
+			t.Run("uninterrupted", func(t *testing.T) { want, n, _, _ = runCrash(t, c, crashRun{at: -1}) })
 			if want == "" && n == 0 {
 				t.Skip("uninterrupted run did not complete")
 			}
@@ -452,7 +502,7 @@ func TestCrashAtEveryMutationConverges(t *testing.T) {
 						}
 						t.Run(label, func(t *testing.T) {
 							t.Parallel()
-							got, m, _ := runCrash(t, c, crashRun{at: k, after: after, survives: survives})
+							got, m, s, _ := runCrash(t, c, crashRun{at: k, after: after, survives: survives})
 							if why, known := c.xfail[label]; known {
 								if got == want {
 									t.Fatalf("known divergence (%s) now converges: remove it from xfail", why)
@@ -468,26 +518,65 @@ func TestCrashAtEveryMutationConverges(t *testing.T) {
 							if !survives || !fullSweep() {
 								return
 							}
-							// the survivor's later mutations (a rollback's) crash too
-							for j := k + 1; j < m; j++ {
-								for _, dies := range []bool{true, false} {
-									r := crashRun{at: k, after: after, survives: true, again: j, dies: dies}
-									got, _, reached := runCrash(t, c, r)
-									if !reached {
-										t.Fatalf("crash at %d then %d: the second point was not reached", k, j)
-									}
-									if got != want {
-										t.Errorf("end state after a crash at %d (%s), then at %d (dies %v), differs from the uninterrupted run:\n--- uninterrupted\n%s\n--- crashed\n%s",
-											k, label, j, dies, want, got)
-									}
-								}
-							}
+							checkSecondPoints(t, c, want, k, after, m, s)
 						})
 					}
 				}
 			}
 		})
 	}
+}
+
+// checkSecondPoints crashes a survivor (of a crash at k, after or not) again
+// at each later mutation j of its run, up to its m mutations, and checks
+// each end state is want. m and s are the faulted run's mutations and busy
+// retries (runCrash). A busy retry (apply.go destroy) is one call the
+// faulted run makes and a run without it does not, so the last points of
+// that run may not be reached when the second run has fewer retries: that
+// shortfall, and nothing else, is accepted.
+func checkSecondPoints(t *testing.T, c crashCase, want string, k int, after bool, m, s int) {
+	t.Helper()
+	for j := k + 1; j < m; j++ {
+		for _, dies := range []bool{true, false} {
+			r := crashRun{at: k, after: after, survives: true, again: j, dies: dies}
+			got, n2, s2, reached := runCrash(t, c, r)
+			if !reached && !(s > s2 && m-n2 <= s-s2) {
+				t.Fatalf("crash at %d then %d: the second point was not reached", k, j)
+			}
+			if !reached {
+				continue
+			}
+			if got != want {
+				t.Errorf("end state after a crash at %d (after %v), then at %d (dies %v), differs from the uninterrupted run:\n--- uninterrupted\n%s\n--- crashed\n%s",
+					k, after, j, dies, want, got)
+			}
+		}
+	}
+}
+
+// TestCrashSecondPointAllowsBusyRetry is the sweep's create-zvol-sparse
+// k1-before-survives case on the simulator, with the rollback's destroy busy
+// once (nightly run 40853558021): that run makes one more call than a clean
+// run, and its second crash points must still converge.
+func TestCrashSecondPointAllowsBusyRetry(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
+	var c crashCase
+	for _, x := range crashCases {
+		if x.name == "create-zvol-sparse" {
+			c = x
+		}
+	}
+	want, _, _, _ := runCrash(t, c, crashRun{at: -1})
+	_, clean, _, _ := runCrash(t, c, crashRun{at: 1, survives: true})
+	got, m, s, _ := runCrash(t, c, crashRun{at: 1, survives: true, busy: true})
+	if s != 1 || m != clean+1 {
+		t.Fatalf("busy first run: %d busy retries and %d calls, want 1 and %d", s, m, clean+1)
+	}
+	if got != want {
+		t.Errorf("end state after a busy rollback then a crash differs from the uninterrupted run:\n--- uninterrupted\n%s\n--- crashed\n%s", want, got)
+	}
+	checkSecondPoints(t, c, want, 1, false, m, s)
 }
 
 // OWN-15: between a plan and its destroy, the target is renamed away and
