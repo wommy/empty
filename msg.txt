@@ -1,0 +1,10 @@
+test: the crash sweep's second crash points allow a busy retry's extra call
+
+A busy destroy settles and retries once, so the faulted run makes one more
+call than a clean run. The sweep's second points past the clean count went
+unreached and Fatal'd (nightly run 40853558021, "crash at 1 then 3").
+Now a point may be unreached only when the Settle-counted busy retries
+explain the shortfall; every other unreached point still fails.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
