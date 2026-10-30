@@ -463,15 +463,122 @@ func FuzzNFSVerifier(f *testing.F) {
 
 // etabLineRE is one etab line as putexportent writes it (nfsref fprintpath):
 // a path in which every byte below 0x20, DEL, space, '"', '\\' and '#' is
-// \ooo, a tab, a host, and one option list. The mountd side ends a token at
-// any C space (\v too) and drops '"' (xgettok), so neither may appear raw.
-var etabLineRE = regexp.MustCompile(`^(?:[^\x00-\x20\x7f"\\#]|\\[0-3][0-7]{2})+\t[^\x00-\x20\x7f"(]*\([^\x00-\x20\x7f"()]*\)\n?$`)
+// \ooo, a tab, a host, and one option list (optionsAsWritten). The mountd
+// side ends a token at any C space (\v too) and drops '"' (xgettok), so
+// neither may appear raw.
+var etabLineRE = regexp.MustCompile(`^(?:[^\x00-\x20\x7f"\\#]|\\[0-3][0-7]{2})+\t[^\x00-\x20\x7f"(]*\(([^\x00-\x20\x7f"()]*)\)\n?$`)
 
 // etabAsWritten reports whether every line of etab is one putexportent
 // could write.
 func etabAsWritten(etab string) bool {
 	for _, l := range strings.SplitAfter(etab, "\n") {
-		if l != "" && !etabLineRE.MatchString(l) {
+		if l == "" {
+			continue
+		}
+		m := etabLineRE.FindStringSubmatch(l)
+		if m == nil || !optionsAsWritten(m[1]) {
+			return false
+		}
+	}
+	return true
+}
+
+// Option names putexportent prints as bare flags (exports.c:277-383).
+var writerFlags = map[string]bool{
+	"ro": true, "rw": true, "async": true, "sync": true, "wdelay": true,
+	"no_wdelay": true, "nohide": true, "hide": true, "crossmnt": true,
+	"nocrossmnt": true, "insecure": true, "secure": true, "root_squash": true,
+	"no_root_squash": true, "all_squash": true, "no_all_squash": true,
+	"no_subtree_check": true, "subtree_check": true, "insecure_locks": true,
+	"secure_locks": true, "no_acl": true, "acl": true, "nordirplus": true,
+	"security_label": true, "sign_fh": true, "pnfs": true, "no_pnfs": true,
+}
+
+var (
+	// nfsref.PutExportent's writeIDs prints "1,2-3," and nothing for an empty
+	// list, so an empty squash_ option runs straight into anonuid= or
+	// anongid= (its "sic" line, per nfsref's citation exports.c:373).
+	squashGlueRE = regexp.MustCompile(`(squash_(?:uids|gids)=)(anon(?:uid|gid)=)`)
+	decimalRE    = regexp.MustCompile(`^-?[0-9]+$`)
+	idListItemRE = regexp.MustCompile(`^-?[0-9]+(?:-[0-9]+)?$`)
+)
+
+// optionsAsWritten reports whether one option list is one putexportent
+// prints: comma-separated bare flags and the valued options it prints, in
+// the forms it prints them. The empty list is accepted as before.
+func optionsAsWritten(opts string) bool {
+	if opts == "" {
+		return true
+	}
+	opts = squashGlueRE.ReplaceAllString(opts, "$1,$2")
+	inIDs, sawReexport := false, false
+	for _, opt := range strings.Split(opts, ",") {
+		if inIDs && idListItemRE.MatchString(opt) {
+			continue
+		}
+		inIDs = false
+		name, val, eq := strings.Cut(opt, "=")
+		switch {
+		case writerFlags[name]:
+			if eq {
+				return false
+			}
+		case name == "mountpoint": // bare, or "=" and a non-empty path
+			if eq && val == "" {
+				return false
+			}
+		case name == "fsid": // decimal, or a UUID: validUUID's 32 hex digits
+			// printed before reexport, and the parser refuses it after one
+			if sawReexport || !eq || !(decimalRE.MatchString(val) || hexDigits(val) == 32) {
+				return false
+			}
+		case name == "reexport": // printed once
+			if sawReexport || !eq || (val != "auto-fsidnum" && val != "predefined-fsidnum") {
+				return false
+			}
+			sawReexport = true
+		case name == "refer", name == "replicas":
+			if !eq {
+				return false
+			}
+		case name == "anonuid", name == "anongid":
+			if !eq || !decimalRE.MatchString(val) {
+				return false
+			}
+		case name == "squash_uids", name == "squash_gids":
+			if !eq || (val != "" && !idListItemRE.MatchString(val)) {
+				return false
+			}
+			inIDs = true
+		case name == "sec":
+			if !eq || !allOf(strings.Split(val, ":"), "krb5", "krb5i", "krb5p", "unix", "sys", "null", "none") {
+				return false
+			}
+		case name == "xprtsec":
+			if !eq || !allOf(strings.Split(val, ":"), "none", "tls", "mtls") {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func hexDigits(s string) int {
+	n := 0
+	for _, c := range []byte(s) {
+		if c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F' {
+			n++
+		}
+	}
+	return n
+}
+
+// allOf reports whether every element of xs is one of the names.
+func allOf(xs []string, names ...string) bool {
+	for _, x := range xs {
+		if !slices.Contains(names, x) {
 			return false
 		}
 	}
@@ -490,6 +597,25 @@ func TestEtabAsWrittenRefusesRawPathBytes(t *testing.T) {
 		{diffPath + `\011` + "\t10.0.0.0/24(ro)\n", true},
 		{"/tank/v/a\v\t()", false},
 		{"/tank/\"\"v/a\t()", false},
+		// option names and values putexportent cannot print
+		{"0\t(0)\n", false},
+		{diffPath + "\th(0)\n" + diffPath + "\t10.0.0.0/24(ro)\n", false},
+		{diffPath + "\th(anonuid=x)\n", false},
+		{diffPath + "\th(anonuid)\n", false},
+		{diffPath + "\th(fsid=x)\n", false},
+		{diffPath + "\th(sec=bogus)\n", false},
+		{diffPath + "\th(ro=1)\n", false},
+		{diffPath + "\th(ro,,rw)\n", false},
+		{diffPath + "\th(ro,)\n", false},
+		{diffPath + "\th(squash_uids=1-2,3,)\n", false},
+		// reexport is printed after fsid, and once
+		{diffPath + "\th(reexport=auto-fsidnum,fsid=7)\n", false},
+		{diffPath + "\th(reexport=auto-fsidnum,reexport=auto-fsidnum)\n", false},
+		{diffPath + "\th(fsid=7,reexport=auto-fsidnum)\n", true},
+		{diffPath + "\th(anonuid=0,anongid=0)\n", true},
+		{diffPath + "\t\n", false},
+		{diffPath + "\t()\n", true},
+		{diffPath + "\t10.0.0.0/24(ro,sync,wdelay,hide,nocrossmnt,secure,root_squash,no_all_squash,no_subtree_check,secure_locks,acl,no_pnfs,mountpoint,anonuid=65534,anongid=65534,sec=sys,ro,secure,root_squash,no_all_squash)\n", true},
 	} {
 		if got := etabAsWritten(tc.etab); got != tc.ok {
 			t.Errorf("etabAsWritten(%q) = %v, want %v", tc.etab, got, tc.ok)
@@ -498,6 +624,25 @@ func TestEtabAsWrittenRefusesRawPathBytes(t *testing.T) {
 	e := ParseEtab([]byte(diffPath + `\011` + "\t10.0.0.0/24(ro)\n"))
 	if len(e[diffPath+"\t"]) != 1 {
 		t.Errorf("escaped tab in path: ParseEtab keys %v, want %q", slices.Collect(maps.Keys(e)), diffPath+"\t")
+	}
+}
+
+// TestEtabAsWrittenAcceptsPutExportent checks the precondition against the
+// writer itself: every line nfsref.PutExportent prints is one etabAsWritten
+// admits, including an empty squash_uids list followed by anonuid.
+func TestEtabAsWrittenAcceptsPutExportent(t *testing.T) {
+	mp := ""
+	for _, ep := range []nfsref.Entry{
+		{Path: diffPath, Hostname: "10.0.0.0/24", Flags: nfsref.ExpReadonly},
+		{Path: diffPath, Hostname: "*", Flags: nfsref.ExpReadonly | nfsref.ExpNoHide | nfsref.ExpNoACL | nfsref.ExpPNFS | nfsref.ExpFSID, FsidNum: 7, Mountpt: &mp, Reexport: "auto-fsidnum"},
+		{Path: diffPath, Hostname: "*", UUID: "0123456789abcdef0123456789abcdef", FslocKind: "refer", FslocData: "/a", Squids: []int{1, 3, 5, 5}},
+		{Path: diffPath, Hostname: "*", Sqgids: []int{4}},
+		{Path: diffPath, Hostname: "*", Secinfo: []nfsref.SecEntry{{Flavor: "krb5"}, {Flavor: "sys"}}, Xprtsec: []string{"tls", "mtls"}},
+	} {
+		line := nfsref.PutExportent(ep)
+		if !etabAsWritten(line) {
+			t.Errorf("etabAsWritten refuses PutExportent output %q", line)
+		}
 	}
 }
 
