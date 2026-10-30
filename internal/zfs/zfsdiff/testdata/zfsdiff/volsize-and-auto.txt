@@ -1,0 +1,4 @@
+# volsize and refreservation=auto in one set: auto uses the new size
+# covers: resv-auto
+zfs create -s -V 67108864 $R/v
+zfs set volsize=134217728 refreservation=auto $R/v

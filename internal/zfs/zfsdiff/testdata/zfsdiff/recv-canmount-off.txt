@@ -1,0 +1,5 @@
+# a received canmount=off leaves the target unmounted
+# covers: received
+zfs create -o canmount=off $R/a
+zfs snapshot $R/a@s1
+@sendrecv $R/a@s1 $R/r

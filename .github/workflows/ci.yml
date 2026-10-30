@@ -1,0 +1,351 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# one run per PR: a new push cancels the old run; every push to main gets
+# its own group, so none is cancelled or dropped from the queue
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # go.mod's `go` line is 1.27.0 and its toolchain line 1.27.3: install
+  # 1.27.3 directly and never switch (the setup-go action also sets this)
+  GOTOOLCHAIN: local
+
+defaults:
+  run:
+    shell: bash # -eo pipefail, so `| tee` does not hide a failure
+
+jobs:
+  # ADR 0005: a PR is green or red within 60s. Two jobs run in parallel next
+  # to the real-ZFS VM jobs (one per part of a suite), each sized to a ~45s critical
+  # path:
+  #   static  gofmt, tidy, vet, buf lint, gen drift, fuzz seed corpus, the
+  #           real-ZFS suites cover every real-pool package once
+  #   test    the simulator suite under -race
+  # Go comes from the sha256-pinned tarball in .github/actions/setup-go, and
+  # every job restores a Go build/module cache keyed by go.sum, saved by the
+  # first run that misses it.
+  # Exploratory fuzzing, the model sweep and the FSM explorer run in nightly.yml.
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      # buf is a prebuilt release binary, checksum-pinned, not a go.mod tool:
+      # its dependency tree would take part in this module's version
+      # selection (grpc, protobuf, x/...), and compiling it through `go run`
+      # cost 53s. The protoc plugins are go.mod tools (buf.gen.yaml runs `go
+      # tool ...`), so they always match the protobuf/grpc versions in go.sum.
+      BUF_VERSION: v1.47.2
+      BUF_SHA256: 39716cfe0185df3cba21f66ec739620ffb6876c48b2da4338a8c68c290c9b116 # buf-Linux-x86_64.tar.gz
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: start buf download
+        run: |
+          rm -f "$RUNNER_TEMP/buf.tgz.done"
+          setsid nohup bash -c 'curl -fsSL --retry 3 -o "$1/buf.tgz" "https://github.com/bufbuild/buf/releases/download/$2/buf-Linux-x86_64.tar.gz" && touch "$1/buf.tgz.done"' _ "$RUNNER_TEMP" "$BUF_VERSION" >/dev/null 2>&1 &
+      - id: go
+        uses: ./.github/actions/setup-go
+        with:
+          cache-name: static
+      - name: toolchain matches go.mod
+        run: |
+          want=$(awk '$1 == "toolchain" { print $2 }' go.mod)
+          test "$(go env GOVERSION)" = "$want" || { echo "::error::go is $(go env GOVERSION), go.mod toolchain is $want"; exit 1; }
+      - name: install buf (sha256-pinned)
+        run: |
+          for _ in $(seq 120); do [ -e "$RUNNER_TEMP/buf.tgz.done" ] && break; sleep 0.5; done
+          test -e "$RUNNER_TEMP/buf.tgz.done" || { echo "::error::buf download did not finish"; exit 1; }
+          echo "$BUF_SHA256  $RUNNER_TEMP/buf.tgz" | sha256sum -c -
+          mkdir -p "$HOME/buf"
+          tar -xzf "$RUNNER_TEMP/buf.tgz" -C "$HOME/buf" --strip-components=1
+          echo "$HOME/buf/bin" >> "$GITHUB_PATH"
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: real-ZFS suites cover every real-pool package once
+        # the real-zfs matrix below (each part of a suite once), nightly.yml's
+        # and cache-warm.yml's against ci/real-zfs-suites.txt: with each
+        # job's own check-skips and check-split (the endpoint plan a
+        # partition of its list over both parts, each part exactly its
+        # shards), every listed test runs in exactly one VM job
+        run: ci/check-suites.sh
+      - name: go.mod and go.sum tidy
+        run: go mod tidy -diff
+      - name: vet
+        run: go vet ./...
+      - name: buf lint
+        run: buf lint
+      - name: generated code up to date
+        run: |
+          buf generate
+          test -z "$(gofmt -l gen | tee /dev/stderr)"
+          git diff --exit-code -- gen/
+          test -z "$(git status --porcelain -- gen | tee /dev/stderr)"
+      - name: fuzz seed corpus (every target replays its seeds and testdata/fuzz)
+        # `go test ./...` in the test job replays these too; this step makes
+        # it explicit and fails if a Fuzz function exists that did not pass.
+        run: |
+          want=$(grep -rhoE '^func Fuzz[A-Za-z0-9_]+' --include='*_test.go' . | awk '{ print $2 }' | sort)
+          pkgs=$(grep -rlE '^func Fuzz[A-Za-z0-9_]+' --include='*_test.go' . | xargs -n1 dirname | sort -u)
+          test -n "$want" || { echo "::error::no fuzz targets found"; exit 1; }
+          go test -count=1 -run '^Fuzz' -v $pkgs | tee "$RUNNER_TEMP/seed.log"
+          got=$(grep -oE '^--- PASS: Fuzz[A-Za-z0-9_]+' "$RUNNER_TEMP/seed.log" | awk '{ print $3 }' | sort)
+          test "$want" = "$got" || { echo "::error::fuzz targets that did not pass their seeds:"; diff <(echo "$want") <(echo "$got") || true; exit 1; }
+      - name: save Go caches (none for this go.sum was restored)
+        if: steps.go.outputs.save == 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go.outputs.cache-key }}
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: go
+        uses: ./.github/actions/setup-go
+        with:
+          cache-name: test
+      - name: test (simulator)
+        env:
+          # the race runtime sleeps 1s at exit in every test binary (9 of
+          # them) by default; a race still fails the binary (exit 66).
+          # Measured locally: lock 1.43s -> 0.21s, unixsock 1.11 -> 0.16,
+          # zfs-csi 1.14 -> 0.12 (wave10 atexit.txt)
+          GORACE: atexit_sleep_ms=0
+          # every test binary is linked with -X setting the version, and
+          # both binaries' TestVersionFlag assert -version prints it: -X
+          # ignores a symbol that does not exist, so a renamed variable or
+          # package would ship "dev" silently. Link-time only, so the
+          # compile cache (cache-warm.yml's test build) is unchanged;
+          # measured 0s within noise (3 warm runs each, +-1s), where a go
+          # build of both binaries in the static job cost 1.7-2.0s
+          WANT_VERSION: test-1
+        run: go test -race -count=1 -ldflags "-X github.com/wommy/empty/internal/version.Version=$WANT_VERSION" ./...
+      - name: csi-sanity in NFS mode (simulator)
+        # the production mode (static export at create, ADR 0004) through
+        # the conformance suite, its passed specs compared exactly with
+        # internal/csi/testdata/sanity-passed-nfs.txt (the step above ran
+        # mount mode against sanity-passed-mount.txt). Ginkgo runs once
+        # per process, hence a second go test; the same flags reuse the
+        # step above's compiled packages (measured locally, warm: 1.2-1.6s
+        # of test, 4.3-5.2s with the link). Off the critical path: this job
+        # ends well before the VM jobs. The real-pool NFS run is nightly
+        # only (ADR 0005)
+        if: success() || failure()
+        env:
+          GORACE: atexit_sleep_ms=0
+          WANT_VERSION: test-1
+          CSI_SANITY_NFS: "1"
+        run: go test -race -count=1 -ldflags "-X github.com/wommy/empty/internal/version.Version=$WANT_VERSION" -run '^TestSanity$' -v ./internal/csi
+      - name: save Go caches (none for this go.sum was restored)
+        if: steps.go.outputs.save == 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go.outputs.cache-key }}
+
+
+  real-zfs:
+    # The real-ZFS gate: the endpoint contract tests and csi-sanity
+    # (mount and block) against Ubuntu 26.10 (OpenZFS 2.4.x, the only
+    # supported version, what TrueNAS 27 ships), with nfs-server running so
+    # the file-export tests hit a real nfsd. Booted under KVM: no hosted
+    # runner exists for it, and ZFS lives in the kernel, so a container
+    # would test the host's ZFS instead. The script asserts that `zfs
+    # version` reports 2.4.x for both userland and kmod, and enforces the
+    # skip budget in ci/expected-skips.txt.
+    #
+    #
+    # One job per part of a suite (ci/real-zfs-suites.txt), each on its own
+    # runner with its own VM: endpoint in two parts of three shards each
+    # (ci/real-zfs-plan.sh splits the binary's tests by
+    # ci/real-zfs-weights.txt into two halves of equal test-seconds, then
+    # each half three ways; TestPropertyRoundTrip's rows over all six
+    # shards), and csi (csi tests, csi-sanity on filesystems and on zvols).
+    # The guest is CPU-bound (busy 91% over the endpoint suite's 22s phase
+    # on one runner, run 40513522394), so halving its work halves the
+    # phase; ADR 0005. Each job restores the same guest entry and boots its
+    # own VM; only the csi job saves it. No job waits for another: each
+    # endpoint part recomputes the plan, proves it a partition of the list
+    # over both parts and its own logs exactly its shards (check-split).
+    #
+    # Step order is the critical path: the guest and qemu restore first
+    # (one cache entry), the guest boots in the background, and setup-go
+    # and the test build run while it boots. The caches are kept warm on
+    # the default branch by cache-warm.yml, which PRs read (a PR's own
+    # saves are PR-scoped).
+    name: real ZFS 2.4 (${{ matrix.suite }}${{ matrix.parts != 1 && format(' {0}/{1}', matrix.part, matrix.parts) || '' }}, Ubuntu 26.10 VM)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      # one suite's failure must not cancel the other's measurement
+      fail-fast: false
+      matrix:
+        # every suite of ci/real-zfs-suites.txt, and every part 0..parts-1
+        # of it, exactly once (ci/check-suites.sh); only endpoint splits
+        # (ZFSVM_PART)
+        include:
+          - { suite: endpoint, part: 0, parts: 2 }
+          - { suite: endpoint, part: 1, parts: 2 }
+          - { suite: csi, part: 0, parts: 1 }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: enable kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+      - name: resolve the cloud image and cache keys
+        # fetches and gpg-verifies SHA256SUMS once; the script reuses it
+        id: keys
+        uses: ./.github/actions/real-zfs-keys
+      # one entry, two trees: the provisioned guest, and qemu without apt
+      # (the packages apt would add, unpacked once per runner image version
+      # and trimmed to what the job runs, ~8 MB compressed; 14s of apt-get
+      # becomes ~1s). The entry is ~590 MB (v5; 899 MB with v4, ADR 0005
+      # "cache bytes"). After a runner image release
+      # the fallback key restores the guest with the old qemu tree, which
+      # the next step verifies or rebuilds
+      - name: restore the provisioned guest and qemu
+        id: vm
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
+      - name: set up qemu
+        id: qemutree
+        run: |
+          # verifies a restored tree, or builds one; apt is the fallback
+          if ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then
+            echo "$RUNNER_TEMP/qemu/bin" >>"$GITHUB_PATH"
+            echo "ok=1" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::qemu tree unusable; installing qemu from apt"
+            # empty, so the guest can still be saved; the next run falls
+            # back to apt again, as it did with no qemu entry
+            rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils
+          fi
+          # the cloud image signing key ships in ubuntu-keyring on 24.04
+          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+      - name: install cloud-image-utils (cold guest only)
+        if: steps.vm.outputs.cache-matched-key == ''
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
+      - name: boot the guest (in the background)
+        # returns once qemu runs; the test step waits for the guest. qemu
+        # outlives this step (the runner reaps orphans only at job end)
+        env:
+          ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+          ZFSVM_PHASE: boot
+          ZFSVM_SUMS: ${{ steps.keys.outputs.sums }}
+          ZFSVM_SUITE: ${{ matrix.suite }}
+        run: ci/real-zfs-vm.sh stonking current 2.4
+      - id: go
+        uses: ./.github/actions/setup-go
+        with:
+          # its own namespace per suite: CGO_ENABLED=0 builds of this
+          # suite's test binaries share nothing with the test job's -race
+          # builds (cache-warm.yml warms each)
+          cache-name: real-zfs-${{ matrix.suite }}
+      - name: test ${{ matrix.suite }} (Ubuntu 26.10, real zfs 2.4)
+        env:
+          ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+          ZFSVM_PHASE: run
+          ZFSVM_SUITE: ${{ matrix.suite }}
+          ZFSVM_PART: ${{ matrix.part }}/${{ matrix.parts }}
+        run: ci/real-zfs-vm.sh stonking current 2.4
+      - name: upload zfsdiff replay report and test times
+        # TestZFSDiffReplay reports real pool vs simulator vs reference
+        # model divergences without failing the job (the job summary has
+        # the verdict per sequence; the full replay is in nightly.yml).
+        # test-times.tsv + endpoint.list feed ci/real-zfs-weights.sh,
+        # endpoint.plan is the shard plan both parts ran; load.txt +
+        # vmstat.txt: the guest's CPU and pressure in the tests.
+        # zfsdiff.log is in the part that ran TestZFSDiffReplay.
+        # The endpoint parts upload only when they fail: the step cost
+        # 1-2s at the end of the critical job on every green run (ADR
+        # 0005). On a green run the test step's log carries test-times.tsv
+        # (its group "test-times.tsv", which ci/real-zfs-weights.sh reads
+        # from a saved job log), the summary the zfsdiff verdicts, and the
+        # load and plan. csi, with 5-10s of slack, always uploads
+        if: always() && (matrix.suite != 'endpoint' || !success())
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: real-zfs-report-${{ matrix.suite }}${{ matrix.parts != 1 && format('-{0}', matrix.part) || '' }}
+          path: |
+            ${{ runner.temp }}/zfsvm/out/zfsdiff.log
+            ${{ runner.temp }}/zfsvm/out/test-times.tsv
+            ${{ runner.temp }}/zfsvm/out/*.list
+            ${{ runner.temp }}/zfsvm/out/*.plan
+            ${{ runner.temp }}/zfsvm/out/*.passed
+            ${{ runner.temp }}/zfsvm/out/load.txt
+            ${{ runner.temp }}/zfsvm/out/vmstat.txt
+          if-no-files-found: warn
+          retention-days: 30
+      - name: check for a stored guest
+        id: stored
+        # the csi job only: its test phase is the shorter (8.7s against
+        # 18.5s, run 40506940034), so it carries the save. Both jobs saved
+        # the same entry, and the endpoint job's 6s save (a guest restored
+        # through the fallback key after a runner image release) was on
+        # push-to-green; the second save only warned
+        if: always() && matrix.suite == 'csi' && steps.vm.outputs.cache-hit != 'true'
+        run: test -f "$RUNNER_TEMP/zfsvm-cache/ok" && echo "ok=1" >>"$GITHUB_OUTPUT" || true
+      - name: save the provisioned guest and qemu
+        # a cold guest, or a guest restored with another runner image's qemu
+        # tree; after the tests, so a miss does not delay the boot. Also
+        # after a test failure: provisioning succeeded, and the version
+        # checks run again on every warm boot
+        if: always() && steps.stored.outputs.ok == '1'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+      - name: save Go caches (none for this go.sum was restored)
+        # one save per namespace: the endpoint parts build the same
+        # binaries, so part 0 saves and part 1's save would only warn
+        if: steps.go.outputs.save == 'true' && matrix.part == 0
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go.outputs.cache-key }}
+      - name: upload VM console and test logs
+        if: failure() || cancelled() # a timeout cancels the job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: real-zfs-vm-logs-${{ matrix.suite }}${{ matrix.parts != 1 && format('-{0}', matrix.part) || '' }}
+          path: |
+            ${{ runner.temp }}/zfsvm/*.log
+            ${{ runner.temp }}/zfsvm/user-data
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,5 @@
+# create -V rounds up to volblocksize; -V 0 is refused
+# covers: resv-auto
+zfs create -V 1000000 $R/v
+zfs create -V 0 $R/w
+zfs create -s -V 1000000 -o volblocksize=65536 $R/x

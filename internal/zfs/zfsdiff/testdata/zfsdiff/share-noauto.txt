@@ -1,0 +1,4 @@
+# canmount=noauto: sharenfs does not mount
+# covers: sharenfs-unmounted
+zfs create -o canmount=noauto $R/a
+zfs set sharenfs=on $R/a

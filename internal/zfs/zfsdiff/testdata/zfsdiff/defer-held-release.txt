@@ -1,0 +1,7 @@
+# destroy -d of a held snapshot defers; the last release destroys it
+# covers: destroy-d
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs hold t1 $R/a@s1
+zfs destroy -d $R/a@s1
+zfs release t1 $R/a@s1

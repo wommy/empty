@@ -1,0 +1,4457 @@
+[
+{
+"repo": "csi-spec",
+"op": "csi.CreateVolume",
+"impl": "spec.md:802",
+"how": "Provision by name; OK if an existing volume matches capacity, capabilities, parameters, topology and source; source may be a snapshot or volume",
+"idempotent": "yes",
+"notfound": "ALREADY_EXISTS(6) if name exists but incompatible; NOT_FOUND(5) if content source missing",
+"notes": "Caps: CREATE_DELETE_VOLUME, CLONE_VOLUME, CREATE_DELETE_SNAPSHOT (snapshot source), MODIFY_VOLUME (mutable_parameters), VOLUME_ACCESSIBILITY_CONSTRAINTS. Unsupported source: INVALID_ARGUMENT."
+},
+{
+"repo": "csi-spec",
+"op": "csi.DeleteVolume",
+"impl": "spec.md:1301",
+"how": "Deprovision by volume_id; must succeed when volume or its artifacts are already gone",
+"idempotent": "yes",
+"notfound": "Missing volume returns OK(0), never NOT_FOUND",
+"notes": "Cap CREATE_DELETE_VOLUME. Snapshots must survive delete if plugin supports it; else FAILED_PRECONDITION with volume left unchanged."
+},
+{
+"repo": "csi-spec",
+"op": "csi.ControllerExpandVolume",
+"impl": "spec.md:2467",
+"how": "Grow volume to capacity_range; OK if already at or above target; returns node_expansion_required",
+"idempotent": "yes",
+"notfound": "Missing volume NOT_FOUND(5); already-large target returns OK",
+"notes": "Cap EXPAND_VOLUME; ONLINE vs OFFLINE expansion rules apply; NodeExpandVolume required when node_expansion_required is true. OUT_OF_RANGE for bad range."
+},
+{
+"repo": "csi-spec",
+"op": "csi.ControllerGetVolume",
+"impl": "spec.md:1846",
+"how": "Return current volume info including published node IDs and status for volume_id",
+"idempotent": "n/a",
+"notfound": "Volume gone returns NOT_FOUND(5)",
+"notes": "Alpha, gated by GET_VOLUME controller cap (value 12, alpha_enum_value). Not required unless cap is advertised."
+},
+{
+"repo": "csi-spec",
+"op": "csi.ControllerPublishVolume",
+"impl": "spec.md:1343",
+"how": "Attach volume to node_id and return publish_context; OK if already published there and compatible",
+"idempotent": "yes",
+"notfound": "NOT_FOUND(5) for missing volume or node; ALREADY_EXISTS(6) if published but incompatible",
+"notes": "Cap PUBLISH_UNPUBLISH_VOLUME; PUBLISH_READONLY for readonly. Published elsewhere without MULTI_NODE: FAILED_PRECONDITION; attach limit: RESOURCE_EXHAUSTED."
+},
+{
+"repo": "csi-spec",
+"op": "csi.ControllerUnpublishVolume",
+"impl": "spec.md:1423",
+"how": "Detach volume from node_id, or from all nodes if unset; runs after node unstage and unpublish",
+"idempotent": "yes",
+"notfound": "Not attached returns OK; NOT_FOUND only if volume or node missing and not safely assumed unpublished",
+"notes": "Cap PUBLISH_UNPUBLISH_VOLUME. Text says OK when missing; error table says NOT_FOUND otherwise; both are normative."
+},
+{
+"repo": "csi-spec",
+"op": "csi.ListVolumes",
+"impl": "spec.md:1562",
+"how": "Page through all volumes via max_entries and next_token; no consistent snapshot across pages",
+"idempotent": "n/a",
+"notfound": "Invalid starting_token returns ABORTED(10)",
+"notes": "Cap LIST_VOLUMES; LIST_VOLUMES_PUBLISHED_NODES adds status.published_node_ids (must also support PUBLISH_UNPUBLISH). Duplicates or misses during paging are allowed."
+},
+{
+"repo": "csi-spec",
+"op": "csi.GetCapacity",
+"impl": "spec.md:1945",
+"how": "Report free pool capacity for the given volume_capabilities and parameters",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Cap GET_CAPACITY. minimum_volume_size is alpha. Only generic non-OK error rule; no specific codes mandated."
+},
+{
+"repo": "csi-spec",
+"op": "csi.CreateSnapshot",
+"impl": "spec.md:2128",
+"how": "Cut snapshot of source_volume_id by name; returns ready_to_use=false while processing, CO re-calls until true",
+"idempotent": "yes",
+"notfound": "ALREADY_EXISTS(6) if name exists for other volume_id; ABORTED(10) if op pending; missing source code not mandated",
+"notes": "Cap CREATE_DELETE_SNAPSHOT. group_snapshot_id ties to x.csi.CreateVolumeGroupSnapshot. SNAPSHOT_ACCESSIBILITY_CONSTRAINTS gates accessible_topology. RESOURCE_EXHAUSTED on no space."
+},
+{
+"repo": "csi-spec",
+"op": "csi.DeleteSnapshot",
+"impl": "spec.md:2308",
+"how": "Delete snapshot_id; OK if missing; group members must go through x.csi.DeleteVolumeGroupSnapshot",
+"idempotent": "yes",
+"notfound": "Missing snapshot returns OK(0)",
+"notes": "Cap CREATE_DELETE_SNAPSHOT. Group member: INVALID_ARGUMENT(3); in use: FAILED_PRECONDITION(9); pending op: ABORTED(10)."
+},
+{
+"repo": "csi-spec",
+"op": "csi.ListSnapshots",
+"impl": "spec.md:2349",
+"how": "Page snapshots by snapshot_id, source_volume_id or all; excludes snapshots still being cut",
+"idempotent": "n/a",
+"notfound": "Invalid starting_token returns ABORTED(10); no code mandated for unknown snapshot_id filter",
+"notes": "Cap LIST_SNAPSHOTS. Does not report processing errors; poll CreateSnapshot instead. SnapshotMetadata alpha: x.csi.GetMetadataAllocated, x.csi.GetMetadataDelta (cap SNAPSHOT_METADATA_SERVICE)."
+},
+{
+"repo": "csi-spec",
+"op": "csi.ControllerModifyVolume",
+"impl": "spec.md:1902",
+"how": "Apply only the keys given in mutable_parameters; absent keys must not change the volume",
+"idempotent": "yes",
+"notfound": "NOT_FOUND(5) for missing volume; unsupported params INVALID_ARGUMENT(3) with no partial apply",
+"notes": "Cap MODIFY_VOLUME (value 14, not alpha). Callers may check support with x.csi.ValidateVolumeCapabilities. Relates to mutable_parameters on CreateVolume."
+},
+{
+"repo": "csi-spec",
+"op": "csi.NodeStageVolume",
+"impl": "spec.md:2581",
+"how": "Stage volume once per node at staging_target_path with volume_capability; OK if already staged identically",
+"idempotent": "yes",
+"notfound": "NOT_FOUND(5) missing volume; ALREADY_EXISTS(6) if staged at path but incompatible",
+"notes": "Cap STAGE_UNSTAGE_VOLUME. Must follow ControllerPublishVolume when controller has PUBLISH_UNPUBLISH and precede NodePublishVolume. FAILED_PRECONDITION(9) if capability exceeded."
+},
+{
+"repo": "csi-spec",
+"op": "csi.NodeUnstageVolume",
+"impl": "spec.md:2659",
+"how": "Undo NodeStageVolume at staging_target_path; called once per staged path after all NodeUnpublish; OK if not staged",
+"idempotent": "yes",
+"notfound": "Spec says not-staged returns OK; error table also lists NOT_FOUND(5) for missing volume",
+"notes": "Cap STAGE_UNSTAGE_VOLUME. Must return before ControllerUnpublishVolume. Spec conflicts: OK rule (line 2675) vs NOT_FOUND row (line 2707) for missing volume."
+},
+{
+"repo": "csi-spec",
+"op": "csi.NodePublishVolume",
+"impl": "spec.md:2718",
+"how": "Publish staged volume to target_path with capability and readonly; OK if already identical",
+"idempotent": "yes",
+"notfound": "NOT_FOUND(5) missing volume; ALREADY_EXISTS(6) if published at target but incompatible; FAILED_PRECONDITION(9) if staging path unset",
+"notes": "Multiple publishes allowed for MULTI_NODE or SINGLE_NODE_MULTI_WRITER. Changing capability on repeat: FAILED_PRECONDITION. VOLUME_MOUNT_GROUP node cap applies."
+},
+{
+"repo": "csi-spec",
+"op": "csi.NodeUnpublishVolume",
+"impl": "spec.md:2841",
+"how": "Undo NodePublishVolume at target_path, deleting what the plugin created; must succeed per target before unstage",
+"idempotent": "yes",
+"notfound": "NOT_FOUND(5) for missing volume per error table; no explicit OK rule for already-unpublished path",
+"notes": "No capability flag, MUST implement. Unlike other RPCs, no explicit 0 OK wording for not-published; idempotency is the general MUST."
+},
+{
+"repo": "csi-spec",
+"op": "csi.NodeExpandVolume",
+"impl": "spec.md:3244",
+"how": "Grow node-side filesystem or block at volume_path after NodeStage or NodePublish; OK if already large enough",
+"idempotent": "yes",
+"notfound": "NOT_FOUND(5) missing volume; INVALID_ARGUMENT(3), FAILED_PRECONDITION(9), OUT_OF_RANGE(11) for unsupported cases",
+"notes": "Cap EXPAND_VOLUME (node). Required after ControllerExpandVolume when node_expansion_required is true. volume_capability optional; may skip FS resize for block."
+},
+{
+"repo": "csi-spec",
+"op": "csi.NodeGetVolumeStats",
+"impl": "spec.md:2887",
+"how": "Return available, total, used and inode stats for volume at volume_path; staging_target_path should be supplied",
+"idempotent": "n/a",
+"notfound": "NOT_FOUND(5) if volume not present at volume_path",
+"notes": "Cap GET_VOLUME_STATS; if advertised, RPC MUST be implemented. Block-mode volumes may omit used/available and inode info."
+},
+{
+"repo": "csi-spec",
+"op": "csi.NodeGetInfo",
+"impl": "spec.md:3183",
+"how": "Return node_id unique across plugin nodes, max volumes per node and accessible_topology; result feeds ControllerPublishVolume",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "MUST implement when controller has PUBLISH_UNPUBLISH_VOLUME. SP must not expect more than one call per node. Topology uses VOLUME_ACCESSIBILITY_CONSTRAINTS."
+},
+{
+"repo": "csi-spec",
+"op": "csi.GetPluginCapabilities",
+"impl": "spec.md:614",
+"how": "Return whole-plugin capabilities: CONTROLLER_SERVICE, GROUP_CONTROLLER_SERVICE, VOLUME_ACCESSIBILITY_CONSTRAINTS, SNAPSHOT_METADATA_SERVICE, VolumeExpansion",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "REQUIRED RPC. Same set for every instance of a vendor_version. SNAPSHOT_METADATA_SERVICE is alpha (spec.md:662-668). Gates x.csi.GetMetadataAllocated and x.csi.GetMetadataDelta."
+},
+{
+"repo": "csi-spec",
+"op": "csi.Probe",
+"impl": "spec.md:742",
+"how": "Report plugin health and readiness; may verify config, devices and drivers",
+"idempotent": "n/a",
+"notfound": "FAILED_PRECONDITION(9) when not healthy or dependency missing; no not-found case",
+"notes": "MUST implement. CO may call at any time and repeatedly; SP should document maximum safe call frequency."
+},
+{
+"repo": "csi-spec",
+"op": "meta.id.scheme",
+"impl": "spec.md:494",
+"how": "Plugin-generated volume_id and snapshot_id, opaque to CO; general size limits: string 128 bytes, map<string,string> 4 KiB",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "128-byte limit covers volume_id and CO name unless overridden (paths: at least 128 bytes). volume_context map: 4 KiB. mount_flags total: 4 KiB. volume_id should be sufficient alone."
+},
+{
+"repo": "csi-spec",
+"op": "meta.state.store",
+"impl": "spec.md:264",
+"how": "Spec mandates no storage location; identity must be derivable from volume_id; plugin chooses where state lives",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "volume_context must be stable per volume and be passed back on publish and stage calls. NodeGetVolumeStats staging_target_path lets nodes keep less state."
+},
+{
+"repo": "csi-spec",
+"op": "meta.lock",
+"impl": "spec.md:473",
+"how": "CO should keep one in-flight call per volume; plugin SHOULD handle concurrent calls and MAY return ABORTED",
+"idempotent": "n/a",
+"notfound": "Pending op returns ABORTED(10) per volume or snapshot",
+"notes": "Spec says CO may lose state and issue concurrent calls. No plugin-side locking is mandated; ABORTED is optional but named per RPC."
+},
+{
+"repo": "csi-spec",
+"op": "meta.idempotency",
+"impl": "spec.md:808",
+"how": "Create keyed by name, delete and publish keyed by id; replay returns OK when already in the desired state",
+"idempotent": "yes",
+"notfound": "ALREADY_EXISTS only for incompatible existing object; deletes never return NOT_FOUND",
+"notes": "Mandatory for Create/Delete Volume and Snapshot, Publish/Unpublish, Stage/Unstage, Expand, ModifyVolume. Reads and Probe are excluded. Replays must return the same IDs."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.CreateVolume",
+"impl": "src/driver/controller-zfs/index.js:639",
+"how": "zfs get precheck, then zfs create or clone/send-receive, then share via createShare",
+"idempotent": "partial",
+"notfound": "zfs get 'dataset does not exist' means new; size mismatch gives ALREADY_EXISTS",
+"notes": "Same-name retry with same size succeeds; targetcli/nvmetcli creates have no exists check, so retry after partial share failure can fail."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.DeleteVolume",
+"impl": "src/driver/controller-zfs/index.js:1342",
+"how": "zfs get props, deleteShare, defer-destroy clone origin, zfs destroy -r -f with busy retry",
+"idempotent": "partial",
+"notfound": "get and destroy ignore 'dataset does not exist'",
+"notes": "retain strategy returns before any ZFS work (1397). targetcli/nvmetcli delete errors not tolerated (generic:738), so half-removed shares fail."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.ControllerExpandVolume",
+"impl": "src/driver/controller-zfs/index.js:1511",
+"how": "zfs get volblocksize, zfs set volsize/refquota/refreservation, then expandVolume hook",
+"idempotent": "yes",
+"notfound": "zfs get error not caught (1550); raw error surfaces",
+"notes": "Generic and local expandVolume hooks are no-ops (generic:944); iSCSI resize relies on node-side rescan."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.CreateSnapshot",
+"impl": "src/driver/controller-zfs/index.js:2159",
+"how": "attached: zfs snapshot; detached: tmp snapshot, send-receive to new dataset, cleanup, then set props",
+"idempotent": "partial",
+"notfound": "'dataset already exists' tolerated; cross-volume name scan gives ALREADY_EXISTS",
+"notes": "Detached send-receive failure throws before tmp snapshot cleanup (2341-2373); retry recovers via idempotent snapshot create."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.DeleteSnapshot",
+"impl": "src/driver/controller-zfs/index.js:2481",
+"how": "zfs destroy -r -f -d for attached snapshots; detached also prunes container dataset",
+"idempotent": "yes",
+"notfound": "destroy ignores 'dataset does not exist' via idempotent flag",
+"notes": "Dependent clones map to FAILED_PRECONDITION by stderr match; container prune tolerates 'filesystem has children'."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.ListVolumes",
+"impl": "src/driver/controller-zfs/index.js:1763",
+"how": "zfs list children, filter democratic-csi:managed_resource, paginate via in-process ctx.cache",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Pagination token state lives in process memory (1887); not durable across controller restarts."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.ListSnapshots",
+"impl": "src/driver/controller-zfs/index.js:1904",
+"how": "zfs list snapshots and detached datasets, filter managed prop, paginate via ctx.cache",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Same in-memory pagination cache as ListVolumes (2142)."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.GetCapacity",
+"impl": "src/driver/controller-zfs/index.js:1631",
+"how": "zfs create -p parent if absent, then zfs get avail on parent",
+"idempotent": "n/a",
+"notfound": "missing parent created first (1655); avail get wrapped in try (1660)",
+"notes": "Capacity probe has a write side effect: it creates the volume parent dataset."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.ControllerGetVolume",
+"impl": "src/driver/controller-zfs/index.js:1681",
+"how": "validates volume_id, delegates status lookup to getVolumeStatus",
+"idempotent": "n/a",
+"notfound": "delegated to getVolumeStatus (314)",
+"notes": "Missing volume_id returns NOT_FOUND (1739) rather than INVALID_ARGUMENT."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.ValidateVolumeCapabilities",
+"impl": "src/driver/controller-zfs/index.js:2553",
+"how": "zfs get on dataset for existence, then capability check via getAccessModes",
+"idempotent": "n/a",
+"notfound": "zfs get failure reported as 'invalid volume_id' (2585)",
+"notes": "Capability validation depends on dataset existence check only; no ZFS property inspection."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.Probe",
+"impl": "src/driver/controller-zfs/index.js:567",
+"how": "checks exec client (ssh/local) is set, re-initialises on interval timer",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Probe timer re-initialises the exec shell when currentExecShell is missing (593-601)."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.dataset.create",
+"impl": "src/driver/controller-zfs/index.js:1148",
+"how": "zfs create -p with -o props through CLI exec (ssh or local)",
+"idempotent": "yes",
+"notfound": "stderr 'dataset already exists' swallowed by zb idempotent flag",
+"notes": "Filesystem create passes no size; refquota/refreservation applied afterwards in a separate zfs set (1162-1170)."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.zvol.create",
+"impl": "src/driver/controller-zfs/index.js:1148",
+"how": "zfs create -V size -o volblocksize via CLI",
+"idempotent": "yes",
+"notfound": "stderr 'dataset already exists' swallowed by zb idempotent flag",
+"notes": "Capacity aligned to zvol blocksize before create (766-771); volblocksize forced at 1145."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.destroy",
+"impl": "src/driver/controller-zfs/index.js:1479",
+"how": "zfs destroy -r -f on dataset, wrapped in 12x5s retry on 'busy' text",
+"idempotent": "yes",
+"notfound": "'dataset does not exist' ignored via idempotent flag",
+"notes": "Busy retry matches error text only; other 'dependent clones' errors become FAILED_PRECONDITION."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.destroy.recursive",
+"impl": "src/driver/controller-zfs/index.js:1479",
+"how": "zfs destroy -r with -f; -R dependents never passed",
+"idempotent": "yes",
+"notfound": "'dataset does not exist' ignored via idempotent flag",
+"notes": "Comment at 1474-1475 documents why -R is not used; dependent filesets are removed by -r."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.destroy.defer",
+"impl": "src/driver/controller-zfs/index.js:1419",
+"how": "zfs destroy -r -f -d on clone-source snapshot before dataset removal",
+"idempotent": "yes",
+"notfound": "missing snapshot tolerated by idempotent destroy",
+"notes": "Deferred destroy used only for clone-source snapshots with volume-source prefix."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.snapshot.create",
+"impl": "src/driver/controller-zfs/index.js:2383",
+"how": "zfs snapshot with -o props on attached volume; detached uses tmp snapshot (2328)",
+"idempotent": "yes",
+"notfound": "stderr 'dataset already exists' swallowed when idempotent",
+"notes": "Missing source dataset maps to FAILED_PRECONDITION in CreateSnapshot."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.snapshot.destroy",
+"impl": "src/driver/controller-zfs/index.js:2516",
+"how": "zfs destroy -r -f -d on snapshot (defer only for attached snapshots)",
+"idempotent": "yes",
+"notfound": "missing snapshot tolerated by idempotent destroy",
+"notes": "Clone dependencies make destroy fail; mapped to FAILED_PRECONDITION."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.snapshot.list",
+"impl": "src/driver/controller-zfs/index.js:2021",
+"how": "zfs list -t snapshot recursively with managed prop column",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "DeleteVolume gate (1440-1452) refuses delete when managed snapshots exist."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.clone",
+"impl": "src/driver/controller-zfs/index.js:998",
+"how": "zfs clone -o props from snapshot into new dataset",
+"idempotent": "yes",
+"notfound": "stderr 'dataset already exists' tolerated when idempotent",
+"notes": "Clone props strip readonly acl* and casesensitivity keys before cloning."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.prop.get",
+"impl": "src/driver/controller-zfs/index.js:795",
+"how": "zfs get of named props (volsize, refquota, mountpoint, ...) via zb.zfs.get",
+"idempotent": "n/a",
+"notfound": "callers match error text 'dataset does not exist'",
+"notes": "Existence checks rely on error text matching; brittle across ZFS versions."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.prop.set",
+"impl": "src/driver/controller-zfs/index.js:1296",
+"how": "zfs set of multiple props in one call (share context, success marker, resize props)",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Several props sent in one zfs set call; no rollback logic on partial failure."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.userprop.set",
+"impl": "src/driver/controller-zfs/index.js:1296",
+"how": "zfs set of democratic-csi:* user properties (share context at 1296, success at 1308)",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "User props are the durable volume state; values are escapeShell-quoted in utils/zfs.js set."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.userprop.get",
+"impl": "src/driver/controller-zfs/index.js:358",
+"how": "reads managed_resource and share context from zfs list rows (populateCsiVolumeFromData)",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Volumes lacking the managed flag or share context are skipped in list/get (358-363)."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.prop.inherit",
+"impl": "src/driver/controller-zfs-generic/index.js:641",
+"how": "zfs inherit share/sharenfs (or sharesmb) to remove share props on delete",
+"idempotent": "yes",
+"notfound": "'dataset does not exist' ignored per key",
+"notes": "Inherits configured keys unconditionally; followed by a fixed 2s sleep."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.refquota",
+"impl": "src/driver/controller-zfs/index.js:1164",
+"how": "sets refquota=capacity for filesystems when datasetEnableQuotas",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Expansion repeats this at 1590; no quota applied unless datasetEnableQuotas is set."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.refreservation",
+"impl": "src/driver/controller-zfs/index.js:1170",
+"how": "sets refreservation for filesystems when datasetEnableReservation",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "zvol refreservation left to ZFS automatic handling (commented out at 1605)."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.volsize.resize",
+"impl": "src/driver/controller-zfs/index.js:1600",
+"how": "zfs set volsize=capacity on zvol during ControllerExpandVolume",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Only alignment is checked (1547-1560); no explicit shrink guard seen in this path."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.list.children",
+"impl": "src/driver/controller-zfs/index.js:1830",
+"how": "zfs list of children under parent dataset, managed-prop filter applied in JS",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Non-managed children are silently skipped (1871)."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.send",
+"impl": "src/utils/zfs.js:1146",
+"how": "/bin/sh -c 'zfs send | zfs receive' built by string join",
+"idempotent": "partial",
+"notfound": "callers tolerate 'destination ... exists' text",
+"notes": "Dataset names joined unescaped into sh -c string; sudo applied to both sides when enabled."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.receive",
+"impl": "src/utils/zfs.js:1146",
+"how": "zfs receive side of same sh pipeline into target dataset",
+"idempotent": "partial",
+"notfound": "caller swallows 'destination exists' stderr (CreateVolume 975-983)",
+"notes": "Same unescaped sh -c join as zfs.send; receive into existing target fails without retry."
+},
+{
+"repo": "democratic-csi",
+"op": "zfs.space.available",
+"impl": "src/driver/controller-zfs/index.js:1661",
+"how": "zfs get avail on parent dataset for GetCapacity",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Reports parent dataset avail only (1661); no quota or reservation adjustment seen."
+},
+{
+"repo": "democratic-csi",
+"op": "share.nfs.create",
+"impl": "src/driver/controller-zfs-generic/index.js:128",
+"how": "setDatasetProperties strategy: zfs set share/sharenfs; volume_context from mountpoint",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Only setDatasetProperties strategy creates a share; other values fall to default and create nothing. freenas-ssh driver uses REST instead."
+},
+{
+"repo": "democratic-csi",
+"op": "share.nfs.delete",
+"impl": "src/driver/controller-zfs-generic/index.js:641",
+"how": "zfs inherit share/sharenfs on dataset",
+"idempotent": "yes",
+"notfound": "'dataset does not exist' ignored per key",
+"notes": "Inherits share props unconditionally; 2s settle sleep follows."
+},
+{
+"repo": "democratic-csi",
+"op": "share.smb.create",
+"impl": "src/driver/controller-zfs-generic/index.js:162",
+"how": "setDatasetProperties strategy: zfs set share/sharesmb; share name from generateSmbShareName",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Only setDatasetProperties strategy supported; share name derived from dataset name (84)."
+},
+{
+"repo": "democratic-csi",
+"op": "share.smb.delete",
+"impl": "src/driver/controller-zfs-generic/index.js:671",
+"how": "zfs inherit share/sharesmb on dataset",
+"idempotent": "yes",
+"notfound": "'dataset does not exist' ignored per key",
+"notes": "Same pattern as NFS delete."
+},
+{
+"repo": "democratic-csi",
+"op": "share.iscsi.target.create",
+"impl": "src/driver/controller-zfs-generic/index.js:278",
+"how": "targetcli batch: create iqn target and tpg settings under targetCliMutex",
+"idempotent": "no",
+"notfound": "retry only on 'Ran out of input'; no exists check",
+"notes": "targetcli create is not idempotent; re-run after partial failure errors. pcs path tolerates 'already exists' (1015)."
+},
+{
+"repo": "democratic-csi",
+"op": "share.iscsi.target.delete",
+"impl": "src/driver/controller-zfs-generic/index.js:738",
+"how": "targetcli batch: delete iqn target, retried on 'Ran out of input'",
+"idempotent": "no",
+"notfound": "missing target surfaces as targetcli error",
+"notes": "Asset name read from stored userprop (710) else recomputed; name template drift breaks delete."
+},
+{
+"repo": "democratic-csi",
+"op": "share.iscsi.lun.create",
+"impl": "src/driver/controller-zfs-generic/index.js:287",
+"how": "targetcli create block backstore from /dev/zvol path",
+"idempotent": "no",
+"notfound": "no exists check on backstore",
+"notes": "Backstore name is lowercased asset name; zvol must exist before share create."
+},
+{
+"repo": "democratic-csi",
+"op": "share.iscsi.lun.map",
+"impl": "src/driver/controller-zfs-generic/index.js:293",
+"how": "targetcli create LUN under tpg1/luns mapping the backstore",
+"idempotent": "no",
+"notfound": "no exists check",
+"notes": "LUN id auto-assigned by targetcli and not recorded anywhere in driver state."
+},
+{
+"repo": "democratic-csi",
+"op": "share.iscsi.lun.delete",
+"impl": "src/driver/controller-zfs-generic/index.js:742",
+"how": "targetcli delete backstore block device",
+"idempotent": "no",
+"notfound": "error if already gone",
+"notes": "LUN mapping goes away with target delete (738); backstore removed here."
+},
+{
+"repo": "democratic-csi",
+"op": "share.iscsi.auth",
+"impl": "src/driver/controller-zfs-generic/index.js:257",
+"how": "targetcli set auth attributes on tpg1 when configured; pcs path passes CHAP via sh -c",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "pcs path puts incoming_password on the sh -c command line; redacted in logs only (pcsCommand)."
+},
+{
+"repo": "democratic-csi",
+"op": "share.nvmeof.subsys.create",
+"impl": "src/driver/controller-zfs-generic/index.js:475",
+"how": "nvmetcli batch: create subsystem basename:asset, saveconfig to configPath",
+"idempotent": "no",
+"notfound": "retry only on 'Ran out of input'; no exists check",
+"notes": "nvmetCliCommand throws 'nvmet has not been fully configured' if config is not imported (about 1111)."
+},
+{
+"repo": "democratic-csi",
+"op": "share.nvmeof.subsys.delete",
+"impl": "src/driver/controller-zfs-generic/index.js:877",
+"how": "nvmetcli delete subsystem after port unbind (861-862)",
+"idempotent": "no",
+"notfound": "error if already gone",
+"notes": "Asset name from userprop (828) with recompute fallback; spdk variant at 905."
+},
+{
+"repo": "democratic-csi",
+"op": "share.nvmeof.ns.create",
+"impl": "src/driver/controller-zfs-generic/index.js:481",
+"how": "nvmetcli create namespace with device path /dev/zvol",
+"idempotent": "no",
+"notfound": "no exists check",
+"notes": "Namespace id hard-coded to 1 at create time."
+},
+{
+"repo": "democratic-csi",
+"op": "share.nvmeof.port.bind",
+"impl": "src/driver/controller-zfs-generic/index.js:462",
+"how": "nvmetcli create subsystem link under each configured /ports/<id>/subsystems",
+"idempotent": "no",
+"notfound": "no exists check",
+"notes": "Port list from config; unbind at 861-862 mirrors create."
+},
+{
+"repo": "democratic-csi",
+"op": "share.iscsi.lun.resize",
+"impl": "",
+"how": "SCALE: write resync_size to SCST sysfs for the extent; CORE: ctld reload",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Generic and local drivers do nothing on resize (generic:944-965); only the TrueNAS SSH driver rescans."
+},
+{
+"repo": "democratic-csi",
+"op": "share.service.reload",
+"impl": "src/driver/freenas/ssh.js:2487",
+"how": "POST /service/reload for iscsitarget over REST (API v2)",
+"idempotent": "n/a",
+"notfound": "non-200/204 raises UNKNOWN",
+"notes": "Generic CLI strategies have no reload step; reload exists only in the TrueNAS drivers."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "csi.CreateVolume",
+"impl": "src/driver/freenas/api.js:2633",
+"how": "REST GET precheck; DatasetCreate, or snapshot+CloneCreate or replication run_onetime; DatasetSet props; share",
+"idempotent": "partial",
+"notfound": "GET 404 means new; 422 'already exists' tolerated on create",
+"notes": "Detached clone polls core/get_jobs with no timeout (2947-2950); job error 'already exists' swallowed, other failures raise UNKNOWN."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "csi.DeleteVolume",
+"impl": "src/driver/freenas/api.js:3405",
+"how": "REST DELETE dataset recursive/force with busy retry; origin clone snapshot via SnapshotDelete defer",
+"idempotent": "partial",
+"notfound": "422 'does not exist' treated as success (http/api.js:378)",
+"notes": "Share removal via REST GET-then-DELETE; 404/500 treated as already gone (1725)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "csi.ControllerExpandVolume",
+"impl": "src/driver/freenas/api.js:3584",
+"how": "REST PUT sets volsize/refquota; expandVolume then reloads iSCSI daemon over SSH",
+"idempotent": "yes",
+"notfound": "REST 404 on get raised as 'dataset does not exist' (http/api.js:442)",
+"notes": "expandVolume reload uses SSH (2210-2240), so API driver still needs sshConnection for iSCSI expand."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "csi.CreateSnapshot",
+"impl": "src/driver/freenas/api.js:4403",
+"how": "REST snapshot create; detached: dataset create, snapshot, replication run_onetime, tmp snapshot delete",
+"idempotent": "partial",
+"notfound": "422 'already exists' tolerated (http/api.js:605)",
+"notes": "Cross-volume name reuse gives ALREADY_EXISTS (4530, 4566); detached path depends on replication job completion."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "csi.DeleteSnapshot",
+"impl": "src/driver/freenas/api.js:4814",
+"how": "REST DELETE snapshot by id; detached also deletes container dataset",
+"idempotent": "yes",
+"notfound": "404 treated as success (http/api.js:634)",
+"notes": "Detached container deleted via DatasetDelete (4879) rather than zfs destroy."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.dataset.create",
+"impl": "src/driver/freenas/http/api.js:335",
+"how": "REST POST /pool/dataset with name plus system and user props",
+"idempotent": "yes",
+"notfound": "422 'already exists' returns success silently",
+"notes": "Existing dataset is not reconciled: create returns OK without applying differing options."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.zvol.create",
+"impl": "src/driver/freenas/api.js:3191",
+"how": "REST POST /pool/dataset with zvol params (volsize, sparse computed at 2856)",
+"idempotent": "yes",
+"notfound": "422 'already exists' returns success silently",
+"notes": "Sparse flag derived from zvolEnableReservation; no size reconciliation on existing zvol."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.destroy",
+"impl": "src/driver/freenas/http/api.js:365",
+"how": "REST DELETE /pool/dataset/id/{name} with recursive/force body",
+"idempotent": "yes",
+"notfound": "422 'does not exist' returns success (http/api.js:378)",
+"notes": "Errors arrive as HTTP body text; busy and dependent-clone detection is string matching."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.destroy.recursive",
+"impl": "src/driver/freenas/api.js:3549",
+"how": "REST delete with recursive+force, wrapped in 12x5s retry on 'busy'",
+"idempotent": "yes",
+"notfound": "422 'does not exist' returns success",
+"notes": "Retry predicate matches 'dataset is busy' / 'target is busy' text only."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.destroy.defer",
+"impl": "src/driver/freenas/api.js:3490",
+"how": "REST SnapshotDelete with defer:true on clone-source snapshot",
+"idempotent": "yes",
+"notfound": "404 returns success (http/api.js:634)",
+"notes": "Defer passed in DELETE body; dependent-clone error matched by text."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.snapshot.create",
+"impl": "src/driver/freenas/api.js:4696",
+"how": "REST POST /pool/snapshot (legacy /zfs/snapshot path on old API)",
+"idempotent": "yes",
+"notfound": "422 'already exists' returns success (http/api.js:605)",
+"notes": "Endpoint chosen by API version detection (http/api.js:593-595); props passed in body."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.snapshot.destroy",
+"impl": "src/driver/freenas/api.js:4859",
+"how": "REST DELETE /pool/snapshot/id/{name} with defer in body",
+"idempotent": "yes",
+"notfound": "404 returns success (http/api.js:634)",
+"notes": "Defer handled by middleware rather than zfs CLI -d flag."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.clone",
+"impl": "src/driver/freenas/api.js:2989",
+"how": "REST POST /pool/snapshot/clone (CloneCreate)",
+"idempotent": "yes",
+"notfound": "422 'already exists' silently accepted (http/api.js:1022)",
+"notes": "Clone props not applied when target already exists; success returned anyway."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.send",
+"impl": "src/driver/freenas/api.js:2922",
+"how": "replication run_onetime PUSH LOCAL with name_regex for one snapshot; poll core/get_jobs",
+"idempotent": "n/a",
+"notfound": "job error containing 'already exists' treated as success (2961)",
+"notes": "Polling loop has no overall timeout; job state checked only after loop exit."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.receive",
+"impl": "src/driver/freenas/api.js:2922",
+"how": "same replication run_onetime job targets the new dataset",
+"idempotent": "n/a",
+"notfound": "'already exists' from middleware tolerated the same way",
+"notes": "Props set afterwards via DatasetSet (2970); receive side fully owned by middleware."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.prop.get",
+"impl": "src/driver/freenas/http/api.js:442",
+"how": "REST GET /pool/dataset/id/{name}, normalized to zfs-style property map",
+"idempotent": "n/a",
+"notfound": "404 raised as 'dataset does not exist' (http/api.js:455)",
+"notes": "Property names mapped from REST fields; not zfs get -Hp output."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.prop.set",
+"impl": "src/driver/freenas/http/api.js:387",
+"how": "REST PUT /pool/dataset/id/{name} with system props",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "System and user props sent in one PUT; non-200 throws raw JSON body; no rollback."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.userprop.set",
+"impl": "src/driver/freenas/http/api.js:387",
+"how": "same PUT with user_properties_update key/value array",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "User props set via user_properties_update; removal uses remove:true (407)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.userprop.get",
+"impl": "src/driver/freenas/api.js:2284",
+"how": "reads democratic-csi:* user props from normalized DatasetGet output (populateCsiVolumeFromData)",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Same managed/share-context keys as CLI; depends on normalizeProperties for user props."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.prop.inherit",
+"impl": "src/driver/freenas/http/api.js:407",
+"how": "REST PUT with INHERIT for system props or remove:true for user props",
+"idempotent": "yes",
+"notfound": "404 on inherit; caller guards with DatasetGet (1696-1701)",
+"notes": "Inherit on missing dataset errors unless caller checks first."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.volsize.resize",
+"impl": "src/driver/freenas/api.js:3685",
+"how": "REST PUT setting volsize/refquota/refreservation through DatasetSet",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Expansion sets volsize via PUT; no shrink check seen."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.job.wait",
+"impl": "src/driver/freenas/http/api.js:1068",
+"how": "polls /core/get_jobs every 3s until SUCCESS, ABORTED or FAILED; optional timeout",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Returns FAILED job without throwing; callers at freenas/api.js:3296 and 3305 ignore job state, so failed perms/chown go unnoticed."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.list.children",
+"impl": "src/driver/freenas/api.js:3827",
+"how": "REST child dataset listing filtered by parent and managed prop (3900)",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Bad pagination token returns ABORTED (3870); pagination state is in-process cache."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "zfs.space.available",
+"impl": "src/driver/freenas/api.js:3734",
+"how": "REST DatasetGet of 'available' on parent after DatasetCreate",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Reads REST 'available' field instead of zfs get avail."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.nfs.create",
+"impl": "src/driver/freenas/api.js:342",
+"how": "REST POST /sharing/nfs with paths and hosts; share id stored in dataset prop (393)",
+"idempotent": "partial",
+"notfound": "409/422 'already exports this dataset' triggers GET lookup by path (412)",
+"notes": "Share object is middleware-owned, so out-of-band edits drift from driver state."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.nfs.delete",
+"impl": "src/driver/freenas/api.js:1749",
+"how": "GET stored share id, then DELETE /sharing/nfs/{id} with retry on 504",
+"idempotent": "yes",
+"notfound": "404/500 treated as already gone (1725)",
+"notes": "Stored id cleared with DatasetInherit (1781)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.smb.create",
+"impl": "src/driver/freenas/api.js:629",
+"how": "REST POST /sharing/smb (or /sharing/cifs on old API)",
+"idempotent": "partial",
+"notfound": "422 'A share with this name already exists.' triggers lookup (694-696)",
+"notes": "Share name generated per dataset; lookup fallback by name."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.smb.delete",
+"impl": "src/driver/freenas/api.js:1852",
+"how": "GET then DELETE /sharing/smb/id/{id}",
+"idempotent": "yes",
+"notfound": "404/500 treated as already gone (1832)",
+"notes": "Same retry-on-504 pattern as NFS."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.iscsi.target.create",
+"impl": "src/driver/freenas/api.js:1231",
+"how": "REST POST /iscsi/target (v2) or /services/iscsi/target (v1, 929); lookup on conflict",
+"idempotent": "partial",
+"notfound": "409/422 name-exists text matched, then lookup by name (1245)",
+"notes": "Target, extent and targetextent created in sequence, each with its own exists lookup."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.iscsi.target.delete",
+"impl": "src/driver/freenas/api.js:1979",
+"how": "GET target by id then DELETE /iscsi/target/id/{id}",
+"idempotent": "yes",
+"notfound": "404/500 treated as gone (1954)",
+"notes": "Stored-name check skips delete when target name differs (backward compatibility branch)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.iscsi.lun.create",
+"impl": "src/driver/freenas/api.js:1349",
+"how": "REST POST /iscsi/extent for zvol device; lookup on 422",
+"idempotent": "partial",
+"notfound": "422 'already exists' triggers extent lookup by name (1361)",
+"notes": "Extent id stored in dataset prop after create (1394)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.iscsi.lun.map",
+"impl": "src/driver/freenas/api.js:1405",
+"how": "REST POST /iscsi/targetextent with target, extent, lunid",
+"idempotent": "partial",
+"notfound": "422 'Extent is already in this target' triggers lookup (1425)",
+"notes": "LUN id passed through; duplicate LUN id detected by message text only."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.iscsi.lun.delete",
+"impl": "src/driver/freenas/api.js:2061",
+"how": "GET extent then DELETE /iscsi/extent/id/{id}; stored id cleared after",
+"idempotent": "yes",
+"notfound": "404/500 treated as gone (2039)",
+"notes": "Runs after targetextent removal; order in deleteShare (2011-2073)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.iscsi.auth",
+"impl": "src/driver/freenas/api.js:995",
+"how": "CHAP set as targetgroup auth fields (authgroup, authtype) on create",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "CHAP applied through targetgroup fields; no separate auth object as in targetcli."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.nvmeof.subsys.create",
+"impl": "src/driver/freenas/api.js:1589",
+"how": "REST POST /nvmet/subsys via NvmetSubsysCreate",
+"idempotent": "partial",
+"notfound": "422 'already exists' tolerated (http/api.js:695-697)",
+"notes": "Empty create result raises NOT_FOUND (1597-1599); only the API v2 branch creates subsystems (1588-1590)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.nvmeof.subsys.delete",
+"impl": "src/driver/freenas/api.js:2161",
+"how": "NvmetSubsysDeleteById after namespace delete, retried 15x2s on any error",
+"idempotent": "yes",
+"notfound": "422 'does not exist' tolerated (http/api.js:777-779)",
+"notes": "Retry predicate returns true for every error (2166-2167), so permanent failures retry 15x before surfacing."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.nvmeof.ns.create",
+"impl": "src/driver/freenas/api.js:1611",
+"how": "REST POST /nvmet/namespace with zvol path and subsystem id",
+"idempotent": "partial",
+"notfound": "422 'already exists' tolerated (http/api.js:909-911)",
+"notes": "Namespace id stored in dataset prop (1626)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.nvmeof.ns.delete",
+"impl": "src/driver/freenas/api.js:2140",
+"how": "REST DELETE /nvmet/namespace/id/{id} inside retry wrapper",
+"idempotent": "yes",
+"notfound": "422 'does not exist' tolerated (http/api.js:989-990)",
+"notes": "Namespace removed before subsystem; same always-retry predicate (2136-2144)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.nvmeof.port.bind",
+"impl": "src/driver/freenas/api.js:1633",
+"how": "REST POST /nvmet/port_subsys linking subsystem to each configured port",
+"idempotent": "partial",
+"notfound": "422 'already exists' tolerated (http/api.js:857-860)",
+"notes": "No explicit unbind; relies on subsystem delete to drop port links."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "share.service.reload",
+"impl": "src/driver/freenas/api.js:2218",
+"how": "SSH: systemctl reload scst (SCALE) or /etc/rc.d/ctld reload (CORE) after expand",
+"idempotent": "n/a",
+"notfound": "non-zero exit raises UNKNOWN (2239)",
+"notes": "SSH rather than REST, unlike ssh.js:2487 for the same reload."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.state.store",
+"impl": "src/driver/controller-zfs/index.js:888",
+"how": "zfs user properties on dataset/snapshot: managed_resource, provision_success, csi_volume_name, share context JSON",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "No CRD or DB; ZFS user props are the only state. provision_success set last (1308); DeleteVolume does not consult it."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.id.scheme",
+"impl": "src/driver/index.js:448",
+"how": "name -> optional Handlebars idTemplate -> optional md5/crc hash; dataset=parent/volume_id; snapshot=vol@name or src/name",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "128-char cap enforced (508); hash strategies can collide; changing idTemplate changes derived dataset names."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.lock",
+"impl": "bin/democratic-csi:212",
+"how": "in-process Set of lock keys from lockKeysFromRequest; fail-fast ABORTED if held, else add/remove around handler",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "No waiting or cross-replica lock; CreateVolume-from-snapshot does not lock the source snapshot, racing DeleteSnapshot. Keys in utils/general.js:65."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.idempotency",
+"impl": "src/utils/zfs.js:914",
+"how": "zb idempotent flag (true in generic:50, local:48, ssh:82) suppresses 'already exists' / 'does not exist' stderr",
+"idempotent": "partial",
+"notfound": "stderr text match: 'dataset already exists', 'dataset does not exist'",
+"notes": "Covers ZFS layer only; share layer has no equivalent except pcs 'already exists' tolerance (generic:1015)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "meta.state.store",
+"impl": "src/driver/freenas/http/api.js:387",
+"how": "same democratic-csi:* keys stored as TrueNAS dataset user_properties via PUT",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Nvmeof subsystem/namespace ids and iSCSI asset names also stored as user props (freenas/api.js:1474-1643)."
+},
+{
+"repo": "democratic-csi/freenas-api",
+"op": "meta.idempotency",
+"impl": "src/driver/freenas/http/api.js:335",
+"how": "REST create/delete tolerate 422 'already exists'/'does not exist' bodies; get 404 mapped to error",
+"idempotent": "partial",
+"notfound": "HTTP 422 body text substring match",
+"notes": "Create returns success without reconciling props on existing dataset; text matching brittle across TrueNAS versions."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.NodeGetInfo",
+"impl": "src/driver/index.js:717",
+"how": "node_id from CSI_NODE_ID env, else os.hostname(); max_volumes_per_node 0",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "No topology reported; node identity depends on env or hostname, so unset CSI_NODE_ID can collide."
+},
+{
+"repo": "democratic-csi",
+"op": "x.csi.NodeGetCapabilities",
+"impl": "src/driver/index.js:692",
+"how": "returns options.service.node.capabilities.rpc list, default ['UNKNOWN']",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Capabilities are config-driven and not checked against implemented RPCs; no vocab id, so x. prefix."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.NodeStageVolume",
+"impl": "src/driver/index.js:734",
+"how": "dispatch on node_attach_driver and OS driver: iscsi/nvmeof attach, then format/mount or bind for block",
+"idempotent": "partial",
+"notfound": "pathExists, pathIsMounted and deviceIsMountedAtPath guards before format/mount",
+"notes": "Multi-portal iSCSI or NVMe partial attach only logs a warning (index.js:1036) and continues on surviving paths."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.NodeUnstageVolume",
+"impl": "src/driver/index.js:2520",
+"how": "force-unmount if stale, unmount staging path, then iSCSI logout+nodedb delete or NVMe disconnect by NQN",
+"idempotent": "partial",
+"notfound": "pathIsMounted and pathExists checks; absent mounts are skipped",
+"notes": "iSCSI logout and nodedb delete give up silently after 30s (index.js:2712-2745); logout drops the whole session, including sibling LUNs."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.NodePublishVolume",
+"impl": "src/driver/index.js:3052",
+"how": "mkdir target (dir) or touch file (block), then bind-mount staging path or block_device, ro if requested",
+"idempotent": "yes",
+"notfound": "pathIsMounted(target) gate; deviceIsMountedAtPath verifies source on repeat calls",
+"notes": "Fails FAILED_PRECONDITION if staging not mounted (index.js:3158-3166); mismatched existing source errors rather than remounting."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.NodeUnpublishVolume",
+"impl": "src/driver/index.js:3373",
+"how": "umount target (force+lazy on stale NFS), then rmdir with retry on busy, or rm for file targets",
+"idempotent": "yes",
+"notfound": "pathIsMounted false skips umount; pathExists false skips removal",
+"notes": "rmdir retried 30x on 'busy' (index.js:3463); file targets removed by rm without -f, errors propagate."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.NodeGetVolumeStats",
+"impl": "src/driver/index.js:3541",
+"how": "fs: findmnt via getMountDetails plus df -i inodes; block: lsblk via getBlockDevice",
+"idempotent": "yes",
+"notfound": "NOT_FOUND when path not mounted (index.js:3587) or block path missing",
+"notes": "Avoids avail/size in findmnt to prevent stale-mount hangs (mount.js:5-9); block volumes report bytes only."
+},
+{
+"repo": "democratic-csi",
+"op": "csi.NodeExpandVolume",
+"impl": "src/driver/index.js:3779",
+"how": "rescan backing devices (nvme ns-rescan, sysfs or multipath -r), then resize2fs, xfs_growfs, btrfs, ntfsresize or fatresize",
+"idempotent": "partial",
+"notfound": "NOT_FOUND when mount point device cannot be resolved",
+"notes": "exfat resize is a silent no-op (filesystem.js:727); ntfs and vfat need an unmounted device, not checked here."
+},
+{
+"repo": "democratic-csi",
+"op": "node.iscsi.discover",
+"impl": "src/utils/iscsi.js:446",
+"how": "iscsiadm -m discovery -t sendtargets against the portal",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "Defined but never called: NodeStage relies on a preexisting node DB and never runs sendtargets on the node."
+},
+{
+"repo": "democratic-csi",
+"op": "node.iscsi.login",
+"impl": "src/driver/index.js:950",
+"how": "iscsiadm -m node -T iqn -p portal -l, wrapped in retry of 15 attempts at 2s",
+"idempotent": "yes",
+"notfound": "utils/iscsi.js:492 treats err.code 15 (already logged in) as success",
+"notes": "Login helper itself is simple; retry lives in NodeStage, so one failed attempt is never a hard error until 15 expire."
+},
+{
+"repo": "democratic-csi",
+"op": "node.iscsi.logout",
+"impl": "src/driver/index.js:2712",
+"how": "iscsiadm -m node -T target -p persistent_portal -u, retried every 2s up to 30s",
+"idempotent": "yes",
+"notfound": "utils/iscsi.js:522 ignores err.code 21 (no matching session)",
+"notes": "Logs out the whole target session on this node, affecting every LUN of that target; timeout is swallowed silently."
+},
+{
+"repo": "democratic-csi",
+"op": "node.iscsi.rescan",
+"impl": "src/utils/iscsi.js:538",
+"how": "iscsiadm -m session -r SID --rescan for the matched session",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Guard is inverted (iscsi.js:547): numeric SID >0 throws 'cannot scan empty session id'; object args from NodeStage pass."
+},
+{
+"repo": "democratic-csi",
+"op": "node.iscsi.session.persist",
+"impl": "src/utils/iscsi.js:96",
+"how": "iscsiadm -m node -o new, then -o update per node-db.* secret (node.startup=manual)",
+"idempotent": "partial",
+"notfound": "no existence check on -o new; 5x retry at index.js:941",
+"notes": "node.startup=manual avoids auto-login after reboot; delete at unstage (index.js:2737). CHAP values go in argv."
+},
+{
+"repo": "democratic-csi",
+"op": "node.nvme.connect",
+"impl": "src/utils/nvmeof.js:94",
+"how": "nvme connect --nqn with transport type, traddr and trsvcid; retried 30x via index.js:1110",
+"idempotent": "yes",
+"notfound": "stderr text 'already connected' (and misspelt variant) treated as success (nvmeof.js:128)",
+"notes": "Idempotency depends on matching stderr wording, which can change across nvme-cli versions."
+},
+{
+"repo": "democratic-csi",
+"op": "node.nvme.disconnect",
+"impl": "src/utils/nvmeof.js:144",
+"how": "nvme disconnect --nqn; tears down all namespaces under that NQN",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "Disconnects every namespace for the NQN, not just this device; unstage stops after first match (index.js:2771-2776)."
+},
+{
+"repo": "democratic-csi",
+"op": "x.node.nvme.rescan",
+"impl": "src/utils/nvmeof.js:167",
+"how": "nvme ns-rescan on controller device, used in stage and expand",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "No vocab id for NVMe rescan; x. prefix used. Stage path called from index.js:1176, expand from index.js:3862 area."
+},
+{
+"repo": "democratic-csi",
+"op": "node.device.resolve",
+"impl": "src/utils/iscsi.js:595",
+"how": "builds /dev/disk/by-path/ip-<portal>-iscsi-<iqn>-lun-<n>; NVMe paths resolved via subsystem lookups in nvmeof.js:353,383",
+"idempotent": "yes",
+"notfound": "polls stat ~30s; throws UNKNOWN if no path attaches (index.js:1030)",
+"notes": "iSCSI path uses the literal portal host with no hostname lookup on this path, so hostname portals can fail to resolve."
+},
+{
+"repo": "democratic-csi",
+"op": "node.multipath",
+"impl": "src/utils/filesystem.js:173",
+"how": "matches dm slaves to new devices (getAllDeviceMapperSlaveDevices); NVMe native multipath via sysfs flag",
+"idempotent": "yes",
+"notfound": "throws UNKNOWN when no dm device matches (index.js:1062-1070)",
+"notes": "Multipath assumed when >1 portal or any new device is already a dm slave (index.js:1057); not validated per path."
+},
+{
+"repo": "democratic-csi",
+"op": "node.fs.format",
+"impl": "src/utils/filesystem.js:615",
+"how": "mkfs.<fstype> with options; vfat adds -I; invoked only when deviceIsFormatted is false",
+"idempotent": "yes",
+"notfound": "lsblk fstype (or blkid) probe before format (index.js:1563)",
+"notes": "Default lsblk probe needs udev data; without it an existing filesystem reads as empty and could be reformatted."
+},
+{
+"repo": "democratic-csi",
+"op": "node.fs.mount",
+"impl": "src/driver/index.js:1676",
+"how": "mount -t <fstype> -o <flags> device staging path; xfs adds nouuid",
+"idempotent": "yes",
+"notfound": "deviceIsMountedAtPath(device, staging) guard before mount (index.js:1634)",
+"notes": "On checksum-related resize failure, does umount then mount then resize retry (index.js:1700-1713)."
+},
+{
+"repo": "democratic-csi",
+"op": "node.nfs.mount",
+"impl": "src/driver/index.js:852",
+"how": "device set to server:share for nfs and lustre, then mount -t via node.fs.mount path",
+"idempotent": "yes",
+"notfound": "deviceIsMountedAtPath guard (index.js:1634) before mount call",
+"notes": "Mount is performed by the shared mount path at index.js:1676; no NFS-specific timeout or retry in driver."
+},
+{
+"repo": "democratic-csi",
+"op": "node.smb.mount",
+"impl": "src/driver/index.js:871",
+"how": "device set to //server/share; adds 'guest' flag when no username= given, then shared mount",
+"idempotent": "yes",
+"notfound": "deviceIsMountedAtPath guard before mount",
+"notes": "Guest default avoids interactive password prompts blocking the driver; mount itself goes through index.js:1676."
+},
+{
+"repo": "democratic-csi",
+"op": "node.fs.unmount",
+"impl": "src/utils/mount.js:411",
+"how": "umount target; NFS timeout path retries umount --force --lazy",
+"idempotent": "yes",
+"notfound": "umount exit code 32 (not mounted) returns true (mount.js:420)",
+"notes": "Stale detection relies on findmnt timeout (30s default) then force or lazy umount; MOUNT_DEFAULT_TIMEOUT tunes it."
+},
+{
+"repo": "democratic-csi",
+"op": "node.fs.resize",
+"impl": "src/utils/filesystem.js:712",
+"how": "resize2fs (ext*), xfs_growfs (xfs), btrfs filesystem resize max, ntfsresize+ntfsfix, fatresize",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "ntfs and vfat resize need an unmounted device; the code path does not check this before calling."
+},
+{
+"repo": "democratic-csi",
+"op": "node.fs.stats",
+"impl": "src/driver/index.js:3608",
+"how": "filesystem.getInodeInfo parses df -i; mount.getMountDetails gives bytes via findmnt",
+"idempotent": "yes",
+"notfound": "NOT_FOUND when path not mounted (index.js:3587)",
+"notes": "df -i output parsed by whitespace split (filesystem.js:883), so device names with spaces mis-parse."
+},
+{
+"repo": "democratic-csi",
+"op": "node.bind.mount",
+"impl": "src/utils/mount.js:389",
+"how": "mount --bind [-o flags] source target; used for staging-to-target publish and hostpath",
+"idempotent": "yes",
+"notfound": "pathIsMounted(target) gate before bind (index.js:3165-3168)",
+"notes": "Repeat publish with different source raises FAILED_PRECONDITION (index.js:3174-3180) instead of remounting."
+},
+{
+"repo": "democratic-csi",
+"op": "node.block.publish",
+"impl": "src/driver/index.js:1760",
+"how": "touch staging block_device file, then bind-mount raw device onto it; publish touches target file",
+"idempotent": "yes",
+"notfound": "pathExists before touch; deviceIsMountedAtPath('dev', block_path) before bind",
+"notes": "Single-file bind uses 'dev' sentinel for source comparison (index.js:3175), a weak check on which device is bound."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.state.store",
+"impl": "src/driver/index.js:769",
+"how": "node keeps no driver state; inputs come from volume_context and secrets, truth lives in iscsid DB, kernel and mount table",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "volume_id is validated but not used for device lookup; state lookups go through iscsiadm, findmnt and lsblk."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.id.scheme",
+"impl": "src/driver/index.js:734",
+"how": "device identity from volume_context iqn+lun or nqn+nsid; staging paths supplied by kubelet",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Device lookup never uses volume_id; device identity comes only from volume_context, so changing portal, iqn or lun retargets the device."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.lock",
+"impl": "src/driver/index.js:734",
+"how": "no driver-side lock in node RPCs; per-volume serialisation is left to kubelet",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Concurrent stage or unstage for the same volume on one node is not guarded inside the driver."
+},
+{
+"repo": "democratic-csi",
+"op": "meta.idempotency",
+"impl": "src/driver/index.js:2594",
+"how": "existence guards (pathExists, pathIsMounted, deviceIsMountedAtPath) and iscsi/nvme already-exists handling",
+"idempotent": "partial",
+"notfound": "guards gate every mutation; teardown errors are swallowed after timeouts",
+"notes": "Stage is repeat-safe; iSCSI nodedb create is not guarded by existence; unstage can report success with leftover sessions."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.CreateVolume",
+"impl": "pkg/driver/controller.go:583",
+"how": "ZFSVolume CR created in openebs namespace; agent runs zfs create or clone",
+"idempotent": "yes",
+"notfound": "CR Get; same-capacity Ready CR returned; other capacity AlreadyExists",
+"notes": "Per-process volume lock; nodes tried in order with retry on failure; pool fit is best-effort."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.DeleteVolume",
+"impl": "pkg/driver/controller.go:642",
+"how": "Deletes ZFSVolume CR; agent zfs destroy -r runs via finalizer; annotated if snapshots remain",
+"idempotent": "yes",
+"notfound": "CR NotFound or deletionTimestamp set returns success",
+"notes": "Refuses while volume not Ready; remaining snapshots defer deletion via annotation rather than failing."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.ControllerExpandVolume",
+"impl": "pkg/driver/controller.go:788",
+"how": "Writes new capacity into ZFSVolume CR spec; zfs resize happens later on node",
+"idempotent": "yes",
+"notfound": "CR Get failure returned as Internal, not NotFound",
+"notes": "Controller never runs zfs set or volsize; resize occurs only in NodeExpandVolume, so it depends on a node call."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.ControllerGetVolume",
+"impl": "pkg/driver/controller.go:1360",
+"how": "Unimplemented stub",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Returns Unimplemented; ZFSVolume CR state is not exposed through this RPC."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.ControllerPublishVolume",
+"impl": "pkg/driver/controller.go:1102",
+"how": "Unimplemented; node-local volumes need no attach step",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Topology key pins each volume to its owner node instead of attaching it."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.ControllerUnpublishVolume",
+"impl": "pkg/driver/controller.go:1090",
+"how": "Unimplemented; no attach step",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Mirror of ControllerPublishVolume; no controller-side detach exists."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.ListVolumes",
+"impl": "pkg/driver/controller.go:1221",
+"how": "Unimplemented stub",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Returns Unimplemented; ZFSVolume CRs are not listed through CSI."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.GetCapacity",
+"impl": "pkg/driver/controller.go:1114",
+"how": "Sums free pool space from ZFSNode CR cache, filtered by topology and pool parameters",
+"idempotent": "n/a",
+"notfound": "Parameter errors return capacity 0 with nil error",
+"notes": "Bad storageclass pool parameters silently report zero capacity (controller.go:1142-1143)."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.CreateSnapshot",
+"impl": "pkg/driver/controller.go:886",
+"how": "Creates ZFSSnapshot CR; agent runs zfs snapshot; wait parameter polls CR Ready",
+"idempotent": "yes",
+"notfound": "CR Get; same-source snapshot reused; other source returns AlreadyExists",
+"notes": "Source check (verifySnapshotRequest) runs before the volume lock is taken, so it can race."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.DeleteSnapshot",
+"impl": "pkg/driver/controller.go:988",
+"how": "Deletes ZFSSnapshot CR; agent zfs destroy runs via finalizer; ZV removed if last",
+"idempotent": "yes",
+"notfound": "CR NotFound or id without '@' returns success",
+"notes": "Malformed snapshot id returns success silently; volume CR removed only when last snapshot and eligible."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.ListSnapshots",
+"impl": "pkg/driver/controller.go:1078",
+"how": "Unimplemented stub",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Returns Unimplemented; snapshot listing is internal (label-selected CR list only)."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.ControllerModifyVolume",
+"impl": "pkg/driver/controller.go:1367",
+"how": "Unimplemented stub",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Returns Unimplemented; volume properties change only through StorageClass and CR updates."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.NodeStageVolume",
+"impl": "pkg/driver/agent.go:314",
+"how": "Unimplemented; NodePublishVolume mounts directly",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "No staging path; each target is mounted at publish time."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.NodeUnstageVolume",
+"impl": "pkg/driver/agent.go:326",
+"how": "Unimplemented; NodeUnpublishVolume unmounts directly",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "No staging path to unstage; matches NodeStageVolume."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.NodePublishVolume",
+"impl": "pkg/driver/agent.go:141",
+"how": "Reads ZFSVolume CR, then formats and mounts zvol, mounts dataset, or bind-mounts block device",
+"idempotent": "partial",
+"notfound": "Already-mounted check (verifyMountRequest) returns success",
+"notes": "Zvol formatted on first mount; block path (mount.go:293) skips the already-mounted check."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.NodeUnpublishVolume",
+"impl": "pkg/driver/agent.go:178",
+"how": "Unmounts target, restores legacy mountpoint, removes target path",
+"idempotent": "yes",
+"notfound": "Not-mounted target returns nil; missing ZFSVolume CR fails Internal",
+"notes": "Requires the CR even when the target is already unmounted, so cleanup can stall if the CR is gone."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.NodeExpandVolume",
+"impl": "pkg/driver/agent.go:345",
+"how": "zfs set quota or volsize via CLI, then resize2fs or xfs_growfs when path is a directory",
+"idempotent": "partial",
+"notfound": "Missing CR returns NotFound; failed set reverts to previous reservation",
+"notes": "ResourceExhausted is chosen by matching 'size is greater than available space' in error text."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.NodeGetVolumeStats",
+"impl": "pkg/driver/agent.go:408",
+"how": "statfs on mount path after mount-point check; bytes and inodes returned, no zfs call",
+"idempotent": "n/a",
+"notfound": "Non-mount path returns NotFound",
+"notes": "Reports filesystem usage; ZFS quota and available properties are not consulted."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.NodeGetInfo",
+"impl": "pkg/driver/agent.go:217",
+"how": "Reads Kubernetes Node object for labels; adds ZFS topology key",
+"idempotent": "n/a",
+"notfound": "Missing Node object returns raw error",
+"notes": "Topology segment set to node name when key absent (agent.go:264-265)."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.GetPluginCapabilities",
+"impl": "pkg/driver/identity.go:90",
+"how": "Advertises CONTROLLER_SERVICE and VOLUME_ACCESSIBILITY_CONSTRAINTS",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Node RPC capabilities (GET_VOLUME_STATS, EXPAND_VOLUME) are declared separately in agent.go:282."
+},
+{
+"repo": "zfs-localpv",
+"op": "csi.Probe",
+"impl": "pkg/driver/identity.go:74",
+"how": "Always returns empty ProbeResponse",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "No zfs, pool or agent health check; always reports ready."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.dataset.create",
+"impl": "pkg/zfs/zfs_util.go:544",
+"how": "zfs create -o mountpoint=legacy via buildDatasetCreateArgs after zfs list precheck",
+"idempotent": "yes",
+"notfound": "zfs list precheck; any list error treated as absent",
+"notes": "CLI not lzc_create; no -p; legacy mountpoint set at create (zfs_util.go:366)."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.zvol.create",
+"impl": "pkg/zfs/zfs_util.go:182",
+"how": "zfs create [-s] -V size -b blocksize -o props, after zfs list precheck (run from CreateVolume)",
+"idempotent": "yes",
+"notfound": "zfs list precheck; any list error treated as absent",
+"notes": "CLI not lzc_create(DMU_OST_ZVOL); -s sparse when thin; user props passed as -o pairs."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.destroy.recursive",
+"impl": "pkg/zfs/zfs_util.go:527",
+"how": "zfs destroy -r pool/vol after parent and volume zfs list checks",
+"idempotent": "yes",
+"notfound": "Missing volume returns success; missing parent returns error",
+"notes": "CLI -r also destroys child snapshots; EZFS_BUSY surfaces as ZFSError when clones depend on the volume."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.snapshot.create",
+"impl": "pkg/zfs/zfs_util.go:814",
+"how": "zfs snapshot pool/vol@snap with -o userprops, after zfs list precheck",
+"idempotent": "yes",
+"notfound": "Existing snapshot returns success after zfs list",
+"notes": "CLI not lzc_snapshot; one snapshot per call, no atomic multi-dataset snapshot."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.snapshot.destroy",
+"impl": "pkg/zfs/zfs_util.go:839",
+"how": "zfs destroy pool/vol@snap after parent and snapshot zfs list checks",
+"idempotent": "yes",
+"notfound": "Missing snapshot returns success; missing parent returns error",
+"notes": "CLI not lzc_destroy_snaps; dependent clones cause EZFS_BUSY and the CR keeps its finalizer."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.clone",
+"impl": "pkg/zfs/zfs_util.go:572",
+"how": "zfs clone -o mountpoint=legacy plus props snap vol; zvol-source snapshot created first",
+"idempotent": "yes",
+"notfound": "zfs list precheck on target; existing clone reused",
+"notes": "CLI not lzc_clone; xfs and btrfs UUID regenerated after clone; encryption not set, inherited from snapshot."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.prop.set",
+"impl": "pkg/zfs/zfs_util.go:716",
+"how": "zfs set name=value props on volume via buildVolumeSetArgs; only when volume Ready",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "CLI not libzfs zfs_prop_set; full property set is re-sent on every CR update, not diffed."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.prop.get",
+"impl": "pkg/zfs/zfs_util.go:697",
+"how": "zfs get -pH -o value prop vol; trailing byte stripped as newline",
+"idempotent": "yes",
+"notfound": "Non-zero exit returns ZFSError with stderr",
+"notes": "CLI zfs get -pH matches anchor zfs get -Hp; output assumed to end with a newline."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.userprop.set",
+"impl": "pkg/zfs/zfs_util.go:404",
+"how": "zfs set openebs.io:* name=value on update; -o pairs at create",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "CLI, no libzfs equivalent used; userprops are written but never read back, CR is authoritative."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.volsize.resize",
+"impl": "pkg/zfs/zfs_util.go:414",
+"how": "zfs set volsize=N pool/vol, run from ResizeZFSVolume on the node",
+"idempotent": "yes",
+"notfound": "Reads current reservation first; error returns before any set",
+"notes": "CLI not libzfs; thick volumes also set reservation in same call; quota reverted if set fails."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.quota",
+"impl": "pkg/zfs/zfs_util.go:414",
+"how": "zfs set quota=N, or refquota per quotatype, on dataset from node resize",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "CLI; ZFS_PROP_QUOTA or REFQUOTA picked by quotatype; reservation is set in the same call."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.reservation",
+"impl": "pkg/zfs/zfs_util.go:1125",
+"how": "zfs set reservation= or refreservation= when thinprovision is no",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Restore path hardcodes reservation= even for refquota (zfs_util.go:492), diverging from create and resize."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.send",
+"impl": "pkg/zfs/zfs_util.go:440",
+"how": "zfs send [-i prev] pool/vol@snap piped into nc -w 3 host port via runPipe",
+"idempotent": "partial",
+"notfound": "Snapshot created with existence precheck; pipe failures returned as ZFSError",
+"notes": "CLI pipe not lzc_send; incremental only when previous snapshot set; no raw or encryption flags; nc has no auth."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.receive",
+"impl": "pkg/zfs/zfs_util.go:467",
+"how": "nc host port piped into zfs recv -o props -F pool/vol via runPipe",
+"idempotent": "partial",
+"notfound": "No precheck; pipe failures returned as ZFSError",
+"notes": "CLI not lzc_receive; -F forces rollback of the target; a failed restore cannot resume."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.pool.list",
+"impl": "pkg/zfs/zfs_util.go:1073",
+"how": "zfs list -d 1 -s name -o name,guid,available,used -H -p; pools picked by missing slash",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "CLI zfs list, not zpool list; pool identified by lack of '/', which excludes poolname child datasets."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.space.available",
+"impl": "pkg/zfs/zfs_util.go:1073",
+"how": "available and used columns parsed into pool Free and Used quantities",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Pool-level only; per-dataset availability is not queried; one bad numeric field aborts the whole list."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.mount",
+"impl": "pkg/zfs/zfs_util.go:640",
+"how": "Sets mountpoint, then zfs mount only when mounted=no; legacy datasets use mount(8) in mount.go:223",
+"idempotent": "yes",
+"notfound": "mounted property read; value 'no' triggers zfs mount",
+"notes": "CLI zfs mount for mountpoint datasets; legacy datasets bypass zfs mount via mount(8) -t zfs."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.unmount",
+"impl": "pkg/zfs/mount.go:84",
+"how": "k8s mount utils Unmount on target, then mountpoint=legacy restored",
+"idempotent": "yes",
+"notfound": "Not-mounted or missing path returns nil",
+"notes": "Not zfs umount: umount(2) via mount utils; failure to restore legacy mountpoint is only logged."
+},
+{
+"repo": "zfs-localpv",
+"op": "zfs.job.wait",
+"impl": "pkg/zfs/volume.go:139",
+"how": "Polls ZFSVolume CR state each second until Ready or Failed, 10s timeout",
+"idempotent": "n/a",
+"notfound": "CR Get error returned as Internal",
+"notes": "Waits on CR status, not a ZFS job; no zfs job or txg handle is tracked."
+},
+{
+"repo": "zfs-localpv",
+"op": "node.device.resolve",
+"impl": "pkg/zfs/zfs_util.go:876",
+"how": "filepath.EvalSymlinks of /dev/zvol/pool/vol; datasets return the dataset name",
+"idempotent": "yes",
+"notfound": "EvalSymlinks error returned, no retry",
+"notes": "Symlink lookup only, no serial or WWN matching; device polling (getDevice, zfs_util.go:1002) is restore-only."
+},
+{
+"repo": "zfs-localpv",
+"op": "node.fs.format",
+"impl": "pkg/zfs/mount.go:61",
+"how": "k8s SafeFormatAndMount mkfs with per-fstype format options; ext4 default",
+"idempotent": "partial",
+"notfound": "Filesystem probe happens inside SafeFormatAndMount, not in this code",
+"notes": "Only zvol volumes are formatted; dataset volumes are never formatted (formatoptions.go:14)."
+},
+{
+"repo": "zfs-localpv",
+"op": "node.fs.mount",
+"impl": "pkg/zfs/mount.go:198",
+"how": "format-and-mount /dev/zvol path to target with fstype and mount options",
+"idempotent": "yes",
+"notfound": "verifyMountRequest finds existing mount and returns success",
+"notes": "FormatAndMount error replaced by generic Internal message, dropping the underlying cause."
+},
+{
+"repo": "zfs-localpv",
+"op": "node.fs.unmount",
+"impl": "pkg/zfs/mount.go:84",
+"how": "k8s mount utils Unmount on target path, then legacy mountpoint restored",
+"idempotent": "yes",
+"notfound": "Not-mounted or missing path returns nil",
+"notes": "Same unmount path as zfs.unmount; a missing ZFSVolume CR is not tolerated here."
+},
+{
+"repo": "zfs-localpv",
+"op": "node.fs.resize",
+"impl": "pkg/zfs/resize.go:53",
+"how": "After zfs set, resize2fs for ext or xfs_growfs for xfs on the mounted path",
+"idempotent": "yes",
+"notfound": "Mount table scan; path absent from table means no resize",
+"notes": "Resize runs only when the path is mounted; resize failure is not reverted, unlike the quota set."
+},
+{
+"repo": "zfs-localpv",
+"op": "node.block.publish",
+"impl": "pkg/zfs/mount.go:293",
+"how": "Creates target file, then bind-mounts the /dev/zvol device onto it",
+"idempotent": "no",
+"notfound": "Mount failure removes target file; no already-mounted check",
+"notes": "Unlike MountZvol there is no already-mounted check; a repeated publish may stack bind mounts."
+},
+{
+"repo": "zfs-localpv",
+"op": "node.fs.stats",
+"impl": "pkg/driver/agent.go:408",
+"how": "statfs on mount path after mount-point check; bytes and inodes returned",
+"idempotent": "n/a",
+"notfound": "Non-mount path returns NotFound",
+"notes": "Reports filesystem usage; ZFS quota and available properties are not consulted."
+},
+{
+"repo": "zfs-localpv",
+"op": "meta.state.store",
+"impl": "pkg/zfs/volume.go:261",
+"how": "ZFSVolume and ZFSSnapshot CRs in openebs namespace are authoritative; zfs userprops mirror metadata",
+"idempotent": "n/a",
+"notfound": "k8s NotFound from GetZFSVolume",
+"notes": "CR status Pending, Ready or Failed gates every op; zfs holds data plus openebs.io: userprops only."
+},
+{
+"repo": "zfs-localpv",
+"op": "meta.id.scheme",
+"impl": "pkg/driver/controller.go:916",
+"how": "volume_id is lowercased CSI name (pvc-uid); snapshot_id is volID@snapName",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Volume name becomes the zfs leaf name, so ids must be lowercase; '@' split assumes no '@' in volume ids."
+},
+{
+"repo": "zfs-localpv",
+"op": "meta.lock",
+"impl": "pkg/driver/volume_lock.go:19",
+"how": "In-process per-ID mutex built on sync.Cond; snapshot ops lock volume and snapshot IDs",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Not cross-process; multi-replica controllers rely on leader election (helm adds it when replicas > 1)."
+},
+{
+"repo": "zfs-localpv",
+"op": "meta.idempotency",
+"impl": "pkg/driver/controller.go:226",
+"how": "CR existence and zfs list prechecks per operation; capacity mismatch returns AlreadyExists",
+"idempotent": "partial",
+"notfound": "CR NotFound and zfs list absence checked per operation",
+"notes": "Errors from zfs list or non-NotFound CR Get fall through to create; no retry guard on the CLI side."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.dataset.create",
+"impl": "zfs.go:351",
+"how": "zfs create [-o k=v] name, then GetDataset to return typed Dataset",
+"idempotent": "no",
+"notfound": "No precheck; 'dataset already exists' stderr surfaces raw",
+"notes": "CLI not lzc_create; no -p; error is *Error with Stderr string only."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.zvol.create",
+"impl": "zfs.go:257",
+"how": "zfs create -p -V size [-o props] name, then GetDataset",
+"idempotent": "no",
+"notfound": "No precheck; raw stderr returned",
+"notes": "CLI not lzc_create(DMU_OST_ZVOL); -p silently creates missing parents, unlike zfs-localpv."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.destroy",
+"impl": "zfs.go:276",
+"how": "zfs destroy with flags from DestroyFlag; DestroyDefault adds no flag",
+"idempotent": "no",
+"notfound": "No existence check; caller must match stderr text",
+"notes": "CLI not lzc_destroy; no mapping of EZFS_NOENT to success."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.destroy.recursive",
+"impl": "zfs.go:276",
+"how": "DestroyRecursive adds -r; DestroyRecursiveClones adds -R for dependent clones",
+"idempotent": "no",
+"notfound": "Same as zfs.destroy; no not-found mapping",
+"notes": "CLI -r and -R; no lzc equivalent used; a single flag word mixes both recursion modes."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.destroy.defer",
+"impl": "zfs.go:276",
+"how": "DestroyDeferDeletion adds -d; snapshot marked for deferred deletion",
+"idempotent": "no",
+"notfound": "Same as zfs.destroy",
+"notes": "Anchor is lzc_destroy_snaps(defer=B_TRUE); this uses CLI -d instead."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.snapshot.create",
+"impl": "zfs.go:368",
+"how": "zfs snapshot [-r] ds@name, then GetDataset of the snapshot",
+"idempotent": "no",
+"notfound": "No precheck; duplicate name fails with raw stderr",
+"notes": "CLI not lzc_snapshot; -r is CLI-only recursion; one snapshot name per call."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.snapshot.list",
+"impl": "zfs.go:129",
+"how": "zfs list -rHp -t snapshot [filter] parsed into typed Dataset slice",
+"idempotent": "n/a",
+"notfound": "Empty result gives nil slice and no error; missing filter target errors",
+"notes": "CLI listing; typed uint64 fields; parse failure aborts the whole list."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.snapshot.destroy",
+"impl": "zfs.go:276",
+"how": "Generic Destroy called on a snapshot name; no snapshot-specific code path",
+"idempotent": "no",
+"notfound": "Same as zfs.destroy",
+"notes": "Same function as zfs.destroy; does not check the receiver is a snapshot."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.clone",
+"impl": "zfs.go:165",
+"how": "zfs clone -p [-o props] snap dest, receiver must be snapshot type, then GetDataset",
+"idempotent": "no",
+"notfound": "Non-snapshot receiver rejected locally before CLI call",
+"notes": "CLI not lzc_clone; -p creates parents; no check whether the destination exists."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.rename",
+"impl": "zfs.go:324",
+"how": "zfs rename [-p] [-r] src dst, then GetDataset(name)",
+"idempotent": "no",
+"notfound": "No precheck; raw stderr returned",
+"notes": "CLI not lzc_rename; on error returns the receiver instead of nil, unlike other methods."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.prop.get",
+"impl": "zfs.go:314",
+"how": "zfs get -Hp key ds; returns out[0][2] as a plain string",
+"idempotent": "yes",
+"notfound": "Missing dataset returns the CLI Error",
+"notes": "Returns untyped string, not parsed; indexing out[0] panics if output is empty."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.prop.set",
+"impl": "zfs.go:304",
+"how": "zfs set key=val ds; also used for user properties",
+"idempotent": "yes",
+"notfound": "No precheck; CLI error returned raw",
+"notes": "CLI not libzfs zfs_prop_set; no value validation before the call."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.space.available",
+"impl": "utils.go:134",
+"how": "parseLine maps 'available' column into Dataset.Avail uint64",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Typed uint64; '-' parsed as 0 by setUint (utils.go:121); column count must match dsPropList exactly."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.list.children",
+"impl": "zfs.go:404",
+"how": "zfs list -d N or -r -t all -Hp; lines grouped into Dataset values",
+"idempotent": "n/a",
+"notfound": "Empty output panics on datasets[1:] slice",
+"notes": "Drops the first entry (the receiver) by slicing; no error when the receiver is missing."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.send",
+"impl": "zfs.go:232",
+"how": "zfs send name streamed into io.Writer via command.Stdout",
+"idempotent": "n/a",
+"notfound": "Non-snapshot receiver rejected locally; CLI errors raw",
+"notes": "CLI not lzc_send; full sends only; incremental is separate (zfs.go:244) and adds -i."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.receive",
+"impl": "zfs.go:222",
+"how": "zfs receive name reading io.Reader on stdin, then GetDataset",
+"idempotent": "no",
+"notfound": "No -F; fails when target exists, raw stderr",
+"notes": "CLI not lzc_receive; no overwrite or rollback option exposed."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.mount",
+"impl": "zfs.go:200",
+"how": "zfs mount [-O] [-o opts] ds, then GetDataset",
+"idempotent": "no",
+"notfound": "Snapshot receiver rejected locally; CLI errors raw",
+"notes": "CLI zfs mount, no lzc or libzfs equivalent; options joined with commas."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.unmount",
+"impl": "zfs.go:183",
+"how": "zfs umount [-f] ds, then GetDataset",
+"idempotent": "no",
+"notfound": "Snapshot receiver rejected locally; CLI errors raw",
+"notes": "CLI zfs umount, not unmount(2); force flag is the only option."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.rollback",
+"impl": "zfs.go:386",
+"how": "zfs rollback [-r] snap; receiver must be snapshot type; returns only error",
+"idempotent": "no",
+"notfound": "Non-snapshot receiver rejected locally",
+"notes": "Id taken from the anchor list, not the op list; CLI not lzc_rollback_to; -r destroys newer snapshots."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "zfs.pool.list",
+"impl": "zpool.go:99",
+"how": "zpool list -Ho name, then GetZpool per name (one zpool CLI call per pool)",
+"idempotent": "n/a",
+"notfound": "Any GetZpool error aborts the whole list",
+"notes": "zpool CLI, not zfs; returns typed Zpool with uint64 Size, Free, Allocated fields."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "x.zfs.diff",
+"impl": "zfs.go:438",
+"how": "zfs diff -FH snap ds parsed into InodeChange list",
+"idempotent": "n/a",
+"notfound": "Raw stderr from CLI",
+"notes": "Not in vocab, so x. prefix; CLI zfs diff with no anchor; typed InodeChange with ChangeType and InodeType."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "x.zfs.dataset.list",
+"impl": "utils.go:324",
+"how": "zfs list -rHp -t type [filter] into typed Dataset slice (Datasets, Filesystems, Volumes)",
+"idempotent": "n/a",
+"notfound": "Empty result gives nil slice and no error",
+"notes": "Not in vocab, so x. prefix; typed uint64 fields; '-' parsed as zero; shared by Filesystems and Volumes."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "x.zfs.dataset.get",
+"impl": "zfs.go:147",
+"how": "zfs list -Hp -o all-props name, parsed into one typed Dataset",
+"idempotent": "n/a",
+"notfound": "Missing dataset returns the CLI Error",
+"notes": "Not in vocab, so x. prefix; single-dataset typed read; used by callers to re-check existence."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "x.zpool.create",
+"impl": "zpool.go:77",
+"how": "zpool create [-o props] name args..., returns Zpool with only Name set",
+"idempotent": "no",
+"notfound": "No precheck; raw stderr",
+"notes": "Not in vocab, so x. prefix; CLI zpool create; returned struct carries no pool state."
+},
+{
+"repo": "mistifyio/go-zfs",
+"op": "x.zpool.destroy",
+"impl": "zpool.go:93",
+"how": "zpool destroy name",
+"idempotent": "no",
+"notfound": "No precheck; raw stderr",
+"notes": "Not in vocab, so x. prefix; CLI zpool destroy with no force flag."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.dataset.create",
+"impl": "zfs.go:317",
+"how": "CreateFilesystem with mountpoint=legacy, then mount(2) type zfs and chown of root",
+"idempotent": "no",
+"notfound": "Matches *zfs.Error stderr suffix 'dataset already exists' (zfs.go:277)",
+"notes": "On EEXIST it runs destroy -R of the stale dataset (zfs.go:286) and retries; destructive recovery."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.clone",
+"impl": "zfs.go:235",
+"how": "Clone snapshot as new dataset with mountpoint=legacy; source snapshot created per call",
+"idempotent": "no",
+"notfound": "No precheck; clone failure triggers snapshot cleanup then returns error",
+"notes": "CLI not lzc_clone; snapshot name is Nanosecond-only (zfs.go:228), so repeats are possible across seconds."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.snapshot.create",
+"impl": "zfs.go:230",
+"how": "Parent.Snapshot(nanosecond name) via zfs snapshot, no -r",
+"idempotent": "no",
+"notfound": "Raw stderr; no precheck",
+"notes": "Name from time.Now().Nanosecond(), not unique across seconds; a collision makes the clone path fail."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.destroy.defer",
+"impl": "zfs.go:248",
+"how": "snapshot.Destroy(DestroyDeferDeletion) runs zfs destroy -d",
+"idempotent": "no",
+"notfound": "Failure on clone path only logged as warning (zfs.go:243)",
+"notes": "Snapshot is removed once its last clone goes; CLI -d, not lzc_destroy_snaps(defer=B_TRUE)."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.destroy.recursive",
+"impl": "zfs.go:395",
+"how": "Remove calls dataset.Destroy(DestroyRecursive), i.e. zfs destroy -r on layer dataset",
+"idempotent": "partial",
+"notfound": "Re-queries GetDataset; missing dataset treated as already removed",
+"notes": "Tolerates a missing dataset but still errors if it exists; -r also drops snapshots under the layer."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.quota",
+"impl": "zfs.go:388",
+"how": "setQuota: GetDataset then SetProperty quota=size via zfs set",
+"idempotent": "yes",
+"notfound": "GetDataset error returned; size 0 skipped",
+"notes": "CLI zfs set quota; only storage option 'size' accepted (parseStorageOpt, zfs.go:366)."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.prop.get",
+"impl": "zfs.go:384",
+"how": "GetDataset runs zfs list -Hp and parses typed fields before quota is set",
+"idempotent": "yes",
+"notfound": "Lookup error returned to caller",
+"notes": "Typed uint64 read (Quota, Avail); used only as a precheck in this driver."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.space.available",
+"impl": "zfs.go:91",
+"how": "Filesystems(fsName) at Init caches Dataset with Avail and Used fields",
+"idempotent": "n/a",
+"notfound": "Root missing from listing returns error at Init (zfs.go:105)",
+"notes": "Values are cached at Init; Status() does not refresh them, so space figures go stale."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.pool.list",
+"impl": "zfs.go:192",
+"how": "GetZpool on pool name from dataset root, reads Health for Status()",
+"idempotent": "n/a",
+"notfound": "Error embedded as text in Status value, not returned",
+"notes": "Single pool only via zpool CLI; error text leaks into status output (zfs.go:199)."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.mount",
+"impl": "zfs.go:462",
+"how": "containers/storage mount.Mount(type zfs) on legacy mountpoint; read-only via remount",
+"idempotent": "partial",
+"notfound": "Mount error wrapped; in-process RefCounter guards double mount",
+"notes": "Uses mount(2), not zfs mount CLI; ref-counted only within this process."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "zfs.unmount",
+"impl": "zfs.go:477",
+"how": "Put: detachUnmount with MNT_DETACH and rmdir of mountpoint at refcount zero",
+"idempotent": "yes",
+"notfound": "Unmount failure logged as warning, not returned",
+"notes": "Uses unix.Unmount MNT_DETACH, not zfs umount; errors are swallowed."
+},
+{
+"repo": "podman-storage-zfs",
+"op": "x.zfs.dataset.list",
+"impl": "zfs.go:91",
+"how": "Filesystems(fsName) lists root and children at Init; Exists answers from cache",
+"idempotent": "n/a",
+"notfound": "Error returned from Init if listing fails",
+"notes": "Not in vocab, so x. prefix; Exists() reads in-memory cache, not ZFS, so external destroys are not seen."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "node.iscsi.discover",
+"impl": "iscsi/iscsiadm.go:88",
+"how": "iscsiadm -m discoverydb -t sendtargets -o new, optional CHAP, then --discover",
+"idempotent": "partial",
+"notfound": "-o new failure returned as error; no existing-entry check",
+"notes": "Runs only when DoDiscovery set (iscsi.go:359). CHAP secrets are passed in argv and logged at V(2) by iscsiCmd (iscsiadm.go:28)."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "node.iscsi.login",
+"impl": "iscsi/iscsiadm.go:158",
+"how": "iscsiadm -m node -T iqn -p portal -l; on failure deletes that node record",
+"idempotent": "partial",
+"notfound": "no 'already logged in' (code 15) handling; failure triggers node record delete",
+"notes": "Unlike democratic-csi, code 15 is not success. iscsiCmd wraps every call in a 3s timeout (iscsiadm.go:26), so slow logins fail."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "node.iscsi.logout",
+"impl": "iscsi/iscsi.go:381",
+"how": "Disconnect: iscsiadm -m node -T iqn -p portal -u per portal, then -o delete of node record",
+"idempotent": "partial",
+"notfound": "Logout errors return early, skipping remaining portals and DeleteDBEntry",
+"notes": "Returns on first Logout error (iscsi.go:384-387). The 'deleted' map guard at iscsi.go:390 is local and never matches: dead code."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "node.iscsi.rescan",
+"impl": "iscsi/iscsi.go:311",
+"how": "iscsiadm -m node -R rescans existing sessions before device lookup; Device.Rescan writes sysfs rescan",
+"idempotent": "yes",
+"notfound": "rescan error only logged unless timeout, then logout via raw execCommand (iscsi.go:315)",
+"notes": "On -R timeout the connector logs out the whole portal session, which can drop LUNs in use by other volumes."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "node.iscsi.session.persist",
+"impl": "iscsi/iscsiadm.go:60",
+"how": "iscsiadm -m node -I iface -o new, then -o update for each CHAP attribute (createCHAPEntries)",
+"idempotent": "partial",
+"notfound": "-o new error returned; no existence check",
+"notes": "CHAP passwords appear in argv (iscsiadm.go:132) and in V(2) logs (iscsiadm.go:28). Node record persists until Disconnect deletes it."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "node.device.resolve",
+"impl": "iscsi/iscsi.go:149",
+"how": "builds /dev/disk/by-path/ip-<portal>-iscsi-<iqn>-lun-<n> (iscsi.go:326); polls stat per RetryCount/CheckInterval",
+"idempotent": "yes",
+"notfound": "returns os.ErrNotExist after retries; non-not-exist stat errors returned directly",
+"notes": "Portal string is joined without bracket or hostname normalisation. Device.WWID slices out[:len-1] unchecked (iscsi.go:755), panics on empty output."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "node.multipath",
+"impl": "iscsi/multipath.go:50",
+"how": "multipath -f dm path (5s timeout); mpath selection via getMultipathDevice (iscsi.go:200)",
+"idempotent": "yes",
+"notfound": "flush ignores not-exist after failure; getMultipathDevice errors when no single mpath child",
+"notes": "'map in use' detection never fires: ExecWithTimeout's errors.Is(err, ee) is always false (multipath.go:39), so stderr is lost."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "x.node.device.remove",
+"impl": "iscsi/iscsi.go:589",
+"how": "blockdev --flushbufs, then sysfs state=offline and delete under /sys/class/scsi_device/<hctl>",
+"idempotent": "yes",
+"notfound": "not-exist on exists, shutdown and delete treated as already removed",
+"notes": "Flush failure returns before other devices are processed. DisconnectVolume derefs MountTargetDevice unchecked (iscsi.go:465). No vocab id for device removal."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "meta.state.store",
+"impl": "iscsi/iscsi.go:637",
+"how": "Connector serialised as JSON via os.Create (iscsi.go:639); read back by GetConnectorFromFile",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "JSON carries DiscoverySecrets and SessionSecrets with CHAP passwords. os.Create uses default umask, so typically world-readable."
+},
+{
+"repo": "csi-lib-iscsi",
+"op": "meta.idempotency",
+"impl": "iscsi/iscsi.go:331",
+"how": "connectTarget checks sessionExists before discover/login and reuses existing session device",
+"idempotent": "partial",
+"notfound": "sessionExists treats iscsiadm exit 21 as no sessions",
+"notes": "sessionExists error ignored (iscsi.go:331). Zero-device failure deletes iface even when named 'default' or shared (iscsi.go:274)."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.NodePublishVolume",
+"impl": "pkg/nfs/nodeserver.go:52",
+"how": "validates server:share/subDir, mkdir target, nfs mount with 110s timeout, chmod and chown",
+"idempotent": "yes",
+"notfound": "IsLikelyNotMountPoint gate; existing mount reused unless stale",
+"notes": "lstat permission error returns success without verifying mount (nodeserver.go:160-161). Subdir is not created here; it must exist already."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.NodeUnpublishVolume",
+"impl": "pkg/nfs/nodeserver.go:225",
+"how": "CleanupMountWithForce (30s) when mounter supports force, else CleanupMountPoint",
+"idempotent": "yes",
+"notfound": "relies on mount-utils cleanup treating unmounted or missing path as done",
+"notes": "Per volumeID-targetPath lock returns Aborted on conflict. Subdirectory data is never removed on unpublish, which is correct."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.NodeGetVolumeStats",
+"impl": "pkg/nfs/nodeserver.go:274",
+"how": "Lstat path, then statfs via volume.NewMetricsStatFS (nodeserver.go:300); result cached per VolumeId",
+"idempotent": "yes",
+"notfound": "NotFound when Lstat reports path missing",
+"notes": "Cache TTL defaults to 10 minutes (nfs.go:135-136), so stats can be stale. Usage reports bytes and inodes."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.NodeGetInfo",
+"impl": "pkg/nfs/nodeserver.go:260",
+"how": "returns driver nodeID only",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "No topology keys and no max_volumes_per_node reported."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "x.csi.NodeGetCapabilities",
+"impl": "pkg/nfs/nodeserver.go:267",
+"how": "returns ns.Driver.nscap built in nfs.go:128-131",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Advertises GET_VOLUME_STATS, SINGLE_NODE_MULTI_WRITER and RPC_UNKNOWN; UNKNOWN is not a real capability. No vocab id."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "node.nfs.mount",
+"impl": "pkg/nfs/mount_timeout_linux.go:41",
+"how": "mount -t nfs server:share target via runNFSMountCommandContext (mount_timeout_linux.go:74) with context timeout",
+"idempotent": "partial",
+"notfound": "only reached when NodePublish finds target not mounted",
+"notes": "Unsupported platforms use mounter.Mount inside WaitUntilTimeout (mount_timeout_unsupported.go:29), a different timeout mechanism."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "node.fs.unmount",
+"impl": "pkg/nfs/nodeserver.go:247",
+"how": "CleanupMountWithForce 30s timeout, falling back to CleanupMountPoint (nodeserver.go:249)",
+"idempotent": "yes",
+"notfound": "unmounted or missing target handled by mount-utils",
+"notes": "Force path only taken when mounter implements MounterForceUnmounter; stale NFS recovery depends on that type assertion."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "node.fs.stats",
+"impl": "pkg/nfs/nodeserver.go:300",
+"how": "volume.NewMetricsStatFS(volume_path).GetMetrics(), cached per volume in volStatsCache",
+"idempotent": "yes",
+"notfound": "Lstat not-exist mapped to NotFound before metrics call",
+"notes": "Same cache as csi.NodeGetVolumeStats; a TTL of 10 minutes by default hides capacity changes."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.CreateVolume",
+"impl": "pkg/nfs/controllerserver.go:119",
+"how": "mounts share via NodePublish path, MkdirAll subdir (0777), chmod and chown, optional copy from snapshot or volume",
+"idempotent": "partial",
+"notfound": "MkdirAll reuses existing subdir; no check that params match a prior create",
+"notes": "Returns CapacityBytes 0 and enforces no quota. Copy failure after mkdir leaves the subdir behind (controllerserver.go:214-216)."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.DeleteVolume",
+"impl": "pkg/nfs/controllerserver.go:237",
+"how": "derives subdir from ID; RemoveAll, or archive by rename to archived-<subdir>, then removeEmptyDirs",
+"idempotent": "yes",
+"notfound": "unparseable ID returns success; RemoveAll no-op when subdir missing",
+"notes": "With removeArchivedVolumePath, RemoveAll drops any earlier archived-<subdir> first (controllerserver.go:300-303). Deletion cache is in-memory only."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.CreateSnapshot",
+"impl": "pkg/nfs/controllerserver.go:383",
+"how": "mounts snapshot and source shares, tars source subdir (CLI or TarPack) into snapshot dir; ID encodes archive",
+"idempotent": "yes",
+"notfound": "validateSnapshot walks dir; returns AlreadyExists on different archive (controllerserver.go:1041)",
+"notes": "Oversized archive is removed and error returned (controllerserver.go:456-461). Snapshot share mounted even when archive already exists."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.DeleteSnapshot",
+"impl": "pkg/nfs/controllerserver.go:482",
+"how": "mounts snapshot share via internalMount, then RemoveAll on snapshot directory",
+"idempotent": "yes",
+"notfound": "unparseable snapshot ID returns success; RemoveAll no-op when missing",
+"notes": "A malformed snapshot ID silently succeeds, which can leave orphaned archives on the share."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "csi.ControllerExpandVolume",
+"impl": "pkg/nfs/controllerserver.go:521",
+"how": "echoes requested bytes; no quota or filesystem operation",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "NFS has no quota here, so expansion is metadata-only and capacity is not enforced."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "x.csi.ValidateVolumeCapabilities",
+"impl": "pkg/nfs/controllerserver.go:347",
+"how": "validates access modes and types via isValidVolumeCapabilities (controllerserver.go:1028)",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Pure validation, no share access. No vocab id for ValidateVolumeCapabilities, so x. prefix."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "x.csi.ControllerGetCapabilities",
+"impl": "pkg/nfs/controllerserver.go:377",
+"how": "returns controller capability list set in nfs.go:120-126",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Advertises CLONE_VOLUME and EXPAND_VOLUME; ListSnapshots and ControllerPublish are not advertised and return Unimplemented."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "meta.id.scheme",
+"impl": "pkg/nfs/controllerserver.go:915",
+"how": "ID = server#baseDir#subDir[#uuid][#onDelete] (utils.go:40 separator '#'); parsed back by getNfsVolFromID (controllerserver.go:946)",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Policy stored in ID only for retain or archive. Parser falls back to a '/'-separated regex for legacy IDs."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "meta.state.store",
+"impl": "pkg/nfs/controllerserver.go:260",
+"how": "no external store: NFS directory tree plus ID; volDeletionCache and volStatsCache held in memory",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "In-memory caches are lost on restart; idempotency after restart relies on RemoveAll and MkdirAll no-op semantics."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "meta.lock",
+"impl": "pkg/nfs/controllerserver.go:173",
+"how": "volumeLocks.TryAcquire keyed by volume name (create) or volume ID (delete); returns Aborted on contention",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Node publish locks use volumeID-targetPath keys, a separate namespace from controller locks."
+},
+{
+"repo": "csi-driver-nfs",
+"op": "meta.idempotency",
+"impl": "pkg/nfs/controllerserver.go:260",
+"how": "deletion cache short-circuits repeat DeleteVolume; create and snapshot rely on MkdirAll and archive-name checks",
+"idempotent": "partial",
+"notfound": "validateSnapshot returns AlreadyExists for name collisions with different archive",
+"notes": "Create does not compare parameters with an existing subdir, so a repeat with different params silently succeeds."
+},
+{
+"repo": "synology-csi",
+"op": "csi.CreateVolume",
+"impl": "pkg/driver/controllerserver.go:106",
+"how": "GetVolumeByName lookup, then dsm.CreateVolume: LUN, share or namespace create per protocol, then target map",
+"idempotent": "yes",
+"notfound": "GetVolumeByName returns nil; AlreadyExist tolerated and existing object adopted",
+"notes": "Same name with different capacity returns ALREADY_EXISTS (controllerserver.go:257); iSCSI and NVMe compare bytes, SMB and NFS compare MB."
+},
+{
+"repo": "synology-csi",
+"op": "csi.DeleteVolume",
+"impl": "pkg/driver/controllerserver.go:277",
+"how": "dsm.DeleteVolume: iSCSI LUN delete, then target delete if sole mapping; SMB/NFS share delete; NVMe namespace then subsystem delete",
+"idempotent": "partial",
+"notfound": "GetVolume nil returns OK; NoSuchLun or NoSuchNamespace after failed delete returns OK",
+"notes": "SMB/NFS share delete does not tolerate NoSuchShare (dsm.go:731). iSCSI treats any TargetGet error after failed TargetDelete as gone (dsm.go:773-775), hiding real failures."
+},
+{
+"repo": "synology-csi",
+"op": "csi.ControllerExpandVolume",
+"impl": "pkg/driver/controllerserver.go:583",
+"how": "dsm.ExpandVolume: iSCSI LUN set new_size, namespace set, or share quota set",
+"idempotent": "partial",
+"notfound": "Missing volume returns InvalidArgument (dsm.go:919), not NOT_FOUND",
+"notes": "Node-side lookups return NotFound for the same condition, so the controller and node disagree on the error code."
+},
+{
+"repo": "synology-csi",
+"op": "csi.GetCapacity",
+"impl": "pkg/driver/controllerserver.go:407",
+"how": "SYNO.Core.Storage.Volume list via ListDsmVolumes; sums free bytes for the DSM named in parameters",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Sums free space across every volume on that DSM, not the StorageClass location."
+},
+{
+"repo": "synology-csi",
+"op": "csi.ListVolumes",
+"impl": "pkg/driver/controllerserver.go:343",
+"how": "dsm.ListVolumes merges LUN, namespace and share listings across all DSMs",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Listing errors are surfaced so a missing entry is not read as a deleted volume (dsm.go:787-790, share_volume.go:300-304)."
+},
+{
+"repo": "synology-csi",
+"op": "csi.CreateSnapshot",
+"impl": "pkg/driver/controllerserver.go:443",
+"how": "dsm.CreateSnapshot: LUN take_snapshot, share Snapshot create, or namespace take_snapshot",
+"idempotent": "yes",
+"notfound": "GetSnapshotByName checked before create (controllerserver.go:457)",
+"notes": "Share snapshot is deleted by Time string and parent name; LUN and namespace snapshots by DSM uuid (dsm.go:1082, 1091)."
+},
+{
+"repo": "synology-csi",
+"op": "csi.DeleteSnapshot",
+"impl": "pkg/driver/controllerserver.go:503",
+"how": "dsm.DeleteSnapshot: share snapshot delete by Time and parent, or LUN or namespace snapshot delete by uuid",
+"idempotent": "partial",
+"notfound": "LUN and namespace not-found tolerated after failed delete (dsm.go:1092, 1105)",
+"notes": "Share snapshot delete has no not-found tolerance (dsm.go:1082), so repeating it after removal errors."
+},
+{
+"repo": "synology-csi",
+"op": "csi.ListSnapshots",
+"impl": "pkg/driver/controllerserver.go:518",
+"how": "dsm.ListSnapshots: share snapshot list per share, LUN snapshot list per LUN, namespace snapshot list",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Best-effort: a failed share list is logged and a partial result returned (share_volume.go:339-344)."
+},
+{
+"repo": "synology-csi",
+"op": "csi.NodeStageVolume",
+"impl": "pkg/driver/nodeserver.go:746",
+"how": "Dispatches by protocol: iSCSI login and mount, SMB cifs with permission set, NFS privilege save, NVMe connect and mount",
+"idempotent": "yes",
+"notfound": "IsLikelyNotMountPoint on staging path; already mounted returns OK (nodeserver.go:603-609)",
+"notes": "NFS stage only saves the export rule; the mount happens in NodePublish, so export problems surface later."
+},
+{
+"repo": "synology-csi",
+"op": "csi.NodeUnstageVolume",
+"impl": "pkg/driver/nodeserver.go:780",
+"how": "Unmounts staging path if mounted, then iSCSI logoutTarget or NVMe logoutNVMeSubsystem",
+"idempotent": "yes",
+"notfound": "Unmount only when mounted; GetVolume nil returns OK (nodeserver.go:790-805)",
+"notes": "Lookup failure returns Unavailable so kubelet retries rather than leaking a session; iSCSI flushes block buffers before logout (nodeserver.go:330-345)."
+},
+{
+"repo": "synology-csi",
+"op": "csi.NodePublishVolume",
+"impl": "pkg/driver/nodeserver.go:821",
+"how": "Bind-mounts staging path to target; NFS mounts the server export directly with nfs type; raw block publishes a bind",
+"idempotent": "yes",
+"notfound": "IsNotMountPoint on target; already mounted returns OK (nodeserver.go:922-924)",
+"notes": "On NFS 'No such file or directory', re-saves privilege with force and retries the mount once (nodeserver.go:878-894)."
+},
+{
+"repo": "synology-csi",
+"op": "csi.NodeUnpublishVolume",
+"impl": "pkg/driver/nodeserver.go:980",
+"how": "Unmounts target path after IsNotMountPoint check",
+"idempotent": "yes",
+"notfound": "IsNotMountPoint true skips unmount (nodeserver.go:997-1007)",
+"notes": "Plain bind-mount teardown; no protocol-specific work at this level."
+},
+{
+"repo": "synology-csi",
+"op": "csi.NodeExpandVolume",
+"impl": "pkg/driver/nodeserver.go:1103",
+"how": "iSCSI: iscsiadm rescan then multipath resize; then filesystem resize via mount-utils ResizeFs",
+"idempotent": "yes",
+"notfound": "GetVolume nil returns NotFound (nodeserver.go:1115-1116)",
+"notes": "Rescan at nodeserver.go:1126, multipath resize at 1153, filesystem resize at 1164."
+},
+{
+"repo": "synology-csi",
+"op": "csi.NodeGetVolumeStats",
+"impl": "pkg/driver/nodeserver.go:1032",
+"how": "LUN volumes: unix.Statfs on volume path; SMB and NFS report only the share quota as Total",
+"idempotent": "n/a",
+"notfound": "IsNotMountPoint true returns NotFound (nodeserver.go:1049-1051)",
+"notes": "SMB and NFS usage is not measured on the node; Total is DSM quota metadata."
+},
+{
+"repo": "synology-csi",
+"op": "csi.Probe",
+"impl": "pkg/driver/identityserver.go:45",
+"how": "Returns an empty ProbeResponse without contacting DSM",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Unconditional success; never reports DSM or session health."
+},
+{
+"repo": "synology-csi",
+"op": "node.iscsi.discover",
+"impl": "pkg/driver/initiator.go:112",
+"how": "iscsiadm -m discoverydb --type sendtargets --portal P --op new --discover",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Runs inside login() only when no session exists for the IQN (initiator.go:234-240)."
+},
+{
+"repo": "synology-csi",
+"op": "node.iscsi.login",
+"impl": "pkg/driver/initiator.go:126",
+"how": "iscsiadm -m node --targetname IQN --portal P --login",
+"idempotent": "yes",
+"notfound": "hasSession check skips login when a session already exists (initiator.go:235)",
+"notes": "Login failure is Internal; failure to set node.startup is only a warning (initiator.go:250)."
+},
+{
+"repo": "synology-csi",
+"op": "node.iscsi.logout",
+"impl": "pkg/driver/initiator.go:154",
+"how": "iscsiadm -m node --targetname IQN --logout, then iscsiadm -m node -o delete on the node record",
+"idempotent": "yes",
+"notfound": "Node record still deleted when no session exists (initiator.go:259-279)",
+"notes": "Record deleted even without a session so iscsid stops retrying the login; delete failure is only logged."
+},
+{
+"repo": "synology-csi",
+"op": "node.iscsi.session.persist",
+"impl": "pkg/driver/initiator.go:139",
+"how": "iscsiadm -m node --op update --name node.startup --value manual",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Startup set to manual, so the driver, not iscsid, restores sessions after reboot."
+},
+{
+"repo": "synology-csi",
+"op": "node.iscsi.rescan",
+"impl": "pkg/driver/initiator.go:199",
+"how": "iscsiadm -m node --targetname IQN -R",
+"idempotent": "yes",
+"notfound": "hasSession gate returns error when no session (initiator.go:288-292)",
+"notes": "Used only by NodeExpandVolume for iSCSI (nodeserver.go:1126)."
+},
+{
+"repo": "synology-csi",
+"op": "node.device.resolve",
+"impl": "pkg/driver/nodeserver.go:276",
+"how": "Builds /dev/disk/by-path ip-PORTAL-iscsi-IQN-lun-N per portal and waits for the device to appear",
+"idempotent": "yes",
+"notfound": "waitForDevicePathToExist timeout returns Internal",
+"notes": "Identity checked via sysfs (device_identity.go:46). Second portal only on dual-controller DSMs with multipath (nodeserver.go:194-220)."
+},
+{
+"repo": "synology-csi",
+"op": "node.multipath",
+"impl": "pkg/driver/multipath.go:35",
+"how": "Gated by MultipathEnabled and a running multipathd; resize via multipathd resize map; flush via multipath -f with timeout",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Flush runs in logoutTarget before iSCSI logout (nodeserver.go:345)."
+},
+{
+"repo": "synology-csi",
+"op": "node.nvme.connect",
+"impl": "pkg/driver/nvme_connector.go:54",
+"how": "nvme connect -t tcp -a IP -s PORT -n NQN, with optional --hostnqn",
+"idempotent": "yes",
+"notfound": "hasNVMeSession pre-check skips connect (nodeserver.go:247)",
+"notes": "Only TCP transport used; namespace device located via sysfs listing (nvme_connector.go:87)."
+},
+{
+"repo": "synology-csi",
+"op": "node.nvme.disconnect",
+"impl": "pkg/driver/nvme_connector.go:68",
+"how": "nvme disconnect -n NQN",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "Called from logoutNVMeSubsystem (nodeserver.go:268) on unstage."
+},
+{
+"repo": "synology-csi",
+"op": "node.fs.mount",
+"impl": "pkg/driver/nodeserver.go:618",
+"how": "mount-utils FormatAndMountSensitiveWithFormatOptions to staging path; formats only when no filesystem",
+"idempotent": "yes",
+"notfound": "IsLikelyNotMountPoint gate before format and mount (nodeserver.go:603-609)",
+"notes": "XFS options added via withXfsMountOptions; NVMe stage repeats the call at nodeserver.go:735."
+},
+{
+"repo": "synology-csi",
+"op": "node.fs.unmount",
+"impl": "pkg/driver/nodeserver.go:795",
+"how": "Unmounts staging path via mount-utils when IsNotMountPoint reports mounted",
+"idempotent": "yes",
+"notfound": "IsNotMountPoint true skips unmount (nodeserver.go:790-797)",
+"notes": "Target-path unmount is separate (NodeUnpublishVolume, nodeserver.go:1007)."
+},
+{
+"repo": "synology-csi",
+"op": "node.fs.resize",
+"impl": "pkg/driver/nodeserver.go:565",
+"how": "mount.NewResizeFs NeedResize, then Resize on device and mount path",
+"idempotent": "yes",
+"notfound": "NeedResize false short-circuits the resize",
+"notes": "Run after mount in NodeStage (nodeserver.go:622) and in NodeExpand (nodeserver.go:1164)."
+},
+{
+"repo": "synology-csi",
+"op": "node.fs.stats",
+"impl": "pkg/driver/nodeserver.go:1067",
+"how": "unix.Statfs on the volume path for LUN volumes",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Same mechanism as csi.NodeGetVolumeStats; SMB and NFS skip statfs entirely."
+},
+{
+"repo": "synology-csi",
+"op": "node.bind.mount",
+"impl": "pkg/driver/nodeserver.go:945",
+"how": "Mount with empty fstype and bind option from staging or volume-mount path to target",
+"idempotent": "yes",
+"notfound": "IsNotMountPoint gate returns OK when already mounted (nodeserver.go:922-924)",
+"notes": "Mount source switches between staging path and volume-mount path depending on protocol (nodeserver.go:930-970)."
+},
+{
+"repo": "synology-csi",
+"op": "node.nfs.mount",
+"impl": "pkg/driver/nodeserver.go:878",
+"how": "mount -t nfs with server export as source to target path",
+"idempotent": "yes",
+"notfound": "createTargetMountPathNFS and IsNotMountPoint gate (nodeserver.go:868-872)",
+"notes": "One retry after forced NFS privilege re-save on 'No such file or directory' (nodeserver.go:880-894)."
+},
+{
+"repo": "synology-csi",
+"op": "node.smb.mount",
+"impl": "pkg/driver/nodeserver.go:678",
+"how": "Sets per-user SMB permission via SYNO.Core.Share.Permission set, then mounts cifs with mountSensitiveWithRetry",
+"idempotent": "yes",
+"notfound": "IsNotMountPoint gate on target path (nodeserver.go:653-657)",
+"notes": "Permission set is a DSM write on every stage call (nodeserver.go:647)."
+},
+{
+"repo": "synology-csi",
+"op": "node.block.publish",
+"impl": "pkg/driver/nodeserver.go:930",
+"how": "Bind-mounts the staged block device file to the target path for raw block volumes",
+"idempotent": "yes",
+"notfound": "createTargetMountPath then IsNotMountPoint gate (nodeserver.go:918-922)",
+"notes": "Raw block skips the filesystem mount at stage (nodeserver.go:585-587)."
+},
+{
+"repo": "synology-csi",
+"op": "share.smb.create",
+"impl": "pkg/dsm/service/share_volume.go:224",
+"how": "SYNO.Core.Share create with QuotaForCreate; NFS volumes use the same create",
+"idempotent": "yes",
+"notfound": "AlreadyExist (3301) tolerated, then ShareGet by name (share_volume.go:234)",
+"notes": "Protocol is not recorded at create; SMB vs NFS is decided later by presence of an NFS privilege rule (share_volume.go:254-265)."
+},
+{
+"repo": "synology-csi",
+"op": "share.smb.delete",
+"impl": "pkg/dsm/webapi/share.go:288",
+"how": "SYNO.Core.Share delete with name array",
+"idempotent": "no",
+"notfound": "No tolerance; NoSuchShare (402) propagates (dsm.go:731-733)",
+"notes": "Reached only if the share vanishes between lookup and delete; a repeat call then errors."
+},
+{
+"repo": "synology-csi",
+"op": "share.smb.lookup",
+"impl": "pkg/dsm/webapi/share.go:191",
+"how": "SYNO.Core.Share get by name; list used for enumeration",
+"idempotent": "n/a",
+"notfound": "Code 402 mapped to NoSuchShareError (share.go:170-172)",
+"notes": "Enumeration classifies only the matched share, because the NFS privilege call is expensive (share_volume.go:270-298)."
+},
+{
+"repo": "synology-csi",
+"op": "share.nfs.create",
+"impl": "pkg/driver/nodeserver.go:436",
+"how": "Reads NFS privilege, then saves rules for all node IPs via SYNO.Core.FileServ.NFS.SharePrivilege save",
+"idempotent": "partial",
+"notfound": "Load first; save skipped when every node rule already present (nodeserver.go:484-491)",
+"notes": "DSM save is unlocked and concurrent saves can drop rules silently; a forced re-save is used on mount ENOENT (nodeserver.go:436-446)."
+},
+{
+"repo": "synology-csi",
+"op": "share.nfs.lookup",
+"impl": "pkg/dsm/webapi/share.go:575",
+"how": "SYNO.Core.FileServ.NFS.SharePrivilege load by share name",
+"idempotent": "n/a",
+"notfound": "Error 2370 retried briefly by nfsPrivilegeRequest (share.go:141-155)",
+"notes": "Retry budget is 10s; the code comment notes a deleted share never returns, so retries mostly delay the error."
+},
+{
+"repo": "synology-csi",
+"op": "share.iscsi.target.create",
+"impl": "pkg/dsm/service/dsm.go:188",
+"how": "SYNO.Core.ISCSI.Target create with name, iqn and auth_type 0; optional max-session set",
+"idempotent": "yes",
+"notfound": "AlreadyExist (18990744) tolerated, then TargetGet by name (dsm.go:200)",
+"notes": "No CHAP: auth_type hard-coded to 0 (webapi/iscsi.go:301), so share.iscsi.auth is not implemented."
+},
+{
+"repo": "synology-csi",
+"op": "share.iscsi.target.delete",
+"impl": "pkg/dsm/service/dsm.go:772",
+"how": "SYNO.Core.ISCSI.Target delete by target_id; called only when target maps a single LUN (dsm.go:768)",
+"idempotent": "partial",
+"notfound": "TargetGet error after failed delete treated as gone (dsm.go:773-775)",
+"notes": "Not-found detection is too broad: any DSM error on the re-get reports success."
+},
+{
+"repo": "synology-csi",
+"op": "share.iscsi.lun.create",
+"impl": "pkg/dsm/service/dsm.go:270",
+"how": "SYNO.Core.ISCSI.LUN create; LUN type from location fs and thin flag (ext4 gives ADV or FILE, btrfs gives BLUN or BLUN_THICK)",
+"idempotent": "yes",
+"notfound": "AlreadyExist (18990538) tolerated, then LunGet by name (dsm.go:289)",
+"notes": "Type selection is in getLunTypeByInputParams (dsm.go:140-161)."
+},
+{
+"repo": "synology-csi",
+"op": "share.iscsi.lun.delete",
+"impl": "pkg/dsm/service/dsm.go:759",
+"how": "SYNO.Core.ISCSI.LUN delete by uuid",
+"idempotent": "yes",
+"notfound": "NoSuchLun (18990531) after failed delete returns OK (dsm.go:760-762)",
+"notes": "Target removed separately only when it maps one LUN (dsm.go:768)."
+},
+{
+"repo": "synology-csi",
+"op": "share.iscsi.lun.map",
+"impl": "pkg/dsm/service/dsm.go:213",
+"how": "SYNO.Core.ISCSI.LUN map_target with uuid and target_ids list",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "No pre-check for an existing mapping before map_target; a repeated map relies on DSM behaviour."
+},
+{
+"repo": "synology-csi",
+"op": "share.iscsi.lun.resize",
+"impl": "pkg/dsm/service/dsm.go:962",
+"how": "SYNO.Core.ISCSI.LUN set with uuid and new_size",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "Also called from clone paths when the source LUN is smaller than requested (dsm.go:430, 500)."
+},
+{
+"repo": "synology-csi",
+"op": "share.nvmeof.subsys.create",
+"impl": "pkg/dsm/service/namespace_volume.go:45",
+"how": "SYNO.San.Nvme.Subsystem create with name and NQN derived from hostname and volume name",
+"idempotent": "partial",
+"notfound": "AlreadyExist tolerated, but SubsystemGet is then called with the empty uuid (namespace_volume.go:57)",
+"notes": "Bug: SubsystemCreate returns an empty uuid on error (nvmeof.go:326-349), so the tolerated path calls SubsystemGet('') and likely fails."
+},
+{
+"repo": "synology-csi",
+"op": "share.nvmeof.subsys.delete",
+"impl": "pkg/dsm/service/dsm.go:749",
+"how": "SYNO.San.Nvme.Subsystem delete by uuid",
+"idempotent": "yes",
+"notfound": "FailedToGetSubsystem (28993012) after failed delete returns OK (dsm.go:750-752)",
+"notes": "Runs after namespace delete in DeleteVolume (dsm.go:741-749)."
+},
+{
+"repo": "synology-csi",
+"op": "share.nvmeof.ns.create",
+"impl": "pkg/dsm/service/namespace_volume.go:252",
+"how": "SYNO.San.Nvme.Namespace create with size, location, thin and discard flags",
+"idempotent": "yes",
+"notfound": "AlreadyExist (28992064) tolerated, then NamespaceGet by name (namespace_volume.go:268)",
+"notes": "Rollback deletes the namespace looked up by name, only if this call created it (namespace_volume.go:258-266)."
+},
+{
+"repo": "synology-csi",
+"op": "share.nvmeof.ns.delete",
+"impl": "pkg/dsm/service/dsm.go:741",
+"how": "SYNO.San.Nvme.Namespace delete by uuid",
+"idempotent": "yes",
+"notfound": "NoSuchNamespace (28992055) after failed delete returns OK (dsm.go:742-744)",
+"notes": "Namespace removed before its subsystem."
+},
+{
+"repo": "synology-csi",
+"op": "zfs.snapshot.create",
+"impl": "pkg/dsm/service/dsm.go:997",
+"how": "SYNO.Core.ISCSI.LUN take_snapshot on the source LUN uuid",
+"idempotent": "yes",
+"notfound": "CSI name lookup precedes the call in CreateSnapshot (controllerserver.go:457)",
+"notes": "LUN-level DSM snapshot, not a ZFS snapshot; the primitive is listed here for comparison."
+},
+{
+"repo": "synology-csi",
+"op": "zfs.snapshot.destroy",
+"impl": "pkg/dsm/service/dsm.go:1091",
+"how": "SYNO.Core.ISCSI.LUN delete_snapshot by snapshot uuid",
+"idempotent": "yes",
+"notfound": "NoSuchSnapshot (18990532) after failed delete returns OK (dsm.go:1092)",
+"notes": "Share and namespace snapshots use their own delete calls (dsm.go:1082, 1104)."
+},
+{
+"repo": "synology-csi",
+"op": "zfs.clone",
+"impl": "pkg/dsm/service/dsm.go:399",
+"how": "SYNO.Core.ISCSI.LUN clone_snapshot from snapshot uuid into a new LUN name",
+"idempotent": "yes",
+"notfound": "AlreadyExist tolerated, then LunGet by name (dsm.go:408-420)",
+"notes": "LUN-level clone; LUN-from-LUN clone (LunClone, dsm.go:471) and namespace clones are separate primitives."
+},
+{
+"repo": "synology-csi",
+"op": "x.share.iscsi.lun.lookup",
+"impl": "pkg/dsm/webapi/iscsi.go:187",
+"how": "SYNO.Core.ISCSI.LUN get called with the backend name in place of a uuid (dsm.go:289)",
+"idempotent": "n/a",
+"notfound": "errCodeMapping returns NoSuchLun (18990531) as error",
+"notes": "x.* op: no vocab id for LUN name lookup; LunList is the enumeration equivalent (iscsi.go:113)."
+},
+{
+"repo": "synology-csi",
+"op": "meta.state.store",
+"impl": "pkg/models/dsm.go:42",
+"how": "No local store: DSM LUN, share and namespace named k8s-csi-<vol> hold all state",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "No CRD, sidecar or DB; every lookup scans names on each DSM, so state is only as available as DSM."
+},
+{
+"repo": "synology-csi",
+"op": "meta.id.scheme",
+"impl": "pkg/dsm/service/dsm.go:519",
+"how": "volume_id is DSM object UUID; backend name k8s-csi-<vol>; IQN and NQN built from hostname and volume name",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Names truncated to MaxShareLen, MaxIqnLen and MaxNqnLen (models/dsm.go:46-50, dsm.go:176-180, namespace_volume.go:33-37), so long names can collide."
+},
+{
+"repo": "synology-csi",
+"op": "meta.lock",
+"impl": "pkg/dsm/webapi/share.go:160",
+"how": "No client-side lock; retries DSM share-busy (3328) with exponential backoff, and NFS 2370 briefly",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Share and NFS privilege writes run unlocked against DSM; the code comments name smb.conf lock contention as the cause."
+},
+{
+"repo": "synology-csi",
+"op": "meta.idempotency",
+"impl": "pkg/dsm/service/dsm.go:873",
+"how": "findVolume by name first; create tolerates AlreadyExist and adopts the object; failed creates rolled back via createRollback",
+"idempotent": "yes",
+"notfound": "Name lookup returns nil means absent (controllerserver.go:236)",
+"notes": "Lookup error returns Unavailable so create is not repeated blindly (controllerserver.go:236-241). Rollback skips pre-existing objects."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "csi.CreateVolume",
+"impl": "src/driver/controller-synology/index.js:322",
+"how": "GetLunByName size check, then LUN create, volume clone or snapshot clone; CreateTarget; GetTargetByIQN; MapLun if unmapped",
+"idempotent": "yes",
+"notfound": "GetLunByName pre-check (index.js:459); CreateLun tolerates 18990538 via name lookup",
+"notes": "Existing name with different size gives ALREADY_EXISTS (index.js:466-478). NFS and SMB branches throw UNIMPLEMENTED."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "csi.DeleteVolume",
+"impl": "src/driver/controller-synology/index.js:680",
+"how": "GetTargetByIQN then DeleteTarget; GetLunUUIDByName then DeleteLun; sleeps and re-lists to confirm LUN removal",
+"idempotent": "yes",
+"notfound": "Lookups return nothing and skip the delete (index.js:727-737)",
+"notes": "Target deleted before LUN; settle loop fails UNKNOWN if LUN still present after about 40s. Retain strategy returns early (index.js:700-702)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "csi.ControllerExpandVolume",
+"impl": "src/driver/controller-synology/index.js:788",
+"how": "GetLunUUIDByName then ExpandISCSILun (set new_size); node expansion flagged required",
+"idempotent": "partial",
+"notfound": "No check: undefined uuid goes to DSM (index.js:858-859)",
+"notes": "Missing LUN is not reported as NOT_FOUND; synology-csi returns NotFound here."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "csi.GetCapacity",
+"impl": "src/driver/controller-synology/index.js:880",
+"how": "GET SYNO.Core.Storage.Volume get on configured volume path; returns size_free_byte",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Reports free space on the single configured volume; synology-csi sums across all volumes on a DSM."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "csi.CreateSnapshot",
+"impl": "src/driver/controller-synology/index.js:932",
+"how": "GetSnapshots scan for name clash across all LUNs; GetSnapshotByLunUUIDAndName; take_snapshot; re-list",
+"idempotent": "yes",
+"notfound": "Snapshot looked up by description before create (index.js:1011)",
+"notes": "snapshot_id is /lun/LUN_UUID/SNAP_UUID (index.js:1034). Plain Error if the snapshot is not visible after create (index.js:1022-1023)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "csi.DeleteSnapshot",
+"impl": "src/driver/controller-synology/index.js:1052",
+"how": "Lookup by LUN uuid and snapshot uuid, then delete_snapshot via GET entry.cgi",
+"idempotent": "yes",
+"notfound": "Missing snapshot returns OK without delete (index.js:1087-1094)",
+"notes": "Legacy LUN-id path calls GetLunByID(...).uuid without await (index.js:1084); lun_uuid becomes undefined and the snapshot is never deleted."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "share.iscsi.target.create",
+"impl": "src/driver/controller-synology/index.js:593",
+"how": "SYNO.Core.ISCSI.Target create with name and iqn (baseiqn + LUN name) via CreateTarget",
+"idempotent": "yes",
+"notfound": "18990744 caught, then ListTargets matched by iqn (http/index.js:597-606)",
+"notes": "Duplicate handling is correct. No CHAP handling in this module."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "share.iscsi.target.delete",
+"impl": "src/driver/controller-synology/http/index.js:623",
+"how": "SYNO.Core.ISCSI.Target delete with target_id (string-quoted) via DeleteTarget",
+"idempotent": "no",
+"notfound": "Caller checks GetTargetByIQN first; DeleteTarget rethrows all errors (http/index.js:623-646)",
+"notes": "18990710 not-exist tolerance is commented out (http/index.js:641-643), so a racing delete fails the RPC."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "share.iscsi.lun.create",
+"impl": "src/driver/controller-synology/index.js:583",
+"how": "SYNO.Core.ISCSI.LUN create with lunTemplate fields, name, location and size via CreateLun",
+"idempotent": "yes",
+"notfound": "18990538 caught, then LUN list matched by name (http/index.js:506-516)",
+"notes": "Existing-LUN size check happens earlier at index.js:459-478, not here."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "share.iscsi.lun.delete",
+"impl": "src/driver/controller-synology/index.js:736",
+"how": "SYNO.Core.ISCSI.LUN delete with uuids JSON array (uuid param blanked) via DeleteLun",
+"idempotent": "yes",
+"notfound": "GetLunUUIDByName lookup first (index.js:732-733)",
+"notes": "Asynchronous: sleeps and re-lists up to 7 times at 5s each (index.js:755-767)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "share.iscsi.lun.map",
+"impl": "src/driver/controller-synology/index.js:622",
+"how": "SYNO.Core.ISCSI.LUN map_target with uuid and target_ids via MapLun, then re-reads target for mapping_index",
+"idempotent": "yes",
+"notfound": "mapped_luns scan skips MapLun when mapping exists (index.js:606-611)",
+"notes": "CSI lun value is mapping_index from the re-read target (index.js:626-646)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "share.iscsi.lun.resize",
+"impl": "src/driver/controller-synology/index.js:859",
+"how": "SYNO.Core.ISCSI.LUN set with uuid and new_size via ExpandISCSILun",
+"idempotent": "partial",
+"notfound": "No check (index.js:858-859)",
+"notes": "Also on the clone path when source LUN is smaller (index.js:570-574)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "zfs.snapshot.create",
+"impl": "src/driver/controller-synology/index.js:1019",
+"how": "SYNO.Core.ISCSI.LUN take_snapshot with src_lun_uuid, taken_by and description",
+"idempotent": "yes",
+"notfound": "GetSnapshotByLunUUIDAndName checked first (index.js:1011)",
+"notes": "LUN-level snapshot; the description field holds the CSI snapshot name and is the lookup key."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "zfs.snapshot.destroy",
+"impl": "src/driver/controller-synology/http/index.js:429",
+"how": "SYNO.Core.ISCSI.LUN delete_snapshot by snapshot uuid, sent as GET entry.cgi",
+"idempotent": "yes",
+"notfound": "Caller skips the call when the lookup is empty (index.js:1087-1094)",
+"notes": "Passes deleted_by democratic_csi; the not-found path lives in the controller, not here."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "zfs.clone",
+"impl": "src/driver/controller-synology/index.js:553",
+"how": "SYNO.Core.ISCSI.LUN clone from source LUN name or uuid into same location (is_same_pool true)",
+"idempotent": "yes",
+"notfound": "GetLunByName guard before clone (index.js:534-535)",
+"notes": "LUN-level clone; snapshot clone is clone_snapshot (http/index.js:688, called at index.js:525)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "x.share.iscsi.lun.lookup",
+"impl": "src/driver/controller-synology/http/index.js:346",
+"how": "SYNO.Core.ISCSI.LUN list filtered by name (GetLunByName); id and uuid variants alongside",
+"idempotent": "n/a",
+"notfound": "Returns undefined when absent",
+"notes": "x.* op: no vocab id for LUN name lookup. Every call re-lists all LUNs; no caching."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "meta.state.store",
+"impl": "src/driver/controller-synology/http/index.js:284",
+"how": "No local store; DSM LUN list (by name) and target list (by iqn) are the record",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Stateless: every decision re-lists DSM, including snapshot scans across all LUNs (index.js:999-1008)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "meta.id.scheme",
+"impl": "src/driver/controller-synology/index.js:178",
+"how": "volume_id is the CSI name; LUN name = namePrefix + id + nameSuffix, lowercased; IQN = baseiqn + LUN name",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "snapshot_id is /lun/LUN_UUID/SNAP_UUID (index.js:1034). Legacy LUN-id handling is broken by missing await (index.js:508, 1084)."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "meta.lock",
+"impl": "src/driver/controller-synology/http/index.js:164",
+"how": "doLoginMutex serializes login; apiSerializeMutex taken only when options.serialize is set (http/index.js:178)",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "apiSerializeMutex is released in the finally block right after dispatch (http/index.js:179-186, 257-259), so responses are not serialized."
+},
+{
+"repo": "democratic-csi/synology",
+"op": "meta.idempotency",
+"impl": "src/driver/controller-synology/index.js:459",
+"how": "Name lookup before create; 18990538 and 18990744 caught and resolved by name or iqn lookup",
+"idempotent": "yes",
+"notfound": "GetLunByName and GetTargetByIQN pre-checks (index.js:459, 727)",
+"notes": "Create paths are idempotent; DeleteTarget is the one non-idempotent call (http/index.js:623)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.snapshot.destroy",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:414",
+"how": "ssh root@portal zfs destroy pool/vol@snap via zfs_request",
+"idempotent": "no",
+"notfound": "n/a; remote zfs error dies through run_command",
+"notes": "Destroys the snapshot only (no -r or -d); no existence check before destroy."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.rollback",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:422",
+"how": "zfs_delete_lu, then ssh zfs rollback pool/vol@snap, then import_lu and add_view",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "LU deleted before rollback; if rollback fails the die skips re-import and the disk stays unexported. No -r, so newer snapshots block it."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.rename",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:323",
+"how": "create_base: delete LU, ssh zfs rename vm-disk to base-disk, then create LU and add view",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "A failed rename leaves the LU deleted with no re-creation step (ZFSPlugin.pm:337-338)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.snapshot.create",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:344",
+"how": "create_base calls volume_snapshot for __base__ after LU setup; the zfs snapshot itself is in inherited ZFSPoolPlugin",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "Snapshot primitive is not in this checkout; only the call site is here."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.clone",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:348",
+"how": "clone_image delegates the zfs clone to SUPER (ZFSPoolPlugin), then zfs_create_lu and add_view",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "zfs clone is not in this checkout; LU registration is added here (ZFSPlugin.pm:356-357)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.zvol.create",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:362",
+"how": "alloc_image: inherited zfs_create_zvol, then zfs_create_lu and add_view",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "zvol creation lives in ZFSPoolPlugin (not in checkout). No zvol cleanup if LU creation fails (ZFSPlugin.pm:376-379)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.destroy",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:384",
+"how": "free_image: zfs_delete_lu, then inherited zfs_delete_zvol; on failure recreates LU and view",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "Only compensation in the plugin: LU re-created if zvol destroy fails (ZFSPlugin.pm:391-394)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "zfs.volsize.resize",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:401",
+"how": "volume_resize calls SUPER (inherited zfs set volsize), then zfs_resize_lu (modify_lu)",
+"idempotent": "partial",
+"notfound": "zfs_get_lu_name dies if LU missing (ZFSPlugin.pm:105-118)",
+"notes": "zvol resize is in the base class (not in checkout); the LU step is provider-specific."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "meta.state.store",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:105",
+"how": "No zfs user properties; state is the zvol plus provider target config (saveconfig.json, ietd.conf, istgt.conf, stmf database)",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Targets and TPGs are pre-provisioned by the admin; the plugin never creates or deletes a target and has no CHAP support."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "meta.id.scheme",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:285",
+"how": "Volume name is the zvol (vm-VMID-disk-N); path is iscsi://portal/target/LUN with LUN queried at runtime",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "LU identity differs by provider: Comstar GUID from md5 of zvol path, LIO backstore <pool>-<vol>, IET local LUN index, Istgt LUN section."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "meta.lock",
+"impl": "src/PVE/Storage/LunCmd/LIO.pm:37",
+"how": "No lock in plugin; LIO caches target settings for 15s, IET caches parsed config for process lifetime",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Concurrent LUN operations rely on PVE task serialization (not in this repo); LIO cache TTL is 15s (LIO.pm:37-39)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi",
+"op": "meta.idempotency",
+"impl": "src/PVE/Storage/ZFSPlugin.pm:131",
+"how": "Mostly none: LUN create dies if present; LIO and IET delete of absent LU is silent; no ZFS retry",
+"idempotent": "no",
+"notfound": "zfs_get_lu_name dies with Could not find lu_name (ZFSPlugin.pm:118)",
+"notes": "Compensation is partial: free_image re-creates the LU on zvol failure; create_base, clone and alloc have no cleanup."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/LIO",
+"op": "share.iscsi.lun.create",
+"impl": "src/PVE/Storage/LunCmd/LIO.pm:290",
+"how": "targetcli backstores/block create, set emulate_tpu=1, tpg luns create, then saveconfig",
+"idempotent": "no",
+"notfound": "list_lun check dies 'LUN already exists' (LIO.pm:293-294)",
+"notes": "LIO: no rollback if LUN registration fails, leaving the backstore behind (LIO.pm:299-322). LUN index parsed from targetcli text."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/LIO",
+"op": "share.iscsi.lun.delete",
+"impl": "src/PVE/Storage/LunCmd/LIO.pm:339",
+"how": "targetcli tpg luns delete lunN, then backstores/block delete, then saveconfig",
+"idempotent": "yes",
+"notfound": "Loop finds no matching storage object and returns silently (LIO.pm:343-347)",
+"notes": "LIO: saveconfig after every delete (LIO.pm:367); internal cache updated via free_lu_name (LIO.pm:364-366)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/LIO",
+"op": "share.iscsi.lun.map",
+"impl": "src/PVE/Storage/LunCmd/LIO.pm:391",
+"how": "No-op: LUN is mapped to the TPG at create time",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "LIO: add_view returns empty string; mapping is implicit in create."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/LIO",
+"op": "share.iscsi.lun.resize",
+"impl": "src/PVE/Storage/LunCmd/LIO.pm:385",
+"how": "No-op; modify_lun returns undef",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "LIO: code comment says nothing to do on volume modification; no backstore or rescan step."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/LIO",
+"op": "x.share.iscsi.lun.lookup",
+"impl": "src/PVE/Storage/LunCmd/LIO.pm:273",
+"how": "Matches storage object in TPG LUN list cached from remote saveconfig.json (read via cat)",
+"idempotent": "n/a",
+"notfound": "Returns undef; list_lu consumers treat it as absent",
+"notes": "LIO: reads saveconfig.json (LIO.pm:31-33, 88), so lookups see last saved state, not live targetcli state."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/LIO",
+"op": "x.share.iscsi.lun.number",
+"impl": "src/PVE/Storage/LunCmd/LIO.pm:253",
+"how": "Returns LUN index for the backstore from cached TPG config",
+"idempotent": "n/a",
+"notfound": "Returns undef; zfs_get_lun_number then dies (ZFSPlugin.pm:163-175)",
+"notes": "LIO: index comes from the saved snapshot; a LUN added by hand without saveconfig is invisible."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/comstar",
+"op": "share.iscsi.lun.create",
+"impl": "src/PVE/Storage/LunCmd/Comstar.pm:53",
+"how": "stmfadm create-lu with -p wcd and -p guid; guid is 600144f plus md5 of zvol path",
+"idempotent": "no",
+"notfound": "No pre-check; relies on stmfadm failing on duplicates",
+"notes": "Comstar: returns the locally computed GUID, not stmfadm output (Comstar.pm:118-119). GUID is deterministic per zvol path."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/comstar",
+"op": "share.iscsi.lun.delete",
+"impl": "src/PVE/Storage/LunCmd/Comstar.pm:21",
+"how": "stmfadm delete-lu with GUID",
+"idempotent": "no",
+"notfound": "ZFSPlugin resolves the GUID first and dies if absent (ZFSPlugin.pm:118)",
+"notes": "Comstar: deleting an absent LU fails at the lookup, not silently."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/comstar",
+"op": "share.iscsi.lun.map",
+"impl": "src/PVE/Storage/LunCmd/Comstar.pm:24",
+"how": "stmfadm add-view GUID, with --target-group and --host-group prefixed when configured",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "Comstar: LU is not visible to initiators until add-view runs (ZFSPlugin.pm:121-128)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/comstar",
+"op": "share.iscsi.lun.resize",
+"impl": "src/PVE/Storage/LunCmd/Comstar.pm:23",
+"how": "stmfadm modify-lu -s SIZEK GUID",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Comstar: size passed in KiB from zfs_resize_lu (ZFSPlugin.pm:155-161)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/comstar",
+"op": "x.share.iscsi.lun.lookup",
+"impl": "src/PVE/Storage/LunCmd/Comstar.pm:26",
+"how": "sbdadm list-lu, matching GUID on the output line",
+"idempotent": "n/a",
+"notfound": "Returns undef; zfs_get_lu_name dies (ZFSPlugin.pm:118)",
+"notes": "Comstar: uses sbdadm list-lu for existing LU resolution (Comstar.pm:107-117)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/comstar",
+"op": "x.share.iscsi.lun.number",
+"impl": "src/PVE/Storage/LunCmd/Comstar.pm:25",
+"how": "stmfadm list-view -l GUID; parses LUN line",
+"idempotent": "n/a",
+"notfound": "Returns undef; zfs_get_lun_number dies (ZFSPlugin.pm:163-175)",
+"notes": "Comstar: queried live on each call; no cache."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/iet",
+"op": "share.iscsi.lun.create",
+"impl": "src/PVE/Storage/LunCmd/Iet.pm:369",
+"how": "ietadm --op new on target TID with local LUN number; ietd.conf rewritten via scp first",
+"idempotent": "no",
+"notfound": "list_lun check dies 'LUN exists' (Iet.pm:372-373)",
+"notes": "IET: LUN number from in-process bitmap (Iet.pm:269-290). MAX_LUNS is 16864 but the error text says 16384 (Iet.pm:25, 323)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/iet",
+"op": "share.iscsi.lun.delete",
+"impl": "src/PVE/Storage/LunCmd/Iet.pm:393",
+"how": "ietadm --op delete on TID for the matching path; ietd.conf rewritten via scp",
+"idempotent": "yes",
+"notfound": "No matching path: loop does nothing and returns silently (Iet.pm:393-410)",
+"notes": "IET: TID read from /proc/net/iet/volume over ssh (Iet.pm:247-267). Persistence depends on the scp of ietd.conf succeeding (Iet.pm:204-245)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/iet",
+"op": "share.iscsi.lun.map",
+"impl": "src/PVE/Storage/LunCmd/Iet.pm:450",
+"how": "No-op: LUN is attached to the target at create time",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "IET: add_view returns empty string (Iet.pm:450-453)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/iet",
+"op": "share.iscsi.lun.resize",
+"impl": "src/PVE/Storage/LunCmd/Iet.pm:423",
+"how": "ietadm --op delete then --op new for the same path and type on the live target",
+"idempotent": "no",
+"notfound": "No existence check; an unmatched path yields an empty LUN number (Iet.pm:430-438)",
+"notes": "IET: resize is delete plus recreate of a live LUN; a failure between the two ietadm calls leaves the LUN absent (Iet.pm:438-444)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/iet",
+"op": "x.share.iscsi.lun.lookup",
+"impl": "src/PVE/Storage/LunCmd/Iet.pm:354",
+"how": "Matches Path in cached LUN list parsed from remote ietd.conf",
+"idempotent": "n/a",
+"notfound": "Returns undef when no path matches",
+"notes": "IET: config read with cat /etc/iet/ietd.conf (Iet.pm:92-135), cached in $SETTINGS for the process lifetime."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/iet",
+"op": "x.share.iscsi.lun.number",
+"impl": "src/PVE/Storage/LunCmd/Iet.pm:338",
+"how": "Returns the lun index of the matching Path from cached settings",
+"idempotent": "n/a",
+"notfound": "Returns undef; zfs_get_lun_number dies (ZFSPlugin.pm:163-175)",
+"notes": "IET: TID resolved over ssh only for mutations (Iet.pm:247-267)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/istgt",
+"op": "share.iscsi.lun.create",
+"impl": "src/PVE/Storage/LunCmd/Istgt.pm:366",
+"how": "Writes new istgt.conf with the LU added and scp's it; active only after a later add_view HUP",
+"idempotent": "no",
+"notfound": "list_lun check dies 'LUN exists' (Istgt.pm:371-372)",
+"notes": "Istgt: create alone does not activate the LU; ZFSPlugin always follows with add_view (ZFSPlugin.pm:121-128)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/istgt",
+"op": "share.iscsi.lun.delete",
+"impl": "src/PVE/Storage/LunCmd/Istgt.pm:396",
+"how": "Rewrites istgt.conf without the LU via scp, then restarts the whole daemon in post_exe",
+"idempotent": "yes",
+"notfound": "Absent LU still rewrites config and restarts (Istgt.pm:396-430)",
+"notes": "Istgt: delete restarts the daemon, dropping sessions for all LUs on that portal (Istgt.pm:424-427)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/istgt",
+"op": "share.iscsi.lun.map",
+"impl": "src/PVE/Storage/LunCmd/Istgt.pm:441",
+"how": "ssh kill -HUP on pidfile to reload config; on failure restores saved config and restarts",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Istgt: SIGHUP reload is the activation step; failed reload rolls back the file via OLD_CONFIG (Istgt.pm:515-600)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/istgt",
+"op": "share.iscsi.lun.resize",
+"impl": "src/PVE/Storage/LunCmd/Istgt.pm:464",
+"how": "Delegates to the add_view restart path: ssh istgt onerestart",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Istgt: resize restarts the daemon and breaks all current connections, as the code comment states (Istgt.pm:467-473)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/istgt",
+"op": "x.share.iscsi.lun.lookup",
+"impl": "src/PVE/Storage/LunCmd/Istgt.pm:349",
+"how": "Scans LogicalUnit sections of cached, parsed istgt.conf for a matching Storage path",
+"idempotent": "n/a",
+"notfound": "Returns undef when no Storage matches",
+"notes": "Istgt: match is an unescaped regex on the path (Istgt.pm:353-354); config read with cat over ssh (Istgt.pm:62-104)."
+},
+{
+"repo": "proxmox-zfs-over-iscsi/istgt",
+"op": "x.share.iscsi.lun.number",
+"impl": "src/PVE/Storage/LunCmd/Istgt.pm:477",
+"how": "Matches Storage path in cached config and returns the number from the LUN key",
+"idempotent": "n/a",
+"notfound": "Returns undef; zfs_get_lun_number dies (ZFSPlugin.pm:163-175)",
+"notes": "Istgt: same unescaped regex match as the lookup (Istgt.pm:477-492)."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.CreateVolume",
+"impl": "pkg/driver/controller.go:318",
+"how": "GetDataset precheck, then pool.dataset.create plus sharing.nfs.create, or ZVOL with iSCSI/NVMe-oF chain",
+"idempotent": "partial",
+"notfound": "GetDataset IsNotFoundError; other GetDataset errors fall through to create",
+"notes": "Existing NFS dataset returns success without checking its share exists; existing ZVOL repairs chain. Check-then-create races."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.DeleteVolume",
+"impl": "pkg/driver/controller.go:1526",
+"how": "Tears down iSCSI/NVMe-oF objects and NFS share, then pool.dataset.delete recursive+force",
+"idempotent": "yes",
+"notfound": "GetDataset or delete IsNotFoundError returns success",
+"notes": "iSCSI target/extent and NFS share delete errors only logged at debug; success returned, so orphans are possible."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.ControllerExpandVolume",
+"impl": "pkg/driver/controller.go:2166",
+"how": "pool.dataset.update volsize (ZVOL, refreservation if thick) or refquota (NFS)",
+"idempotent": "yes",
+"notfound": "GetVolumeInfo error returns codes.NotFound",
+"notes": "Shrink requests return current size; 1GiB minimum applied; NodeExpansionRequired only for ZVOL protocols."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.ControllerGetVolume",
+"impl": "pkg/driver/controller.go:2230",
+"how": "GetVolumeInfo then pool.dataset.get_instance; builds volume condition",
+"idempotent": "yes",
+"notfound": "volume lookup error returned",
+"notes": "Health check is a dataset lookup; no capacity or protocol-level checks seen."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.ControllerPublishVolume",
+"impl": "pkg/driver/controller.go:1622",
+"how": "Read-only: GetDataset plus iSCSI/NVMe-oF lookups build publish context; no TrueNAS writes",
+"idempotent": "yes",
+"notfound": "GetDataset error returns codes.NotFound; unregistered node returns NotFound",
+"notes": "Falls back silently to iSCSI portal when protocol cannot be determined."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.ControllerUnpublishVolume",
+"impl": "pkg/driver/controller.go:1751",
+"how": "No-op; returns empty response",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Node-side cleanup does the work; volume existence not checked."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.ListVolumes",
+"impl": "pkg/driver/controller.go:1802",
+"how": "pool.dataset.query filtered by pool name, flat",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Non-empty starting_token aborts; no pagination implemented."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.GetCapacity",
+"impl": "pkg/driver/controller.go:1857",
+"how": "zfs.resource.query JSON-RPC for pool 'available' property",
+"idempotent": "yes",
+"notfound": "GetAvailableSpace error maps to codes.Internal",
+"notes": "Returns pool available bytes only."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.CreateSnapshot",
+"impl": "pkg/driver/controller.go:1893",
+"how": "FindSnapshotByName precheck, then pool.snapshot.create non-recursive",
+"idempotent": "yes",
+"notfound": "same-ID match returns existing; 'already exists' substring maps to AlreadyExists",
+"notes": "CreationTime is time.Now(), not ZFS creation time; ReadyToUse always true; names unique across all volumes."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.DeleteSnapshot",
+"impl": "pkg/driver/controller.go:1971",
+"how": "pool.snapshot.delete JSON-RPC with defer=true",
+"idempotent": "yes",
+"notfound": "IsNotFoundError returns success; ID without '@' returns success",
+"notes": "Other errors return codes.Internal so the snapshotter retries."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.ListSnapshots",
+"impl": "pkg/driver/controller.go:2004",
+"how": "pool.snapshot.query JSON-RPC filtered by source volume or snapshot ID",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Paginates with numeric offset starting_token, unlike ListVolumes."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.ControllerModifyVolume",
+"impl": "pkg/driver/controller.go:2422",
+"how": "No-op; returns empty response",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Reports success without changing anything; not implemented."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.NodeStageVolume",
+"impl": "pkg/driver/node.go:231",
+"how": "Protocol stage: iscsiadm node login (iSCSI), nvme connect (NVMe-oF), no-op (NFS)",
+"idempotent": "yes",
+"notfound": "existing session/device checked first; iscsiadm exit 15 treated as success",
+"notes": "Per-volume TryLock returns Aborted when busy; iSCSI login timeout may still complete later."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.NodeUnstageVolume",
+"impl": "pkg/driver/node.go:322",
+"how": "Unmount staging path, iSCSI logout and connector removal, or NVMe-oF disconnect",
+"idempotent": "yes",
+"notfound": "missing connector file returns success; iscsiadm exit 21 ignored",
+"notes": "Connector file kept when logout fails so unstage can retry."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.NodePublishVolume",
+"impl": "pkg/driver/node.go:360",
+"how": "Node-level IsLikelyNotMountPoint check, then protocol Publish (bind mount or NFS mount)",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "NFS mount runs inside a timeout goroutine (nfs.go:113)."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.NodeUnpublishVolume",
+"impl": "pkg/driver/node.go:445",
+"how": "Unmount target path via protocol handler",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "iSCSI Unpublish iscsi.go:505; NVMe-oF Unpublish nvmeof.go:523."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.NodeExpandVolume",
+"impl": "pkg/driver/node.go:542",
+"how": "Rescan device (iSCSI sysfs scan or NVMe ns-rescan), then resize FS via mount.ResizeFs",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Raw block skips FS resize; multipath resized via iscsilib when enabled."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.NodeGetVolumeStats",
+"impl": "pkg/driver/node.go:500",
+"how": "statfs on volume path (getFSStats)",
+"idempotent": "yes",
+"notfound": "statfs error returned to caller",
+"notes": "Filesystem stats only; no TrueNAS call."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.NodeGetInfo",
+"impl": "pkg/driver/node.go:481",
+"how": "Returns configured node ID",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "No TrueNAS call."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.GetPluginCapabilities",
+"impl": "pkg/driver/identity.go:44",
+"how": "Static capability list from driver",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "No TrueNAS call."
+},
+{
+"repo": "truenas-csi",
+"op": "csi.Probe",
+"impl": "pkg/driver/identity.go:56",
+"how": "Reports client Connected(); no TrueNAS RPC",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "FailedPrecondition if client closed; readiness is socket state, not an API call."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.dataset.create",
+"impl": "pkg/client/storage.go:512",
+"how": "pool.dataset.create JSON-RPC, FILESYSTEM with refquota, compression, sync",
+"idempotent": "partial",
+"notfound": "EEXIST not mapped; only GetDataset precheck in CreateVolume detects existing",
+"notes": "CreateDataset error wrapped without EEXIST mapping; concurrent same-name creates fail."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.zvol.create",
+"impl": "pkg/client/storage.go:512",
+"how": "pool.dataset.create JSON-RPC, VOLUME with volsize, volblocksize, sparse",
+"idempotent": "partial",
+"notfound": "same as zfs.dataset.create",
+"notes": "volblocksize validated client-side against the API literal set; thick volumes get refreservation via update."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.destroy.recursive",
+"impl": "pkg/client/storage.go:679",
+"how": "pool.dataset.delete JSON-RPC with recursive and force true",
+"idempotent": "yes",
+"notfound": "IsNotFoundError (ENOENT or 'does not exist' text); null result too",
+"notes": "force also removes busy datasets; children and snapshots destroyed."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.destroy.defer",
+"impl": "pkg/client/storage.go:1170",
+"how": "pool.snapshot.delete JSON-RPC with defer=true",
+"idempotent": "yes",
+"notfound": "IsNotFoundError returns success in DeleteSnapshot",
+"notes": "Used for every snapshot delete; API default is defer=false."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.snapshot.create",
+"impl": "pkg/client/storage.go:1154",
+"how": "pool.snapshot.create JSON-RPC, non-recursive, dataset plus name",
+"idempotent": "no",
+"notfound": "'already exists' substring match in controller, not typed",
+"notes": "Name sanitized first (space, colon, @, # become underscore)."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.snapshot.destroy",
+"impl": "pkg/client/storage.go:1170",
+"how": "pool.snapshot.delete JSON-RPC, always deferred",
+"idempotent": "yes",
+"notfound": "IsNotFoundError returns success",
+"notes": "Same RPC as zfs.destroy.defer; ZFS may keep the snapshot while clones exist."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.snapshot.list",
+"impl": "pkg/client/storage.go:1204",
+"how": "pool.snapshot.query JSON-RPC with filters; drops defer_destroy snapshots",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "PendingDestroy filter hides deferred-destroy snapshots from listings."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.clone",
+"impl": "pkg/client/storage.go:1184",
+"how": "pool.snapshot.clone JSON-RPC (snapshot, dataset_dst), then GetDataset",
+"idempotent": "no",
+"notfound": "clone source missing -> IsNotFoundError -> codes.NotFound in caller",
+"notes": "Clone result ignored; capacity set in a separate update, so not atomic."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.prop.get",
+"impl": "pkg/client/storage.go:531",
+"how": "pool.dataset.get_instance JSON-RPC requesting refquota, volsize, refreservation",
+"idempotent": "yes",
+"notfound": "IsNotFoundError wraps ErrNotFound",
+"notes": "Only three properties fetched; not a generic property read."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.refquota",
+"impl": "pkg/client/storage.go:689",
+"how": "pool.dataset.update JSON-RPC with refquota (NFS expand and clone restore)",
+"idempotent": "yes",
+"notfound": "update error wrapped; no NotFound mapping",
+"notes": "NFS only; create sets refquota at dataset creation instead."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.refreservation",
+"impl": "pkg/client/storage.go:689",
+"how": "pool.dataset.update JSON-RPC with refreservation for thick ZVOLs",
+"idempotent": "yes",
+"notfound": "update error wrapped; no NotFound mapping",
+"notes": "Only set when existing refreservation is non-zero; sparse zvols skip it."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.volsize.resize",
+"impl": "pkg/client/storage.go:689",
+"how": "pool.dataset.update JSON-RPC with volsize, grow only",
+"idempotent": "yes",
+"notfound": "update error wrapped; no NotFound mapping",
+"notes": "Requests at or below current size return without an RPC."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.list.children",
+"impl": "pkg/client/storage.go:664",
+"how": "pool.dataset.query JSON-RPC filtered on pool name, flat, with properties",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Lists every dataset in the pool, not children of a parent path."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.space.available",
+"impl": "pkg/client/storage.go:1372",
+"how": "zfs.resource.query JSON-RPC requesting 'available' property",
+"idempotent": "yes",
+"notfound": "empty result returns plain error, not ErrNotFound",
+"notes": "Accepts float, int or string value types for 'available'."
+},
+{
+"repo": "truenas-csi",
+"op": "zfs.pool.list",
+"impl": "pkg/client/storage.go:1351",
+"how": "pool.query JSON-RPC with empty filters",
+"idempotent": "yes",
+"notfound": "GetPool returns plain error when name absent",
+"notes": "ListPools for discovery; GetPool filters by name at storage.go:1340."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nfs.create",
+"impl": "pkg/client/storage.go:699",
+"how": "sharing.nfs.create JSON-RPC with path, hosts, networks, mapall settings",
+"idempotent": "no",
+"notfound": "failure triggers dataset deletion in createNFSVolume",
+"notes": "No share lookup before create; CreateVolume precheck is dataset-based only."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nfs.delete",
+"impl": "pkg/client/storage.go:740",
+"how": "sharing.nfs.delete JSON-RPC by share id",
+"idempotent": "partial",
+"notfound": "no IsNotFoundError check here; DeleteVolume ignores the error",
+"notes": "Failure only logged; dataset delete then proceeds, possibly leaving a share on a missing path."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nfs.lookup",
+"impl": "pkg/client/storage.go:726",
+"how": "sharing.nfs.query JSON-RPC filtered by path equality",
+"idempotent": "yes",
+"notfound": "empty result returns plain error; IsNotFoundError is false for it",
+"notes": "Callers check err == nil; the empty case is not ErrNotFound."
+},
+{
+"repo": "truenas-csi",
+"op": "share.iscsi.target.create",
+"impl": "pkg/client/storage.go:890",
+"how": "iscsi.target.create JSON-RPC with name, alias, mode, groups",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "Created after auth and initiator groups; those are undone on failure."
+},
+{
+"repo": "truenas-csi",
+"op": "share.iscsi.target.delete",
+"impl": "pkg/client/storage.go:981",
+"how": "iscsi.target.delete JSON-RPC with force and delete_extents as positional args",
+"idempotent": "partial",
+"notfound": "errors logged, not returned, in DeleteVolume",
+"notes": "delete_extents driven by StorageClass parameter."
+},
+{
+"repo": "truenas-csi",
+"op": "share.iscsi.lun.create",
+"impl": "pkg/client/storage.go:928",
+"how": "iscsi.extent.create JSON-RPC, type DISK, disk zvol path, blocksize",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "Extent named per volume; disk is zvol/<dataset>."
+},
+{
+"repo": "truenas-csi",
+"op": "share.iscsi.lun.delete",
+"impl": "pkg/client/storage.go:994",
+"how": "iscsi.extent.delete JSON-RPC with remove and force as positional args",
+"idempotent": "partial",
+"notfound": "errors logged in DeleteVolume",
+"notes": "remove is always false; only force comes from StorageClass."
+},
+{
+"repo": "truenas-csi",
+"op": "share.iscsi.lun.map",
+"impl": "pkg/client/storage.go:944",
+"how": "iscsi.targetextent.create JSON-RPC with target, extent, lunid 0",
+"idempotent": "partial",
+"notfound": "ensureISCSIChain queries targetextent before create",
+"notes": "LUN id hard-coded to 0 on create and clone paths."
+},
+{
+"repo": "truenas-csi",
+"op": "share.iscsi.auth",
+"impl": "pkg/client/storage.go:1017",
+"how": "iscsi.auth.create JSON-RPC (tag, user, secret, peer fields); initiators via iscsi.initiator.create",
+"idempotent": "no",
+"notfound": "tag from GetNextISCSIAuthTag under iscsiAuthMu",
+"notes": "Method names absent from methods.json and v27 d.ts; tag race guarded only in-process."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nvmeof.subsys.create",
+"impl": "pkg/client/nvme.go:181",
+"how": "nvmet.subsys.create JSON-RPC with name and allow_any_host",
+"idempotent": "partial",
+"notfound": "ensureNVMeOFChain queries by name first; empty result yields ErrNotFound",
+"notes": "allow_any_host is false whenever a DH-CHAP host NQN is set."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nvmeof.subsys.delete",
+"impl": "pkg/client/nvme.go:225",
+"how": "nvmet.subsys.delete JSON-RPC by id",
+"idempotent": "partial",
+"notfound": "delete errors ignored in cleanup paths",
+"notes": "Children-first teardown; shared port never deleted."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nvmeof.ns.create",
+"impl": "pkg/client/nvme.go:241",
+"how": "nvmet.namespace.create JSON-RPC: subsys_id, device_type ZVOL, device_path zvol/<dataset>",
+"idempotent": "no",
+"notfound": "GetNVMeNamespaceByDevice checks existence first in ensureNVMeOFChain",
+"notes": "device_path uses the zvol/ prefix form."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nvmeof.ns.delete",
+"impl": "pkg/client/nvme.go:278",
+"how": "nvmet.namespace.delete JSON-RPC by id",
+"idempotent": "partial",
+"notfound": "errors ignored in deleteNVMeOFResources",
+"notes": "Namespaces removed before subsystem."
+},
+{
+"repo": "truenas-csi",
+"op": "share.nvmeof.port.bind",
+"impl": "pkg/client/nvme.go:326",
+"how": "nvmet.port_subsys.create JSON-RPC linking port and subsystem",
+"idempotent": "partial",
+"notfound": "link checked with GetNVMePortSubsysBySubsystem first",
+"notes": "Port created via nvmet.port.create (nvme.go:301); driver never deletes the port."
+},
+{
+"repo": "truenas-csi",
+"op": "node.iscsi.login",
+"impl": "pkg/driver/iscsi_login.go:39",
+"how": "iscsiadm -m node -o new, CHAP update, then -l; session list checked first",
+"idempotent": "yes",
+"notfound": "iscsiadm exit 21 on session list; exit 15 treated as success",
+"notes": "Login timeout returns error while login may still finish; CHAP secrets kept out of errors."
+},
+{
+"repo": "truenas-csi",
+"op": "node.iscsi.logout",
+"impl": "pkg/driver/iscsi.go:354",
+"how": "iscsiadm logout per portal, then delete node DB entry",
+"idempotent": "yes",
+"notfound": "iscsiadm exit 21 ignored for logout and delete",
+"notes": "Node records matched by IQN and host without port."
+},
+{
+"repo": "truenas-csi",
+"op": "node.iscsi.rescan",
+"impl": "pkg/driver/iscsi.go:596",
+"how": "Writes '- - -' to every /sys/class/scsi_host/*/scan",
+"idempotent": "yes",
+"notfound": "unreadable sysfs directory logged at trace only",
+"notes": "Scans all SCSI hosts, not just the volume's session."
+},
+{
+"repo": "truenas-csi",
+"op": "node.nvme.connect",
+"impl": "pkg/driver/nvmeof.go:192",
+"how": "nvme connect -t tcp with ctrl-loss-tmo 1800, via exec",
+"idempotent": "partial",
+"notfound": "existing device found before connect in NodeStage",
+"notes": "ctrl-loss-tmo hard-coded to 1800; nvme_tcp module loaded separately (nvmeof.go:243)."
+},
+{
+"repo": "truenas-csi",
+"op": "node.nvme.disconnect",
+"impl": "pkg/driver/nvmeof.go:220",
+"how": "nvme disconnect -n <subnqn>, via exec",
+"idempotent": "yes",
+"notfound": "cleanup checks nvmeSubsystemConnected first",
+"notes": "Disconnect only when sysfs still lists the subsystem."
+},
+{
+"repo": "truenas-csi",
+"op": "node.device.resolve",
+"impl": "pkg/driver/nvmeof.go:258",
+"how": "findDevice: by-id namespace UUID path, else scan /sys/class/nvme subsysnqn",
+"idempotent": "yes",
+"notfound": "returns empty string when not found; waitForDevice polls 30x200ms",
+"notes": "iSCSI devices come from csi-lib-iscsi Connect (iscsi.go:215), not this function."
+},
+{
+"repo": "truenas-csi",
+"op": "node.multipath",
+"impl": "pkg/driver/iscsi.go:462",
+"how": "Block publish uses multipath device when iscsi.multipathEnabled is set",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Flag comes from volume context; expand resizes multipath device (iscsi.go:550)."
+},
+{
+"repo": "truenas-csi",
+"op": "node.fs.format",
+"impl": "pkg/driver/iscsi.go:262",
+"how": "SafeFormatAndMount.FormatAndMount on staging path, fsType from capability",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Mount library formats only unformatted devices."
+},
+{
+"repo": "truenas-csi",
+"op": "node.fs.mount",
+"impl": "pkg/driver/iscsi.go:262",
+"how": "Same call as node.fs.format: format-if-needed then mount at staging path",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "NVMe-oF equivalent at nvmeof.go:151."
+},
+{
+"repo": "truenas-csi",
+"op": "node.fs.unmount",
+"impl": "pkg/driver/iscsi.go:297",
+"how": "mounter.Unmount on staging path",
+"idempotent": "yes",
+"notfound": "unmount error returned; NodeUnstage retries",
+"notes": "NVMe-oF equivalent at nvmeof.go:406."
+},
+{
+"repo": "truenas-csi",
+"op": "node.fs.resize",
+"impl": "pkg/driver/iscsi.go:583",
+"how": "mount.ResizeFs.Resize on device and volume path after expand",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Raw block skipped; multipath resized first via iscsilib."
+},
+{
+"repo": "truenas-csi",
+"op": "node.fs.stats",
+"impl": "pkg/driver/node.go:621",
+"how": "syscall.Statfs on volume path",
+"idempotent": "yes",
+"notfound": "statfs error returned to caller",
+"notes": "statfs is an overridable package var for tests (node.go:31)."
+},
+{
+"repo": "truenas-csi",
+"op": "node.bind.mount",
+"impl": "pkg/driver/iscsi.go:438",
+"how": "mounter.Mount bind from staging path to target path",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Node-level IsLikelyNotMountPoint check runs before protocol Publish."
+},
+{
+"repo": "truenas-csi",
+"op": "node.nfs.mount",
+"impl": "pkg/driver/nfs.go:121",
+"how": "mounter.Mount server:path with fsType nfs, inside timeout goroutine",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "Already-mounted check in NFS Publish before mount."
+},
+{
+"repo": "truenas-csi",
+"op": "node.block.publish",
+"impl": "pkg/driver/iscsi.go:495",
+"how": "mounter.Mount bind of device file to target path",
+"idempotent": "partial",
+"notfound": "n/a",
+"notes": "Multipath device used when enabled (iscsi.go:462)."
+},
+{
+"repo": "truenas-csi",
+"op": "meta.state.store",
+"impl": "pkg/driver/driver.go:1157",
+"how": "State rebuilt from TrueNAS objects by name; node keeps connector files",
+"idempotent": "n/a",
+"notfound": "reconstruction can return partial info on lookup miss",
+"notes": "No controller database; StorageClass params persist only in VolumeContext returned to kube."
+},
+{
+"repo": "truenas-csi",
+"op": "meta.id.scheme",
+"impl": "pkg/driver/controller.go:367",
+"how": "volume_id = pool/name dataset path; snapshot_id = dataset@sanitized name",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Renaming a dataset breaks volume_id; SanitizeVolumeName (driver.go:1131) rewrites names."
+},
+{
+"repo": "truenas-csi",
+"op": "meta.lock",
+"impl": "pkg/driver/node.go:89",
+"how": "Per-key sync.Mutex TryLock on node; process-local mutexes on controller",
+"idempotent": "n/a",
+"notfound": "n/a",
+"notes": "Node returns Aborted when busy; controller locks do not span replicas (controller.go:162,167)."
+},
+{
+"repo": "truenas-csi",
+"op": "meta.idempotency",
+"impl": "pkg/driver/controller.go:378",
+"how": "Check-then-act: GetDataset before create; NotFound-tolerant deletes",
+"idempotent": "partial",
+"notfound": "IsNotFoundError (ENOENT or message match)",
+"notes": "No TrueNAS-side lock; concurrent same-name creates can both pass the precheck."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.dataset.create",
+"impl": "middleware api/v27_0_0/pool_dataset.py:673",
+"how": "pool.dataset.create JSON-RPC, FILESYSTEM variant (PoolDatasetCreateFilesystem)",
+"idempotent": "no",
+"notfound": "n/a in snapshot; duplicate-name error not modelled",
+"notes": "job: no (sync Entry result). refquota minimum 1GiB at pool_dataset.py:388. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.zvol.create",
+"impl": "middleware api/v27_0_0/pool_dataset.py:673",
+"how": "pool.dataset.create JSON-RPC, VOLUME variant (PoolDatasetCreateVolume, volsize)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. volblocksize literal set at pool_dataset.py:402-408; sparse flag supported."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.destroy",
+"impl": "middleware api/v27_0_0/zfs_resource_crud.py:392",
+"how": "zfs.resource.destroy JSON-RPC (ZFSResourceDestroyArgs)",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no (None result). Method name inferred from Args class; not in methods.json or d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.destroy.recursive",
+"impl": "middleware api/v27_0_0/pool_dataset.py:693",
+"how": "pool.dataset.delete JSON-RPC with options.recursive and force",
+"idempotent": "partial",
+"notfound": "result null (not error) when dataset absent, per PoolDatasetDeleteResult",
+"notes": "job: no (Literal[None,True]). recursive field at pool_dataset.py:410; force at 415."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.destroy.defer",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:211",
+"how": "pool.snapshot.delete JSON-RPC with options.defer",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no (Literal[True]). defer defaults to False (pool_snapshot.py:140)."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.snapshot.create",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:201",
+"how": "pool.snapshot.create JSON-RPC (PoolSnapshotCreateWithName or WithSchema)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no (entry result). Parallel zfs.resource.snapshot.create exists at zfs_resource_snapshot.py:320."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.snapshot.destroy",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:211",
+"how": "pool.snapshot.delete JSON-RPC",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Same method as zfs.destroy.defer; defer is an option."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.snapshot.list",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:94",
+"how": "pool.snapshot.query JSON-RPC (query has no Args class; PoolSnapshotEntry used)",
+"idempotent": "yes",
+"notfound": "empty list on no match (query semantics)",
+"notes": "job: no. Count via count option returns int, not a job."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.clone",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:188",
+"how": "pool.snapshot.clone JSON-RPC (snapshot, dataset_dst, dataset_properties)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no (Literal[True]). Method in d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.promote",
+"impl": "middleware api/v27_0_0/pool_dataset.py:818",
+"how": "pool.dataset.promote JSON-RPC (PoolDatasetPromoteArgs)",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no (Args only). Method name inferred from Args class; not in methods.json or d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.rename",
+"impl": "middleware api/v27_0_0/pool_dataset.py:928",
+"how": "pool.dataset.rename JSON-RPC (PoolDatasetRenameArgs)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no (Args only). Name inferred; not in methods.json or d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.prop.get",
+"impl": "middleware api/v27_0_0/pool_dataset.py:92",
+"how": "pool.dataset.get_instance JSON-RPC; extra.properties selects ZFS props",
+"idempotent": "yes",
+"notfound": "NotFound-style validation error on missing id (client-side detection)",
+"notes": "job: no. PoolDatasetEntry is the result model; Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.prop.set",
+"impl": "middleware api/v27_0_0/pool_dataset.py:905",
+"how": "pool.dataset.update JSON-RPC (PoolDatasetUpdateArgs), typed fields",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Generic set limited to typed fields, not arbitrary ZFS props."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.userprop.set",
+"impl": "middleware api/v27_0_0/pool_dataset.py:621",
+"how": "pool.dataset.update JSON-RPC with user_properties_update",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Field at pool_dataset.py:621 in PoolDatasetUpdate."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.userprop.get",
+"impl": "middleware api/v27_0_0/pool_dataset.py:108",
+"how": "pool.dataset.query/get_instance returns user_properties on entry",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "job: no. Read via entry field, no dedicated method."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.quota",
+"impl": "middleware api/v27_0_0/pool_dataset.py:905",
+"how": "pool.dataset.update JSON-RPC with quota (field at pool_dataset.py:384 in create model)",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no. quota minimum 1GiB or 0/None."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.refquota",
+"impl": "middleware api/v27_0_0/pool_dataset.py:905",
+"how": "pool.dataset.update JSON-RPC with refquota (field at pool_dataset.py:388)",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no. refquota minimum 1GiB or 0/None."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.reservation",
+"impl": "middleware api/v27_0_0/pool_dataset.py:905",
+"how": "pool.dataset.update JSON-RPC with reservation (field at pool_dataset.py:294)",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.refreservation",
+"impl": "middleware api/v27_0_0/pool_dataset.py:905",
+"how": "pool.dataset.update JSON-RPC with refreservation (field at pool_dataset.py:298)",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.volsize.resize",
+"impl": "middleware api/v27_0_0/pool_dataset.py:905",
+"how": "pool.dataset.update JSON-RPC with volsize (field at pool_dataset.py:402)",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no (typed optional field update)."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.list.children",
+"impl": "middleware api/v27_0_0/pool_dataset.py:92",
+"how": "pool.dataset.query JSON-RPC with filters on name or pool (PoolDatasetEntry)",
+"idempotent": "yes",
+"notfound": "empty list on no match",
+"notes": "job: no. Children selection is by filter, not a dedicated method."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.space.available",
+"impl": "middleware api/v27_0_0/zfs_resource_crud.py:400",
+"how": "zfs.resource.query JSON-RPC (ZFSResourceQueryArgs) with 'available' property",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "job: no. Name inferred from Args class; not in methods.json or d.ts; CSI calls it."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.pool.list",
+"impl": "middleware api/v27_0_0/zpool_query.py:184",
+"how": "pool.query JSON-RPC (ZPoolQueryArgs), name inferred from Args class",
+"idempotent": "yes",
+"notfound": "empty list on no match",
+"notes": "job: no. Not in methods.json or d.ts; CSI calls pool.query."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.job.wait",
+"impl": "middleware api/v27_0_0/core.py:162",
+"how": "core.job_wait JSON-RPC with job id",
+"idempotent": "yes",
+"notfound": "job id unknown returns error (not verified in snapshot)",
+"notes": "job: this is the waiter, not a job. core.get_jobs also present (core.py:93 item model)."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.send",
+"impl": "middleware api/v27_0_0/replication.py:327",
+"how": "replication.run_onetime JSON-RPC (ReplicationRunOnetimeArgs); zfs send runs inside it",
+"idempotent": "no",
+"notfound": "n/a",
+"notes": "job: likely yes (ReplicationEntry carries job field, replication.py:249). Unverified; plugin decorators absent from snapshot."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.hold",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:223",
+"how": "pool.snapshot.hold JSON-RPC (PoolSnapshotHoldArgs)",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no (Args only). Name inferred; not in methods.json or d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.release",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:235",
+"how": "pool.snapshot.release JSON-RPC (PoolSnapshotReleaseArgs)",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no (Args only). Name inferred; not in methods.json or d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "zfs.rollback",
+"impl": "middleware api/v27_0_0/pool_snapshot.py:247",
+"how": "pool.snapshot.rollback JSON-RPC (PoolSnapshotRollbackArgs)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no (Args only). Name inferred; not in methods.json or d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nfs.create",
+"impl": "middleware api/v27_0_0/nfs.py:189",
+"how": "sharing.nfs.create JSON-RPC (SharingNFSCreateArgs, NfsShareCreate model)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nfs.delete",
+"impl": "middleware api/v27_0_0/nfs.py:210",
+"how": "sharing.nfs.delete JSON-RPC by id",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Returns true (Literal). Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nfs.lookup",
+"impl": "middleware api/v27_0_0/nfs.py:114",
+"how": "sharing.nfs.query JSON-RPC with path filter (SharingNFSEntry)",
+"idempotent": "yes",
+"notfound": "empty list on no match",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.smb.create",
+"impl": "middleware api/v27_0_0/smb.py:1202",
+"how": "sharing.smb.create JSON-RPC (SharingSMBCreateArgs)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.smb.delete",
+"impl": "middleware api/v27_0_0/smb.py:1223",
+"how": "sharing.smb.delete JSON-RPC by id",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.smb.lookup",
+"impl": "middleware api/v27_0_0/smb.py:915",
+"how": "sharing.smb.query JSON-RPC with filters (SharingSMBEntry)",
+"idempotent": "yes",
+"notfound": "empty list on no match",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.target.create",
+"impl": "middleware api/v27_0_0/iscsi_target.py:116",
+"how": "iscsi.target.create JSON-RPC (iSCSITargetCreateArgs)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.target.delete",
+"impl": "middleware api/v27_0_0/iscsi_target.py:137",
+"how": "iscsi.target.delete JSON-RPC with force and delete_extents positional",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.lun.create",
+"impl": "middleware api/v27_0_0/iscsi_extent.py:92",
+"how": "iscsi.extent.create JSON-RPC (iSCSITargetExtentCreateArgs)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.lun.delete",
+"impl": "middleware api/v27_0_0/iscsi_extent.py:113",
+"how": "iscsi.extent.delete JSON-RPC with remove and force positional",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.lun.map",
+"impl": "middleware api/v27_0_0/iscsi_target_to_extent.py:33",
+"how": "iscsi.targetextent.create JSON-RPC (target, extent, lunid)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.lun.unmap",
+"impl": "middleware api/v27_0_0/iscsi_target_to_extent.py:58",
+"how": "iscsi.targetextent.delete JSON-RPC with force",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.lun.resize",
+"impl": "middleware api/v27_0_0/iscsi_extent.py:104",
+"how": "iscsi.extent.update JSON-RPC (iSCSITargetExtentUpdateArgs)",
+"idempotent": "yes",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts. CSI does not use it; resizes zvol volsize instead."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.iscsi.auth",
+"impl": "middleware api/v27_0_0/iscsi_auth.py:44",
+"how": "iscsi.auth.create JSON-RPC (iSCSITargetAuthCredentialCreateArgs): tag, user, secret, peer fields",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Name inferred from Args class; absent from methods.json and d.ts. CSI calls it."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nvmeof.subsys.create",
+"impl": "middleware api/v27_0_0/nvmet_subsys.py:107",
+"how": "nvmet.subsys.create JSON-RPC (NVMetSubsysCreateArgs)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nvmeof.subsys.delete",
+"impl": "middleware api/v27_0_0/nvmet_subsys.py:137",
+"how": "nvmet.subsys.delete JSON-RPC by id with options",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nvmeof.ns.create",
+"impl": "middleware api/v27_0_0/nvmet_namespace.py:97",
+"how": "nvmet.namespace.create JSON-RPC (NVMetNamespaceCreateArgs)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nvmeof.ns.delete",
+"impl": "middleware api/v27_0_0/nvmet_namespace.py:124",
+"how": "nvmet.namespace.delete JSON-RPC by id with options",
+"idempotent": "partial",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.nvmeof.port.bind",
+"impl": "middleware api/v27_0_0/nvmet_port_subsys.py:32",
+"how": "nvmet.port_subsys.create JSON-RPC (port_id, subsys_id)",
+"idempotent": "no",
+"notfound": "n/a in snapshot",
+"notes": "job: no. Listed in methods.json and d.ts. Port create is nvmet.port.create (nvmet_port.py:94), not in d.ts."
+},
+{
+"repo": "truenas-api-v27",
+"op": "share.service.reload",
+"impl": "middleware api/v27_0_0/service.py:57",
+"how": "service.reload JSON-RPC (ServiceReloadArgs) with service name and options",
+"idempotent": "yes",
+"notfound": "n/a",
+"notes": "job: no (bool result). Listed in methods.json and d.ts."
+}
+]

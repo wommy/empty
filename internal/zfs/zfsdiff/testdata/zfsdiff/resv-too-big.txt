@@ -1,0 +1,5 @@
+# refreservation larger than the pool: 'size is greater than available space'; at create: out of space
+# covers: quota
+zfs create $R/a
+zfs set refreservation=21474836480 $R/a
+zfs create -o refreservation=21474836480 $R/b

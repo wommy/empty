@@ -1,0 +1,203 @@
+// Package lock provides keyed mutual exclusion for endpoint operations.
+//
+// The baseline (democratic-csi) uses a process-global Set checked and filled
+// per request and fails fast with ABORTED; it also omits the source snapshot
+// from CreateVolume's keys, so a clone can race the snapshot's deletion. Here
+// an operation names every resource it touches, keys are taken in sorted
+// order (no deadlock between overlapping key sets), and callers wait up to
+// their context deadline before giving up.
+//
+// Each key is handed over first come, first served: a release passes the
+// key straight to its oldest waiter, so a steady stream of re-acquirers
+// cannot starve one that has been waiting.
+package lock
+
+import (
+	"context"
+	"sort"
+	"sync"
+	"time"
+)
+
+// Keyed is a set of named locks. The zero value is ready to use.
+type Keyed struct {
+	mu   sync.Mutex
+	held map[string]*key // present while held
+}
+
+// key is a held key, who holds it since when (for messages: Holder), and
+// its waiters, oldest first. A waiter's channel is closed when the key is
+// handed to it.
+type key struct {
+	waiters []waiter
+	owner   string
+	since   time.Time
+}
+
+type waiter struct {
+	ch    chan struct{}
+	owner string
+}
+
+type ownerKey struct{}
+
+// WithOwner returns ctx naming the owner (a request id) that the locks
+// taken with it record, for Holder.
+func WithOwner(ctx context.Context, owner string) context.Context {
+	return context.WithValue(ctx, ownerKey{}, owner)
+}
+
+// Owner is the owner WithOwner put in ctx, or "".
+func Owner(ctx context.Context) string {
+	o, _ := ctx.Value(ownerKey{}).(string)
+	return o
+}
+
+// Holder reports who holds name (its owner, "" if the taker named none)
+// and since when; ok is false when it is free.
+func (k *Keyed) Holder(name string) (owner string, since time.Time, ok bool) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	h, ok := k.held[name]
+	if !ok {
+		return "", time.Time{}, false
+	}
+	return h.owner, h.since, true
+}
+
+// Acquire locks every key, waiting for holders to release. It returns a
+// release func, or ctx.Err() if the context ends first (nothing is held
+// then). A context that has already ended takes nothing, not even a free
+// key: the caller has no time left to use it.
+func (k *Keyed) Acquire(ctx context.Context, keys ...string) (func(), error) {
+	keys = dedupe(keys)
+	var taken []string
+	release := func() {
+		k.mu.Lock()
+		defer k.mu.Unlock()
+		for _, name := range taken {
+			k.unlock(name)
+		}
+		taken = nil
+	}
+	for _, name := range keys {
+		k.mu.Lock()
+		if err := ctx.Err(); err != nil {
+			k.mu.Unlock()
+			release()
+			return nil, err
+		}
+		if k.held == nil {
+			k.held = map[string]*key{}
+		}
+		h, busy := k.held[name]
+		if !busy {
+			k.held[name] = &key{owner: Owner(ctx), since: time.Now()}
+			taken = append(taken, name)
+			k.mu.Unlock()
+			continue
+		}
+		ch := make(chan struct{})
+		h.waiters = append(h.waiters, waiter{ch, Owner(ctx)})
+		k.mu.Unlock()
+		select {
+		case <-ch:
+			taken = append(taken, name)
+		case <-ctx.Done():
+			k.mu.Lock()
+			select {
+			case <-ch:
+				// handed over while we gave up: ours, so pass it on
+				taken = append(taken, name)
+			default:
+				h.remove(ch)
+			}
+			k.mu.Unlock()
+			release()
+			return nil, ctx.Err()
+		}
+	}
+	var once sync.Once
+	return func() { once.Do(release) }, nil
+}
+
+// TryAcquire locks every key only if none is held, without waiting. It
+// reports false (and holds nothing) when any key is busy. Never waiting
+// means it cannot take part in a wait cycle, whatever the key order.
+func (k *Keyed) TryAcquire(keys ...string) (func(), bool) {
+	return k.TryAcquireContext(context.Background(), keys...)
+}
+
+// TryAcquireContext is TryAcquire recording ctx's Owner. ctx is not
+// waited on.
+func (k *Keyed) TryAcquireContext(ctx context.Context, keys ...string) (func(), bool) {
+	keys = dedupe(keys)
+	owner, now := Owner(ctx), time.Now()
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	for _, name := range keys {
+		if _, busy := k.held[name]; busy {
+			return nil, false
+		}
+	}
+	if k.held == nil {
+		k.held = map[string]*key{}
+	}
+	for _, name := range keys {
+		k.held[name] = &key{owner: owner, since: now}
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			k.mu.Lock()
+			defer k.mu.Unlock()
+			for _, name := range keys {
+				k.unlock(name)
+			}
+		})
+	}, true
+}
+
+// unlock hands name to its oldest waiter, or frees it. k.mu is held.
+func (k *Keyed) unlock(name string) {
+	h := k.held[name]
+	if len(h.waiters) == 0 {
+		delete(k.held, name)
+		return
+	}
+	next := h.waiters[0]
+	h.waiters = h.waiters[1:]
+	h.owner, h.since = next.owner, time.Now()
+	close(next.ch)
+}
+
+func (h *key) remove(ch chan struct{}) {
+	for i, w := range h.waiters {
+		if w.ch == ch {
+			h.waiters = append(h.waiters[:i], h.waiters[i+1:]...)
+			return
+		}
+	}
+}
+
+// Held reports whether key is currently locked (for tests and metrics).
+func (k *Keyed) Held(key string) bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	_, ok := k.held[key]
+	return ok
+}
+
+func dedupe(keys []string) []string {
+	out := append([]string(nil), keys...)
+	sort.Strings(out)
+	n := 0
+	for i, s := range out {
+		if s == "" || (i > 0 && s == out[i-1]) {
+			continue
+		}
+		out[n] = s
+		n++
+	}
+	return out[:n]
+}

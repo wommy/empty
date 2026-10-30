@@ -1,0 +1,7 @@
+# plain inherit of a received native property falls back to the pool's lz4, not the received value
+# covers: received
+zfs create -o compression=gzip-6 $R/a
+zfs snapshot $R/a@s1
+@sendrecv $R/a@s1 $R/r
+zfs inherit compression $R/r
+zfs inherit -S compression $R/r

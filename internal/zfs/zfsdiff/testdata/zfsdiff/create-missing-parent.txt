@@ -1,0 +1,3 @@
+# create without -p under a missing parent
+# covers: create-p
+zfs create $R/a/b

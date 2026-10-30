@@ -1,0 +1,9 @@
+# a received thick volume's refreservation is charged to its parent (dd_used):
+# the parent's quota cannot go below it, and a second thick volume does not fit
+# covers: received
+zfs create -o quota=104857600 $R/g
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+@sendrecv $R/v@s1 $R/g/r
+zfs set quota=10485760 $R/g
+zfs create -V 67108864 $R/g/w

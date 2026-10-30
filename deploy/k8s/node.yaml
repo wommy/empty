@@ -1,0 +1,189 @@
+# The node plugin: csi-driver-nfs's node DaemonSet, run under this driver's
+# name (ADR 0004, ADR 0009). It mounts the server:share that CreateVolume
+# returns in volume_context, on every node a pod using the volume lands on.
+# Copied from upstream deploy/v4.13.6/csi-nfs-node.yaml, with:
+#   - --drivername=zfs-endpoint.wommy.github.io, and its socket and
+#     registration path under /var/lib/kubelet/plugins/<that name>/;
+#   - none of upstream's controller Deployment or its CSIDriver
+#     nfs.csi.k8s.io: zfs-csi is the controller, csidriver.yaml the driver;
+#   - no service account token: upstream binds its node service account to
+#     no role, and no container here calls the Kubernetes API;
+#   - the registrar and the liveness probe unprivileged, read-only root,
+#     the plugin socket mounted read-only (connect() needs no writable
+#     mount, ADR 0008); only nfs is privileged, as upstream;
+#   - the liveness probe on localhost:29663, not upstream's 29653: both
+#     use the host network, so a node also running upstream csi-driver-nfs
+#     would see the two collide;
+#   - dnsPolicy Default, not upstream's ClusterFirstWithHostNet: mount.nfs
+#     resolves the NFS server name with the node's resolver, never cluster
+#     DNS. Under ClusterFirstWithHostNet (ndots:5, the cluster search list)
+#     a short name such as nas.lan is tried as nas.lan.svc.cluster.local
+#     first: Service nas in namespace lan, which a tenant can create, and
+#     every node would then mount that tenant's server for every volume.
+#     Nothing here needs cluster DNS: nfsplugin, the registrar and the
+#     liveness probe talk to kubelet and to each other over the plugin
+#     socket and localhost, and call no Kubernetes API. Even so, advertise
+#     the NFS server as an IPv4 address or an FQDN with a trailing dot
+#     (zfs-endpoint-nfs.conf.example), so no search list ever applies;
+#   - no blanket toleration (upstream tolerates every taint with
+#     operator: Exists): this privileged pod runs only on nodes without
+#     taints, never on a tainted control plane by default (ADR 0009).
+#
+# Images are pinned by tag and digest (the image index digest), the digests
+# kubernetes/k8s.io promotes for these tags
+# (registry.k8s.io/images/k8s-staging-sig-storage/images.yaml at
+# 56620372d4896b196b798a1271c7dc5922e8d780); not read back from
+# registry.k8s.io, which was unreachable when they were pinned. Check with:
+#   crane digest registry.k8s.io/sig-storage/<image>:<tag>
+#
+# Security (ADR 0001 v2 D8, F6). NFS here is AUTH_SYS plus the export's
+# client networks (StorageClass nfs.clients): any host in those networks
+# that can reach the server can mount a volume and claim any uid. Before
+# serving tenants, close F6 by deployment:
+#   - deny pod egress to the storage host's 2049/tcp (and 111 and 20048 for
+#     NFSv3), cluster-wide (a NetworkPolicy or the CNI's equivalent). The
+#     mounts below use the host network, so they are unaffected;
+#   - Pod Security baseline or stricter on tenant namespaces (no hostPath,
+#     no host network, no privileged pods there);
+#   - a host firewall on the storage host limiting 2049 to the node
+#     addresses (a set of /32s), not the node subnet, and nfs.clients as
+#     narrow as the nodes allow: every host, node and hostNetwork pod inside
+#     an export's networks can mount every exported volume (ADR 0004).
+#
+# The namespace is Pod Security privileged (00-namespace.yaml): this pod is
+# privileged, uses the host network and mounts hostPaths.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zfs-csi-node
+  namespace: zfs-csi
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: zfs-csi-node
+  namespace: zfs-csi
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: zfs-csi-node
+  template:
+    metadata:
+      labels:
+        app: zfs-csi-node
+    spec:
+      # upstream: "original nfs connection would be broken without
+      # hostNetwork setting"
+      hostNetwork: true
+      # the node's resolv.conf, not cluster DNS: a tenant Service must never
+      # answer for the NFS server's name (see the header)
+      dnsPolicy: Default
+      serviceAccountName: zfs-csi-node
+      automountServiceAccountToken: false
+      priorityClassName: system-node-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/os: linux
+      # Every untainted node, the ZFS host included (it is a node too, ADR
+      # 0006; ADR 0009 keeps it eligible). No blanket toleration: a tainted
+      # node (the control plane, a dedicated pool) gets no privileged NFS
+      # mounter unless you add its taint here, for example:
+      # tolerations:
+      #   - key: node-role.kubernetes.io/control-plane
+      #     operator: Exists
+      #     effect: NoSchedule
+      containers:
+        - name: nfs
+          image: registry.k8s.io/sig-storage/nfsplugin:v4.13.6@sha256:40663419bac36836b8e4ef6929199e35920e28f6a74a46892e1c125ea5f0ce0b
+          args:
+            - --v=2
+            - --drivername=zfs-endpoint.wommy.github.io
+            - --nodeid=$(NODE_ID)
+            - --endpoint=unix:///csi/csi.sock
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          # mount(8) and Bidirectional propagation into the pods directory
+          # need a privileged container (upstream's shape)
+          securityContext:
+            privileged: true
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              host: localhost
+              path: /healthz
+              port: 29663
+            initialDelaySeconds: 30
+            timeoutSeconds: 10
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 20Mi}
+            limits: {memory: 300Mi}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
+        - name: node-driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0@sha256:f9de845b170155199f2a2a3f9531cf13d78e31235e9db6b6582a8b0db0a50dad
+          args:
+            - --v=2
+            - --csi-address=/csi/csi.sock
+            # the socket's path on the host, where kubelet dials it
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/zfs-endpoint.wommy.github.io/csi.sock
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 20Mi}
+            limits: {memory: 100Mi}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+              readOnly: true
+            - name: registration-dir
+              mountPath: /registration
+        - name: liveness-probe
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.19.0@sha256:06da0d5b8908072f2e4522692aee8dc119fba7247a9658497e1153992cd777e9
+          args:
+            - --csi-address=/csi/csi.sock
+            - --probe-timeout=3s
+            - --http-endpoint=localhost:29663
+            - --v=2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 20Mi}
+            limits: {memory: 100Mi}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+              readOnly: true
+      volumes:
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/zfs-endpoint.wommy.github.io
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory

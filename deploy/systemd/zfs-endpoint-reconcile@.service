@@ -1,0 +1,72 @@
+# Report-only Reconcile of one parent's endpoint, run by
+# zfs-endpoint-reconcile@.timer. The instance is the endpoint's: the
+# systemd-escaped parent dataset.
+#
+#   systemctl enable --now "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).timer"
+#   journalctl -u "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).service"
+#
+# It is a dry run and nothing else: it prints what Reconcile would collect
+# (abandoned creates, orphan clone sources), the drift it reports in
+# "skipped", and the plan_digest, to the journal. It never passes -apply:
+# collecting is an operator's step, after reading the plan
+# (`zfs-endpoint reconcile -apply -digest <d>`, README "Runbook: Reconcile";
+# ADR 0001 D3). The desired set is empty, which collects no committed
+# volume. A failed call (endpoint down, admin socket missing) fails the
+# unit with exit 1.
+#
+# -fail-on-findings: a report whose "summary:" line counts a finding (an
+# abandoned create, an orphan clone source, an uncommitted create still
+# exported, drift; not young or busy volumes) exits 3, so the unit shows
+# as failed in `systemctl --failed` and can drive OnFailure=. The
+# endpoint's own journal carries the same counts as one JSON
+# "reconcile result" line.
+#
+# It talks to the admin socket, /run/zfs-endpoint/admin/%i/endpoint.sock,
+# served to root (or the daemon's uid) only, so it runs as root. A daemon
+# whose -admin-listen a drop-in shortened (a long dataset name,
+# zfs-endpoint@.service) needs the same path here, in a drop-in of this
+# instance, e.g. zfs-endpoint-reconcile@tank-k8s-vols.service.d/admin.conf:
+#
+#   [Service]
+#   ExecStart=
+#   ExecStart=/usr/local/sbin/zfs-endpoint reconcile -admin-socket unix:///run/zfs-endpoint/admin/vols/endpoint.sock -timeout 5m -fail-on-findings
+#
+# Unlike the daemon it mounts nothing, so it takes a mount namespace and
+# no capability: root owns the socket and its directories, so connect(2)
+# needs none (a daemon run as another uid: add CAP_DAC_OVERRIDE in a
+# drop-in), and a socket is reached on a read-only mount. Each setting is
+# checked by starting this unit under ci/real-zfs-unit.sh.
+
+[Unit]
+Description=ZFS endpoint reconcile report (dry run) for dataset %I
+Documentation=https://github.com/wommy/empty
+After=zfs-endpoint@%i.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/zfs-endpoint reconcile -parent %I -timeout 5m -fail-on-findings
+# > -timeout
+TimeoutStartSec=6min
+UMask=0077
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+# a client of one unix socket
+RestrictAddressFamilies=AF_UNIX
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

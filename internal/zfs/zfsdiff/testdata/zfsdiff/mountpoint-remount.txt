@@ -1,0 +1,6 @@
+# mountpoint none then back: unmounted then mounted again, children follow
+# covers: sharenfs-unmounted
+zfs create $R/a
+zfs create $R/a/c
+zfs set mountpoint=none $R/a
+zfs inherit mountpoint $R/a

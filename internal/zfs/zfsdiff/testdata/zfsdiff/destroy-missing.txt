@@ -1,0 +1,8 @@
+# destroy of missing datasets and snapshots: the not-found texts the endpoint's OkMissing relies on
+# covers: destroy-r-clones
+zfs destroy $R/nope
+zfs destroy -r $R/nope
+zfs destroy $R/nope@s1
+zfs create $R/a
+zfs destroy $R/a@nope
+zfs destroy -d $R/nope@s1

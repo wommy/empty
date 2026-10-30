@@ -1,0 +1,4 @@
+# destroy -d of a missing snapshot
+# covers: destroy-d
+zfs create $R/a
+zfs destroy -d $R/a@s1

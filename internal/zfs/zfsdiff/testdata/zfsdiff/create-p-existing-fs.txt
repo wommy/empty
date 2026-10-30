@@ -1,0 +1,4 @@
+# create -p on an existing filesystem succeeds and sets nothing
+# covers: create-p
+zfs create $R/a
+zfs create -p -o zd:a=1 $R/a

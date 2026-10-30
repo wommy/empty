@@ -1,0 +1,53 @@
+# Tests allowed to SKIP on the real-ZFS legs (the skip budget).
+# Rule: a new simulator-only test (it calls requireSim, h.Sim or a helper
+# that does) gets its `vm <package> <test>` line here in the same change.
+# ci/check-suites.sh (ci/skiplint, static job; run it locally) fails a
+# skipping test with no entry and an entry whose test is gone, so the VM
+# leg's check-skips.sh never has to catch it. One line per entry.
+# ci/check-skips.sh fails a leg when a test binary's -test.v output has a
+# `--- SKIP:` line whose test is not listed here for that leg and package, or
+# when the binary ran no test at all. A skip is not a pass: every entry is
+# something that leg does not measure, so keep the list short and say why.
+#
+# format: <leg> <package under internal/> <test name>   # reason
+# legs:   vm     ci/real-zfs-vm.sh (Ubuntu 26.10 under KVM, OpenZFS 2.4, the
+#                only supported version and the only real-ZFS leg)
+#
+# Derived from the t.Skip conditions at the time of writing:
+# - harness.Sim (internal/endpoint/endpoint_test.go) skips on a real pool;
+# - harness.NFS (internal/endpoint/export_contract_test.go) skips when
+#   /proc/fs/nfsd/threads is 0 or absent. The VM now starts nfs-server, so
+#   TestFileExportLifecycle and TestFileExportAdoptedVolumes must RUN and are
+#   deliberately not listed.
+# Every entry must skip on the real leg: a listed test that runs means the
+# binary fell back to the simulator, and the leg fails. internal/server and
+# internal/zfs never reach a pool and run only in the unit job; internal/csi
+# has no t.Skip. csi-sanity's own skipped
+# specs are Ginkgo skips inside TestSanity, not go test skips.
+
+vm    endpoint TestConcurrentCreatesSerialize          # Sim: call accounting
+vm    endpoint TestCloneResizeFailureConverges         # Sim: fault injection
+vm    endpoint TestMissingParentIsUnavailableNotAbsent # Sim: missing pool
+vm    endpoint TestReconcileLocksTargets               # Sim: parked runner
+vm    endpoint TestFileExportVerifiesKernelTable       # Sim: SetNFSDown
+vm    endpoint TestFileExportRequiresNFSD              # Sim: stops nfs-server
+vm    endpoint TestFileExportDroppedHost               # Sim: exportfs drops one client
+vm    endpoint TestFileExportResolvesSymlinks          # Sim: mountpoint through a temp-dir symlink
+vm    endpoint TestFileExportUnmountedVolume           # Sim: canmount=on but unmounted
+vm    endpoint TestFileExportReceivedShareNFS          # Sim: received property source
+vm    endpoint TestFileExportCreateNotServed           # Sim: SetNFSDown, stops nfs-server
+vm    endpoint TestFileExportCreateNeedsServers        # Sim: Config refusals, no pool needed
+vm    endpoint TestCloneFailureAfterCloneConvergesToSameState # Sim: fault injection (subtests)
+vm    endpoint TestDeleteVolumeSparesForeignSnapshots     # Sim: raw foreign snapshot
+vm    endpoint TestBusyIsMappedByOperation                # Sim: injected stderr
+vm    endpoint TestUnknownFailureAfterAMutationIsRetryable # Sim: injected stderr
+vm    endpoint TestReceivedCopyIsNotOwned                 # Sim: received property source
+vm    endpoint TestReconcileSparesReceivedAndRenamed      # Sim: received property source
+vm    endpoint TestMissingParentIsUnavailableForWholeScans # Sim: missing pool
+vm    endpoint TestOwnershipDifferentialFixtures   # Sim: received property source; a test-only differential
+vm    endpoint TestOwnershipDifferentialCrashes    # Sim: every crash point, a ~30s VM sweep (crashSample)
+vm    endpoint TestOwnershipDifferentialModel      # Sim: model traces, sim-only adm.recvsnap
+vm    endpoint TestCreateVolumeCatchesDatasetReplacedBeforeCommit/block # Sim: zvol swap before commit (the filesystem subtest runs)
+vm    endpoint TestMissingParentFailsCreateAndDeleteUnavailable # Sim: missing pool
+vm    endpoint TestRPCCallBudget                       # Sim: call accounting
+vm    endpoint TestCrashSecondPointAllowsBusyRetry     # Sim: busy injection

@@ -1,0 +1,35 @@
+# 10. A failed fresh CreateVolume rolls back what it made
+
+Status: accepted (decisive, reversible) · Date: 2026-10-27 · Related: ADR 0003 (ownership), ADR 0001 (Reconcile on the admin socket), ADR 0005 (CI budget), `internal/endpoint/endpoint.go` (`CreateVolume`, `rollbackCreate`), `internal/endpoint/plan.go` (`PlanRollbackCreate`), `internal/endpoint/errors.go` (`beforeChange`).
+
+## Context
+
+- **Stranded volumes.** A CreateVolume that fails after its first change used to return early and leave the row owned and uncommitted, and, for a clone of a volume, the stamped `<src>@volume-source-for-volume-<id>` too. Only a retry with the same name (Resume) or a DeleteVolume reaches that row, and external-provisioner only calls DeleteVolume for a PV, which a failed create never got. It keeps retrying in the background after the PVC is deleted only on Aborted, Unavailable, DeadlineExceeded, Canceled and non-gRPC errors (retry-fix, wave 25). A final code after a change (an NFS export refused for exposure, FailedPrecondition; the ambiguous first op, Internal), a provisioner restart or leader change, or a caller that is not Kubernetes strands the row for good. retry-fix mapped every after-change failure it could to Aborted, but deliberate refusals keep their final codes, and nothing ever retries once the claim is gone from the provisioner's memory.
+- **Reconcile is manual.** It does collect uncommitted rows, but only on demand over the optional admin socket, after `MinAge` (1h by default), and not at all when the same run holds an undesired volume sent without a digest. Nothing schedules it.
+- **What a stranded row costs.** A leaked clone pins its source: the internal snapshot keeps the source's overwritten blocks, and the source's DeleteVolume is FailedPrecondition "has dependent clone" until the row goes. An NFS row stays exported to its clients, and to everyone when the refusal was its exposure through an ancestor's crossmnt. The same name with another kind or source is AlreadyExists, final, forever.
+
+## Decision
+
+- **Rollback.** A CreateVolume whose first scan, under the lock, found the volume absent (fresh), and which made something (an op completed, or a failed op may have run: not a classified zfs refusal), rolls that back on any error return, before releasing its locks. The rollback runs on `context.WithoutCancel` with its own `rollbackTimeout`, as `rollbackExpand` and `restoreShareNFS` do. It re-scans the volume and its clone source, then applies `PlanRollbackCreate`:
+  - Resume's guards: the row is `OwnedVolume` (this name marker), of the request's kind and source, and not committed; anything else is left alone;
+  - `planDelete`'s destroys: the released origin (deferred), then the dataset, plain, each tied to the guid just read and checked by `sameDataset` (OWN-15); children, a snapshot, a hold or a clone refuse it;
+  - with no row and a source volume (the clone failed after the cut), the release of that one stamped snapshot, when unused.
+- **Exclusions.** No rollback when the failure is the caller's deadline or cancellation (`kindDeadline`, `context.Canceled`, or the caller's context already ended): on a pool where a clone or mount outlasts the sidecar's timeout, each attempt would make and undo the volume, a livelock; left, the next attempt resumes it. No rollback on a Resume (a row present at the first scan), or once the commit was applied.
+- **Codes.** A rollback that removed what the call made returns the failure as a call that changed nothing would have (`beforeChange`): its code before retry-fix's after-change re-keying, e.g. ResourceExhausted for a clone's reservation, Internal for an unclassified failure. The pool is as before the call (R5), so a final code is truthful: there is nothing to strand, the provisioner still retries while the PVC exists, and the same failure on a plan's first op gives that code today. Deliberate refusals (exposure, export not served) keep theirs either way. A rollback that fails is joined to the failure (`errors.Join`) and the row is left for Resume, so the code must be one external-provisioner retries: the failure is re-keyed as after-change (also when an ambiguous first op left it pre-change), and a code that is still final, a deliberate refusal such as exposure, becomes Aborted (Unavailable stays). Pinned by `TestCreateRollbackLeavesNothing`, `TestCreateRollbackFailureIsJoined`, `TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable` and `TestCreateRollbackFailureIsAlwaysRetryable`.
+- **Invariants**, each with a test in `internal/endpoint/rollback_test.go`, `rollback_plan_test.go` or `crash_test.go`:
+  - R1: a rollback destroys only what this call's first scan saw absent and its own ops may have made; never a committed row, another name's row, a CSI snapshot, or anything with children, holds or clones.
+  - R2: every destroy is guid-tied to a scan taken after the failure, under the same locks (`TestDestroyNeverHitsAReplacedDataset/rollback-create`).
+  - R3: never on the caller's deadline or cancellation, never on a Resume.
+  - R4: never the rollback's code; a failed rollback is reported, joined.
+  - R5: after a successful rollback the parent is what it was before the call, and a retry reaches the uninterrupted end state.
+
+## Consequences
+
+- A real crash (process death) still leaves an uncommitted row: Resume and Reconcile stay the backstop, unchanged. The crash sweep now runs every point twice: the process dies (`faultRunner.dead`: every later call fails, so the retry resumes) or survives (it rolls back, and the retry creates afresh); on the simulator a survivor is crashed again at each of its later mutations, the rollback's included. On a real pool one point per case is sampled, rotated over both models, as before (ADR 0005).
+- The failure path costs more: about 3 zfs calls (two reads, a destroy) for a plain volume, about 6 for a clone of a volume, and under a persistent failure each retry redoes the create up to the failure. NFS volumes are exported and unexported on each such retry. The success and retry paths are unchanged (`TestRPCCallBudget`).
+- Two endpoint processes on one parent are not covered by the in-process lock, as for every destroy (ADR 0001: one parent, one caller).
+- Reconcile's uncommitted rows now come from crashes, failed rollbacks and deadline-ended creates only.
+
+## Reversal
+
+Reversible in one change: drop the `rollbackCreate` call from `CreateVolume`'s `fail` (and with it `PlanRollbackCreate`, `beforeChange` and `Error.pre`). Nothing on disk depends on it: a rolled-back create leaves no state, and the after-change rows of the error table (retry-fix) still map every failure that leaves a row. The tests flipped by this ADR (`TestFileExportCreateServedBeyondByAncestor`, `TestFileExportCreateRootFailureIsRetryable`, `TestFileExportCreateNotServed`, "sharenfs changed" in `TestFileExportCreateChangedBeforeCommit`, `TestCreateVolumeReadAfterChangeIsRetryable`, `TestCloneNoSpaceAfterChangeIsRetryable`, `TestUnknownFailureAfterAMutationIsRetryable`, `TestCreateUnmountedFilesystemMountsThenCommits`) flip back, each comment saying what it asserted before.

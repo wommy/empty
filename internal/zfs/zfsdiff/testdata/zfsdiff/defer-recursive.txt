@@ -1,0 +1,7 @@
+# destroy -rd marks every descendant's snapshot that is held or cloned
+# covers: destroy-d
+zfs create $R/a
+zfs create $R/a/c
+zfs snapshot -r $R/a@s1
+zfs hold t1 $R/a/c@s1
+zfs destroy -rd $R/a@s1

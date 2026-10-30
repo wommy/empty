@@ -1,0 +1,6 @@
+# recv onto an existing dataset without -F
+# covers: received
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create $R/r
+@sendrecv $R/a@s1 $R/r

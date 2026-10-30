@@ -1,0 +1,93 @@
+name: setup-go
+description: >-
+  Go toolchain straight from the actions/go-versions release (sha256-pinned),
+  plus the Go build and module caches. Replaces actions/setup-go, which spends
+  about 7s of every job copying the SDK into the runner tool cache and
+  re-saving a 465 MB cache blob. The download, verification and extraction
+  run in the background while the cache restores. Restore only: a job saves
+  the cache itself when output `save` is 'true'.
+inputs:
+  cache-name:
+    description: Cache namespace, one per job shape (vet-heavy and -race builds share little).
+    required: true
+outputs:
+  cache-hit:
+    description: "'true' when the exact key (this commit) was restored"
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-key:
+    description: the key a job saves under
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+  save:
+    description: >-
+      'true' when nothing built against this go.sum was restored: the job
+      should save after its build. A PR that restored the default branch's
+      entry (kept fresh by cache-warm.yml) never re-uploads it.
+    # never hashFiles() here: it is not evaluated in composite outputs
+    value: ${{ steps.decide.outputs.save }}
+runs:
+  using: composite
+  steps:
+    - name: start Go download
+      shell: bash
+      env:
+        # bump together: go.mod's toolchain line, this version, the cache key
+        # prefix below, and GO_SHA256 (sha256sum of the asset of the matching
+        # actions/go-versions release)
+        GO_URL: https://github.com/actions/go-versions/releases/download/1.27.3-39437817176/go-1.27.3-linux-x64.tar.gz
+        GO_SHA256: d0fbe16a6a03fe5fbf5577ab36f95f0725af587820dca8a78e6edd4eb4e19fd6
+      # download, verify and extract in the background, during the cache
+      # restore: the extraction alone was 1.4-1.9s of the install step in
+      # every job (runs 40468413047, 40469622947); the download was always
+      # done before the restore. A failure is reported by the install step.
+      run: |
+        rm -f "$RUNNER_TEMP/go.done" "$RUNNER_TEMP/go.status"
+        setsid nohup bash -c '
+          if curl -fsSL --retry 3 -o "$1/go.tgz" "$2" &&
+             echo "$3  $1/go.tgz" | sha256sum -c - &&
+             mkdir -p "$4" && tar -xzf "$1/go.tgz" -C "$4"; then
+            echo ok >"$1/go.status"
+          else
+            echo fail >"$1/go.status"
+          fi
+          touch "$1/go.done"
+        ' _ "$RUNNER_TEMP" "$GO_URL" "$GO_SHA256" "$HOME/sdk/go" >"$RUNNER_TEMP/go.log" 2>&1 &
+    - name: restore Go caches
+      # keyed by go.sum and the commit: the exact key hits only on a re-run.
+      # The newest entry for this go.sum comes next (the default branch's,
+      # refreshed by cache-warm.yml), then the namespace's newest
+      id: restore
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: go1.27.3-${{ inputs.cache-name }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+        restore-keys: |
+          go1.27.3-${{ inputs.cache-name }}-${{ hashFiles('go.sum') }}-
+          go1.27.3-${{ inputs.cache-name }}-
+    - name: decide whether the job saves
+      id: decide
+      shell: bash
+      env:
+        KEY: ${{ steps.restore.outputs.cache-primary-key }}
+        MATCHED: ${{ steps.restore.outputs.cache-matched-key }}
+      run: |
+        # KEY is go1.27.3-<ns>-<go.sum hash>-<sha>: an entry for the same
+        # go.sum is good enough, only the module's own packages rebuild
+        case $MATCHED in
+          "${KEY%-*}-"*) echo "save=false" ;;
+          *) echo "save=true" ;;
+        esac >>"$GITHUB_OUTPUT"
+    - name: install Go 1.27.3
+      shell: bash
+      run: |
+        for _ in $(seq 240); do [ -e "$RUNNER_TEMP/go.done" ] && break; sleep 0.25; done
+        cat "$RUNNER_TEMP/go.log" 2>/dev/null || true # the sha256sum verdict
+        if [ "$(cat "$RUNNER_TEMP/go.status" 2>/dev/null)" != ok ]; then
+          echo "::error::Go download, sha256 check or extraction failed or did not finish"
+          exit 1
+        fi
+        echo "$HOME/sdk/go/bin" >> "$GITHUB_PATH"
+        # never switch toolchains: go.mod says go 1.27.0, toolchain go1.27.3
+        echo "GOTOOLCHAIN=local" >> "$GITHUB_ENV"
+        "$HOME/sdk/go/bin/go" version

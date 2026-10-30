@@ -1,0 +1,19 @@
+# The real-ZFS VM suites: which test binaries (internal/<package>) each CI
+# job runs. ci.yml runs one job per part of a suite (matrix `include`: the
+# endpoint suite in two parts of 3 shards each, ZFSVM_PART, csi in one);
+# nightly.yml runs one job per suite (matrix `suite`), endpoint unsplit.
+# Each job is on its own runner with its own VM (ADR 0005: the guest was
+# CPU-bound with all six shards on one runner's 4 vCPUs). cache-warm.yml
+# warms one Go cache namespace per suite (real-zfs-<suite>).
+#
+# Every package whose tests read ZFS_TEST_POOL belongs to exactly one suite,
+# and every suite (and every part of it) appears exactly once in each of
+# those matrices: ci/check-suites.sh proves both in the static job. Within
+# a job, ci/check-skips.sh proves that every test its binaries list ran,
+# and ci/check-split.sh that each endpoint test ran exactly once over all
+# six shards of both parts (ci/real-zfs-plan.sh). So every listed test runs
+# in exactly one job.
+#
+# <suite> <package>...
+endpoint endpoint
+csi csi
