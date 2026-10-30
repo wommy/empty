@@ -1,0 +1,40 @@
+endpoint: the etab fuzz precondition admits only options putexportent writes
+
+Nightly run 41037354967 (job 124001380053) failed FuzzNFSEtabParse on the
+etab "0\t(0)\n/tank/v/a\t10.0.0.0/24(ro)": the verifier said 10.0.0.0/24
+is served ro while mountd's model gives it no export.
+
+The cause is the model, not the verifier. LoadEtab (internal/nfsref/
+exportfs.go:459) stops reading at the first getexportent failure, and
+parseopts (internal/nfsref/exports.go:470) fails on the unknown option
+"0", so the valid second line is never loaded. ParseEtab keeps reading
+and keeps that line. The precondition admitted the input because
+etabLineRE accepted any option token inside the parentheses.
+
+putexportent prints a fixed grammar: bare flags, and valued options in
+fixed forms (fsid=N or a UUID, reexport=auto-fsidnum|predefined-fsidnum,
+mountpoint[=path], refer=/replicas=, squash_uids=/squash_gids= ID lists,
+anonuid=N, anongid=N, sec=flavor(:flavor), xprtsec=mode(:mode)). No
+writer output contains "0", "anonuid=x", "fsid=x", "sec=bogus", "ro=1",
+an empty item, or a trailing comma. An empty squash_gids= list runs
+straight into anonuid= (writeIDs prints nothing; the "sic" in
+PutExportent). etabAsWritten now checks the option list against that
+grammar, so the fuzz precondition and the writer agree.
+
+Not changed, on purpose: the host and path rules. An empty host is
+mapped to "*" by the parser and a relative path is skipped without
+stopping the file, so neither produces this divergence.
+
+Source: the nfs-utils source was NOT fetched in this session (raw
+GitHub returned 404 for the repo path, github.com and the API returned
+403, and add_repo could not find nfs-utils/nfs-utils). The writer
+citations are the ones in nfsref's comments (exports.c:277-383 for
+putexportent, :373 for writeIDs), not lines read from upstream. Verify
+them against an upstream tag before relying on them.
+
+The reproducer 8dbaba9de1f231eb was rebuilt from its hash: the file
+contents hash to that prefix only for this etab with data "02". It fails
+at HEAD with the logged message and passes after this change.
+
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

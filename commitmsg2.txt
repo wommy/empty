@@ -1,0 +1,48 @@
+endpoint: the etab fuzz precondition admits only options putexportent writes
+
+Nightly run 41037354967 (job 124001380053) failed FuzzNFSEtabParse on the
+etab "0\t(0)\n/tank/v/a\t10.0.0.0/24(ro)": the verifier said 10.0.0.0/24
+is served ro while mountd's model gives it no export.
+
+Both sides are right for etab as written. LoadEtab (internal/nfsref/
+exportfs.go:459) stops at the first getexportent failure, and parseopts
+(internal/nfsref/exports.go:470) fails on the unknown option "0", so the
+valid second line is never loaded. ParseEtab keeps reading and keeps that
+line. This input could not have been written by putexportent, so the
+precondition was wrong to admit it: etabLineRE accepted any token inside
+the parentheses.
+
+optionsAsWritten now checks the option list against the grammar
+nfsref.PutExportent prints: bare flags, and valued options in the forms it
+prints them (fsid=N or a 32-hex-digit UUID, fsid before reexport and
+reexport once, reexport=auto-fsidnum|predefined-fsidnum, mountpoint[=path],
+refer=/replicas=, squash_uids=/squash_gids= ID lists, anonuid=N,
+anongid=N, sec=flavor(:flavor), xprtsec=mode(:mode)). The writer never
+prints "0", "anonuid=x", "fsid=x", "sec=bogus", "ro=1", an empty item, or
+a trailing comma. TestEtabAsWrittenAcceptsPutExportent pins that every
+line PutExportent prints is admitted, including an empty squash_gids list
+that runs straight into anonuid=.
+
+Not changed, on purpose:
+- the host and path rules: the parser maps an empty host to "*", and a
+  relative path is skipped without stopping the file, so neither causes
+  this divergence;
+- two writer-possible forms that the model still rejects. Probed with
+  LoadEtab: "/x\t*(squash_gids=anonuid=0,anongid=0)" (the glued sic line)
+  and "/x\t*(anonuid=0,anongid=0,squash_uids=1,2)" (a multi-element ID
+  list, whose continuation the model reads as an unknown option; its
+  comment cites parsesquash in exports.c:655-662, 874-904). Both are
+  admitted and open. If the nightly fuzz finds either, the question is
+  whether real mountd accepts it, which needs the nfs-utils source.
+
+Source: the nfs-utils source was NOT fetched in this session (raw GitHub
+returned 404 for the repo path, github.com and the API returned 403, and
+add_repo could not find nfs-utils/nfs-utils). The line numbers above are
+the repo's own citations in nfsref, not lines read from upstream.
+
+The reproducer 8dbaba9de1f231eb was rebuilt from its hash: the file
+contents hash to that prefix only for this etab with data "02". It fails
+at HEAD with the logged message and passes after this change.
+
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
