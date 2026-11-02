@@ -36,7 +36,8 @@
 //     empties the table and NFSDThreads reports 0, but later sharenfs
 //     changes still repopulate it (exportfs -ra writes etab without nfsd);
 //     starting again re-exports every shared dataset (exportfs -r);
-//   - DropHost: exportfs leaves one client out and applies the rest.
+//   - DropHost: exportfs leaves one client out and applies the rest;
+//     DropHostOnce does so for the next exportfs only.
 //
 // Root directories: each filesystem's root owner and mode (SetRoot,
 // RootOf), root:root 0755 as created, carried by snapshots into clones
@@ -102,6 +103,7 @@ type Sim struct {
 	nfsDown   bool
 	nfsdOff   bool            // nfs-server stopped: no nfsd threads
 	dropHosts map[string]bool // clients exportfs leaves out of etab
+	dropOnce  map[string]bool // clients the next exportfs leaves out
 	txg       uint64
 	guids     uint64 // last guid handed out (sim_ext.go)
 }
@@ -1895,6 +1897,9 @@ func (s *Sim) exportfs() {
 		if _, rest, ok := strings.Cut(line, "\t"); ok {
 			if host, _, _ := strings.Cut(rest, "("); s.dropHosts[host] {
 				continue
+			} else if s.dropOnce[host] {
+				delete(s.dropOnce, host)
+				continue
 			}
 		}
 		b.WriteString(line)
@@ -1987,6 +1992,17 @@ func (s *Sim) DropHost(host string) {
 		s.dropHosts = map[string]bool{}
 	}
 	s.dropHosts[host] = true
+}
+
+// DropHostOnce is DropHost for the next exportfs that would write host's
+// line; later exportfs runs write it again.
+func (s *Sim) DropHostOnce(host string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.dropOnce == nil {
+		s.dropOnce = map[string]bool{}
+	}
+	s.dropOnce[host] = true
 }
 
 // NFSDThreads reports the nfsd thread count (/proc/fs/nfsd/threads). It

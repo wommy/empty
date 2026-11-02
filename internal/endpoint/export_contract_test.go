@@ -311,6 +311,34 @@ func TestFileExportRequiresNFSD(t *testing.T) {
 	}
 }
 
+// exportfs can drop one client once and still exit 0: the publish re-shares
+// the unchanged value in-call (as Create does) and serves the client on
+// its first call. A client dropped on every attempt is Unavailable.
+func TestFileExportPublishReshareOnce(t *testing.T) {
+	requireSim(t)
+	ctx := context.Background()
+	ep, h := setup(t)
+	sim := h.Sim(t)
+	v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "pvc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sim.DropHostOnce("10.0.0.1/32")
+	if _, err := ep.PublishFileExport(ctx, "pvc", "10.0.0.1", false); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.1"); !ok {
+		t.Fatal("not served after the publish")
+	}
+
+	sim.DropHost("10.0.0.2/32")
+	_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.2", false)
+	wantCode(t, err, endpoint.Unavailable)
+	if _, ok := h.served(t, v.Mountpoint, "10.0.0.2"); ok {
+		t.Fatal("served a dropped client")
+	}
+}
+
 // exportfs can drop one client and apply the rest, still exiting 0 (adv4
 // F4): only that client's publish fails, every retry re-shares, and the
 // other client is untouched.
@@ -331,8 +359,8 @@ func TestFileExportDroppedHost(t *testing.T) {
 		from := len(sim.Calls)
 		_, err = ep.PublishFileExport(ctx, "pvc", "10.0.0.2", true)
 		wantCode(t, err, endpoint.Unavailable)
-		if sets(h, from) != 1 {
-			t.Fatalf("publish ran %d zfs set, want 1", sets(h, from))
+		if sets(h, from) != 2 {
+			t.Fatalf("publish ran %d zfs set, want 2 (the change and its in-call re-share)", sets(h, from))
 		}
 	}
 	if c, ok := h.served(t, v.Mountpoint, "10.0.0.1"); !ok || c.ReadOnly {

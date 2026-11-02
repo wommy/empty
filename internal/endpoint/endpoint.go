@@ -1333,8 +1333,9 @@ func (e *Endpoint) exportTable(ctx context.Context, t Table, volID string) (Etab
 // mountpoint none/legacy) and a sharenfs that is not the endpoint's (set
 // locally outside its grammar, or received) are FailedPrecondition. Success
 // means the kernel serves the export and nfsd runs: `zfs set sharenfs`
-// cannot report a failed exportfs, so the export table is read back and a
-// mismatch is Unavailable (the retry re-shares).
+// cannot report a failed exportfs, so the export table is read back. A miss
+// re-shares the unchanged value once, as Create does, then is Unavailable
+// if the table still does not serve the client.
 func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, readOnly bool) (string, error) {
 	if !e.cfg.FileExport {
 		return "", errorf(Unimplemented, "file export needs the endpoint to run as root")
@@ -1390,8 +1391,17 @@ func (e *Endpoint) PublishFileExport(ctx context.Context, volID, host string, re
 			return "", err
 		}
 		if !live.serves(row.Mount, c) {
-			return "", errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s %s: "+
-				"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, c.Host, c.mode())
+			// the value is the one just set: re-share it once in-call
+			if err := e.apply(ctx, reshare(row, publishWant(row, c))); err != nil {
+				return "", err
+			}
+			if live, err = e.exportTable(ctx, t, volID); err != nil {
+				return "", err
+			}
+			if !live.serves(row.Mount, c) {
+				return "", errorf(Unavailable, "sharenfs on %s is set, but the NFS export table does not serve %s to %s %s: "+
+					"zfs does not report exportfs failures; check exportfs and the NFS server on the storage host", row.Name, row.Mount, c.Host, c.mode())
+			}
 		}
 	}
 	// served beyond the request after the change: what the planner could

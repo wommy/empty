@@ -21,6 +21,7 @@
 # note: Wave 25's guard-kill tests (pure planner, or their own simulator, no real-pool work) are set by hand to 0.00 like the other sim-only tests: TestPlanReconcileOrphanCloneSourceHonoursLocks, TestPlanReconcileZeroCreationIsNeverOld, TestPublishFileExportLocksTheVolume, TestSnapshotDeleteAndCloneTakeTheSourceLocks.
 # note: TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable and TestCreateRollbackFailureIsAlwaysRetryable (ADR 0010 R4, own simulator) are set by hand to 0.00 like the other sim-only tests.
 # note: TestCrashSecondPointAllowsBusyRetry (own simulator, busy rollback destroy) is set by hand to 0.00 like the other sim-only tests.
+# note: TestFileExportPublishReshareOnce (sim-only, its own simulator's one-shot DropHostOnce) is set by hand to 0.00 like the other sim-only file-export tests.
 #
 # <test> <seconds>
 TestPropertyRoundTrip 14.95
@@ -165,6 +166,7 @@ TestFileExportCreateRootFailureIsRetryable 0.00
 TestFileExportCreateServedBeyondByAncestor 0.00
 TestFileExportCreateUnderUnmountedParentIsRefused 0.00
 TestFileExportDroppedHost 0.00
+TestFileExportPublishReshareOnce 0.00
 TestFileExportReceivedShareNFS 0.00
 TestFileExportRefusedPublishRestoresLocalList 0.00
 TestFileExportRequiresNFSD 0.00
