@@ -50,3 +50,6 @@
 {"run":40669419412,"sha":"8abaf7a","conclusion":"success","secs":76,"work_secs":42,"note":"endpoint 0/2 last step 10:06:48, job completed 10:07:21: 33s runner teardown"}
 {"run":40670925449,"sha":"5b6435f","conclusion":"success","secs":44}
 {"run":40855915477,"sha":"5a0c3ce","conclusion":"success","secs":43}
+{"run":41041147520,"sha":"e8dd478","conclusion":"success","secs":36}
+{"run":41189417950,"sha":"e8dd478","workflow":"nightly","conclusion":"success","note":"first fully green nightly"}
+{"run":41297442125,"sha":"e8dd478","workflow":"nightly","conclusion":"success","note":"second consecutive green nightly"}
