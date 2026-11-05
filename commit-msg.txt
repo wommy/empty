@@ -1,23 +1,50 @@
-zfsdiff: a busy changelist prefix fails the set, as libzfs does
+endpoint: a rollback never releases a clone-source snapshot it did not cut
 
-The model unmounted every node of a mountpoint or canmount=off
-changelist and never failed busy. The simulator fails when a mounted
-node has a mounted dataset beneath its mountpoint outside the list:
-zfs_unmount returns EBUSY in changelist_prefix, before the property
-ioctl runs (lib/libzfs/libzfs_dataset.c zfs_prop_set_list_flags, the
-prefix near :1856 and the set near :1871 at tag zfs-2.4.0).
+Nightly run 42014401225 (job 127201165658, TestExploreModelSweep) failed
+with final-not-atomic at MODEL_SEED=15245460: a CreateVolume returned
+Internal (13) after changing the parent. Minimal trace:
 
-m.prefix now returns the busy dir, unmounting deepest mountpoint first
-as the changelist does. setOne and inheritOne return the busy message
-before any property is applied, so a refreservation in the same set
-does not report nospace. The inherit loop stops at the busy target.
-Earlier changelists in the same set are not postfixed, as the
-simulator's set returns at once.
+  0 CreateVolume(v2 filesystem reserve)
+  1 CreateVolume(v1 filesystem from-vol=v2)
+  2 adm.rename(v1, r0)            r0 still clones v2@volume-source-for-volume-v1
+  3 CreateVolume(v1 filesystem from-vol=v2) !errBefore@2
 
-Covered by TestModelRules (canmount=off with a pinned child), and by
-two corpus scripts that use distinct /zzbusy-* paths so the shared
-simulator in TestReplayHarnessOnSim does not collide: one for canmount=
-off with refreservation, one for a mountpoint set and an inherit.
+Mutations of step 3's call, in order (argv from the seed replay):
+
+  mut 0  zfs snapshot -o zfs-endpoint:clone_source_for=v1 -o zfs-endpoint:managed_resource=true tank/m/v2@volume-source-for-volume-v1
+         already there: refused as "dataset already exists", OkExists, no change
+  mut 1  zfs clone -o devices=off -o exec=off ... tank/m/v2@volume-source-for-volume-v1 tank/m/v1
+         a second clone of that snapshot (the change the call makes)
+  mut 2  zfs set refquota=1048576 tank/m/v1   failed before it ran (errBefore)
+
+Rollback then ran, as ADR 0010 has it: planDelete released the origin,
+zfs destroy -d tank/m/v2@volume-source-for-volume-v1, then
+zfs destroy tank/m/v1. The snapshot still has r0 as a clone, so
+zfs deferred its destruction instead of destroying it. That defer is the
+world change: it is never undone, and it changes later behaviour (the
+snapshot is reaped with r0, and no longer counts as a clone source). The
+rollback then reported "nothing was left", so beforeChange gave Internal.
+
+Which side was wrong: the daemon. The model's expectation is the contract:
+R1 says a rollback destroys only what the call's first scan saw absent,
+and R5 says the parent is as it was before the call. The snapshot was in
+the first scan, so the rollback had no right to release it. The model has
+no rollback step and needs no change. Re-keying the code alone would not
+fix this, since the retry would still see deferred=on.
+
+Fix: CreateVolume records at pass 0 whether the clone-source snapshot was
+already there (cut = !pinned). rollbackCreate passes it to
+PlanRollbackCreate, which releases the snapshot, in either branch (the
+row's origin, and the no-row release), only when cut is set. A snapshot
+left by an earlier clone, unused, is kept too; DeleteVolume and Reconcile
+still release it.
+
+Tests: TestCreateRollbackKeepsCutSourceThatWasThere (two subtests: a
+pinned snapshot with its own clone, and an unused leftover) was red on
+the old code (deferred=on; snapshot destroyed) and is green now.
+TestPlanRollbackCreateKeepsCutBeforeTheCall pins the planner. Seed
+15245460 replays green; MODEL_SEQS=5000 and TestExploreModelMasksStillBite
+pass.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

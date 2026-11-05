@@ -53,3 +53,6 @@
 {"run":41041147520,"sha":"e8dd478","conclusion":"success","secs":36}
 {"run":41189417950,"sha":"e8dd478","workflow":"nightly","conclusion":"success","note":"first fully green nightly"}
 {"run":41297442125,"sha":"e8dd478","workflow":"nightly","conclusion":"success","note":"second consecutive green nightly"}
+{"run":41435257742,"sha":"b3d2b9d","conclusion":"success","secs":49,"note":"over 45s target, under 60s budget"}
+{"run":41622576603,"sha":"b3d2b9d","workflow":"nightly","conclusion":"success"}
+{"run":41817148953,"sha":"b3d2b9d","workflow":"nightly","conclusion":"success","note":"2nd green on b3d2b9d"}
