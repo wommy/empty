@@ -598,14 +598,18 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 	// made something and then fails rolls it back first (ADR 0010), unless
 	// the failure is the caller's deadline or cancellation: then the
 	// change stays for the retry to resume.
+	//
+	// cut is set when the first scan found a clone's clone-source snapshot
+	// absent, so this call is the one that may cut it: the rollback
+	// releases only that one (ADR 0010, R1).
 	changed := false
-	fresh, made := false, false
+	fresh, made, cut := false, false, false
 	fail := func(err error) (Volume, error) {
 		if changed {
 			err = resumeErr(err)
 		}
 		if fresh && made && !callerEnded(ctx, err) {
-			err = e.rollbackCreate(ctx, r, id, err)
+			err = e.rollbackCreate(ctx, r, id, cut, err)
 		}
 		return Volume{}, err
 	}
@@ -620,6 +624,10 @@ func (e *Endpoint) CreateVolume(ctx context.Context, r CreateVolumeRequest) (Vol
 		}
 		if pass == 0 {
 			fresh = !exists
+			if r.SourceVolumeID != "" {
+				_, pinned := t.Get(r.SourceVolumeID + "@" + cloneSourceSnapshotPrefix + id)
+				cut = !pinned
+			}
 		}
 		p := e.plan
 		p.now = e.cfg.Now().Unix()
@@ -720,7 +728,8 @@ func mayHaveRun(err error) bool {
 // runs even when the caller's context ended (bounded by its own timeout),
 // re-scans the volume and its clone source, and applies
 // PlanRollbackCreate: Resume's guards, then planDelete's destroys, each
-// tied to the guid that scan read.
+// tied to the guid that scan read. cut is CreateVolume's: the clone-source
+// snapshot is released only if the call's first scan found it absent.
 //
 // A rollback that removed what the call made returns the failure as a
 // call that changed nothing would have (beforeChange): nothing is left to
@@ -728,7 +737,7 @@ func mayHaveRun(err error) bool {
 // call's to remove (the row vanished, or is no longer ours) returns err
 // as it is. One that failed returns err, joined with why: err's
 // after-change code stands, and the row is left for a retry to resume.
-func (e *Endpoint) rollbackCreate(ctx context.Context, r CreateVolumeRequest, id string, err error) error {
+func (e *Endpoint) rollbackCreate(ctx context.Context, r CreateVolumeRequest, id string, cut bool, err error) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
 	defer cancel()
 	undone, rerr := func() (bool, error) {
@@ -736,7 +745,7 @@ func (e *Endpoint) rollbackCreate(ctx context.Context, r CreateVolumeRequest, id
 		if err != nil {
 			return false, err
 		}
-		plan, err := e.plan.PlanRollbackCreate(t, r)
+		plan, err := e.plan.PlanRollbackCreate(t, r, cut)
 		if err != nil || len(plan) == 0 {
 			return false, err
 		}

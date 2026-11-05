@@ -763,7 +763,13 @@ func (p Planner) releaseCloneSource(t Table, src Row, id string) (Op, bool) {
 // snapshot, a hold, a clone. With no row and a source volume, the clone
 // failed after its snapshot was cut: the plan releases that one snapshot,
 // when it is stamped for this clone and unused.
-func (p Planner) PlanRollbackCreate(t Table, r CreateVolumeRequest) (Plan, error) {
+//
+// cut reports that the call's first scan found the clone-source snapshot
+// <src>@volume-source-for-volume-<id> absent, so the call may have cut it.
+// Only then is it released. One already there was not the call's to undo
+// (R1): releasing it is a deferred destroy when a clone still holds it,
+// which zfs keeps, so the parent would not be as it was (R5).
+func (p Planner) PlanRollbackCreate(t Table, r CreateVolumeRequest, cut bool) (Plan, error) {
 	id, err := volumeID(r.Name)
 	if err != nil {
 		return nil, err
@@ -779,7 +785,7 @@ func (p Planner) PlanRollbackCreate(t Table, r CreateVolumeRequest) (Plan, error
 	row, ok := t.Get(id)
 	if !ok {
 		src, ok := t.Get(r.SourceVolumeID)
-		if r.SourceVolumeID == "" || !ok {
+		if r.SourceVolumeID == "" || !ok || !cut {
 			return nil, nil
 		}
 		if op, ok := p.releaseCloneSource(t, src, id); ok {
@@ -793,6 +799,10 @@ func (p Planner) PlanRollbackCreate(t Table, r CreateVolumeRequest) (Plan, error
 	d, err := p.planDelete(t, id, false)
 	if err != nil {
 		return nil, err
+	}
+	if !cut {
+		// the row's origin was there before the call: its clone keeps it
+		d.origin = nil
 	}
 	return d.plan(), nil
 }

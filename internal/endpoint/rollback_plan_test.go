@@ -70,7 +70,7 @@ func TestPlanRollbackCreate(t *testing.T) {
 		{"source not read", newPartialTable(nil, "c"), cloneReq, "", Internal},
 		{"volume not read", newPartialTable([]Row{vol("src", nil)}, "src"), cloneReq, "", Internal},
 	} {
-		plan, err := pl.PlanRollbackCreate(tc.t, tc.req)
+		plan, err := pl.PlanRollbackCreate(tc.t, tc.req, true)
 		got := ""
 		for i, op := range plan {
 			if op.Kind != OpDestroy || !op.OkMissing || op.Recursive {
@@ -86,6 +86,41 @@ func TestPlanRollbackCreate(t *testing.T) {
 		}
 		if code(err) != tc.code || got != tc.want {
 			t.Errorf("%s: plan %q, err %v; want %q, code %v", tc.name, got, err, tc.want, tc.code)
+		}
+	}
+}
+
+// A clone-source snapshot that was there before the call is not the call's
+// to release (ADR 0010, R1): the planner is told so (cut false) and keeps it,
+// as it keeps a deferred destroy of a snapshot a clone still holds (R5).
+func TestPlanRollbackCreateKeepsCutBeforeTheCall(t *testing.T) {
+	t.Parallel()
+	const cut = "src@" + cloneSourceSnapshotPrefix + "c"
+	stamped := func(r *Row) { stamp(r); r.GUID = "g-cut" }
+	clone := func(r *Row) {
+		r.Committed, r.GUID = false, "g-c"
+		r.SourceType, r.SourceID, r.Origin = "volume", "src", "tank/v/"+cut
+	}
+	cloneReq := CreateVolumeRequest{Name: "c", SourceVolumeID: "src"}
+	for _, tc := range []struct {
+		name string
+		t    Table
+		want string // the plan; "" for none
+	}{
+		// the row's own origin is kept: only the clone is destroyed
+		{"clone, cut before the call", NewTable([]Row{vol("c", clone), vol("src", nil), snap(cut, stamped)}), "tank/v/c g-c"},
+		{"cut before the call, no clone", NewTable([]Row{vol("src", nil), snap(cut, stamped)}), ""},
+	} {
+		plan, err := pl.PlanRollbackCreate(tc.t, cloneReq, false)
+		got := ""
+		for i, op := range plan {
+			if i > 0 {
+				got += "; "
+			}
+			got += fmt.Sprintf("%s %s", op.Target, op.GUID)
+		}
+		if err != nil || got != tc.want {
+			t.Errorf("%s: plan %q, err %v; want %q", tc.name, got, err, tc.want)
 		}
 	}
 }

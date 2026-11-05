@@ -253,6 +253,102 @@ func TestCreateRollbackReleasesCutSource(t *testing.T) {
 	}
 }
 
+// The stale clone-source shape (nightly 42014401225, MODEL_SEED=15245460):
+// a clone of v2 named v1 is renamed away by an administrator, and its clone
+// keeps <v2>@volume-source-for-volume-v1 in place. A fresh clone of v2 as v1
+// then fails after its own change. The call did not cut that snapshot, so the
+// rollback must not release it (ADR 0010, R1): a release of a snapshot a clone
+// still holds is a deferred destroy zfs keeps, which R5 forbids leaving behind.
+func TestCreateRollbackKeepsCutSourceThatWasThere(t *testing.T) {
+	ctx := context.Background()
+	src := endpoint.CreateVolumeRequest{Name: "v2", CapacityBytes: 16 * cmib, Reserve: true}
+	clone := endpoint.CreateVolumeRequest{Name: "v1", CapacityBytes: 16 * cmib, SourceVolumeID: "v2"}
+	// failAt fails the n-th mutating command (0-based) of the next call with
+	// an unclassified error, before it runs; fired reports that it did.
+	failAt := func(sim *zfstest.Sim, n int) *bool {
+		fired, seen := new(bool), 0
+		sim.Fail = func(a []string) error {
+			if !slices.Contains([]string{"create", "snapshot", "clone", "set", "destroy", "rename"}, a[0]) {
+				return nil
+			}
+			seen++
+			if seen-1 == n && !*fired {
+				*fired = true
+				return &zfs.ExitError{Code: 1, Stderr: "internal error: Input/output error\n"}
+			}
+			return nil
+		}
+		return fired
+	}
+	// check asserts what an ADR 0010 failure must: a retryable code, or a
+	// final one with the parent as it was, and the snapshot not deferred;
+	// then a clean retry succeeds.
+	check := func(t *testing.T, h *harness, sim *zfstest.Sim, ep *endpoint.Endpoint, snap string, before string, fired *bool, err error) {
+		t.Helper()
+		sim.Fail = nil
+		if !*fired {
+			t.Fatalf("the fault never fired (%v)", err)
+		}
+		if c := endpoint.CodeOf(err); c != endpoint.Aborted && c != endpoint.Unavailable {
+			if got := fingerprint(t, h); got != before {
+				t.Fatalf("final %v after changing the parent:\n--- before\n%s\n--- after\n%s", c, before, got)
+			}
+		}
+		d, err := h.Z.Get(ctx, snap, "defer_destroy")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := d.Props["defer_destroy"].Value; got == "on" {
+			t.Fatalf("the rollback deferred the destroy of %s, which the call did not cut", snap)
+		}
+		if _, err := ep.CreateVolume(ctx, clone); err != nil {
+			t.Fatalf("retry: %v", err)
+		}
+	}
+
+	t.Run("pinned by its own clone", func(t *testing.T) {
+		h, sim, ep, _ := rbRun(t, rbShape{})
+		if _, err := ep.CreateVolume(ctx, src); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ep.CreateVolume(ctx, clone); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := sim.Run(ctx, "zfs", "rename", h.Parent+"/v1", h.Parent+"/r0"); err != nil {
+			t.Fatal(err)
+		}
+		snap := h.Parent + "/v2@volume-source-for-volume-v1"
+		before := fingerprint(t, h)
+		// the snapshot (already there), the clone, then the refquota set
+		fired := failAt(sim, 2)
+		_, err := ep.CreateVolume(ctx, clone)
+		check(t, h, sim, ep, snap, before, fired, err)
+	})
+
+	t.Run("left by an earlier clone", func(t *testing.T) {
+		h, sim, ep, _ := rbRun(t, rbShape{})
+		if _, err := ep.CreateVolume(ctx, src); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ep.CreateVolume(ctx, clone); err != nil {
+			t.Fatal(err)
+		}
+		// the clone is gone, its clone-source snapshot is not: unused and stamped for v1
+		if _, err := sim.Run(ctx, "zfs", "destroy", h.Parent+"/v1"); err != nil {
+			t.Fatal(err)
+		}
+		snap := h.Parent + "/v2@volume-source-for-volume-v1"
+		before := fingerprint(t, h)
+		// the snapshot (already there), then the clone is refused
+		fired := failAt(sim, 1)
+		_, err := ep.CreateVolume(ctx, clone)
+		check(t, h, sim, ep, snap, before, fired, err)
+		if !sim.Has(snap) {
+			t.Fatalf("the rollback released %s, which the call did not cut", snap)
+		}
+	})
+}
+
 // loseCreate runs the `zfs create` of target, then loses its answer (the
 // k0-after shape): the first op of a fresh create may have run.
 type loseCreate struct {

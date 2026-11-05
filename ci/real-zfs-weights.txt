@@ -267,6 +267,7 @@ TestVolumesOf 0.00
 TestWholeScanSlotWaitEndsWithTheContext 0.00
 TestZfsErrCodes 0.00
 #
+# note: ADR 0010 (a clone-source snapshot the first scan saw is never released by a rollback): its sim-only and pure tests are set by hand to 0.00 (TestCreateRollbackKeepsCutSourceThatWasThere, TestPlanRollbackCreateKeepsCutBeforeTheCall).
 # not measured in the source runs: weights kept from the previous file
 TestCreateNoRollbackOnCallerDeadline 0.10
 TestCreateNoRollbackOnResume 0.00
@@ -283,4 +284,6 @@ TestPublishFileExportLocksTheVolume 0.00
 TestSnapshotDeleteAndCloneTakeTheSourceLocks 0.00
 TestCreateRollbackFailsAfterAmbiguousFirstOpIsRetryable 0.00
 TestCreateRollbackFailureIsAlwaysRetryable 0.00
+TestCreateRollbackKeepsCutSourceThatWasThere 0.00
+TestPlanRollbackCreateKeepsCutBeforeTheCall 0.00
 TestCrashSecondPointAllowsBusyRetry 0.00
