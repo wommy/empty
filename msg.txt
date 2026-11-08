@@ -1,25 +1,20 @@
-ci: fall back to proxy.golang.org when the Go release download fails
+ci: fall back to registry.npmjs.org when the buf release download fails
 
-Nightly run 42470850520 lost all 7 jobs at "install Go 1.27.3": the
-actions/go-versions release host returned 502/504 and curl exited 56
-(Connection died). Job 128708585422 showed a worse failure: the primary
-curl hung without failing, so the install step's 60s wait expired while
-curl was still running and no fallback could start.
+Job 128711263152 (run 42474046407, head 8a85305) failed in the static
+job: github.com's release host hung, curl never finished, and the install
+step's 60s wait expired with "buf download did not finish".
 
-The start step now tries the primary exactly as before. If any part of
-it fails, it removes any partial $HOME/sdk/go and downloads the
-golang.org/toolchain v0.0.1-go1.27.3.linux-amd64 zip from
-proxy.golang.org, verifies it against GO_PROXY_SHA256
-(af4c06478303fdd1bfb335fab86c7ccb9b12e529044a946a16a1c4bcc779f8d7),
-and moves its toolchain directory into place. The log records which
-source was used.
-
-Timeouts: each curl is capped twice. --max-time and --connect-timeout
-apply per attempt, and --retry 3 retries timeouts, so each attempt alone
-could run for minutes. An outer `timeout` caps the whole curl including
-retries: 45s for the primary and 60s for the fallback. A capped attempt
-exits non-zero, so the fallback starts. Worst case is about 110s,
-inside the install step's 480 x 0.25s = 120s wait.
+The start step now tries the GitHub release first, now with time bounds, verifying
+it against BUF_SHA256 (39716cfe0185df3cba21f66ec739620ffb6876c48b2da4338a8c68c290c9b116).
+If the download or the check fails, it downloads the same release from the
+official @bufbuild/buf-linux-x64 1.47.2 npm package on registry.npmjs.org
+and verifies that against BUF_FALLBACK_SHA256
+(cba025de34f5fe8125cf32b03762a09488495fee341ac4af2a23f9d2ed8ce3b8).
+The package holds package/bin/buf, so the same tar --strip-components=1
+step installs it. Each curl is capped by an outer timeout 45 as well as
+--max-time, and the background step writes buf.status (ok or fail) and
+buf.log, which the install step prints. The install wait is 100s
+(200 x 0.5s), up from 60s.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

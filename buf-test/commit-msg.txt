@@ -1,0 +1,20 @@
+ci: fall back to registry.npmjs.org when the buf release download fails
+
+Job 128711263152 (run 42474046407, head 8a85305) failed in the static
+job: github.com's release host hung, curl never finished, and the install
+step's 60s wait expired with "buf download did not finish".
+
+The start step now tries the GitHub release exactly as before, verifying
+it against BUF_SHA256 (39716cfe0185df3cba21f66ec739620ffb6876c48b2da4338a8c68c290c9b116).
+If the download or the check fails, it downloads the same release from the
+official @bufbuild/buf-linux-x64 1.47.2 npm package on registry.npmjs.org
+and verifies that against BUF_FALLBACK_SHA256
+(cba025de34f5fe8125cf32b03762a09488495fee341ac4af2a23f9d2ed8ce3b8).
+The package holds package/bin/buf, so the same tar --strip-components=1
+step installs it. Each curl is capped by an outer timeout 45 as well as
+--max-time, and the background step writes buf.status (ok or fail) and
+buf.log, which the install step prints. The install wait is 100s
+(200 x 0.5s), up from 60s.
+
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

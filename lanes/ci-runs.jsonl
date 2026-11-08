@@ -65,3 +65,5 @@
 {"ts":"2026-11-08T10:52Z","run":42470850520,"attempt":2,"head":"2417839","kind":"nightly","result":"rerun_failed_jobs queued (one re-run spent)"}
 {"ts":"2026-11-08T11:00Z","run":42470850520,"attempt":2,"result":"FuzzReconcileSafe died in Go download again (curl 56); release host 502 from sandbox too. Re-run spent -> real."}
 {"ts":"2026-11-08T11:10Z","head":"8a85305","kind":"push","note":"setup-go proxy fallback + curl time bounds"}
+{"ts":"2026-11-08T11:10Z","run":42474046407,"head":"8a85305","result":"Go fallback exercised OK in prod (proxy, sha OK, go1.27.3). static red: buf release download hung (same outage)."}
+{"ts":"2026-11-08T11:20Z","head":"4b40066","kind":"push","note":"buf npm fallback"}

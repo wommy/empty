@@ -91,3 +91,4 @@
 {"id":"A-model-r4-stale-source","status":"closed","data":"nightly 42205738932 green on 2417839 incl. explore"}
 {"ts":"2026-11-08T10:20Z","id":"A-go-download-504","sev":"medium","status":"escalated","note":"recurred: 7 nightly jobs died together in Go download (curl 504 x4, ~25s). 2nd occurrence after cache-warm go(test). Candidate lever (paused): mirror/cached toolchain or longer backoff; queue as q-ci-boot-levers."}
 {"ts":"2026-11-08T11:00Z","id":"A-go-download-504","sev":"high","status":"fixing","note":"single-source download is the root cause; GitHub release-asset host down (502 from sandbox, 30s). Fallback: proxy.golang.org golang.org/toolchain zip sha256 af4c0647...f8d7. Writer: haiku+advisor."}
+{"ts":"2026-11-08T11:10Z","id":"A-go-download-504","sev":"high","status":"go-fixed;buf-fixing","note":"renamed scope: every github release-asset download is single-sourced. buf fallback = npm @bufbuild/buf-linux-x64 1.47.2 sha256 cba025de...ce3b8"}
