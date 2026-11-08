@@ -43,16 +43,38 @@ jobs:
       # selection (grpc, protobuf, x/...), and compiling it through `go run`
       # cost 53s. The protoc plugins are go.mod tools (buf.gen.yaml runs `go
       # tool ...`), so they always match the protobuf/grpc versions in go.sum.
+      # bump together: BUF_VERSION, BUF_SHA256, BUF_FALLBACK_URL and
+      # BUF_FALLBACK_SHA256 (the npm tarball of the same version)
       BUF_VERSION: v1.47.2
       BUF_SHA256: 39716cfe0185df3cba21f66ec739620ffb6876c48b2da4338a8c68c290c9b116 # buf-Linux-x86_64.tar.gz
+      # the same release from the official npm package, tried when the GitHub download fails
+      BUF_FALLBACK_URL: https://registry.npmjs.org/@bufbuild/buf-linux-x64/-/buf-linux-x64-1.47.2.tgz
+      BUF_FALLBACK_SHA256: cba025de34f5fe8125cf32b03762a09488495fee341ac4af2a23f9d2ed8ce3b8 # buf-linux-x64-1.47.2.tgz
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - name: start buf download
+        # download and verify in the background, during setup-go. The
+        # primary is tried first; on any failure the npm package is tried.
+        # buf.status is ok when either verified; buf.log names the source.
         run: |
-          rm -f "$RUNNER_TEMP/buf.tgz.done"
-          setsid nohup bash -c 'curl -fsSL --retry 3 -o "$1/buf.tgz" "https://github.com/bufbuild/buf/releases/download/$2/buf-Linux-x86_64.tar.gz" && touch "$1/buf.tgz.done"' _ "$RUNNER_TEMP" "$BUF_VERSION" >/dev/null 2>&1 &
+          rm -f "$RUNNER_TEMP/buf.tgz.done" "$RUNNER_TEMP/buf.status"
+          setsid nohup bash -c '
+            if timeout 45 curl -fsSL --retry 3 --connect-timeout 10 --max-time 45 -o "$1/buf.tgz" "$2" &&
+               echo "$3  $1/buf.tgz" | sha256sum -c -; then
+              echo ok >"$1/buf.status"
+            else
+              echo "primary buf download failed; trying registry.npmjs.org"
+              if timeout 45 curl -fsSL --retry 3 --connect-timeout 10 --max-time 45 -o "$1/buf.tgz" "$4" &&
+                 echo "$5  $1/buf.tgz" | sha256sum -c -; then
+                echo ok >"$1/buf.status"
+              else
+                echo fail >"$1/buf.status"
+              fi
+            fi
+            touch "$1/buf.tgz.done"
+          ' _ "$RUNNER_TEMP" "https://github.com/bufbuild/buf/releases/download/$BUF_VERSION/buf-Linux-x86_64.tar.gz" "$BUF_SHA256" "$BUF_FALLBACK_URL" "$BUF_FALLBACK_SHA256" >"$RUNNER_TEMP/buf.log" 2>&1 &
       - id: go
         uses: ./.github/actions/setup-go
         with:
@@ -63,9 +85,12 @@ jobs:
           test "$(go env GOVERSION)" = "$want" || { echo "::error::go is $(go env GOVERSION), go.mod toolchain is $want"; exit 1; }
       - name: install buf (sha256-pinned)
         run: |
-          for _ in $(seq 120); do [ -e "$RUNNER_TEMP/buf.tgz.done" ] && break; sleep 0.5; done
-          test -e "$RUNNER_TEMP/buf.tgz.done" || { echo "::error::buf download did not finish"; exit 1; }
-          echo "$BUF_SHA256  $RUNNER_TEMP/buf.tgz" | sha256sum -c -
+          for _ in $(seq 200); do [ -e "$RUNNER_TEMP/buf.tgz.done" ] && break; sleep 0.5; done
+          cat "$RUNNER_TEMP/buf.log" 2>/dev/null || true # the download and sha256 verdicts
+          if [ "$(cat "$RUNNER_TEMP/buf.status" 2>/dev/null)" != ok ]; then
+            echo "::error::buf download or sha256 check failed or did not finish"
+            exit 1
+          fi
           mkdir -p "$HOME/buf"
           tar -xzf "$RUNNER_TEMP/buf.tgz" -C "$HOME/buf" --strip-components=1
           echo "$HOME/buf/bin" >> "$GITHUB_PATH"
