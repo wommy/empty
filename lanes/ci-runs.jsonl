@@ -67,3 +67,6 @@
 {"ts":"2026-11-08T11:10Z","head":"8a85305","kind":"push","note":"setup-go proxy fallback + curl time bounds"}
 {"ts":"2026-11-08T11:10Z","run":42474046407,"head":"8a85305","result":"Go fallback exercised OK in prod (proxy, sha OK, go1.27.3). static red: buf release download hung (same outage)."}
 {"ts":"2026-11-08T11:20Z","head":"4b40066","kind":"push","note":"buf npm fallback"}
+{"ts":"2026-11-08T11:14Z","run":42474681113,"head":"4b40066","kind":"pr","result":"success, 83s wall (over 60s budget; likely fallback wait)"}
+{"ts":"2026-11-08T11:14Z","head":"4b40066","kind":"nightly-dispatch","result":"queued manually to verify the 7 jobs"}
+{"ts":"2026-11-08T12:06Z","run":42474806834,"head":"4b40066","kind":"nightly-dispatch","result":"success (all jobs incl. the 7 lost in 42470850520)"}
