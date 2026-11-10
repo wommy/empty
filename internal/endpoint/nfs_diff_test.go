@@ -469,7 +469,7 @@ func FuzzNFSVerifier(f *testing.F) {
 var etabLineRE = regexp.MustCompile(`^(?:[^\x00-\x20\x7f"\\#]|\\[0-3][0-7]{2})+\t[^\x00-\x20\x7f"(]*\(([^\x00-\x20\x7f"()]*)\)\n?$`)
 
 // etabAsWritten reports whether every line of etab is one putexportent
-// could write.
+// could write, and mountd can read its path (pathTokenReadable).
 func etabAsWritten(etab string) bool {
 	for _, l := range strings.SplitAfter(etab, "\n") {
 		if l == "" {
@@ -479,9 +479,42 @@ func etabAsWritten(etab string) bool {
 		if m == nil || !optionsAsWritten(m[1]) {
 			return false
 		}
+		path, _, _ := strings.Cut(l, "\t") // no raw tab in a path (etabLineRE)
+		if !pathTokenReadable(path) {
+			return false
+		}
 	}
 	return true
 }
+
+// mountdPathTokSize is e_path[NFS_MAXPATHLEN+1] (nfslib.h:85), the size
+// getpath passes to xgettok (exports.c:940-945).
+const mountdPathTokSize = 1024 + 1
+
+// pathTokenReadable reports whether mountd's xgettok reads path, the text
+// before the line's tab, into e_path. It replays xgettok (nfsref
+// exports.go, xio.c) on the written bytes: each byte is appended, a \ooo
+// that just completed collapses to one byte, and the loop ends while the
+// token is below the size. The token is refused (-1) when it is still at
+// the size then, so a raw escape whose digits reach the size before the
+// collapse is refused even though it would decode shorter. A refused path
+// makes getexportent fail, and export_read then stops reading the etab
+// (nfslib.h:85, exports.c:940-945, export.c:122).
+func pathTokenReadable(path string) bool {
+	tok := make([]byte, 0, len(path))
+	for i := 0; i < len(path) && len(tok) < mountdPathTokSize; i++ {
+		tok = append(tok, path[i])
+		n := len(tok)
+		if n >= 4 && tok[n-4] == '\\' && isOctDigit(tok[n-3]) && isOctDigit(tok[n-2]) && isOctDigit(tok[n-1]) {
+			if v := int(tok[n-3]-'0')*64 + int(tok[n-2]-'0')*8 + int(tok[n-1]-'0'); v < 256 {
+				tok = append(tok[:n-4], byte(v))
+			}
+		}
+	}
+	return len(tok) < mountdPathTokSize
+}
+
+func isOctDigit(c byte) bool { return c >= '0' && c <= '7' }
 
 // Option names putexportent prints as bare flags (exports.c:277-383).
 var writerFlags = map[string]bool{
@@ -597,6 +630,14 @@ func TestEtabAsWrittenRefusesRawPathBytes(t *testing.T) {
 		{diffPath + `\011` + "\t10.0.0.0/24(ro)\n", true},
 		{"/tank/v/a\v\t()", false},
 		{"/tank/\"\"v/a\t()", false},
+		// mountd's path token is at most 1024 bytes (pathTokenReadable)
+		{"/" + strings.Repeat("a", 1023) + "\t()\n", true},
+		{"/" + strings.Repeat("a", 1024) + "\t()\n", false},
+		// the escape decodes to one byte, so "/" + 1020 a + \101 (raw 1025,
+		// decoded 1022) is read, and 1021 a + \101 (decoded 1023) is not:
+		// its digits reach the size before the collapse (xgettok)
+		{"/" + strings.Repeat("a", 1020) + `\101` + "\t()\n", true},
+		{"/" + strings.Repeat("a", 1021) + `\101` + "\t()\n", false},
 		// option names and values putexportent cannot print
 		{"0\t(0)\n", false},
 		{diffPath + "\th(0)\n" + diffPath + "\t10.0.0.0/24(ro)\n", false},
@@ -642,6 +683,38 @@ func TestEtabAsWrittenAcceptsPutExportent(t *testing.T) {
 		line := nfsref.PutExportent(ep)
 		if !etabAsWritten(line) {
 			t.Errorf("etabAsWritten refuses PutExportent output %q", line)
+		}
+	}
+}
+
+// TestEtabAsWrittenMatchesMountd checks the path rule against mountd's model
+// itself: a one-line etab is admitted exactly when nfsref.LoadEtab reads an
+// entry for its path, at the size limit and with an escape at it.
+func TestEtabAsWrittenMatchesMountd(t *testing.T) {
+	loaded := func(line, path string) bool {
+		for _, l := range nfsref.LoadEtab(line, nil).Exports() {
+			if l.Entry.Path == path {
+				return true
+			}
+		}
+		return false
+	}
+	// sanity: the probe reads a path of exactly the limit
+	if !loaded("/"+strings.Repeat("a", 1023)+"\t10.0.0.0/24(ro)\n", "/"+strings.Repeat("a", 1023)) {
+		t.Fatal("LoadEtab does not read a 1024-byte path; the probe is wrong")
+	}
+	for n := 1020; n <= 1030; n++ {
+		path := "/" + strings.Repeat("a", n-1)
+		line := path + "\t10.0.0.0/24(ro)\n"
+		if got, want := etabAsWritten(line), loaded(line, path); got != want {
+			t.Errorf("%d-byte path: etabAsWritten = %v, mountd loads it = %v", n, got, want)
+		}
+	}
+	for k := 1018; k <= 1026; k++ {
+		path := "/" + strings.Repeat("a", k-1)
+		line := path + `\101` + "\t10.0.0.0/24(ro)\n"
+		if got, want := etabAsWritten(line), loaded(line, path+"A"); got != want {
+			t.Errorf("%d a + \\101: etabAsWritten = %v, mountd loads it = %v", k-1, got, want)
 		}
 	}
 }
