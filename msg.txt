@@ -1,20 +1,40 @@
-ci: fall back to registry.npmjs.org when the buf release download fails
+endpoint: etab fuzz precondition refuses a path mountd cannot read
 
-Job 128711263152 (run 42474046407, head 8a85305) failed in the static
-job: github.com's release host hung, curl never finished, and the install
-step's 60s wait expired with "buf download did not finish".
+Nightly FuzzNFSEtabParse run 42805096797 (job 129792079804) failed on an
+etab whose first line is a 3849-byte path ("X" * 3840, then "/tank/v/a")
+followed by "/tank/v/a\t10.0.0.0/24(ro)". The verifier said 10.0.0.0/24
+is served ro, while mountd's model gives /tank/v/a no export.
 
-The start step now tries the GitHub release first, now with time bounds, verifying
-it against BUF_SHA256 (39716cfe0185df3cba21f66ec739620ffb6876c48b2da4338a8c68c290c9b116).
-If the download or the check fails, it downloads the same release from the
-official @bufbuild/buf-linux-x64 1.47.2 npm package on registry.npmjs.org
-and verifies that against BUF_FALLBACK_SHA256
-(cba025de34f5fe8125cf32b03762a09488495fee341ac4af2a23f9d2ed8ce3b8).
-The package holds package/bin/buf, so the same tar --strip-components=1
-step installs it. Each curl is capped by an outer timeout 45 as well as
---max-time, and the background step writes buf.status (ok or fail) and
-buf.log, which the install step prints. The install wait is 100s
-(200 x 0.5s), up from 60s.
+Both sides are right for etab as written. getpath reads the path with
+xgettok(pathTokSize), where pathTokSize is NFS_MAXPATHLEN+1 (nfslib.h:85).
+When the token reaches the size, xgettok returns -1, getpath returns it,
+next() returns nil, and export_read stops reading the file
+(exports.c:940-945, export.c:122). mountd never reads the second line.
+ParseEtab skips the bad line and keeps the second.
+
+This etab cannot come from exportfs. exportfs loads entries through the
+same getexportent, so their paths are at most 1024 bytes once escapes are
+decoded, and putexportent writes them back out. etabAsWritten admitted
+the line because it checked the path's characters but not its length.
+The earlier fix e8dd478 (optionsAsWritten) closed the same kind of gap.
+
+pathTokenReadable replays xgettok on the written path: each byte is
+appended, a completed \ooo collapses to one byte, and the loop ends while
+the token is still below the size. A raw escape whose digits reach the
+size before they collapse is refused, as xgettok refuses it.
+
+The reproducer is seeded as testdata/fuzz/FuzzNFSEtabParse/c5382d054888949b
+with data {0, 2}. The original seed data {1, 0, 0, 0, 4, 1} does not
+reach the failing client and passes on the unfixed code.
+TestEtabAsWrittenMatchesMountd checks the rule against nfsref.LoadEtab for
+paths around the limit and for an escape at it.
+
+Limit of this change: the claim above covers this reproducer. The exact
+mirror also refuses some lines putexportent can write, for example a path
+near 1024 bytes whose escapes push its written form past 1024 bytes. For
+those, mountd also cannot read the line, so this may be a real
+ParseEtab/mountd divergence that the precondition now hides. It is not
+decided here.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa

@@ -1,50 +1,40 @@
-endpoint: a rollback never releases a clone-source snapshot it did not cut
+endpoint: etab fuzz precondition refuses a path mountd cannot read
 
-Nightly run 42014401225 (job 127201165658, TestExploreModelSweep) failed
-with final-not-atomic at MODEL_SEED=15245460: a CreateVolume returned
-Internal (13) after changing the parent. Minimal trace:
+Nightly FuzzNFSEtabParse run 42805096797 (job 129792079804) failed on an
+etab whose first line is a 3849-byte path ("X" * 3840, then "/tank/v/a")
+followed by "/tank/v/a\t10.0.0.0/24(ro)". The verifier said 10.0.0.0/24
+is served ro, while mountd's model gives /tank/v/a no export.
 
-  0 CreateVolume(v2 filesystem reserve)
-  1 CreateVolume(v1 filesystem from-vol=v2)
-  2 adm.rename(v1, r0)            r0 still clones v2@volume-source-for-volume-v1
-  3 CreateVolume(v1 filesystem from-vol=v2) !errBefore@2
+Both sides are right for etab as written. getpath reads the path with
+xgettok(pathTokSize), where pathTokSize is NFS_MAXPATHLEN+1 (nfslib.h:85).
+When the token reaches the size, xgettok returns -1, getpath returns it,
+next() returns nil, and export_read stops reading the file
+(exports.c:940-945, export.c:122). mountd never reads the second line.
+ParseEtab skips the bad line and keeps the second.
 
-Mutations of step 3's call, in order (argv from the seed replay):
+This etab cannot come from exportfs. exportfs loads entries through the
+same getexportent, so their paths are at most 1024 bytes once escapes are
+decoded, and putexportent writes them back out. etabAsWritten admitted
+the line because it checked the path's characters but not its length.
+The earlier fix e8dd478 (optionsAsWritten) closed the same kind of gap.
 
-  mut 0  zfs snapshot -o zfs-endpoint:clone_source_for=v1 -o zfs-endpoint:managed_resource=true tank/m/v2@volume-source-for-volume-v1
-         already there: refused as "dataset already exists", OkExists, no change
-  mut 1  zfs clone -o devices=off -o exec=off ... tank/m/v2@volume-source-for-volume-v1 tank/m/v1
-         a second clone of that snapshot (the change the call makes)
-  mut 2  zfs set refquota=1048576 tank/m/v1   failed before it ran (errBefore)
+pathTokenReadable replays xgettok on the written path: each byte is
+appended, a completed \ooo collapses to one byte, and the loop ends while
+the token is still below the size. A raw escape whose digits reach the
+size before they collapse is refused, as xgettok refuses it.
 
-Rollback then ran, as ADR 0010 has it: planDelete released the origin,
-zfs destroy -d tank/m/v2@volume-source-for-volume-v1, then
-zfs destroy tank/m/v1. The snapshot still has r0 as a clone, so
-zfs deferred its destruction instead of destroying it. That defer is the
-world change: it is never undone, and it changes later behaviour (the
-snapshot is reaped with r0, and no longer counts as a clone source). The
-rollback then reported "nothing was left", so beforeChange gave Internal.
+The reproducer is seeded as testdata/fuzz/FuzzNFSEtabParse/c5382d054888949b
+with data {0, 2}. The original seed data {1, 0, 0, 0, 4, 1} does not
+reach the failing client and passes on the unfixed code.
+TestEtabAsWrittenMatchesMountd checks the rule against nfsref.LoadEtab for
+paths around the limit and for an escape at it.
 
-Which side was wrong: the daemon. The model's expectation is the contract:
-R1 says a rollback destroys only what the call's first scan saw absent,
-and R5 says the parent is as it was before the call. The snapshot was in
-the first scan, so the rollback had no right to release it. The model has
-no rollback step and needs no change. Re-keying the code alone would not
-fix this, since the retry would still see deferred=on.
+Limit of this change: the claim above covers this reproducer. The exact
+mirror also refuses some lines putexportent can write, for example a path
+near 1024 bytes whose escapes push its written form past 1024 bytes. For
+those, mountd also cannot read the line, so this may be a real
+ParseEtab/mountd divergence that the precondition now hides. It is not
+decided here.
 
-Fix: CreateVolume records at pass 0 whether the clone-source snapshot was
-already there (cut = !pinned). rollbackCreate passes it to
-PlanRollbackCreate, which releases the snapshot, in either branch (the
-row's origin, and the no-row release), only when cut is set. A snapshot
-left by an earlier clone, unused, is kept too; DeleteVolume and Reconcile
-still release it.
-
-Tests: TestCreateRollbackKeepsCutSourceThatWasThere (two subtests: a
-pinned snapshot with its own clone, and an unused leftover) was red on
-the old code (deferred=on; snapshot destroyed) and is green now.
-TestPlanRollbackCreateKeepsCutBeforeTheCall pins the planner. Seed
-15245460 replays green; MODEL_SEQS=5000 and TestExploreModelMasksStillBite
-pass.
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01GmdReAMVTjoprXaMtzULQa
