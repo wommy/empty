@@ -696,6 +696,22 @@ func foreign(row Row) bool {
 	return !canonical
 }
 
+// escapedShareNFS is a sharenfs whose hosts exports reads differently from
+// their spelling, whatever its source (local, inherited or received). OpenZFS
+// (zfs-2.4.0, lib/libshare/os/linux/nfs.c nfs_add_entry, :423-438) writes the
+// host with %s and escapes nothing, and its validation checks no backslash
+// (nfs_validate_shareopts, :511-523). nfs-utils xgettok (support/nfs/xio.c,
+// :95-104, master bbb50905) decodes \ooo to one byte, so "*\012" becomes "*"
+// then a newline. putexportent (support/nfs/exports.c:278-288) writes that
+// byte raw, so the etab line is split: ParseEtab cannot read the host, and
+// mountd's getexport (exports.c:948-953) reads "*" as an anonymous client. A
+// double quote is dropped and whitespace splits the token, the same way. Such
+// a value is never planned on: Publish and Unpublish refuse it, instead of
+// reporting a no-op that mountd does not honour.
+func escapedShareNFS(row Row) bool {
+	return row.ShareNFS != "off" && strings.ContainsAny(row.ShareNFS, "\\\" \t\v")
+}
+
 func foreignErr(row Row, what string) error {
 	src := "outside the endpoint's grammar (rw=/ro= lists of IPv4 networks with /N, nothing else)"
 	if row.ShareNFSRecv {
@@ -746,7 +762,7 @@ func (p Planner) PlanPublishExport(t Table, live Etab, volID string, c NFSClient
 		return nil, Row{}, errorf(FailedPrecondition, "volume %s is not mounted on the storage host and zfs would not mount it (canmount=%s, mountpoint %q): sharenfs would be stored but nothing served",
 			row.ID, row.CanMount, row.Mount)
 	}
-	if foreign(row) {
+	if foreign(row) || escapedShareNFS(row) {
 		return nil, Row{}, foreignErr(row, "has")
 	}
 	// an ancestor exported with crossmnt (an inherited sharenfs=on is
@@ -847,6 +863,9 @@ func (p Planner) PlanUnpublishExport(t Table, live Etab, volID, host string) (Pl
 			return nil, Row{}, nil // a zvol is never NFS-exported
 		}
 		return nil, Row{}, err
+	}
+	if escapedShareNFS(row) {
+		return nil, Row{}, foreignErr(row, "is exported to "+c.Host+" by")
 	}
 	want := slices.DeleteFunc(slices.Clone(cs), func(x NFSClient) bool {
 		px, _ := x.prefix()

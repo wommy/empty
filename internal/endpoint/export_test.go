@@ -488,6 +488,35 @@ func TestPlanUnpublishExport(t *testing.T) {
 	}
 }
 
+// A sharenfs with a backslash (or a quote or whitespace) in a host is refused
+// by Publish and Unpublish whatever its source, even with an empty export
+// table: exports decodes \012 to a newline inside the host, and the etab line
+// it writes is one ParseEtab cannot read (escapedShareNFS). The unpublish
+// case is the fail-open: the host got no-op "done" while mountd served "*".
+func TestEscapedShareNFSRefused(t *testing.T) {
+	t.Parallel()
+	for _, share := range []string{`ro=*\012`, `rw=10.0.0.1/32\012,ro=10.0.0.2/32`, `rw=10.0.0.1/32 `} {
+		for _, src := range []struct {
+			name string
+			row  Row
+		}{
+			{"local", fsv("a", func(r *Row) { r.ShareNFS = share })},
+			{"inherited", fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal = share, false })},
+			{"received", fsv("a", func(r *Row) { r.ShareNFS, r.ShareNFSLocal, r.ShareNFSRecv = share, false, true })},
+		} {
+			tb := NewTable([]Row{src.row})
+			if plan, _, err := pl.PlanPublishExport(tb, nil, "a", NFSClient{Host: "10.0.0.0/16", ReadOnly: true}); CodeOf(err) != FailedPrecondition || plan != nil {
+				t.Fatalf("publish %s %q: plan %v err %v, want FailedPrecondition", src.name, share, plan, err)
+			}
+			for _, host := range []string{"10.0.0.0", "10.0.0.1"} {
+				if plan, _, err := pl.PlanUnpublishExport(tb, nil, "a", host); CodeOf(err) != FailedPrecondition || plan != nil {
+					t.Fatalf("unpublish %s %s %q: plan %v err %v, want FailedPrecondition", host, src.name, share, plan, err)
+				}
+			}
+		}
+	}
+}
+
 // applyRow plays a plan's OpSet onto a row and the export table the way a
 // working NFS server would: the property test below needs no zfs.
 func applyRow(r Row, plan Plan) (Row, Etab) {
