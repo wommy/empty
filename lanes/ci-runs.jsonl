@@ -73,3 +73,9 @@
 {"ts":"2026-11-09T11:35Z","run":42609368766,"head":"4b40066","kind":"nightly","result":"success"}
 {"ts":"2026-11-10T11:20Z","run":42805096797,"job":129792079804,"head":"4b40066","kind":"nightly","result":"FuzzNFSEtabParse fail: path token >=1025 -> mountd model stops reading; ParseEtab continues. Precondition gap (exportfs cannot write such a path). Writer launched. Also issue-create step failed: needs-triage label missing (owner action)."}
 {"ts":"2026-11-10T11:40Z","head":"357ce06","kind":"push","note":"etab path-token precondition + seed c5382d05"}
+{"ts":"2026-11-10T11:29Z","run":42807702192,"head":"357ce06","kind":"pr","result":"success, 5/5 jobs, ~48s"}
+{"ts":"2026-11-11T15:30Z","run":43048545507,"job":130619033750,"head":"357ce06","kind":"cache-warm","result":"real-zfs-keys: DNS could not resolve cloud-images.ubuntu.com x10 (82s), infra before build; rerun_failed_jobs once"}
+{"ts":"2026-11-11T15:35Z","run":43048545507,"attempt":2,"result":"re-run failed, same DNS failure. Re-run spent. PR comment posted."}
+{"ts":"2026-11-11T18:01Z","run":43070221638,"head":"357ce06","kind":"cache-warm-dispatch","result":"success"}
+{"ts":"2026-11-14T10:30Z","run":43585038472,"job":132417586685,"head":"357ce06","kind":"nightly","result":"FuzzNFSClassifier: unpublish 10.0.0.0/16 on sharenfs ro=*\\\\012 planned as a no-op while the mountd model grants ro. Suspected daemon fail-open (escape decoded by xgettok). Writer launched. needs-triage label still missing."}
+{"ts":"2026-11-14T10:55Z","head":"d9c94ff","kind":"push","note":"sharenfs escape fail-open fix + seed 419ae40e"}

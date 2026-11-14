@@ -127,3 +127,4 @@
 {"id":"a30c0a01c82f96131","name":"fix-model-r4-stale-source","lane":"writer","wave":36,"status":"running","branch":"worktree","report":"","anomaly":"A-model-r4-stale-source","queue":"pr-failure"}
 {"ts":"2026-11-08T11:00Z","agent":"haiku","task":"setup-go proxy fallback","base":"2417839"}
 {"ts":"2026-11-10T11:20Z","agent":"haiku","task":"etab path-token precondition","base":"4b40066"}
+{"ts":"2026-11-14T10:30Z","agent":"haiku","task":"sharenfs escape fail-open","base":"357ce06"}
