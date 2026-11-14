@@ -1,0 +1,4 @@
+# set refreservation=auto on a sparse volume resolves to the full reservation (zfs_fix_auto_resv)
+# covers: resv-auto
+zfs create -s -V 67108864 $R/v
+zfs set refreservation=auto $R/v

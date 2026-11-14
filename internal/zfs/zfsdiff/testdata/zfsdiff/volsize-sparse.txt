@@ -1,0 +1,4 @@
+# a sparse volume keeps refreservation 0 on resize
+# covers: resv-auto
+zfs create -s -V 67108864 $R/v
+zfs set volsize=134217728 $R/v

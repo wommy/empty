@@ -1,0 +1,7 @@
+# native inheritance from the pool root (compression=lz4 from zpool create -O)
+# covers: inherit
+zfs create $R/a
+zfs create -V 67108864 $R/a/w
+zfs set compression=off $R/a
+zfs create $R/a/c
+zfs inherit compression $R/a

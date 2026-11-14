@@ -1,0 +1,6 @@
+# snapshot -r is atomic: one existing name creates none
+# covers: snapshot
+zfs create $R/a
+zfs create $R/a/c
+zfs snapshot $R/a/c@s1
+zfs snapshot -r $R/a@s1

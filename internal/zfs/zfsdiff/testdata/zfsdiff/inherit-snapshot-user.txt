@@ -1,0 +1,6 @@
+# user properties on snapshots: set, inherited from the dataset, inherit
+# covers: inherit
+zfs create -o zd:b=x $R/a
+zfs snapshot -o zd:a=s $R/a@s1
+zfs inherit zd:a $R/a@s1
+zfs set zd:b=y $R/a@s1

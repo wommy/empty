@@ -1,0 +1,7 @@
+# destroying a held snapshot: EBUSY 'it's being held'
+# covers: holds
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs hold t1 $R/a@s1
+zfs destroy $R/a@s1
+zfs destroy -r $R/a

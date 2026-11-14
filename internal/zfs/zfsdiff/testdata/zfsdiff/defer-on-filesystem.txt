@@ -1,0 +1,4 @@
+# destroy -d of a filesystem: not a snapshot name
+# covers: destroy-d
+zfs create $R/a
+zfs destroy -d $R/a

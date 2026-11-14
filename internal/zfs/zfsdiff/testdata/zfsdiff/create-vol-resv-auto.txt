@@ -1,0 +1,3 @@
+# AMBIGUOUS: create -V -o refreservation=auto. 2.4.4 has no zfs_create_fix_auto_resv: UINT64_MAX reaches the kernel (ENOSPC); the simulator resolves it
+# covers: resv-auto
+zfs create -V 67108864 -o refreservation=auto $R/v

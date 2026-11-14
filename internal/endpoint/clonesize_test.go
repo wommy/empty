@@ -1,0 +1,204 @@
+package endpoint_test
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/wommy/empty/internal/endpoint"
+	"github.com/wommy/empty/internal/zfs"
+)
+
+const mib = 1 << 20
+
+// CSI: limit_bytes is a MUST. A clone starts at its source's size and is
+// never shrunk, so a source larger than the limit is OutOfRange before any
+// op, not a success above the limit followed by AlreadyExists on retry.
+func TestCloneLargerThanLimitIsOutOfRange(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	for _, k := range []endpoint.VolumeKind{endpoint.Block, endpoint.Filesystem} {
+		src := "src-" + k.String()
+		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: src, Kind: k, CapacityBytes: 10 * mib}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ep.CreateSnapshot(ctx, "s-"+k.String(), src); err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range []endpoint.CreateVolumeRequest{
+			{Name: "fromsnap-" + k.String(), Kind: k, SourceSnapshotID: src + "@s-" + k.String(), CapacityBytes: 4 * mib, LimitBytes: 5 * mib},
+			{Name: "fromvol-" + k.String(), Kind: k, SourceVolumeID: src, CapacityBytes: 4 * mib, LimitBytes: 5 * mib},
+		} {
+			for i := 0; i < 2; i++ {
+				if _, err := ep.CreateVolume(ctx, r); endpoint.CodeOf(err) != endpoint.OutOfRange {
+					t.Errorf("%s attempt %d: %v, want OutOfRange", r.Name, i, err)
+				}
+			}
+			if h.Has(h.Parent + "/" + r.Name) {
+				t.Errorf("%s created", r.Name)
+			}
+		}
+	}
+	if h.Has(h.Parent + "/src-block@volume-source-for-volume-fromvol-block") {
+		t.Error("clone-source snapshot cut for a refused clone")
+	}
+}
+
+// A filesystem restore with Reserve and no capacity reserves the size it
+// takes from its source, and the identical retry is a no-op.
+func TestReserveRestoreIsIdempotent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "s", "src"); err != nil {
+		t.Fatal(err)
+	}
+	for _, req := range []endpoint.CreateVolumeRequest{
+		{Name: "dst", SourceSnapshotID: "src@s", Reserve: true},
+		{Name: "dst2", SourceVolumeID: "src", Reserve: true},
+	} {
+		for i := 0; i < 2; i++ {
+			v, err := ep.CreateVolume(ctx, req)
+			if err != nil || v.CapacityBytes != 10*mib {
+				t.Fatalf("%s attempt %d: %+v %v", req.Name, i, v, err)
+			}
+		}
+		if got := h.Prop(h.Parent+"/"+req.Name, "refreservation"); got != "10485760" {
+			t.Errorf("%s refreservation %q", req.Name, got)
+		}
+	}
+	// an unlimited source gives nothing to reserve
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "free"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "dst3", SourceVolumeID: "free", Reserve: true})
+	wantCode(t, err, endpoint.InvalidArgument)
+}
+
+// A failure (or crash) right after the clone converges, on retry, to the
+// end state an uninterrupted run reaches: same refquota, same reservation.
+func TestCloneFailureAfterCloneConvergesToSameState(t *testing.T) {
+	t.Parallel()
+	requireSim(t)
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name string
+		req  endpoint.CreateVolumeRequest
+	}{
+		{"snapshot", endpoint.CreateVolumeRequest{Name: "dst", SourceSnapshotID: "src@s"}},
+		{"snapshot-reserve", endpoint.CreateVolumeRequest{Name: "dst", SourceSnapshotID: "src@s", Reserve: true}},
+		{"volume", endpoint.CreateVolumeRequest{Name: "dst", SourceVolumeID: "src"}},
+		{"volume-reserve", endpoint.CreateVolumeRequest{Name: "dst", SourceVolumeID: "src", Reserve: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ep, h := setup(t)
+			sim := h.Sim(t)
+			if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ep.CreateSnapshot(ctx, "s", "src"); err != nil {
+				t.Fatal(err)
+			}
+			sim.Fail = func(a []string) error {
+				if a[0] == "set" && !strings.Contains(strings.Join(a, " "), "provision_success") {
+					return &zfs.ExitError{Code: 1, Stderr: "internal error: Input/output error\n"}
+				}
+				return nil
+			}
+			if _, err := ep.CreateVolume(ctx, tc.req); err == nil {
+				t.Fatal("want the injected failure")
+			}
+			sim.Fail = nil
+			for i := 0; i < 2; i++ {
+				v, err := ep.CreateVolume(ctx, tc.req)
+				if err != nil || v.CapacityBytes != 10*mib {
+					t.Fatalf("attempt %d: %+v %v", i, v, err)
+				}
+			}
+			wantRes := "0"
+			if tc.req.Reserve {
+				wantRes = "10485760"
+			}
+			if got := h.Prop(h.Parent+"/dst", "refreservation"); got != wantRes {
+				t.Errorf("refreservation %q, want %q", got, wantRes)
+			}
+		})
+	}
+}
+
+// A filesystem clone asked for less than its source gets the source's size,
+// end to end: the reported capacity and the refquota zfs holds.
+func TestFilesystemCloneNeverSmallerThanSource(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 10 * mib}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "s", "src"); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []endpoint.CreateVolumeRequest{
+		{Name: "fromsnap", CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"},
+		{Name: "fromvol", CapacityBytes: 4 * mib, SourceVolumeID: "src"},
+	} {
+		v, err := ep.CreateVolume(ctx, r)
+		if err != nil || v.CapacityBytes != 10*mib || h.Prop(h.Parent+"/"+r.Name, "refquota") != "10485760" {
+			t.Errorf("%s: %+v %v refquota %s, want 10 MiB", r.Name, v, err, h.Prop(h.Parent+"/"+r.Name, "refquota"))
+		}
+		// the identical retry is idempotent
+		if _, err := ep.CreateVolume(ctx, r); err != nil {
+			t.Errorf("%s retry: %v", r.Name, err)
+		}
+	}
+}
+
+// CSI: a snapshot's size_bytes is its size when it was taken, the minimum
+// a restore needs. Expanding the source afterwards must not change it in
+// ListSnapshots, in a CreateSnapshot retry (idempotency: the same answer),
+// or in what a restore from it starts at. A zvol snapshot keeps its volsize
+// (SNP-11); a filesystem snapshot has no refquota, so the endpoint records
+// it at snapshot time.
+func TestSnapshotSizeIsItsSizeWhenTaken(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []endpoint.VolumeKind{endpoint.Filesystem, endpoint.Block} {
+		t.Run(kind.String(), func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			ep, h := setup(t)
+			if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", Kind: kind, CapacityBytes: 8 * mib}); err != nil {
+				t.Fatal(err)
+			}
+			s, err := ep.CreateSnapshot(ctx, "s", "src")
+			if err != nil || s.SizeBytes != 8*mib {
+				t.Fatalf("CreateSnapshot: %+v %v, want 8 MiB", s, err)
+			}
+			if _, err := ep.ExpandVolume(ctx, "src", 16*mib, 0); err != nil {
+				t.Fatal(err)
+			}
+			if again, err := ep.CreateSnapshot(ctx, "s", "src"); err != nil || again != s {
+				t.Errorf("retry after expand: %+v %v, want %+v", again, err, s)
+			}
+			list, _, err := ep.ListSnapshots(ctx, "src@s", "", 0, "")
+			if err != nil || len(list) != 1 || list[0].SizeBytes != 8*mib {
+				t.Errorf("ListSnapshots after expand: %+v %v, want 8 MiB", list, err)
+			}
+			// a restore asked for less starts at the snapshot's size, not
+			// the source's current one
+			v, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "r", Kind: kind, CapacityBytes: 4 * mib, SourceSnapshotID: "src@s"})
+			if err != nil || v.CapacityBytes != 8*mib {
+				t.Errorf("restore: %+v %v, want 8 MiB", v, err)
+			}
+			if kind == endpoint.Filesystem {
+				if q := h.Prop(h.Parent+"/r", "refquota"); q != "8388608" {
+					t.Errorf("restore refquota %s, want 8 MiB", q)
+				}
+			}
+		})
+	}
+}

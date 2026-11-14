@@ -1,0 +1,6 @@
+# a native property on a snapshot cannot be set
+# covers: snapshot
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs set compression=off $R/a@s1
+zfs set -u dedup=off $R/a@s1

@@ -1,0 +1,4 @@
+# refreservation above refquota on a filesystem
+# covers: quota
+zfs create -o refquota=10485760 $R/a
+zfs set refreservation=20971520 $R/a

@@ -1,0 +1,6 @@
+# canmount=off on a mounted filesystem with a pinned child mounted inside it fails busy, and the set (refreservation included) never happens
+# covers: mount
+zfs create -o mountpoint=/zzbusy-cm/a $R/a
+zfs create -o mountpoint=/zzbusy-cm/a/b $R/a/b
+zfs set canmount=off refreservation=21474836480 $R/a
+zfs set canmount=off $R/a

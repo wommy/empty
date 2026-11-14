@@ -1,0 +1,4 @@
+# a zvol snapshot prints '-' for filesystem-only properties (headcheck)
+# covers: misc
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1

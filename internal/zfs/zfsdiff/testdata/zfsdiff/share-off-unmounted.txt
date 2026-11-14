@@ -1,0 +1,4 @@
+# sharenfs=off on an unmounted filesystem does not mount it
+# covers: sharenfs-unmounted
+zfs create -u $R/a
+zfs set sharenfs=off $R/a

@@ -1,0 +1,6 @@
+# sharenfs on a parent mounts unmounted children that inherit it
+# covers: sharenfs-unmounted
+zfs create -u $R/a
+zfs create -u $R/a/c
+zfs create -u -o sharenfs=off $R/a/d
+zfs set sharenfs=on $R/a

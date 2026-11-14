@@ -1,0 +1,7 @@
+# set errors: wrong type, bad index value, bad block size, duplicate key (exit 255)
+# covers: misc
+zfs create $R/a
+zfs set volsize=67108864 $R/a
+zfs set compression=bogus $R/a
+zfs set recordsize=3000 $R/a
+zfs set atime=off atime=on $R/a

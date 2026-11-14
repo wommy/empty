@@ -1,0 +1,7 @@
+# a received value is inherited by children ('inherited from' the received dataset)
+# covers: received
+zfs create -o zd:b=x $R/a
+zfs snapshot $R/a@s1
+@sendrecv $R/a@s1 $R/r
+zfs create $R/r/c
+zfs snapshot $R/r/c@s2

@@ -1,0 +1,5 @@
+# destroy -d of a snapshot nothing references destroys it at once
+# covers: destroy-d
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs destroy -d $R/a@s1

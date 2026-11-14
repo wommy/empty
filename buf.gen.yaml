@@ -1,0 +1,11 @@
+version: v2
+# The plugins are go.mod tool dependencies (go get -tool): pinned by go.sum,
+# built by the go.mod toolchain on every machine, and protoc-gen-go is always
+# the version of the google.golang.org/protobuf runtime the code links.
+plugins:
+  - local: [go, tool, protoc-gen-go]
+    out: gen
+    opt: paths=source_relative
+  - local: [go, tool, protoc-gen-go-grpc]
+    out: gen
+    opt: paths=source_relative

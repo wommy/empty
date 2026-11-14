@@ -1,0 +1,7 @@
+# promote with a conflicting snapshot name
+# covers: promote
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs snapshot $R/x@s1
+zfs promote $R/x

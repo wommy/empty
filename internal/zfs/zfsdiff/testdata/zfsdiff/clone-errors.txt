@@ -1,0 +1,8 @@
+# clone of a missing snapshot, onto an existing name, under a missing parent, wrong-type property
+# covers: misc
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s2 $R/x
+zfs clone $R/a@s1 $R/a
+zfs clone $R/a@s1 $R/n/x
+zfs clone -o volsize=67108864 $R/a@s1 $R/x

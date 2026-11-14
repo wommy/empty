@@ -1,0 +1,5 @@
+# create -p below a volume: parent is not a filesystem
+# covers: create-p
+zfs create -V 67108864 $R/v
+zfs create -p $R/v/x
+zfs create $R/v/x

@@ -1,0 +1,8 @@
+# promote moves the origin and older snapshots; the old head becomes a clone
+# covers: promote
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs snapshot $R/a@s2
+zfs snapshot $R/a@s3
+zfs clone $R/a@s2 $R/x
+zfs promote $R/x

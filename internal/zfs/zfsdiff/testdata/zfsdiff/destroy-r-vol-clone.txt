@@ -1,0 +1,6 @@
+# destroy -r of a zvol whose snapshot backs a clone volume (the endpoint's clone-from-snapshot layout)
+# covers: destroy-r-clones
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+zfs clone $R/v@s1 $R/x
+zfs destroy -r $R/v

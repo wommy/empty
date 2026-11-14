@@ -1,0 +1,6 @@
+# a child's refreservation beyond its parent's quota
+# covers: quota
+zfs create -o quota=1048576 $R/a
+zfs create $R/a/c
+zfs set refreservation=10485760 $R/a/c
+zfs create -o refreservation=10485760 $R/a/d

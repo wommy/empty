@@ -1,0 +1,7 @@
+# snapshot of a missing dataset (usage, exit 2), with a native -o, twice
+# covers: snapshot
+zfs snapshot $R/a@s1
+zfs create $R/a
+zfs snapshot -o compression=off $R/a@s1
+zfs snapshot $R/a@s1
+zfs snapshot $R/a@s1

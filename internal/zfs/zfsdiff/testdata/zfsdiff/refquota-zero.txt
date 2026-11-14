@@ -1,0 +1,6 @@
+# refquota=0 must be spelled none; none is stored as a local 0
+# covers: quota
+zfs create $R/a
+zfs set refquota=0 $R/a
+zfs set refquota=none $R/a
+zfs set quota=none $R/a

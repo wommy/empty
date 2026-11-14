@@ -1,0 +1,9 @@
+# a refreservation grows into its parent's unused reservation: the
+# parent's reservation is charged to the grandparent once, not again for
+# the child (dsl_dir_space_available, dsl_dataset_set_refreservation_check)
+# covers: quota
+zfs create -o quota=104857600 $R/g
+zfs create -o reservation=62914560 $R/g/p
+zfs create -o refreservation=41943040 $R/g/p/c
+zfs set refreservation=83886080 $R/g/p/c
+zfs set refreservation=115343360 $R/g/p/c

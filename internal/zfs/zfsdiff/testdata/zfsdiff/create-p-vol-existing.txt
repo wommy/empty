@@ -1,0 +1,4 @@
+# create -p -V on an existing volume succeeds
+# covers: create-p
+zfs create -V 67108864 $R/v
+zfs create -p -V 67108864 $R/v

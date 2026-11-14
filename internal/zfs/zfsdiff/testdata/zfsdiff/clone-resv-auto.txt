@@ -1,0 +1,6 @@
+# clone -o refreservation=auto of a thick volume (the endpoint's sizeOps): resolved against the snapshot
+# covers: resv-auto
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+zfs set volsize=134217728 $R/v
+zfs clone -o refreservation=auto $R/v@s1 $R/x

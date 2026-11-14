@@ -1,0 +1,8 @@
+# release of a tag that is not there, of a missing snapshot, of a non-snapshot
+# covers: holds
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs release t1 $R/a@s1
+zfs release t1 $R/a@s2
+zfs release t1 $R/a
+zfs hold t1 $R/a

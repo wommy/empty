@@ -1,0 +1,4 @@
+# set -u on a volume
+# covers: set-u
+zfs create -V 67108864 $R/v
+zfs set -u volsize=134217728 $R/v
