@@ -1,0 +1,265 @@
+# zfs-endpoint
+
+A Go daemon that owns volume and snapshot lifecycle on one ZFS parent dataset and exposes it over gRPC (`api/zfsendpoint/v1`), so that CSI drivers and other front ends can stay thin translators.
+
+**OpenZFS is the source of truth** (`docs/adr/0003-openzfs-is-the-source-of-truth.md`). Behavior follows OpenZFS's own semantics, as verified in its source and on a real 2.4.x pool, never another driver's choices. [democratic-csi](https://github.com/democratic-csi/democratic-csi) is an **adoption target**: by default the endpoint keeps its state under its own user-property namespace (`zfs-endpoint:*`), and `-property-prefix democratic-csi` is the **adoption mode**, which reads and writes that driver's properties so volumes it provisioned are adopted. democratic-csi is evidence of practice, not of correctness. **OpenZFS 2.4 is the only supported version** (`docs/adr/0004-support-floor-and-node-side.md`).
+
+## Status
+
+| Edge | State |
+|---|---|
+| ZFS execution (`internal/zfs`) | done: typed `zfs(8)` client; the scan, `Get` and `List` all read `zfs get -j -p` through one strict decoder, streamed from the pipe (`zfs.go`, `json.go`); error classification from OpenZFS's own CLI strings |
+| Volume/snapshot lifecycle (`internal/endpoint`) | done: create (plain, from snapshot, from volume), delete, expand, get, list, snapshot create/delete/list, capacity. A new filesystem is created with `setuid`, `exec` and `devices` off and its `mountpoint` set locally to `<parent's mountpoint>/<id>` (pinned, so it stays put if the parent moves; a parent at `none` or `legacy` pins nothing; `plan.go`) |
+| ZFS property passthrough (`internal/endpoint/props.go`) | done: default-deny per-kind allowlist with value checks; requested properties must be set locally for a retry to be compatible (`docs/research/gaps/adv-csi-frontend.md` B3) |
+| Northbound API (`api/`, `internal/server`, `cmd/zfs-endpoint`) | done: gRPC over unix sockets, owner-only permissions unless `-socket-group` is set |
+| File export (NFS/SMB) | NFS done: per-client `PublishFileExport`/`UnpublishFileExport` (filesystems; an IPv4 address or IPv4 CIDR, always written as a masked CIDR with `/N`, no broader than `-nfs-min-prefix` (default /16), no overlapping networks on one volume; rw/ro), export state in `sharenfs` alone (ADR 0004: a local value in the endpoint's grammar is the endpoint's, anything else is never written; a leftover `<prefix>:nfs_clients` is ignored and reported by Reconcile), each Publish verified against `/var/lib/nfs/etab` (at the mountpoint's real path) and running nfsd threads, a Publish refused for an export beyond the volume's list changing nothing; static export at create (`CreateVolumeRequest.nfs_export`, servers advertised with `-nfs-server`, the chosen one recorded per volume in `<prefix>:nfs_server`, read back only when set locally, committed only once served; `CreateVolume` and `nfs.clients` take only networks written with `/N`, while Publish and Unpublish also take a bare address as its `/32`); Reconcile reports, and never rewrites, a leftover `nfs_clients`, an `nfs_server` that is inherited, received or no longer advertised, a network below the floor and a filesystem whose mountpoint is not pinned (`reconcile.go`); root only (`docs/research/gaps/file-export.md`, `docs/research/gaps/csi-nfs-design.md`). SMB not started |
+| Block export (iSCSI/NVMe-oF) | design v2 done, not implemented: sole configfs owner, minted `block_id` identity, fail-closed build order (`docs/research/gaps/block-export-v2.md`) |
+| CSI front end (`internal/csi`, `cmd/zfs-csi`) | controller + identity done; csi-sanity Controller/Identity groups run on the simulator and real ZFS, in mount, block and NFS mode, their passed specs pinned by name. NFS mode when the endpoint advertises `-nfs-server`: StorageClass `nfs.clients` (required), `nfs.server`, and `nfs.uid`/`nfs.gid`/`nfs.mode` (the root directory's owner and mode, set by the endpoint before the commit; each one unset is left as the create made it: root:root 0755 for a new volume, the source's for a clone or restore), all five access modes, `server`/`share` in volume_context for csi-driver-nfs (ADR 0004). No node plugin of our own, so block access is opt-in (`-enable-block`, default off) and refused in NFS mode, and so is mount access without NFS (`-enable-local-filesystem`, default off; ADR 0009) |
+| Deployment (`deploy/`) | hyperconverged, unix sockets only (`docs/adr/0006-first-deployment-shape.md`): systemd unit per parent serving `/run/zfs-endpoint/sock/<systemd-escape parent>/endpoint.sock` (also zfs-endpoint's default `-listen`; `zfs-csi -parent` dials it; the pod mounts only that socket's directory, never the lock directory `/run/zfs-endpoint`), an optional sandboxing drop-in (`deploy/systemd/zfs-endpoint@.service.d/hardening.conf`; `ProtectHostname` and a syscall deny-list in effect and checked under the unit by `ci/real-zfs-unit.sh` in the real-ZFS VM's csi job; capability, device and memory limits still commented out), a daily report-only Reconcile timer (`deploy/systemd/zfs-endpoint-reconcile@.timer`, a dry run that never applies; see "Runbook: Reconcile"), Kubernetes manifests in `deploy/k8s/` (the controller runs on the one node an admin labels `node-restriction.kubernetes.io/zfs-endpoint-host=true`, a label a kubelet cannot set on itself; label exactly one node, ADR 0008). The shipped deployment is NFS mode (ADR 0009) and provisions nothing until the operator sets three things: `-nfs-server` (copy `deploy/systemd/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf.example` to `zfs-endpoint-nfs.conf`; the unit appends `$ZFS_ENDPOINT_NFS` to ExecStart), the StorageClass's `nfs.clients` and `nfs.uid`/`nfs.gid`/`nfs.mode` (shipped as placeholders the controller refuses: unset, a volume root is root:root 0755, which no pod can write under root_squash), and the F6 controls (pod egress to 2049 denied, a host firewall; ADR 0001 v2 D8). The node side is csi-driver-nfs's node DaemonSet under this driver's name (`deploy/k8s/node.yaml`, v4.13.6, pinned by digest, no RBAC and no token). Version set at build with `-ldflags -X github.com/wommy/empty/internal/version.Version=...`, printed by `-version` (CI's test job links the tests with `-X` and checks it). The zfs-csi image is built from `Dockerfile` (static, distroless, bases pinned by digest; the nightly `image` job builds it and checks `-version`); none is published and there is no release build yet. Install steps: "Install" |
+| Transport auth | ADR 0001 v2: per-listener roles and peer credentials built; TCP is refused and mTLS is not started (D5). The endpoint socket is mode 0600 in a 0700 directory, and serves the CSI role only (`-socket-group` opens it 0660 to one group, for a non-root controller; ADR 0001 v2 D7): Reconcile and the NFS export RPCs are on `-admin-listen` (root or the daemon's uid, by SO_PEERCRED; never mounted into a pod), and every call's audit line carries the peer's uid, gid and pid (ADR 0001 v2, F2/F7); the CSI socket 0600 in the pod's emptyDir (`internal/unixsock`, `docs/research/edges2/transport-auth.md`) |
+
+## Design
+
+The core is data-oriented:
+
+```
+lock(keys) → scan → Table → plan(Table, request) → Plan → apply → re-read
+             one zfs     typed,     pure function,     ops as     each op carries its
+             get -j -p   immutable  no I/O             plain data own replay tolerance
+```
+
+- **Scan** (`table.go`): one `zfs get -j -p -d` per scan reads the parent's volumes and their snapshots (or one volume and its snapshots) into a flat columnar buffer. The parent itself and anything deeper, such as a dataset someone made below a volume, are dropped, so planners never see them. An RPC may scan more than once: once per volume it touches, and again to re-read after applying. Each scan is decoded once into an immutable, ID-sorted `Table` of typed `Row`s, with snapshot-by-volume and clone-by-origin indexes. Ownership is read only from properties with source `local`: user properties inherit, and `received` ones arrive with a `zfs send -p` copy. `Row.OwnedVolume` and `Row.OwnedSnapshot` are the only ownership tests. DeleteVolume reads only the volume's subtree and the volumes holding a clone source stamped for it (ADR 0007). A table records whether it covers the whole parent or only the volumes it was read for, and planners that conclude from a missing row refuse a table that does not cover it.
+- **Plan** (`plan.go`): pure functions take a `Table` and a request and return either a `Plan` (a `[]Op` of plain data) or a typed error.
+  - Idempotency means the plan is empty.
+  - A provision that was interrupted converges, because uncommitted rows are driven toward the request rather than judged for compatibility.
+  - A fresh CreateVolume that fails after making something rolls it back under its locks (`PlanRollbackCreate`, ADR 0010), except on the caller's deadline or cancellation; what a crash or a failed rollback leaves is resumed by a retry.
+- **Apply** (`apply.go`): runs ops in order. Each op states whether "already exists" or "already gone" counts as done, so replaying a partially applied plan converges.
+- **Locks** (`internal/lock`): CreateVolume locks the new volume and, for a clone, its source volume and snapshot. CreateSnapshot locks the snapshot, its volume and its name; DeleteSnapshot locks the snapshot and its volume. ExpandVolume and the export calls lock only the volume. DeleteVolume locks the volume and, when its plan releases a clone-source snapshot on another volume, that volume too: the extra lock is only tried while the first is held, and when busy everything is released and the whole set is waited for in sorted order, so it cannot deadlock against a CreateVolume from that source. Reconcile takes volume locks without waiting and skips busy volumes. A busy lock is waited for up to `-lock-wait` (default 30 s; `0` takes a free lock and never waits, a negative value is refused), cut to one second before the caller's deadline when the call has one, and then returns `ABORTED`, so CSI sidecars retry instead of timing out.
+
+Errors use the CSI/gRPC codes directly:
+- `ALREADY_EXISTS` for an incompatible re-create.
+- OK when deleting something that is already missing, including an id the endpoint could never have issued. Other RPCs report such an id as `NOT_FOUND`.
+- `FAILED_PRECONDITION` for deleting a volume that has snapshots or clones, or snapshots the endpoint did not make, and for "in use" (`dataset is busy`) on a destroy.
+- `ABORTED` for a lock that is busy. It is also returned for an unclassified failure after the RPC (or the earlier attempt it resumes) changed the pool, whether an op or a later read failed, because a retry re-scans and converges. Before any change, that failure stays `INTERNAL`. And it is returned when a destroy's target no longer has the guid the plan read (renamed away and replaced since the scan); the retry re-plans against what is there.
+- `UNAVAILABLE` for zfs "busy" outside a destroy, a read-only or missing pool, or a missing parent.
+- `DEADLINE_EXCEEDED` or `ABORTED` for a zfs command killed by the caller's deadline or cancellation. The outcome is unknown and a retry converges.
+- `RESOURCE_EXHAUSTED` when zfs is out of space before the RPC changed anything (after an earlier op of the plan applied, for instance a fresh clone's reservation, it is `ABORTED`, and its message says `out of space: free space on the pool first, then a retry converges`: external-provisioner takes `RESOURCE_EXHAUSTED` as final under Immediate binding, which would strand the half-made clone), and, with `-min-free-bytes` set (default 0, off), for a CreateVolume or ExpandVolume whose plan makes a volume or reserves space when the space a new child of the parent gets (the parent's `available` less its own unused refreservation, `usedbyrefreservation`, which children cannot use, or less its whole `refreservation` where an old dataset prints `-` for it; past a `refquota` on the parent, which does not limit children, it is read one level up, and where it cannot be (a pool root, an unreadable level up) the refusal says the figure is a lower bound) less what the plan reserves (a thick zvol's volsize, a thick clone's source-snapshot volsize, a `reserve` filesystem's refreservation, a grow's delta) would fall below the floor (`headroom.go`). It is checked before anything is applied, never on a retry whose plan is empty or only commits. It is advisory, not a reservation: `available` is read once under the volume's lock, so concurrent creates of different volumes, or other writers to the pool, can each pass and together cross the floor. Snapshots are not guarded. GetCapacity reports the same space a new child gets, less the floor.
+
+## Decisions and their evidence
+
+All research is in `docs/research/`. Delegates produced it from pinned clones and GitHits searches, and adversarial rounds then attacked it. `alignment.md` maps 108 distinct operations across 13 implementations onto one vocabulary (495 mappings).
+
+| Decision | Evidence |
+|---|---|
+| Only a *classified* not-found counts as absent | zfs-localpv treats any `zfs list` error as absent, so transient failures turn into duplicate creates or false delete successes |
+| A missing pool is unavailable, never not-found | adversarial ZFS-CLI review: "no such pool" made a dead pool look like an absent dataset |
+| Never hand-set a zvol's `refreservation` | ZFS's `zvol_auto_resv` includes metadata overhead and tracks volsize. Setting it by hand under-reserves and stops the tracking |
+| Snapshot delete uses `destroy -d` | pyzfs: `lzc_destroy_snaps` with EEXIST means *SnapshotIsCloned*. truenas-csi #69 leaked snapshots because of this |
+| Never use `zfs create -p` for volumes | it exits 0 on an existing dataset, which would stamp ownership onto someone else's |
+| Request-scoped plans, not a reconcile queue | CSI CreateVolume is synchronous and the external-provisioner times out after 10s |
+| GC only on demand, against a caller-supplied desired set | ZFS properties record what was made, not what is still wanted (`docs/research/edges2/reconcile-gc.md`) |
+| Keep the `provision_success` marker | ZFS channel programs can't create datasets or set refquota/volsize, so a plan can't run as one atomic transaction |
+| Fat-struct `Op`, not a sealed interface | a homogeneous `[]Op` is printable, diffable data for golden tests |
+| Unexport sets `sharenfs=off` locally, never `zfs inherit` | `sharenfs` inherits: an ancestor shared to `*` would re-export the volume to every host |
+| Exports are verified in the kernel's export table | libzfs discards the `exportfs` status, so `zfs set sharenfs=` exits 0 when the export failed (`docs/research/gaps/adv-file-export-facts.md` B1) |
+| Publish also requires nfsd threads (`/proc/fs/nfsd/threads` > 0) | stopping nfs-server empties etab, and the next `exportfs -ra` (any sharenfs change) rewrites it without nfsd, so etab alone reports a dead server as serving |
+| NFS clients are IPv4 addresses or CIDRs, never hostnames | nfs-utils resolves a name on every `exportfs -ra` (any sharenfs change on any dataset, `zfs share -a`, an nfs-server reload) and silently drops one it cannot resolve; nothing re-adds it, so a DNS hiccup revoked access |
+| Every client is written as a masked CIDR with `/N`, `/32` included | nfs-utils treats `/N` as a subnet: kept verbatim in etab, never resolved, never merged with hostname clients for the same address, so verification is an exact comparison (by normalized `netip.Prefix`) |
+| Overlapping client networks on one volume are refused | nfs-utils applies the first matching line of a path, so `rw=10.0.0.0/24` and `ro=10.0.0.5/32` would not both hold |
+| Unpublish of an unmounted volume uses `zfs set -u` | a plain `zfs set sharenfs` mounts a `canmount=on` filesystem and shares it (changelist postfix), undoing an operator's unmount. `-u` still changes the value, so the next mount shares the revoked list |
+| A received `sharenfs` is refused, not overridden | it is the sending side's export decision; a local value would silently shadow it. `zfs set sharenfs=off` hands the volume to the endpoint |
+| Ownership is a locally set user property; `received` is not ownership | ADR 0003. A `zfs send -p \| zfs recv` copy carries the source's markers as `received`. Counting them adopted copies and let reconcile destroy them |
+| A volume's markers must name it (`csi_volume_name` = its id) | a renamed or received dataset carries another volume's name, so it is not this volume |
+| Clone sources must be committed and owned; a clone is never `OkExists` | an existing dataset at the target is someone else's or a racing create's. Adopting it skipped the ownership check |
+| DeleteVolume refuses snapshots the endpoint did not make, unless `-destroy-foreign-snapshots` | ADR 0003: `zfs destroy -r` took sanoid, replication and administrators' snapshots. The baseline did this |
+| Never `zfs destroy -r`: release the clone-source origin (`-d`) first, destroy each judged snapshot by name, then the volume plainly | `-r` took child datasets someone made below a volume and snapshots cut after the scan. Without it zfs itself refuses ("has children"). Releasing the origin first means no crash point orphans it (wave-5 lifecycle FSM) |
+| Clone-source snapshots are stamped at creation (`managed_resource`, `clone_source_for=<clone>`) | the reserved name alone is not ownership: anyone can `zfs snapshot` it. Unstamped ones (democratic-csi cuts them bare) are released only with the clone whose origin names them exactly, under the parent, from an owned volume; otherwise they are reported, never collected |
+| Only owned, committed volumes are served (`Row.ServedVolume`) | an uncommitted row is a provision in flight or abandoned; Get, Expand, export and snapshot or clone sources acting on it raced Reconcile |
+| A volume needs both `managed_resource` and `csi_volume_name` = its id | both writers set the two together; managed without a name is a hand edit or an inherit |
+| Default `-property-prefix zfs-endpoint`, validated at startup | ADR 0003, and OpenZFS `zfs_prop_user`: only `a-z 0-9 - _ . :`, and shorter than 256 bytes with the suffix. `democratic-csi` is the adoption mode. Without the flag, a parent whose volumes carry only `democratic-csi:managed_resource` (provisioned before the default changed) exits 78 at startup, naming the flag |
+| A thick filesystem's failed grow puts its refquota back | zfs sets refquota, then refreservation fails ENOSPC; the raised refquota stayed, so the volume reported a size it could not reserve and every later Expand was `RESOURCE_EXHAUSTED`. Reserving first is impossible: zfs refuses a refreservation above the refquota |
+| `-parent` at most 126 bytes, refused at startup (exit 78) | zfs names are at most 255 bytes and a volume or snapshot id is up to 128 more; a longer parent accepted startup and then failed creates of valid CSI names |
+| `xattr` only `sa`/`off`; `snapdir` `hidden`/`visible`/`disabled`; `copies` only on zvols | `xattr=on` is an alias zfs prints as `sa` (2.4 `xattr_table`), and it meant `dir` in 2.2. On a filesystem, extra copies count against `refquota`, which would silently shrink the volume |
+| Busy is mapped by operation | CSI: "in use" on DeleteVolume/DeleteSnapshot is `FAILED_PRECONDITION`. On create, expand and clone it clears by itself, so it is retryable |
+| A killed zfs command is `DEADLINE_EXCEEDED`/`ABORTED`, never `INTERNAL` | its outcome is unknown, and a final code would strand a half-applied plan. Commands get SIGTERM and then a 5 s `WaitDelay` |
+| Never delete a non-socket at the socket path | a misconfigured `-csi-address` removed whatever file it named |
+| No struct-of-arrays layout | measured: struct-of-arrays saves about 12 µs on a filter over 10k rows (`docs/research/dod-go/memory-layout.md`), while a whole-parent scan of 10k rows costs about 180-190 ms and 19 MB in about 100 allocations Go-side (`BenchmarkScan`: JSON decode, row decode and index, zfs exec excluded; the text parser it replaced took about 150-170 ms and 102 MB in 355k allocations); through a real pipe, `BenchmarkScanPipe`, streaming zfs's stdout into the decoder costs about 44 MB in about 260 allocations, where buffering stdout whole cost 86 MB). The cost is in parsing and decoding, not in the row layout |
+
+### Corrections from adversarial review
+
+These claims were made during the work and then disproved. They're kept here so they don't come back:
+- **"The baseline destroys CSI snapshots on DeleteVolume."** False. It refuses with `FAILED_PRECONDITION`, and the endpoint matches it.
+- **"The baseline sets ownership in a separate step."** False. It uses `zfs create -o`.
+- **The baseline's success marker** is written but never read. Its retries rely on "already exists" being treated as success. The endpoint's resume-from-marker is therefore a real behavioural difference.
+- **"An in-process lock race in the baseline."** The pattern exists in the code but did not reproduce under grpc-js, because handlers don't interleave across microtasks.
+- **"No typed ZFS volume daemon exists."** Only partly true. TrueNAS middleware is a typed ZFS daemon over JSON-RPC, not gRPC.
+- **"`Prop.Local()` is ownership."** It counted `received` as local, so a `zfs send -p` copy looked managed (ADR 0002, ADR 0003). It is now `local` only.
+- **"`xattr=on` and `compression=gzip-6` read back as sent."** zfs prints the first table name for an index, so they read back as `sa` and `gzip`. The simulator now prints through OpenZFS 2.4's index tables, so read-back comparisons are tested against zfs, not an echo.
+- **"A clone that already exists is done."** It skipped the ownership check and adopted a racing or foreign dataset.
+- **"A missing parent makes every volume absent."** Only a whole-parent scan saw this. A missing parent is now `UNAVAILABLE` everywhere.
+
+## Install
+
+From a checkout of this repository, on a Debian or Ubuntu ZFS host with OpenZFS 2.4 (`zfsutils-linux`, whose units `zfs-import.target`, `zfs-mount.service` and `zfs.target` the endpoint starts after), for the parent dataset `tank/k8s/vols`. `deploy/readme_test.go` checks that this section names every file in `deploy/systemd`, every path under `/usr/local` or `/etc` they mention, and every unit they order after. Run the host steps as root.
+
+**1. The endpoint, on the ZFS host.**
+
+```
+apt install nfs-kernel-server          # nfs-server.service, which the unit wants
+zfs create -p tank/k8s/vols
+go build -trimpath -ldflags "-X github.com/wommy/empty/internal/version.Version=v0.1.0" -o zfs-endpoint ./cmd/zfs-endpoint
+install -m 0755 zfs-endpoint /usr/local/sbin/zfs-endpoint
+install -m 0644 deploy/systemd/zfs-endpoint@.service deploy/systemd/zfs-endpoint-reconcile@.service deploy/systemd/zfs-endpoint-reconcile@.timer /etc/systemd/system/
+install -D -m 0644 deploy/systemd/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf.example /etc/systemd/system/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf
+install -D -m 0644 deploy/systemd/zfs-endpoint@.service.d/hardening.conf /etc/systemd/system/zfs-endpoint@.service.d/hardening.conf   # optional sandboxing
+```
+
+Edit `/etc/systemd/system/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf`: replace the placeholder with the address nodes mount from, an IPv4 address or an FQDN with a trailing dot (unedited, the endpoint exits 78). Then:
+
+```
+systemctl daemon-reload
+systemctl enable --now nfs-server.service
+systemctl enable --now "zfs-endpoint@$(systemd-escape tank/k8s/vols).service"
+systemctl enable --now "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).timer"   # optional daily report
+zfs-endpoint -version
+```
+
+Firewall 2049 to the node addresses before serving tenants ("Deploying the node side").
+
+**2. The cluster.**
+
+- Label the ZFS host, and only it: `kubectl label node <host> node-restriction.kubernetes.io/zfs-endpoint-host=true` (ADR 0008).
+- Install the snapshot CRDs and snapshot-controller first; `classes.yaml`'s VolumeSnapshotClass is refused without them: `kubectl apply -k 'https://github.com/kubernetes-csi/external-snapshotter/client/config/crd?ref=v8.2.0'` and `kubectl apply -k 'https://github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/snapshot-controller?ref=v8.2.0'`.
+- Build the zfs-csi image and push it where the cluster pulls from: `docker build --build-arg VERSION=v0.1.0 -t <registry>/zfs-csi:v0.1.0 .` then `docker push <registry>/zfs-csi:v0.1.0`. The image is a static binary on distroless, run as uid 0 (ADR 0008).
+- Edit `deploy/k8s/controller.yaml`: the zfs-csi `image:` to what you pushed, `-parent` to the dataset, and `endpoint-dir`'s hostPath and mountPath to its socket directory (`/run/zfs-endpoint/sock/<systemd-escape parent>`).
+- Edit `deploy/k8s/classes.yaml`: replace every placeholder. `nfs.clients` is the node network; `nfs.uid`, `nfs.gid` and `nfs.mode` are the volume root's owner and mode, which pods need to write (the export squashes root, and fsGroup has no effect).
+- `kubectl apply -f deploy/k8s/`. Files apply in name order, `00-namespace.yaml` first.
+
+**3. Check: a pod writes to a volume.** With the class set to `nfs.uid: "1000"`, `nfs.gid: "2000"`, `nfs.mode: "2775"`:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: zfs-check}
+spec:
+  storageClassName: zfs
+  accessModes: [ReadWriteMany]
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: zfs-check}
+spec:
+  securityContext: {runAsUser: 1000, runAsGroup: 2000}
+  containers:
+    - name: write
+      image: busybox:1.37
+      command: [sh, -c, "echo ok > /data/ok && cat /data/ok && sleep 3600"]
+      volumeMounts: [{name: data, mountPath: /data}]
+  volumes:
+    - name: data
+      persistentVolumeClaim: {claimName: zfs-check}
+```
+
+`kubectl logs zfs-check` prints `ok`. A PVC stuck Pending names its cause in `kubectl describe pvc` (an unreplaced placeholder, no `-nfs-server`); `journalctl -u 'zfs-endpoint@*'` has the endpoint's side.
+
+## Deploying the node side
+
+`deploy/k8s/node.yaml` runs csi-driver-nfs's node plugin on every untainted node (ADR 0009); it mounts what the StorageClass's export allows. Before serving tenants:
+
+- **Name the NFS server by an IPv4 address or an FQDN with a trailing dot** (`-nfs-server=nas.example.com.`, `zfs-endpoint-nfs.conf.example`). The node plugin resolves it with the node's resolver (`dnsPolicy: Default`), never cluster DNS, where a tenant-created Service could answer for a short name. The trailing dot keeps the node's own search list out too. The name is recorded in every PV and never changes (ADR 0004 Q1).
+- **Firewall NFS on the ZFS host to the node addresses.** Every host, node and hostNetwork pod inside an export's networks can mount every exported volume as any uid but 0 (AUTH_SYS; ADR 0004 Consequences). Keep `nfs.clients` as narrow as the nodes allow, and accept 2049/tcp on the ZFS host only from the node addresses, for example an nftables set of /32s: `nft add rule inet filter input tcp dport 2049 ip saddr != @k8s_nodes drop`. The class mounts with `nfsvers=4.2`, so 111 and 20048 (NFSv3) can stay closed. Deny pod egress to 2049 as well (ADR 0001 v2 D8).
+- **Tainted nodes get no node plugin.** Add the taint to the commented `tolerations` in `node.yaml` for nodes whose pods use these volumes; the ZFS host stays eligible unless you taint it (ADR 0009).
+
+Images are pinned by tag and by image index digest, the digests kubernetes/k8s.io promotes for these tags (`registry.k8s.io/images/k8s-staging-sig-storage/images.yaml` at the commit in the last column; check one with `crane digest <image>:<tag>`). `deploy/k8s_test.go` `TestImagePins` checks this table against every manifest: each image pinned by digest, one digest per tag. `ghcr.io/wommy/zfs-csi` has no published image yet, so it alone is tag-only (a TODO in `controller.yaml`): build it from `Dockerfile` and set your own ("Install").
+
+| Image | Digest | Used in | images.yaml at |
+|---|---|---|---|
+| `registry.k8s.io/sig-storage/nfsplugin:v4.13.6` | `sha256:40663419bac36836b8e4ef6929199e35920e28f6a74a46892e1c125ea5f0ce0b` | node.yaml | 56620372 |
+| `registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0` | `sha256:f9de845b170155199f2a2a3f9531cf13d78e31235e9db6b6582a8b0db0a50dad` | node.yaml | 56620372 |
+| `registry.k8s.io/sig-storage/livenessprobe:v2.19.0` | `sha256:06da0d5b8908072f2e4522692aee8dc119fba7247a9658497e1153992cd777e9` | node.yaml, controller.yaml | 56620372 |
+| `registry.k8s.io/sig-storage/csi-provisioner:v5.2.0` | `sha256:d5e46da8aff7d73d6f00c761dae94472bcda6e78f4f17b3802dc89d44de0111b` | controller.yaml | 28a29bed |
+| `registry.k8s.io/sig-storage/csi-resizer:v1.13.1` | `sha256:2a0b297cc7c4cd376ac7413df339ff2fdaa1ec9d099aed92b5ea1f031ef7f639` | controller.yaml | 28a29bed |
+| `registry.k8s.io/sig-storage/csi-snapshotter:v8.2.0` | `sha256:dd788d79cf4c1b8edee6d9b80b8a1ebfc51a38a365c5be656986b129be9ac784` | controller.yaml | 28a29bed |
+
+## Testing
+
+```
+go test -race ./...                                       # simulator
+ZFS_TEST_POOL=testpool go test ./internal/endpoint/...    # real pool, as root
+CSI_SANITY_NFS=1 go test -count=1 -run '^TestSanity$' ./internal/csi   # csi-sanity, NFS mode
+go test -run '^$' -fuzz FuzzCreateConverges ./internal/endpoint
+go test -run '^$' -fuzz FuzzReconcileSafe ./internal/endpoint
+go test -run '^$' -fuzz FuzzDecodeGetJSON ./internal/zfs
+```
+
+The contract tests in `internal/endpoint` run against `internal/zfs/zfstest` or, with `ZFS_TEST_POOL` set, against a real pool. CI does the latter in three Ubuntu VMs running OpenZFS 2.4 (`ci/real-zfs-vm.sh`; suites in `ci/real-zfs-suites.txt`): the endpoint suite in two parts, each running 3 concurrent shards of one fixed 6-shard plan (`ci/real-zfs-plan.sh`, checked by `ci/check-split.sh`), and the csi suite in one, also 3 shards. Each shard is on its own pool backed by a sparse file on a guest tmpfs (`ci/real-zfs-guest.sh`). Planner tests build `Table`s directly from rows, with no I/O.
+
+`TestSanity` runs csi-sanity (Identity and Controller groups) in one mode per process: `CSI_SANITY_ACCESS_TYPE=mount` (default) or `block`, or `CSI_SANITY_NFS=1` (an endpoint in NFS mode). The specs that pass must be exactly `internal/csi/testdata/sanity-passed-<mode>.txt`; rewrite a list with `CSI_SANITY_UPDATE=1` (the command is in its header) and review the diff. Where each mode runs: mount on the simulator in the PR `test` job and on the real pool in the PR csi VM job; NFS on the simulator in the PR `test` job and on the real pool nightly; block on the real pool in the PR csi VM job (ADR 0005).
+
+`FuzzCreateConverges` asserts the core invariant: for any accepted request, a second identical CreateVolume succeeds and changes nothing.
+
+`FuzzReconcileSafe` builds arbitrary parents on the simulator: received copies, foreign snapshots, child datasets, clones and origins outside the parent, deferred snapshots, unstamped clone sources, just-committed retries, and a busy destroy on the first run. It asserts that reconcile never errors, never targets anything the endpoint does not own (or a desired, young or CSI-snapshotted volume), that everything unowned and everything outside the scan survives, and that once injected failures clear it converges: the run after that applies nothing and reports no failed group, except a volume zfs refuses for something the scan cannot see (an outside clone of a deferred snapshot); with no such volume, a dry run then plans nothing.
+
+`TestModel` is a model-based test: random sequences of RPCs and out-of-band actions (snapshots, clones, child datasets, receives, renames, holds), with a kill, an error or a racing action injected at a plan step, run against the endpoint and a pure reference model of the contract (`model_test.go`). After every step it compares codes, results and the world read back with plain zfs, checks that nothing unowned changed and that a second reconcile plans nothing, and shrinks a failure to a replayable trace (`MODEL_SEED=<n>`). A PR runs 64 sequences on the simulator and 50 steps on the VM's pool; the nightly tier sweeps 20,000 sequences. A divergence that is known and not yet fixed is masked with a spec row and an expiry date: `TestModel` fails once a mask expires, and the nightly `TestExploreModelMasksStillBite` fails once a mask hides nothing. `TestRealFacts` checks the OpenZFS facts the model and the simulator share against the real pool, and the simulator against them.
+
+The recovery FSM explorer (`fsm_explore_test.go`, nightly) walks every world two volumes reach in four steps, crashing, killing and racing every mutation, and fails on any unnamed state, foreign touch, divergent retry or non-idempotent reconcile.
+
+The simulator injects failures (`Sim.Fail`) and received properties (`Sim.Receive`), and it prints index properties the way zfs 2.4 does.
+
+## Runbook: when a PVC is stuck
+
+The PVC's events (`kubectl describe pvc`) carry the endpoint's code and message verbatim (`rpc error: code = X desc = ...`). The volume id is the PV name, `pvc-<uid>`, and the dataset is `<parent>/pvc-<uid>`. On the storage host, `journalctl -u 'zfs-endpoint@*' -p warning -o cat` lists every failed call (`"msg":"rpc"` at WARN, ERROR for INTERNAL), every `zfs failed` and `zfs slow` line and every health warning; `journalctl -u "zfs-endpoint@$(systemd-escape tank/k8s/vols)" -o cat | grep pvc-<uid>` finds a volume's calls (the `rpc` line's `volume_id`, `name` and `source_volume_id` fields) and its zfs argv. Every line of one call shares its `request_id`: grep that to see what the call ran.
+
+- **`ABORTED operation pending on [vol:pvc-x] (waited 29s; vol:pvc-x held for 4m by request <id>)`.** Another call holds the volume. The sidecars retry; it clears when the holder returns. If the hold time keeps growing, grep the holder's `request_id`: a `zfs exec` with no `zfs done`, or a `zfs slow` line, is a zfs that does not return. Check `zpool status -x` (a suspended pool, `failmode=wait`) and `ps -o stat,args -C zfs` (state `D` cannot be killed). `DEADLINE_EXCEEDED ... waiting for a free zfs slot` and `health: not serving` are the same hang with every `-max-zfs` slot held.
+- **`ABORTED ... (earlier ops applied; a retry converges)`** or `(resuming an earlier attempt; ...)`. The call changed the pool and then failed; the provisioner retries and the retry resumes from the marker. With `out of space: free space on the pool first, then a retry converges` in it, no retry succeeds until there is space (see the next item). If the PVC is deleted meanwhile, the half-made volume stays uncommitted (and, in NFS mode, still exported) until a Reconcile `-apply` collects it: the daily report counts it as `uncommitted` and `exposures`, and the timer's unit fails ("Runbook: Reconcile").
+- **`RESOURCE_EXHAUSTED`.** Out of space before anything changed: either zfs's `no space`, or the `-min-free-bytes` floor (the message names the flag and the figures). The health probe logs `health: free space below -min-free-bytes` (WARN) when the parent's `available` crosses the floor. Free space (`zfs list -o space -r <parent>`; deleting snapshots or released PVs), or lower the floor, and the provisioner's next attempt goes through. Under Immediate binding external-provisioner treats it as final: re-create the PVC.
+- **`UNAVAILABLE`.** The endpoint or what it needs is not there: `dial unix /run/zfs-endpoint/sock/.../endpoint.sock` (the endpoint is down: `systemctl status 'zfs-endpoint@*'`, "Runbook: exit codes"), `endpoint is shutting down`, `parent dataset ... is unavailable` (the pool is exported or faulted: `zpool status`), `the NFS server is not running on the storage host (no nfsd threads)` (`systemctl start nfs-server`), or `the NFS export table does not serve ...` (`exportfs -v`, the nfs-server logs). All are retried, and clear when the cause does.
+- **`FAILED_PRECONDITION`.** Only an operator clears it. `served beyond its export` / `served beyond its client list by the NFS export table` name the export lines that serve the volume to more clients than asked: remove them (`/etc/exports`, a `sharenfs` on an ancestor), and the retry goes through. `has dependent clone X` keeps a source PV `Released`: delete the clone's PV first, or, when the message says X is an uncommitted create, wait for it to pass `-min-age` and run Reconcile `-apply`. `is not managed: <why>` is a dataset at the volume's name that is not the endpoint's (received, renamed, markers missing; ADR 0003): set the markers locally if it is the volume, else rename it away. `has snapshot`, `has held snapshot`, `has snapshots the endpoint did not make` and `datasets below it` name what to remove first.
+- **`INTERNAL`.** A failure the endpoint could not classify before changing anything, or a bug (`handler panic` with a stack, ERROR). The `rpc` line is at ERROR; the `zfs failed` line just before it, with the same `request_id`, has zfs's stderr. The provisioner retries; if it keeps failing, report it with those lines.
+
+## Runbook: exit codes
+
+`zfs-endpoint` logs one JSON line before it exits with an error, `{"level":"ERROR","msg":"exit","exit_code":N,"error":"..."}`, the last line of `journalctl -u 'zfs-endpoint@*' -o cat`; `systemctl status` shows the same code (`cmd/zfs-endpoint/startup.go`).
+
+| Code | Meaning | systemd | What to do |
+|---|---|---|---|
+| 78 (`EX_CONFIG`) | Configuration: bad or conflicting flags, a socket path bind cannot take or inside the lock directory, an unknown `-socket-group`, not root without `-allow-non-root`, another endpoint holding this parent, an ancestor or a descendant, a symlinked lock, zfs missing (`cannot run zfs`), OpenZFS other than 2.4 (ADR 0004), a parent that is not a filesystem, a parent under a crossmnt NFS export, only `democratic-csi:` volumes under the default prefix | not restarted (`RestartPreventExitStatus=78`) | the `error` names the fix; fix it and `systemctl start` again |
+| 75 (`EX_TEMPFAIL`) | Not ready: the OpenZFS version is unreadable (module not loaded), the parent is not there after `-parent-wait` (pool not imported, key not loaded), the startup prefix scan failed | restarted forever with backoff (`NRestarts` climbs) | `zpool import`, `zfs load-key`, `modprobe zfs`; `zpool status -x` |
+| 1 | Anything else: `serve: ...`, a lock error other than "held", a failed exposure read | restarted (`Restart=on-failure`) | read the `error` |
+| 0 | Normal stop, including a SIGTERM during startup (`stopped during startup`, INFO) | | |
+
+`zfs-endpoint reconcile` exits 78 for bad flags, 1 when the call fails or an apply is partial, and 3 for a report with findings under `-fail-on-findings` (the timer's unit passes it; "Runbook: Reconcile").
+
+## Runbook: Reconcile
+
+`zfs-endpoint reconcile` is the operator's client of a running endpoint's Reconcile RPC. It dials the admin socket (`/run/zfs-endpoint/admin/<systemd-escape parent>/endpoint.sock` for `-parent`, or `-admin-socket`), so it runs as root on the storage host (`cmd/zfs-endpoint/reconcile.go`).
+
+1. **Dry run.** `zfs-endpoint reconcile -parent tank/k8s/vols` prints the actions it would take, what it skipped and why (drift is reported here, never fixed), and the `plan_digest`. Nothing changes. With no desired set it collects no committed volume: only uncommitted rows (creates abandoned before their commit) and orphan clone-source snapshots, both older than `-min-age` (default 1h). The committed volumes it therefore does not judge are counted on one line; `-v` lists them.
+2. **Read the plan.** To also collect committed volumes, pass the complete set to keep: `-desired <id>` (repeated) or `-desired-file <file>` (one id per line, `-` for stdin), for example every PV's volume handle of the driver. A set naming none of the endpoint's volumes counts as empty. More than `-max-deletions` (default 10) undesired volumes refuses the apply (`FAILED_PRECONDITION`, nothing applied); the dry run still prints the whole plan, and its `undesired: N (max M: apply would be refused)` line says so before you try.
+3. **Apply exactly that plan.** Re-run with the same flags plus `-apply -digest <plan_digest>`. The endpoint re-plans and applies only if it plans exactly what the dry run did; otherwise `ABORTED`, and nothing runs: dry-run again. `-apply` without `-digest` is refused before any call (ADR 0001 D3). What ran is printed, and each destroy is in the endpoint's audit log; a group that failed is listed in `skipped` as `failed: <error>`, and then the command exits 1 (as it does for a group not attempted), so a wrapper never reads a partial apply as done.
+
+`deploy/systemd/zfs-endpoint-reconcile@.timer` runs step 1 daily for one parent, as `zfs-endpoint-reconcile@<systemd-escape parent>.service`, and never applies: `systemctl enable --now "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).timer"`, then read it with `journalctl -u "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).service"`. A failed call (endpoint down, no admin socket) fails the unit (exit 1). Every report ends with a `summary:` line (`uncommitted=N undesired=N orphan_clone_sources=N exposures=N findings=N skipped=N skipped_<kind>=N ...`; exposures are abandoned creates still exported by their `sharenfs` and networks broader than `-nfs-min-prefix`), and the unit passes `-fail-on-findings`, so a report with any finding (an action, or a skip other than young, busy, changed-since-scan, empty-desired-set or not-ours) exits **3** and the unit shows in `systemctl --failed`. The endpoint logs the same counts as one JSON `"msg":"reconcile result"` line per Reconcile.
+
+## Open gaps
+
+The research found these, and nothing ships for them yet:
+- **Block exports, SMB** and node attach. For per-LUN detach, see Trident's `RemoveLUNFromSessions` and gobrick.
+- **Reconcile/GC.** The on-demand half ships: the `Reconcile` RPC (`reconcile.go`) runs off the request path and collects uncommitted rows from abandoned creates, stamped clone-source snapshots whose clone is gone, and owned volumes outside a desired set the caller supplies. Its guards:
+  - It never touches unowned or received datasets, desired volumes, CSI snapshots, volumes with CSI or foreign snapshots or clones, user-held snapshots (`userrefs`) or datasets below them (reported as skipped, so no run plans a destroy zfs refuses every time), or anything younger than `min_age_seconds`: default one hour, at least ten minutes (twice external-provisioner's retry backoff cap). A committed volume is aged from its `committed_at` stamp when that is later than its creation.
+  - A desired set that is empty, or names none of the endpoint's volumes, collects no committed volume. `max_deletions` (default 10, `unlimited_deletions` to lift) caps undesired volumes per run: above it nothing is applied and the call is `FAILED_PRECONDITION`.
+  - `dry_run` returns the plan and a `plan_digest`; a run that echoes the digest applies only if it plans exactly that, else `ABORTED`. A run that would collect any volume outside the desired set must echo one: without it nothing is applied and the call is `FAILED_PRECONDITION` (ADR 0001 D3). Uncommitted rows and orphan clone sources alone need no digest.
+  - It locks per volume without waiting: busy volumes are skipped. Under the locks it re-plans and keeps only actions the unlocked plan made for the same reason on the same guid, so a row a racing CreateVolume committed, or a dataset replaced under the same name, is left alone.
+  - It reports, and never fixes, drift on the volumes it keeps, in `skipped`: a leftover `nfs_clients`, an inherited or received `nfs_server`, a recorded server no longer advertised, a below-floor network in the endpoint's `sharenfs`, and a committed filesystem whose mountpoint is inherited rather than pinned.
+  - It applies per group (a volume with its snapshots and released origin, or one orphan). A failing group is reported as skipped with `failed: <error>`, what ran is returned, and the run goes on; a source whose clone failed is not attempted. Destroys never use `-r`, so zfs refuses on a dataset or clone that appeared after the scan, or a clone the scan cannot see.
+
+  Still open: a startup report-only pass; reporting unrecorded exports; reading the snapshots' `clones` property so clones outside the parent are refused in the plan rather than by zfs at apply; and taking `Now` from the zfs host when the runner is remote (adv4 F10).
+- **HA exclusivity.** A channel-program fencing epoch was designed and then **dropped** after adversarial review: the epoch can go backwards, and creates, resizes and clones can't be fenced (`docs/research/gaps/adv-fencing.md`). Exclusivity is per host, with a `flock` per parent dataset, and across hosts it belongs to the HA layer (`zpool multihost` plus pacemaker/STONITH).
+- **Changed-block tracking** (the CSI SnapshotMetadata service). No ZFS implementation exists anywhere, and the zfs send stream is the only exact source.
+- **ControllerModifyVolume.** No ZFS driver implements it.
+- **Detached snapshots,** which would let volumes be deleted while their snapshots survive.
+- **An end-to-end deploy test.** No job runs "Install" step 3 (a kind cluster, the node plugin's NFS mount of a real CreateVolume, a pod's write); each seam is pinned on its own. A nightly candidate: it does not fit the PR budget (ADR 0005).
+
+## License
+
+Apache-2.0. See `LICENSE`.

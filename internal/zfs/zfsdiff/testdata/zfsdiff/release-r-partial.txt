@@ -1,0 +1,7 @@
+# release -r where a child lacks the snapshot
+# covers: holds
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create $R/a/c
+zfs hold t1 $R/a@s1
+zfs release -r t1 $R/a@s1

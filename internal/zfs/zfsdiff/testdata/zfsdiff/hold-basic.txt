@@ -1,0 +1,7 @@
+# hold, duplicate tag, second tag, userrefs
+# covers: holds
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs hold t1 $R/a@s1
+zfs hold t1 $R/a@s1
+zfs hold t2 $R/a@s1

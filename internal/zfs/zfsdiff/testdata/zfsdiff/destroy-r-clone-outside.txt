@@ -1,0 +1,7 @@
+# destroy -r refuses a tree whose snapshot has a clone outside it (zfs_main.c destroy_check_dependent)
+# covers: destroy-r-clones
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create $R/b
+zfs clone $R/a@s1 $R/b/x
+zfs destroy -r $R/a

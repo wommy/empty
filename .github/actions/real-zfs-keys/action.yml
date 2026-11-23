@@ -1,0 +1,75 @@
+name: real-zfs-keys
+description: >-
+  The cache keys of the real-ZFS VM job, in one place for ci.yml, nightly.yml
+  and cache-warm.yml (a key that differs between them leaves PRs cold). Also
+  fetches the cloud image's SHA256SUMS and its signature once, verifies them,
+  and leaves both for ci/real-zfs-vm.sh (ZFSVM_SUMS), which verifies again.
+inputs:
+  series:
+    description: Ubuntu series of the cloud image
+    default: stonking
+  build:
+    description: image build directory
+    default: current
+outputs:
+  vm:
+    description: >-
+      key of the one cache entry holding the provisioned guest
+      (<runner.temp>/zfsvm-cache) and the qemu tree (<runner.temp>/qemu)
+    value: ${{ steps.keys.outputs.vm }}
+  vm-fallback:
+    description: >-
+      restore-keys prefix: the same guest with another runner image's qemu
+      tree, which ci/qemu-tree.sh verifies (and rebuilds if it does not run)
+    value: ${{ steps.keys.outputs.vm-fallback }}
+  sums:
+    description: >-
+      directory holding the verified SHA256SUMS and SHA256SUMS.gpg, and
+      build-info.txt (the image serial) when the mirror has it
+    value: ${{ steps.keys.outputs.sums }}
+runs:
+  using: composite
+  steps:
+    - id: keys
+      shell: bash
+      env:
+        SERIES: ${{ inputs.series }}
+        BUILD: ${{ inputs.build }}
+      # no hashFiles() anywhere in this action: file hashes are sha256sum
+      # here, so every workflow that uses the action computes the same key
+      run: |
+        d=$RUNNER_TEMP/zfsvm-sums
+        mkdir -p "$d"
+        base=https://cloud-images.ubuntu.com/$SERIES/$BUILD
+        curl -fsSL --retry 3 -o "$d/SHA256SUMS" "$base/SHA256SUMS" & a=$!
+        curl -fsSL --retry 3 -o "$d/SHA256SUMS.gpg" "$base/SHA256SUMS.gpg" & b=$!
+        # the serial behind current/, fetched beside the sums: a cold run
+        # downloads the image from that dated directory, once its sums
+        # match these (ci/real-zfs-vm.sh), not from a current/ that may
+        # have moved on since. Best effort: without it, current/ as before
+        rm -f "${d:?}/build-info.txt"
+        curl -fsSL --retry 3 -o "$d/build-info.txt" "$base/unpacked/build-info.txt" & c=$!
+        wait "$a"
+        wait "$b"
+        wait "$c" || { rm -f "${d:?}/build-info.txt"; echo "::warning::no $base/unpacked/build-info.txt; a cold guest downloads the image from $base"; }
+        gpgv --keyring /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg "$d/SHA256SUMS.gpg" "$d/SHA256SUMS"
+        f=$SERIES-server-cloudimg-amd64.img
+        sum=$(awk -v f="$f" '$2 == f || $2 == "*" f { print $1 }' "$d/SHA256SUMS")
+        test -n "$sum" || { echo "::error::$f is not in $base/SHA256SUMS"; exit 1; }
+        h() { sha256sum "$1" | cut -c1-16; }
+        # the guest part: provisioning inputs only, so editing how the
+        # tests run must not reprovision. The ISO week bounds how far the
+        # guest can lag zfsutils updates published after the image. v3: the
+        # cache also holds the kernel and cmdline (until v5 also the
+        # initrd) for a direct kernel boot. v4: one entry holds the guest and the qemu tree, so
+        # the job pays one cache restore, not two (~2s of per-restore
+        # overhead for 23 MB, run 40494213342). v5: a slimmer entry (899 ->
+        # ~590 MB, ADR 0005 "cache bytes"): no initrd beside the disk, a
+        # slimmed guest, a trimmed qemu tree
+        guest=zfsvm-v5-$SERIES-$sum-$(date -u +%G-W%V)-$(h ci/real-zfs-cloud-config.yaml)
+        # the qemu part: the tree is unpacked from this runner image's apt
+        # view. A runner image release misses the full key but restores the
+        # guest through the fallback prefix, with the old tree
+        echo "vm=$guest-qemu-$ImageOS-$ImageVersion-$(h ci/qemu-tree.sh)" >>"$GITHUB_OUTPUT"
+        echo "vm-fallback=$guest-qemu-" >>"$GITHUB_OUTPUT"
+        echo "sums=$d" >>"$GITHUB_OUTPUT"

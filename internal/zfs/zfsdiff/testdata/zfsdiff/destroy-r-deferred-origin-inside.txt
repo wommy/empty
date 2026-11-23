@@ -1,0 +1,7 @@
+# destroy -r over a deferred origin and its clone in the same tree (crashed the HEAD simulator)
+# covers: destroy-r-clones
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/a/x
+zfs destroy -d $R/a@s1
+zfs destroy -r $R/a

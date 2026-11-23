@@ -1,0 +1,5 @@
+# inherit sharenfs on an unmounted filesystem whose parent shares mounts it
+# covers: sharenfs-unmounted
+zfs create -o sharenfs=on $R/a
+zfs create -u -o sharenfs=off $R/a/c
+zfs inherit sharenfs $R/a/c

@@ -1,0 +1,16 @@
+# Daily report-only Reconcile of one parent's endpoint
+# (zfs-endpoint-reconcile@.service: a dry run, never applied).
+#
+#   systemctl enable --now "zfs-endpoint-reconcile@$(systemd-escape tank/k8s/vols).timer"
+
+[Unit]
+Description=Daily ZFS endpoint reconcile report for dataset %I
+Documentation=https://github.com/wommy/empty
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

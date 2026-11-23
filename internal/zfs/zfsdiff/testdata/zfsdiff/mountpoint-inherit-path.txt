@@ -1,0 +1,6 @@
+# an inherited local mountpoint is the setpoint path plus the relative name
+# covers: misc
+zfs create -o mountpoint=none $R/a
+zfs create $R/a/c
+zfs set mountpoint=legacy $R/a
+zfs inherit mountpoint $R/a

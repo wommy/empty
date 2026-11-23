@@ -1,0 +1,4 @@
+# a thick volume larger than the pool fails out of space; sparse succeeds
+# covers: resv-auto
+zfs create -V 21474836480 $R/v
+zfs create -s -V 21474836480 $R/w

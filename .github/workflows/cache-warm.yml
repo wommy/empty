@@ -1,0 +1,225 @@
+name: cache-warm
+
+# Keeps ci.yml's caches warm where every PR can read them. A cache saved by
+# a pull_request run is scoped to that PR's merge ref; a scheduled or
+# workflow_dispatch run saves on the default branch, which every PR reads.
+# Without this, each new PR pays a cold guest (~115s), a cold qemu tree
+# (~13s) and a stale Go build cache. The guest and the qemu tree share one
+# cache entry, which ci.yml restores in one step. ADR 0005's 60s budget is for warm
+# caches.
+#
+# Hourly, so a new cloud image serial, the ISO-week roll of the guest key or
+# a runner image release leaves PRs cold for at most an hour. A run whose
+# caches are all current only looks the keys up (no download) and is done
+# in seconds.
+#
+# The keys come from the same actions ci.yml uses
+# (.github/actions/real-zfs-keys, .github/actions/setup-go), so they match by
+# construction. The Go builds below mirror the ci.yml jobs' build modes; if
+# a job's flags change, change them here too (a mismatch costs speed, never
+# correctness: a cache is only ever a build cache).
+
+on:
+  schedule:
+    - cron: "23 * * * *" # hourly, off the hour
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-warm
+  cancel-in-progress: false
+
+env:
+  GOTOOLCHAIN: local
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  go:
+    # one Go cache namespace per ci.yml job; the entry is keyed by go.sum
+    # and the commit, so it is rebuilt once per default-branch commit and
+    # older entries on the default branch are deleted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: write # delete superseded cache entries
+    strategy:
+      fail-fast: false
+      matrix:
+        # real-zfs-<suite>: one per real-ZFS VM job (ci/real-zfs-suites.txt;
+        # ci/check-suites.sh checks this list)
+        ns: [static, test, real-zfs-endpoint, real-zfs-csi]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: go
+        uses: ./.github/actions/setup-go
+        with:
+          cache-name: ${{ matrix.ns }}
+      - name: build what the ${{ matrix.ns }} job builds
+        if: steps.go.outputs.cache-hit != 'true'
+        env:
+          NS: ${{ matrix.ns }}
+          GORACE: atexit_sleep_ms=0
+        run: |
+          case $NS in
+            static)
+              # ci.yml static: tidy (module cache), vet, the protoc plugins
+              # buf generate runs, the fuzz seed replay's test builds
+              go mod download
+              go vet ./...
+              go tool protoc-gen-go --version
+              go tool protoc-gen-go-grpc --version
+              go test -count=1 -run '^$' ./...
+              ;;
+            test)
+              # ci.yml test: the -race build of every package (no tests run)
+              go test -race -count=1 -run '^$' ./...
+              ;;
+            real-zfs-*)
+              # ci/real-zfs-vm.sh with ZFSVM_SUITE: the static test binaries
+              # of this suite's packages, as that job builds them
+              mapfile -t pkgs < <(awk -v s="${NS#real-zfs-}" '!/^#/ && $1 == s { for (i = 2; i <= NF; i++) print "./internal/" $i }' ci/real-zfs-suites.txt)
+              test ${#pkgs[@]} -gt 0 || { echo "::error::$NS: no suite ${NS#real-zfs-} in ci/real-zfs-suites.txt"; exit 1; }
+              CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/" "${pkgs[@]}"
+              ;;
+          esac
+      - name: save Go caches
+        id: save
+        if: steps.go.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ steps.go.outputs.cache-key }}
+      - name: delete superseded entries of this namespace on this branch
+        # PRs restore the newest entry by prefix; older ones only take
+        # space from the repository's 10 GB cache budget
+        if: steps.save.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: go1.27.3-${{ matrix.ns }}-
+          KEEP: ${{ steps.go.outputs.cache-key }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" --key "$PREFIX" --limit 100 --json id,key \
+            --jq ".[] | select(.key != \"$KEEP\") | .id" |
+            while read -r id; do gh cache delete --repo "$GITHUB_REPOSITORY" "$id" || true; done
+
+  real-zfs:
+    # the provisioned guest and the qemu tree under ci.yml's keys, one entry
+    # that both suites' VM jobs (endpoint, csi) restore and boot; a guest
+    # is provisioned and stored only after a boot from the stored disk
+    # passes the version, module and nfsd checks (ZFSVM_PROVISION_ONLY: no
+    # tests, which ci.yml runs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: write # delete superseded guest entries
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: keys
+        uses: ./.github/actions/real-zfs-keys
+      # one entry holds the guest and the qemu tree (ci.yml restores it in
+      # one step). Three cases: the full key exists (nothing to do); only
+      # the guest part matches (a runner image release: restore it, build a
+      # fresh qemu tree, save under the new key, no reprovisioning); nothing
+      # matches (provision)
+      - name: look up the provisioned guest and qemu
+        id: probe
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
+          lookup-only: true
+      - name: restore the provisioned guest (another runner image's qemu)
+        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key != ''
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+          restore-keys: ${{ steps.keys.outputs.vm-fallback }}
+      - name: set up qemu
+        id: qemutree
+        if: steps.probe.outputs.cache-hit != 'true'
+        run: |
+          # always a fresh tree for this runner image: a restored one came
+          # from another image (ci.yml only verifies it, for speed)
+          rm -rf "$RUNNER_TEMP/qemu"
+          if ci/qemu-tree.sh "$RUNNER_TEMP/qemu"; then
+            echo "$RUNNER_TEMP/qemu/bin" >>"$GITHUB_PATH"
+            echo "ok=1" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::qemu tree unusable; installing qemu from apt"
+            # empty, so the guest is still saved; runs fall back to apt
+            rm -rf "$RUNNER_TEMP/qemu" && mkdir -p "$RUNNER_TEMP/qemu"
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils
+          fi
+          test -s /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg
+      - name: enable kvm
+        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key == ''
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -c /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends cloud-image-utils
+      - name: provision, store and check the guest
+        if: steps.probe.outputs.cache-hit != 'true' && steps.probe.outputs.cache-matched-key == ''
+        env:
+          ZFSVM_CACHE: ${{ runner.temp }}/zfsvm-cache
+          ZFSVM_SUMS: ${{ steps.keys.outputs.sums }}
+          ZFSVM_PROVISION_ONLY: "1"
+        run: ci/real-zfs-vm.sh stonking current 2.4
+      - name: check for a stored guest
+        id: stored
+        if: steps.probe.outputs.cache-hit != 'true'
+        run: test -f "$RUNNER_TEMP/zfsvm-cache/ok" && echo "ok=1" >>"$GITHUB_OUTPUT" || true
+      - name: save the provisioned guest and qemu
+        id: saveguest
+        if: steps.stored.outputs.ok == '1'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ${{ runner.temp }}/zfsvm-cache
+            ${{ runner.temp }}/qemu
+          key: ${{ steps.keys.outputs.vm }}
+      - name: delete superseded guests on this branch
+        # each is ~0.6 GB (v5; v4 was 0.9 GB) of the repository's 10 GB
+        # cache budget; this also removes older keys' guest entries (v3, v4,
+        # all under zfsvm-). The v3-era qemu-tree-* entries
+        # (23 MB) age out unused after 7 days
+        if: steps.saveguest.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: ${{ steps.keys.outputs.vm }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" --key zfsvm- --limit 100 --json id,key \
+            --jq ".[] | select(.key != \"$KEEP\") | .id" |
+            while read -r id; do gh cache delete --repo "$GITHUB_REPOSITORY" "$id" || true; done
+      - name: upload VM console
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cache-warm-vm-logs
+          path: |
+            ${{ runner.temp }}/zfsvm/*.log
+            ${{ runner.temp }}/zfsvm/user-data
+          if-no-files-found: ignore
+          retention-days: 14

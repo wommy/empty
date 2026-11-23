@@ -1,0 +1,11 @@
+# The zfs-csi image needs the module files and the Go packages it builds
+# (Dockerfile); everything else stays out of the build context, so a local
+# edit to docs, CI or manifests never invalidates the build cache.
+*
+!go.mod
+!go.sum
+!cmd/
+!gen/
+!internal/
+**/*_test.go
+**/testdata/

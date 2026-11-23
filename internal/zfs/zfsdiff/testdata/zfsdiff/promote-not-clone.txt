@@ -1,0 +1,8 @@
+# promote of a dataset that is not a clone; promote back
+# covers: promote
+zfs create $R/a
+zfs promote $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs promote $R/x
+zfs promote $R/a

@@ -1,0 +1,73 @@
+# Example classes, for NFS mode (ADR 0009): zfs-endpoint run with
+# -nfs-server (the drop-in
+# deploy/systemd/zfs-endpoint@.service.d/zfs-endpoint-nfs.conf.example)
+# and the node plugin (node.yaml). StorageClass parameters are immutable:
+# fix one by deleting and recreating the class.
+#
+# Parameters zfs-csi understands (internal/csi controller.go); any other
+# key is refused:
+#   - nfs.clients (required in NFS mode): comma-separated IPv4 networks,
+#     each with its /N ("10.20.0.0/24,10.20.1.0/24"), no broader than
+#     zfs-endpoint -nfs-min-prefix (default /16): the nodes that mount.
+#     Shipped as a placeholder that does not parse, so every PVC fails
+#     with ProvisioningFailed naming it until you replace <node-subnet>/24
+#     with your node network. Never a plausible stand-in such as a TEST-NET
+#     CIDR: it would export to nobody, and pods would hang at mount. Keep it
+#     as narrow as your nodes allow: every host, node and hostNetwork pod in
+#     these networks can mount every volume exported to them, as any uid
+#     but 0 (AUTH_SYS; ADR 0004). Firewall 2049 on the ZFS host to the node
+#     addresses (README, "Deploying the node side").
+#   - nfs.server: one of the endpoint's -nfs-server addresses (default the
+#     first). Advertise an IPv4 address or an FQDN with a trailing dot
+#     ("nas.example.com."): the node plugin resolves it with the node's
+#     resolver (node.yaml, dnsPolicy Default), and a trailing dot keeps any
+#     search list from turning it into another host's name;
+#   - nfs.uid, nfs.gid (decimal) and nfs.mode (octal, e.g. "2775"): the
+#     volume root's owner and mode, set before export (root_squash keeps
+#     anyone from changing them later). A pod's fsGroup has no effect
+#     (csidriver.yaml, fsGroupPolicy None): a non-root pod needs nfs.gid
+#     set to one of its groups (runAsGroup or supplementalGroups) and a
+#     setgid nfs.mode such as 2775. Shipped as placeholders that do not
+#     parse, like nfs.clients: replace <owner-uid>, <pod-gid> and
+#     <octal-mode> (e.g. 1000, 2000, 2775). Do not delete them: unset, the
+#     root stays root:root 0755, and under root_squash (root is mapped to
+#     nobody) no pod, root included, can write the volume it mounts;
+#   - reserve (filesystems: refreservation = capacity);
+#   - sparse (zvols, only with -enable-block; never in NFS mode).
+#
+# mountOptions: NFSv4.2 only, so no client falls back to v3 (which also
+# needs rpcbind 111 and mountd 20048 reachable; with 4.2 pinned the server
+# may turn v3 off and the firewall needs 2049 alone); hard, so I/O waits out
+# a server restart instead of returning EIO; nosuid and nodev, so a setuid
+# binary or device node on a volume grants nothing in the pods that mount
+# it. Not noexec: volumes may hold programs. The ZFS host's nfsd must serve
+# 4.2 (/proc/fs/nfsd/versions shows +4.2: the default of the kernel and
+# nfs-utils CI tests with).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: zfs
+provisioner: zfs-endpoint.wommy.github.io
+parameters:
+  nfs.clients: "<node-subnet>/24"
+  nfs.uid: "<owner-uid>"
+  nfs.gid: "<pod-gid>"
+  nfs.mode: "<octal-mode>"
+  reserve: "false"
+mountOptions:
+  - nfsvers=4.2
+  - hard
+  - nosuid
+  - nodev
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+---
+# Needs the snapshot CRDs and snapshot-controller installed cluster-wide
+# (kubernetes-csi/external-snapshotter); they are not part of this driver.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: zfs
+driver: zfs-endpoint.wommy.github.io
+deletionPolicy: Delete

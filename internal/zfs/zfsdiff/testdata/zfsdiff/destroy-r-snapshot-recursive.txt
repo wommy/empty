@@ -1,0 +1,7 @@
+# destroy -r fs@snap reaches descendants' snapshots even when fs@snap is missing
+# covers: destroy-r-clones
+zfs create $R/a
+zfs create $R/a/c
+zfs snapshot $R/a/c@s1
+zfs destroy -r $R/a@s1
+zfs destroy -r $R/a@s1

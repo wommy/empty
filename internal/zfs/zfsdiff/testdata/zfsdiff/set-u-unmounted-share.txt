@@ -1,0 +1,5 @@
+# set -u sharenfs on an unmounted filesystem leaves it unmounted; a plain set then mounts it (the endpoint's SetNoMount)
+# covers: set-u
+zfs create -u $R/a
+zfs set -u sharenfs=rw=@10.0.0.0/8 $R/a
+zfs set sharenfs=rw=@10.0.0.0/16 $R/a

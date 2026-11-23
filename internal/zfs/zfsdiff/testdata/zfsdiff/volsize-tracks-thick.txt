@@ -1,0 +1,4 @@
+# a thick volume's refreservation follows volsize (zfs_add_synthetic_resv)
+# covers: resv-auto
+zfs create -V 67108864 $R/v
+zfs set volsize=134217728 $R/v

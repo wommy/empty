@@ -1,0 +1,9 @@
+# destroy -r with a held snapshot: the walk destroys what it can and reports busy
+# covers: destroy-r-clones
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs create $R/a/x
+zfs hold t1 $R/a@s1
+zfs destroy -r $R/a
+zfs release t1 $R/a@s1
+zfs destroy -r $R/a

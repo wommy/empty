@@ -1,0 +1,5 @@
+# send -p | recv makes the source's local properties received on the target
+# covers: received
+zfs create -o zd:a=1 $R/a
+zfs snapshot $R/a@s1
+@sendrecv $R/a@s1 $R/r

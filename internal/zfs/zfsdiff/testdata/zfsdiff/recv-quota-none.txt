@@ -1,0 +1,7 @@
+# received refquota, then set refquota=none locally
+# covers: received
+zfs create -o refquota=1073741824 $R/a
+zfs snapshot $R/a@s1
+@sendrecv $R/a@s1 $R/r
+zfs set refquota=none $R/r
+zfs inherit -S refquota $R/r

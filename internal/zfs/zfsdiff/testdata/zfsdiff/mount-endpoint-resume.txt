@@ -1,0 +1,6 @@
+# the endpoint's resume of a filesystem its create left unmounted:
+# mount, then commit; a sharenfs=off volume is not shared by the mount
+# covers: mount
+zfs create -u -o sharenfs=off -o refquota=1073741824 $R/u
+zfs mount $R/u
+zfs set zd:a=committed $R/u

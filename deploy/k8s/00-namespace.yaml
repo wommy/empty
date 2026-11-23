@@ -1,0 +1,17 @@
+# The namespace every namespaced object in deploy/k8s lives in. Its own
+# file, named to sort first: `kubectl apply -f deploy/k8s/` applies files
+# in name order, and the Deployment and DaemonSet (controller.yaml,
+# node.yaml) are refused until it exists (deploy_test.go
+# TestNamespaceAppliesFirst).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zfs-csi
+  labels:
+    # the controller pod mounts a hostPath (the endpoint's socket
+    # directory), and the node plugin (node.yaml) is privileged, uses the
+    # host network and mounts hostPaths: Pod Security baseline and
+    # restricted refuse both. Say so here rather than inherit a cluster
+    # default that rejects the pods with only a FailedCreate event on the
+    # ReplicaSet or DaemonSet
+    pod-security.kubernetes.io/enforce: privileged

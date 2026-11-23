@@ -1,0 +1,7 @@
+# destroy -d marks a cloned snapshot; destroying the clone reaps it (dsl_destroy.c rmorigin)
+# covers: destroy-d
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs destroy -d $R/a@s1
+zfs destroy $R/x

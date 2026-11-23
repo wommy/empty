@@ -1,0 +1,4 @@
+# create -p makes and mounts missing ancestors
+# covers: create-p
+zfs create -p $R/a/b/c
+zfs create -p -o canmount=noauto $R/d/e

@@ -1,0 +1,8 @@
+# inherit -r clears children and skips types the property does not apply to
+# covers: inherit
+zfs create -o zd:a=1 $R/a
+zfs create -o zd:a=2 $R/a/c
+zfs create -V 67108864 -o zd:a=3 $R/a/w
+zfs inherit -r zd:a $R/a
+zfs set atime=off $R/a/c
+zfs inherit -r atime $R/a

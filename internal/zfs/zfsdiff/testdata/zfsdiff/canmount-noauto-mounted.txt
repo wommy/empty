@@ -1,0 +1,5 @@
+# canmount=noauto on a mounted filesystem leaves it mounted
+# covers: sharenfs-unmounted
+zfs create $R/a
+zfs set canmount=noauto $R/a
+zfs set canmount=off $R/a

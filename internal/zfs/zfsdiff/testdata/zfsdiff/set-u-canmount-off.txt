@@ -1,0 +1,4 @@
+# set -u canmount=off leaves a mounted filesystem mounted
+# covers: set-u
+zfs create $R/a
+zfs set -u canmount=off $R/a

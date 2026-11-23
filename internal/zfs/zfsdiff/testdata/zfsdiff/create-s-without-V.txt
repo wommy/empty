@@ -1,0 +1,3 @@
+# -s without -V is a usage error (exit 2)
+# covers: create-p
+zfs create -s $R/a

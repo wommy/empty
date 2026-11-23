@@ -1,0 +1,5 @@
+# a zvol snapshot keeps its volsize when the volume grows (known simulator gap at HEAD), source local
+# covers: resv-auto
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+zfs set volsize=134217728 $R/v

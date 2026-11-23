@@ -1,0 +1,5 @@
+# refreservation=auto on a filesystem
+# covers: resv-auto
+zfs create $R/a
+zfs set refreservation=auto $R/a
+zfs create -o refreservation=auto $R/b

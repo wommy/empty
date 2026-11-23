@@ -1,0 +1,8 @@
+# received sharenfs (the endpoint refuses to override it): set local, plain inherit, inherit -S
+# covers: received
+zfs create -o sharenfs=rw=@10.0.0.0/8 $R/a
+zfs snapshot $R/a@s1
+@sendrecv $R/a@s1 $R/r
+zfs set sharenfs=off $R/r
+zfs inherit sharenfs $R/r
+zfs inherit -S sharenfs $R/r

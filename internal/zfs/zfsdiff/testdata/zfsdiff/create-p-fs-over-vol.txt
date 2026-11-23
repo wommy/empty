@@ -1,0 +1,4 @@
+# create -p of a filesystem where a volume exists: the existence check is type-specific (zfs_main.c zfs_dataset_exists(name, type))
+# covers: create-p
+zfs create -V 67108864 $R/v
+zfs create -p $R/v

@@ -1,0 +1,7 @@
+# hold -r and release -r across children
+# covers: holds
+zfs create $R/a
+zfs create $R/a/c
+zfs snapshot -r $R/a@s1
+zfs hold -r t1 $R/a@s1
+zfs release -r t1 $R/a@s1

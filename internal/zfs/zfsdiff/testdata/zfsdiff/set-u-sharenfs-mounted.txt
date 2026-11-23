@@ -1,0 +1,4 @@
+# set -u sharenfs on a mounted filesystem: still mounted
+# covers: set-u
+zfs create $R/a
+zfs set -u sharenfs=on $R/a

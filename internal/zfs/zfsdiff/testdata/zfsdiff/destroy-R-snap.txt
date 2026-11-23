@@ -1,0 +1,6 @@
+# destroy -R destroys clones then the snapshot (not in the simulator)
+# covers: destroy-r-clones
+zfs create $R/a
+zfs snapshot $R/a@s1
+zfs clone $R/a@s1 $R/x
+zfs destroy -R $R/a@s1

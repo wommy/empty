@@ -1,0 +1,4 @@
+# mountpoint=none: sharenfs cannot mount
+# covers: sharenfs-unmounted
+zfs create -o mountpoint=none $R/a
+zfs set sharenfs=on $R/a

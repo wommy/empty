@@ -1,0 +1,307 @@
+syntax = "proto3";
+
+// ZFS endpoint: idempotent volume and snapshot lifecycle on one ZFS parent
+// dataset, for thin CSI (or other) front ends.
+//
+// Contract, mirroring CSI so front ends translate field-for-field:
+// - Create* are idempotent by name; a compatible repeat returns the existing
+//   object, an incompatible one ALREADY_EXISTS.
+// - Delete* of a missing object is OK.
+// - A busy resource is ABORTED before the caller's deadline; retry.
+// - Volumes with snapshots or dependent clones fail DeleteVolume with
+//   FAILED_PRECONDITION and are left unchanged.
+package zfsendpoint.v1;
+
+option go_package = "github.com/wommy/empty/gen/zfsendpoint/v1;zfsendpointv1";
+
+service EndpointService {
+  // Feature detection: front ends of any version ask what this daemon does.
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse);
+
+  rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
+  rpc DeleteVolume(DeleteVolumeRequest) returns (DeleteVolumeResponse);
+  rpc ExpandVolume(ExpandVolumeRequest) returns (ExpandVolumeResponse);
+  rpc GetVolume(GetVolumeRequest) returns (GetVolumeResponse);
+  rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
+
+  rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse);
+  rpc DeleteSnapshot(DeleteSnapshotRequest) returns (DeleteSnapshotResponse);
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+
+  rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+
+  // Garbage collection, off the request path: uncommitted volumes left by
+  // abandoned creates, clone-source snapshots whose clone is gone, and owned
+  // volumes outside the caller's desired set. Never touches unowned
+  // datasets, desired volumes, CSI snapshots, or volumes with snapshots or
+  // dependent clones (those are reported in skipped).
+  rpc Reconcile(ReconcileRequest) returns (ReconcileResponse);
+
+  // NFS export of FILESYSTEM volumes, one client at a time (CSI
+  // ControllerPublish/Unpublish). Offered only with CAPABILITY_FILE_EXPORT;
+  // otherwise UNIMPLEMENTED.
+  // - Publishing the same client in the same mode again is OK; in the other
+  //   mode ALREADY_EXISTS.
+  // - Unpublishing a client (or volume) that is not exported is OK.
+  // - BLOCK volumes and filesystems not mounted on the storage host are
+  //   FAILED_PRECONDITION.
+  // - OK means the NFS server serves (or no longer serves) the client; if it
+  //   does not, UNAVAILABLE, and a retry re-applies.
+  rpc PublishFileExport(PublishFileExportRequest) returns (PublishFileExportResponse);
+  rpc UnpublishFileExport(UnpublishFileExportRequest) returns (UnpublishFileExportResponse);
+}
+
+enum Capability {
+  CAPABILITY_UNSPECIFIED = 0;
+  CAPABILITY_VOLUMES = 1;
+  CAPABILITY_SNAPSHOTS = 2;
+  CAPABILITY_CLONE_FROM_SNAPSHOT = 3;
+  CAPABILITY_CLONE_FROM_VOLUME = 4;
+  CAPABILITY_EXPAND = 5;
+  CAPABILITY_LIST = 6;
+  CAPABILITY_CAPACITY = 7;
+  // CreateVolumeRequest.properties is honoured (default-deny allowlist).
+  CAPABILITY_PROPERTIES = 8;
+  CAPABILITY_FILE_EXPORT = 9; // PublishFileExport/UnpublishFileExport
+  CAPABILITY_RECONCILE = 10;
+  // reserved for upcoming edges: block export, metadata (CBT), modify
+}
+
+message GetCapabilitiesRequest {}
+message GetCapabilitiesResponse {
+  repeated Capability capabilities = 1;
+  // the parent dataset this endpoint manages
+  string parent = 2;
+  string version = 3;
+  // The NFS server addresses (IPv4 or DNS names) clients mount this
+  // endpoint's volumes from, in order (-nfs-server). Non-empty only with
+  // CAPABILITY_FILE_EXPORT; a front end serving volumes over NFS needs one
+  // (CreateVolumeRequest.nfs_export.server).
+  repeated string nfs_servers = 4;
+}
+
+enum VolumeKind {
+  VOLUME_KIND_UNSPECIFIED = 0; // treated as FILESYSTEM
+  VOLUME_KIND_FILESYSTEM = 1;
+  VOLUME_KIND_BLOCK = 2;
+}
+
+message Volume {
+  string id = 1;
+  string name = 2;
+  string dataset = 3;
+  VolumeKind kind = 4;
+  uint64 capacity_bytes = 5;
+  // "snapshot", "volume" or empty
+  string source_type = 6;
+  string source_id = 7;
+  string device_path = 8; // BLOCK, on the storage host
+  string mountpoint = 9;  // FILESYSTEM
+  // FILESYSTEM, unset when the volume has neither: server is the NFS server
+  // address recorded at create (set on the volume itself, never inherited
+  // or received), fixed for the volume's life; clients and read_only are
+  // its local sharenfs when that is in the endpoint's grammar, read fresh
+  // (read_only: every client is read-only).
+  NFSExport nfs = 10;
+}
+
+// A static NFS export, set with the volume at create.
+message NFSExport {
+  // IPv4 networks, each written with its prefix length and host bits zero
+  // ("10.20.0.0/24", "10.20.0.5/32"), none broader than the endpoint's
+  // -nfs-min-prefix, none overlapping another.
+  repeated string clients = 1;
+  bool read_only = 2;
+  // One of GetCapabilitiesResponse.nfs_servers; empty is the first. A
+  // committed volume keeps the server it was created with: another one
+  // explicitly is ALREADY_EXISTS, an empty one returns the recorded one.
+  string server = 3;
+  // CreateVolume only: the owner and mode the volume's root directory is
+  // given before the volume is committed (under root_squash a root:root
+  // 0755 root is writable by no client). Unset leaves that one as the
+  // create made it: root:root 0755, or a clone's source's. uid and gid
+  // are at most 2147483647, mode at most 07777 (permission bits); else
+  // INVALID_ARGUMENT. File metadata, not volume state: never reported,
+  // and a repeat of a committed create is not compared on them.
+  optional uint32 uid = 4;
+  optional uint32 gid = 5;
+  optional uint32 mode = 6;
+}
+
+message Snapshot {
+  // "<volume id>@<component>", where component is name itself when it is a
+  // valid zfs snapshot name and the id fits CSI's 128 bytes, else "csi-"
+  // and 32 hex digits of name's sha256. Opaque: look snapshots up by id,
+  // never rebuild it from name.
+  string id = 1;
+  string name = 2;
+  string source_volume_id = 3;
+  uint64 size_bytes = 4;
+  int64 creation_unix = 5;
+  bool ready_to_use = 6;
+}
+
+message CreateVolumeRequest {
+  string name = 1;
+  VolumeKind kind = 2;
+  uint64 capacity_bytes = 3;
+  uint64 limit_bytes = 4;
+  bool sparse = 5;  // BLOCK: no refreservation
+  bool reserve = 6; // FILESYSTEM: refreservation = capacity
+  oneof source {
+    string source_snapshot_id = 7;
+    string source_volume_id = 8;
+  }
+  // Native ZFS properties applied at create (StorageClass parameters).
+  // Default-deny: only an allowlist is accepted, per kind, with validated
+  // values; anything else, including user properties ("a:b"), is
+  // INVALID_ARGUMENT.
+  //   FILESYSTEM: compression, recordsize, atime, relatime, sync, logbias,
+  //               dedup (off|on|verify), xattr (sa|off), acltype,
+  //               snapdir (hidden|visible|disabled)
+  //   BLOCK:      compression, volblocksize (create-only; a clone must match
+  //               its source), sync, logbias, dedup, copies
+  // A repeat with the same name is compatible only if every requested
+  // property is set locally on the volume with the same value; otherwise
+  // ALREADY_EXISTS.
+  map<string, string> properties = 9;
+  // FILESYSTEM only (BLOCK is INVALID_ARGUMENT), and only when the endpoint
+  // advertises nfs_servers (else FAILED_PRECONDITION). The volume is
+  // created with this export and committed once the NFS server serves
+  // every client (else UNAVAILABLE, uncommitted, and a retry converges).
+  // A repeat is compatible only with the same clients and mode (in any
+  // order) and the same or no server.
+  NFSExport nfs_export = 10;
+}
+
+message DeleteVolumeRequest { string volume_id = 1; }
+message DeleteVolumeResponse {}
+
+message ExpandVolumeRequest {
+  string volume_id = 1;
+  uint64 capacity_bytes = 2;
+  uint64 limit_bytes = 3;
+}
+
+message GetVolumeRequest { string volume_id = 1; }
+
+message ListVolumesRequest {
+  int32 max_entries = 1;
+  string starting_token = 2;
+}
+message ListVolumesResponse {
+  repeated Volume volumes = 1;
+  string next_token = 2;
+}
+
+message CreateSnapshotRequest {
+  string name = 1;
+  string source_volume_id = 2;
+}
+message DeleteSnapshotRequest { string snapshot_id = 1; }
+message DeleteSnapshotResponse {}
+
+message ListSnapshotsRequest {
+  string snapshot_id = 1;
+  string source_volume_id = 2;
+  int32 max_entries = 3;
+  string starting_token = 4;
+}
+message ListSnapshotsResponse {
+  repeated Snapshot snapshots = 1;
+  string next_token = 2;
+}
+
+message GetCapacityRequest {}
+message GetCapacityResponse { uint64 available_bytes = 1; }
+
+message CreateVolumeResponse { Volume volume = 1; }
+
+message ExpandVolumeResponse { Volume volume = 1; }
+
+message GetVolumeResponse { Volume volume = 1; }
+
+message CreateSnapshotResponse { Snapshot snapshot = 1; }
+
+message ReconcileRequest {
+  // The complete set of volume ids the caller wants kept. Every other owned,
+  // committed volume is collected. Empty collects no committed volume: it
+  // cannot be told apart from a caller that sent nothing. A set naming none
+  // of the endpoint's volumes counts as empty. An id that names no volume,
+  // including one the endpoint could never issue (another driver's
+  // "ns/pv"), neither protects nor dooms any volume, and the run goes on.
+  // skipped reports such ids ("desired volume does not exist") so that the
+  // answer stays bounded: the first 1000 in sorted order (a long id
+  // shortened), then, if more are missing, one entry whose target is
+  // "(N more)". An id absent from skipped is therefore not proof that it
+  // names a volume. An empty id, or more than 250000 ids, is
+  // INVALID_ARGUMENT.
+  repeated string desired_volume_ids = 1;
+  // Nothing created (or committed) less than this long ago is touched
+  // (in-flight creates, volumes newer than the caller's desired set).
+  // 0 means one hour; below 600 (ten minutes) is INVALID_ARGUMENT.
+  uint64 min_age_seconds = 2;
+  // Return the plan without locking or applying it.
+  bool dry_run = 3;
+  // At most this many committed volumes may be collected as undesired in
+  // one run; a plan with more applies nothing and fails with
+  // FAILED_PRECONDITION (a truncated or wrong desired set must not empty
+  // the parent). 0 means 10. Uncommitted rows and orphan clone sources do
+  // not count.
+  uint32 max_deletions = 4;
+  // Lift max_deletions. Setting both is INVALID_ARGUMENT.
+  bool unlimited_deletions = 5;
+  // The plan_digest of a dry run. When set, the run applies only if it
+  // plans exactly what that dry run did, else ABORTED (dry-run again);
+  // what runs is always a subset of it. Required when the run would
+  // collect any volume as not in the desired set: without it such a run
+  // applies nothing and fails with FAILED_PRECONDITION (ADR 0001 D3).
+  // Uncommitted rows and orphan clone sources alone need none.
+  string plan_digest = 6;
+}
+
+message ReconcileAction {
+  string op = 1;     // "destroy" or "destroy-deferred"
+  string target = 2; // "<volume id>" or "<volume id>@<snapshot>"
+  string reason = 3;
+}
+
+message ReconcileSkip {
+  string target = 1;
+  string reason = 2;
+}
+
+message ReconcileResponse {
+  // done (or, for a dry run, planned), in order
+  repeated ReconcileAction actions = 1;
+  // left alone, with why; an action that failed is here with
+  // "failed: <error>", and the run went on
+  repeated ReconcileSkip skipped = 2;
+  // digest of the plan (for a dry run, to echo in plan_digest)
+  string plan_digest = 3;
+}
+
+message PublishFileExportRequest {
+  string volume_id = 1;
+  // an IPv4 address or IPv4 CIDR ("10.0.0.0/24", host bits zero); no
+  // hostnames (nfs-utils drops a name it cannot resolve on any later
+  // exportfs), wildcards, netgroups or IPv6. Publish also refuses networks
+  // broader than the endpoint's -nfs-min-prefix (default /16), and one that
+  // overlaps a network the volume is already exported to.
+  string client = 2;
+  bool read_only = 3;
+}
+message PublishFileExportResponse {
+  // The volume's mountpoint: the bare path a client mounts from the storage
+  // host, with no "server:" part (the front end knows the host's address).
+  // It is read fresh on every call: use it, do not store it. CSI passes no
+  // export in publish_context: ADR 0004 hands the node side (csi-driver-nfs)
+  // "server" and "share" in volume_context.
+  string export_path = 1;
+}
+
+message UnpublishFileExportRequest {
+  string volume_id = 1;
+  string client = 2;
+}
+message UnpublishFileExportResponse {}

@@ -1,0 +1,4 @@
+# a custom refreservation does not track volsize
+# covers: resv-auto
+zfs create -V 67108864 -o refreservation=10485760 $R/v
+zfs set volsize=134217728 $R/v

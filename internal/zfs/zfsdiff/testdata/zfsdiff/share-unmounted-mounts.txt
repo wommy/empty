@@ -1,0 +1,4 @@
+# plain set sharenfs on an unmounted canmount=on filesystem mounts it (changelist_postfix)
+# covers: sharenfs-unmounted
+zfs create -u $R/a
+zfs set sharenfs=on $R/a

@@ -1,0 +1,6 @@
+# mountpoint change or inherit on a mounted filesystem with a pinned child mounted inside it fails busy and changes nothing
+# covers: mount
+zfs create -o mountpoint=/zzbusy-mp/a $R/a
+zfs create -o mountpoint=/zzbusy-mp/a/b $R/a/b
+zfs set mountpoint=/zzbusy-mp/c $R/a
+zfs inherit mountpoint $R/a

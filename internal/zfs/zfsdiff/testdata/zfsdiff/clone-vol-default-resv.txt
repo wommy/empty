@@ -1,0 +1,5 @@
+# a volume clone without options has no refreservation
+# covers: resv-auto
+zfs create -V 67108864 $R/v
+zfs snapshot $R/v@s1
+zfs clone $R/v@s1 $R/x

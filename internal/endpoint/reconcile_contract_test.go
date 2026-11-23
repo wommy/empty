@@ -1,0 +1,369 @@
+package endpoint_test
+
+import (
+	"context"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/wommy/empty/internal/endpoint"
+	"github.com/wommy/empty/internal/zfs"
+)
+
+// Reconcile contract tests: simulator or, with ZFS_TEST_POOL, a real pool.
+// The endpoint's clock is moved forward so everything made here is old.
+
+func later(t *testing.T, ep *endpoint.Endpoint, h *harness) *endpoint.Endpoint {
+	t.Helper()
+	ep2, err := endpoint.New(h.Z, endpoint.Config{Parent: h.Parent, LockWait: time.Second,
+		Now: func() time.Time { return time.Now().Add(48 * time.Hour) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ep2
+}
+
+// digested is r with the plan_digest of a dry run of it: a run that
+// collects an undesired volume needs one (ADR 0001 v2 D3).
+func digested(ctx context.Context, t testing.TB, ep *endpoint.Endpoint, r endpoint.ReconcileRequest) endpoint.ReconcileRequest {
+	t.Helper()
+	dry := r
+	dry.DryRun = true
+	p, err := ep.Reconcile(ctx, dry)
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	r.PlanDigest = p.Digest
+	return r
+}
+
+func targets(p endpoint.ReconcilePlan) (acts, skips []string) {
+	for _, a := range p.Actions {
+		acts = append(acts, a.Target)
+	}
+	for _, s := range p.Skipped {
+		skips = append(skips, s.Target)
+	}
+	return
+}
+
+func TestReconcileCollectsAbandonedCreate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	// a CreateVolume that crashed before its commit marker, never retried
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/abandoned", map[string]string{
+		"zfs-endpoint:managed_resource": "true",
+		"zfs-endpoint:csi_volume_name":  "abandoned",
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	// just made: it may be in flight
+	p, err := ep.Reconcile(ctx, endpoint.ReconcileRequest{})
+	if err != nil || len(p.Actions) != 0 || len(p.Skipped) != 1 || p.Skipped[0].Reason != endpoint.SkipTooYoung {
+		t.Fatalf("young: %+v %v", p, err)
+	}
+
+	old := later(t, ep, h)
+	dry, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DryRun: true})
+	if acts, _ := targets(dry); err != nil || !slices.Equal(acts, []string{"abandoned"}) || dry.Actions[0].Reason != endpoint.ReasonUncommitted {
+		t.Fatalf("dry run: %+v %v", dry, err)
+	}
+	if !h.Has(h.Parent + "/abandoned") {
+		t.Fatal("dry run applied")
+	}
+	if _, err := old.Reconcile(ctx, endpoint.ReconcileRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if h.Has(h.Parent + "/abandoned") {
+		t.Fatal("abandoned create not collected")
+	}
+	if again, err := old.Reconcile(ctx, endpoint.ReconcileRequest{}); err != nil || len(again.Actions) != 0 {
+		t.Fatalf("second reconcile: %+v %v", again, err)
+	}
+}
+
+func TestReconcileCollectsLeakedCloneSource(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "src", CapacityBytes: 1 << 30}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "clone", CapacityBytes: 1 << 30, SourceVolumeID: "src"}); err != nil {
+		t.Fatal(err)
+	}
+	// the endpoint stamps the snapshot it cuts, at creation
+	cut := h.Parent + "/src@volume-source-for-volume-clone"
+	if h.Prop(cut, "zfs-endpoint:managed_resource") != "true" || h.Prop(cut, "zfs-endpoint:clone_source_for") != "clone" {
+		t.Fatal("clone source not stamped")
+	}
+	// review H3: a clone that failed after its source snapshot was cut
+	leaked := h.Parent + "/src@volume-source-for-volume-failed"
+	if err := h.Z.Snapshot(ctx, leaked, map[string]string{
+		"zfs-endpoint:managed_resource": "true", "zfs-endpoint:clone_source_for": "failed",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// the reserved name alone is not ownership
+	manual := h.Parent + "/src@volume-source-for-volume-manual"
+	if err := h.Z.Snapshot(ctx, manual, nil); err != nil {
+		t.Fatal(err)
+	}
+	old := later(t, ep, h)
+	p, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"src", "clone"}})
+	if acts, skips := targets(p); err != nil || !slices.Equal(acts, []string{"src@volume-source-for-volume-failed"}) ||
+		!slices.Equal(skips, []string{"src@volume-source-for-volume-manual"}) {
+		t.Fatalf("plan %+v %v", p, err)
+	}
+	if h.Has(leaked) {
+		t.Fatal("leaked clone source not collected")
+	}
+	if !h.Has(manual) {
+		t.Fatal("unstamped snapshot with the reserved name collected")
+	}
+	if !h.Has(h.Parent+"/src@volume-source-for-volume-clone") || !h.Has(h.Parent+"/clone") {
+		t.Fatal("clone source in use was collected")
+	}
+}
+
+func TestReconcileAgainstDesiredSet(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	for _, name := range []string{"keep", "drop", "snapped", "src"} {
+		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: "clone", CapacityBytes: 1 << 30, SourceVolumeID: "src"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.CreateSnapshot(ctx, "snap-1", "snapped"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/foreign", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	old := later(t, ep, h)
+
+	// an empty set is not a statement that nothing is wanted
+	p, err := old.Reconcile(ctx, endpoint.ReconcileRequest{})
+	if err != nil || len(p.Actions) != 0 {
+		t.Fatalf("empty desired set: %+v %v", p, err)
+	}
+
+	want := []string{"keep", "gone-pvc"}
+	p, err = old.Reconcile(ctx, digested(ctx, t, old, endpoint.ReconcileRequest{DesiredVolumeIDs: want}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	acts, skips := targets(p)
+	// the clone's source snapshot released (deferred) with the clone, then
+	// the freed source
+	if !slices.Equal(acts, []string{"src@volume-source-for-volume-clone", "clone", "drop", "src"}) {
+		t.Fatalf("actions %q", acts)
+	}
+	if !slices.Equal(skips, []string{"gone-pvc", "snapped"}) {
+		t.Fatalf("skipped %+v", p.Skipped)
+	}
+	for _, gone := range []string{"clone", "drop", "src"} {
+		if h.Has(h.Parent + "/" + gone) {
+			t.Errorf("%s not collected", gone)
+		}
+	}
+	for _, kept := range []string{"keep", "snapped", "snapped@snap-1", "foreign"} {
+		if !h.Has(h.Parent + "/" + kept) {
+			t.Errorf("%s destroyed", kept)
+		}
+	}
+	if again, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: want}); err != nil || len(again.Actions) != 0 {
+		t.Fatalf("second reconcile: %+v %v", again, err)
+	}
+
+	// an id the endpoint could never issue names nothing (S8): skipped,
+	// not a failed run; an empty id is malformed
+	plan, err := old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: append([]string{"bad/id"}, want...)})
+	if err != nil || len(plan.Actions) != 0 ||
+		!slices.Contains(plan.Skipped, endpoint.ReconcileSkip{Target: "bad/id", Reason: endpoint.SkipDesiredMissing}) {
+		t.Fatalf("non-issuable desired id: %+v %v", plan, err)
+	}
+	_, err = old.Reconcile(ctx, endpoint.ReconcileRequest{DesiredVolumeIDs: []string{""}})
+	wantCode(t, err, endpoint.InvalidArgument)
+}
+
+// parked holds the first zfs call made after arm, outside the sim's own
+// lock, until release is closed.
+type parked struct {
+	zfs.Runner
+	mu      sync.Mutex
+	armed   bool
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (g *parked) arm() {
+	g.mu.Lock()
+	g.armed = true
+	g.mu.Unlock()
+}
+
+func (g *parked) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	g.mu.Lock()
+	hold := g.armed
+	g.armed = false
+	g.mu.Unlock()
+	if hold {
+		close(g.entered)
+		<-g.release
+	}
+	return g.Runner.Run(ctx, name, args...)
+}
+
+// Reconcile takes the lock of everything it touches, without waiting: a
+// volume another operation holds is skipped as busy, and the rest of the
+// run goes on. A dry run takes no locks.
+func TestReconcileLocksTargets(t *testing.T) {
+	requireSim(t)
+	t.Parallel()
+	ctx := context.Background()
+	ep0, h := setup(t)
+	g := &parked{Runner: h.Sim(t), entered: make(chan struct{}), release: make(chan struct{})}
+	ep, err := endpoint.New(zfs.New(g), endpoint.Config{Parent: h.Parent, LockWait: 200 * time.Millisecond,
+		Now: func() time.Time { return time.Now().Add(48 * time.Hour) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"keep", "busy", "free"} {
+		if _, err := ep0.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// an ExpandVolume holding vol:busy, parked in its scan
+	g.arm()
+	done := make(chan error)
+	go func() { _, err := ep.ExpandVolume(ctx, "busy", 2<<30, 0); done <- err }()
+	<-g.entered
+
+	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
+	p, err := ep.Reconcile(ctx, digested(ctx, t, ep, keep))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !h.Has(h.Parent + "/busy") {
+		t.Fatal("destroyed a volume another operation held")
+	}
+	if acts, skips := targets(p); !slices.Equal(acts, []string{"free"}) || !slices.Equal(skips, []string{"busy"}) ||
+		p.Skipped[0].Reason != endpoint.SkipBusy || h.Has(h.Parent+"/free") {
+		t.Fatalf("busy volume: %+v", p)
+	}
+	dry := keep
+	dry.DryRun = true
+	if p, err := ep.Reconcile(ctx, dry); err != nil || len(p.Actions) != 1 {
+		t.Fatalf("dry run: %+v %v", p, err)
+	}
+	close(g.release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ep.Reconcile(ctx, digested(ctx, t, ep, keep)); err != nil || h.Has(h.Parent+"/busy") {
+		t.Fatalf("after release: %v", err)
+	}
+}
+
+// ADR 0001 v2 D3: a run that would collect a volume the caller merely left
+// out of its desired set needs the digest of a dry run. Without one it
+// applies nothing, not even the collections that need no digest; with
+// one it runs. Uncommitted rows and orphan clone sources alone need none
+// (TestReconcileCollectsAbandonedCreate).
+func TestReconcileNeedsADigestToCollectUndesired(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	for _, name := range []string{"keep", "drop"} {
+		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := h.Z.CreateFilesystem(ctx, h.Parent+"/abandoned", map[string]string{
+		"zfs-endpoint:managed_resource": "true",
+		"zfs-endpoint:csi_volume_name":  "abandoned",
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	old := later(t, ep, h)
+	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
+
+	p, err := old.Reconcile(ctx, keep)
+	wantCode(t, err, endpoint.FailedPrecondition)
+	if !h.Has(h.Parent+"/drop") || !h.Has(h.Parent+"/abandoned") || p.Digest == "" {
+		t.Fatalf("a blind run applied something, or named no digest: %+v", p)
+	}
+	p, err = old.Reconcile(ctx, digested(ctx, t, old, keep))
+	if acts, _ := targets(p); err != nil || !slices.Equal(acts, []string{"abandoned", "drop"}) {
+		t.Fatalf("digested run: %+v %v", p, err)
+	}
+	if h.Has(h.Parent+"/drop") || h.Has(h.Parent+"/abandoned") || !h.Has(h.Parent+"/keep") {
+		t.Fatal("digested run did not collect")
+	}
+}
+
+// The digest names each destroy target's guid, not only its name: after
+// a dry run, the undesired volume is renamed away and another made under
+// its name with the same markers. A run echoing the dry run's digest must
+// not destroy what the caller never saw: it plans the impostor's guid, so
+// the digest differs and nothing is applied.
+func TestReconcileDigestCoversTheGuid(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ep, h := setup(t)
+	for _, name := range []string{"keep", "drop"} {
+		if _, err := ep.CreateVolume(ctx, endpoint.CreateVolumeRequest{Name: name, CapacityBytes: 1 << 30}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := later(t, ep, h)
+	keep := endpoint.ReconcileRequest{DesiredVolumeIDs: []string{"keep"}}
+	r := digested(ctx, t, old, keep)
+	again := digested(ctx, t, old, keep)
+	if r.PlanDigest != again.PlanDigest {
+		t.Fatalf("identical dry runs digest differently: %s, %s", r.PlanDigest, again.PlanDigest)
+	}
+
+	drop := h.Parent + "/drop"
+	p := endpoint.DefaultPropertyPrefix + ":"
+	marks := []string{p + "managed_resource", p + "provision_success", p + "committed_at", p + "csi_volume_name"}
+	d, err := h.Z.Get(ctx, drop, append(marks, "guid")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"create", "-o", "canmount=noauto"}
+	for _, k := range marks {
+		if v := d.Props[k]; v.Local() {
+			args = append(args, "-o", k+"="+v.Value)
+		}
+	}
+	if _, err := h.Z.Runner.Run(ctx, "zfs", "rename", drop, drop+"-moved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Z.Runner.Run(ctx, "zfs", append(args, drop)...); err != nil {
+		t.Fatal(err)
+	}
+	imp, err := h.Z.Get(ctx, drop, "guid")
+	if err != nil || imp.Props["guid"].Value == d.Props["guid"].Value {
+		t.Fatalf("impostor guid %v: %v", imp.Props["guid"], err)
+	}
+
+	got, err := old.Reconcile(ctx, r)
+	if c := endpoint.CodeOf(err); c != endpoint.Aborted && c != endpoint.FailedPrecondition {
+		t.Fatalf("run after the swap: %+v %v (code %d), want Aborted or FailedPrecondition", got, err, c)
+	}
+	now, err := h.Z.Get(ctx, drop, "guid")
+	if err != nil || now.Props["guid"].Value != imp.Props["guid"].Value {
+		t.Fatalf("the impostor at %s was destroyed (%v)", drop, err)
+	}
+	if !h.Has(drop+"-moved") || !h.Has(h.Parent+"/keep") {
+		t.Fatal("the run applied something")
+	}
+}
