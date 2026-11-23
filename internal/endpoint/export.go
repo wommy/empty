@@ -300,6 +300,12 @@ func ParseEtab(b []byte) Etab {
 		if !ok {
 			continue
 		}
+		if strings.HasPrefix(host, "-") {
+			// mountd's getexportent reads a '-' client as default options,
+			// fails on the "(", and export_read stops reading the etab
+			// (exports.c:150-161, export.c:122): nothing after this line is served.
+			break
+		}
 		c := NFSClient{Host: strings.ToLower(host)}
 		switch opts[:strings.IndexAny(opts+",", ",)")] {
 		case "ro":

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/wommy/empty/internal/nfsref"
 	"github.com/wommy/empty/internal/zfs"
 )
 
@@ -576,5 +578,39 @@ func TestExportConverges(t *testing.T) {
 	}
 	if row.ShareNFS != "off" || !row.ShareNFSLocal {
 		t.Fatalf("final sharenfs %q local=%v", row.ShareNFS, row.ShareNFSLocal)
+	}
+}
+
+// TestParseEtabStopsAtDashClient: mountd's getexportent reads a '-' client
+// as default options, fails on the "(", and export_read stops reading the
+// etab, so the lines after it are never served. ParseEtab keeps the lines
+// before it and drops that line and everything after.
+func TestParseEtabStopsAtDashClient(t *testing.T) {
+	const p = "/tank/v/a"
+	for _, tc := range []struct {
+		name, etab string
+		hosts      []string // served clients, as ParseEtab keeps them
+	}{
+		{"default options", p + "\t10.0.0.1(ro)\n" + p + "\t-()\n" + p + "\t10.0.0.2(rw)\n", []string{"10.0.0.1"}},
+		{"default options with list", p + "\t10.0.0.1(ro)\n" + p + "\t-x(rw)\n" + "/tank/other\t10.0.0.3(rw)\n", []string{"10.0.0.1"}},
+		{"dash first", p + "\t-(ro)\n" + p + "\t10.0.0.4(ro)\n", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := ParseEtab([]byte(tc.etab))
+			var got []string
+			for _, c := range e[p] {
+				got = append(got, c.Host)
+			}
+			if !slices.Equal(got, tc.hosts) {
+				t.Fatalf("%s: ParseEtab hosts %v, want %v", p, got, tc.hosts)
+			}
+			total := 0
+			for _, cs := range e {
+				total += len(cs)
+			}
+			if n := len(nfsref.LoadEtab(tc.etab, nil).Exports()); n != total {
+				t.Fatalf("mountd serves %d exports, ParseEtab keeps %d", n, total)
+			}
+		})
 	}
 }
