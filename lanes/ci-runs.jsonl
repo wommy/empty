@@ -79,3 +79,12 @@
 {"ts":"2026-11-11T18:01Z","run":43070221638,"head":"357ce06","kind":"cache-warm-dispatch","result":"success"}
 {"ts":"2026-11-14T10:30Z","run":43585038472,"job":132417586685,"head":"357ce06","kind":"nightly","result":"FuzzNFSClassifier: unpublish 10.0.0.0/16 on sharenfs ro=*\\\\012 planned as a no-op while the mountd model grants ro. Suspected daemon fail-open (escape decoded by xgettok). Writer launched. needs-triage label still missing."}
 {"ts":"2026-11-14T10:55Z","head":"d9c94ff","kind":"push","note":"sharenfs escape fail-open fix + seed 419ae40e"}
+{"ts":"2026-11-14T10:48Z","run":43586850588,"head":"d9c94ff","kind":"pr","result":"success 5/5, ~51s"}
+{"ts":"2026-11-15T10:57Z","run":43706024387,"head":"d9c94ff","kind":"nightly","result":"success"}
+{"ts":"2026-11-16T11:20Z","head":"d9c94ff","kind":"suite-completed","result":"no failed suite (likely the nightly)"}
+{"ts":"2026-11-17T11:56Z","head":"d9c94ff","kind":"suite-completed","result":"no failed suite (daily nightly)"}
+{"ts":"2026-11-18T11:45Z","head":"d9c94ff","kind":"suite-completed","result":"no failed suite (daily nightly)"}
+{"ts":"2026-11-19T13:36Z","head":"d9c94ff","kind":"suite-completed","result":"no failed suite (daily nightly)"}
+{"t":"2026-11-20T21:21Z","sha":"d9c94ff","event":"check_suite.completed","result":"no failures"}
+{"t":"2026-11-22T00:30Z","sha":"d9c94ff","event":"check_suite.completed","result":"no failures"}
+{"t":"2026-11-23T03:52Z","sha":"d9c94ff","event":"check_suite.completed","result":"no failures"}
